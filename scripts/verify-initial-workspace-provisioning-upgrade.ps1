@@ -3,22 +3,31 @@ param(
     [string] $DatabaseName
 )
 
-# Proves the Initial Workspace Provisioning upgrade path against a real previous-schema database:
-# anchors written by the version before InitialWorkspaceProvisioningRecovery are migrated as
-# outstanding work and are completed by the convergent durable resume path, whether or not the
-# AccessControl assignment already existed.
+# Proves the Initial Workspace Provisioning migration chain and the corrective migration against
+# real databases and a real ApiHost.
+#
+#   A. legacy fabricated anchor plus an existing AccessControl role and assignment;
+#   B. legacy fabricated anchor with no AccessControl assignment;
+#   C. genuinely completed anchor, which must not be reset or replayed;
+#   D. fresh database applying the full migration chain;
+#   E. database that never applied the faulty migration, upgrading across the whole chain.
+#
+# A legacy fabricated anchor is the exact result of 20260824135117_InitialWorkspaceProvisioningRecovery:
+# State = 'Completed' with CompletedAt equal to ProvisionedAt.
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http
 $server = '(localdb)\MSSQLLocalDB'
-$connection = "Server=$server;Database=$DatabaseName;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
 $baseUrl = 'http://127.0.0.1:5090'
 $password = 'Initial-Provisioning-Upgrade!234'
 $jwtKey = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
 $pepper = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
-$accountAssigned = 'upgrade.assigned@example.test'
-$accountUnassigned = 'upgrade.unassigned@example.test'
-$previousMigration = 'InitialWorkspaceProvisioning'
+$recoveryMigration = 'InitialWorkspaceProvisioningRecovery'
+$provisioningMigration = 'InitialWorkspaceProvisioning'
+$correctionMigration = 'InitialWorkspaceProvisioningRecoveryCorrection'
+$correctionDatabase = $DatabaseName
+$freshDatabase = "$($DatabaseName)_Fresh"
+$chainDatabase = "$($DatabaseName)_Chain"
 $temporaryDirectory = New-Item -ItemType Directory -Path ([IO.Path]::Combine([IO.Path]::GetTempPath(), 'unicore-provisioning-upgrade-' + [Guid]::NewGuid().ToString('N')))
 $hostDll = (Resolve-Path "$PSScriptRoot/../src/UnicoreCRM.ApiHost/bin/Debug/net10.0/UnicoreCRM.ApiHost.dll").Path
 $contentRoot = (Resolve-Path "$PSScriptRoot/../src/UnicoreCRM.ApiHost").Path
@@ -28,9 +37,10 @@ $clientHandler.UseCookies = $false
 $client = [System.Net.Http.HttpClient]::new($clientHandler)
 $client.Timeout = [TimeSpan]::FromSeconds(30)
 $checks = [System.Collections.Generic.List[string]]::new()
+$activeDatabase = $DatabaseName
 
-# The frozen server-owned initial capability set. Case A seeds exactly this set, so the convergent
-# AccessControl participant recognises the existing role instead of failing closed.
+# The frozen server-owned initial capability set. Seeded roles use exactly this set so the
+# convergent AccessControl participant recognises them instead of failing closed.
 $initialCapabilities = @(
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'leads.create', 'leads.qualify', 'leads.read', 'leads.update',
@@ -38,8 +48,22 @@ $initialCapabilities = @(
     'workspace.context.resolve'
 )
 
+$ownerContexts = @(
+    @{ Project = 'src/UnicoreCRM.Platform'; Context = 'IdentityAuthDbContext' },
+    @{ Project = 'src/UnicoreCRM.Platform'; Context = 'AccessControlDbContext' },
+    @{ Project = 'src/UnicoreCRM.Operations'; Context = 'TasksDbContext' },
+    @{ Project = 'src/UnicoreCRM.Crm'; Context = 'LeadsDbContext' },
+    @{ Project = 'src/UnicoreCRM.Crm'; Context = 'DealsDbContext' },
+    @{ Project = 'src/UnicoreCRM.Integrations'; Context = 'IntegrationsDbContext' },
+    @{ Project = 'src/UnicoreCRM.PlatformOperations'; Context = 'InboxDbContext' }
+)
+
+function Get-ConnectionString([string] $database) {
+    return "Server=$server;Database=$database;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+}
+
 function Invoke-SqlScalar([string] $query) {
-    $value = & sqlcmd -S $server -d $DatabaseName -h -1 -W -Q "SET NOCOUNT ON; $query"
+    $value = & sqlcmd -S $server -d $activeDatabase -h -1 -W -Q "SET NOCOUNT ON; $query"
     if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed: $query" }
     return (($value | Where-Object { $_.Trim().Length -gt 0 }) -join '').Trim()
 }
@@ -48,7 +72,7 @@ function Invoke-Sql([string] $query) {
     # Routed through a script file so JSON literals containing double quotes survive intact.
     $scriptPath = Join-Path $temporaryDirectory ('seed-' + [Guid]::NewGuid().ToString('N') + '.sql')
     Set-Content -LiteralPath $scriptPath -Value ("SET NOCOUNT ON;`r`n" + $query) -Encoding ascii
-    & sqlcmd -S $server -d $DatabaseName -b -i $scriptPath | Out-Null
+    & sqlcmd -S $server -d $activeDatabase -b -i $scriptPath | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed: $query" }
     Remove-Item -LiteralPath $scriptPath -Force
 }
@@ -73,29 +97,22 @@ function Update-Database([string] $project, [string] $context, [string] $targetM
     if ($LASTEXITCODE -ne 0) { throw "Could not apply migrations for $context." }
 }
 
-function Initialize-PreviousSchema {
-    & sqlcmd -S $server -d master -b -Q "IF DB_ID('$DatabaseName') IS NOT NULL BEGIN ALTER DATABASE [$DatabaseName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DatabaseName]; END; CREATE DATABASE [$DatabaseName];" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Could not create the isolated upgrade database.' }
-    $env:ConnectionStrings__UnicoreCRM = $connection
-    # Every owner is current except Workspace, which stops at the migration immediately before
-    # InitialWorkspaceProvisioningRecovery. That is the real previous schema state.
-    Update-Database 'src/UnicoreCRM.Platform' 'IdentityAuthDbContext'
-    Update-Database 'src/UnicoreCRM.Platform' 'AccessControlDbContext'
-    Update-Database 'src/UnicoreCRM.Operations' 'TasksDbContext'
-    Update-Database 'src/UnicoreCRM.Crm' 'LeadsDbContext'
-    Update-Database 'src/UnicoreCRM.Crm' 'DealsDbContext'
-    Update-Database 'src/UnicoreCRM.Integrations' 'IntegrationsDbContext'
-    Update-Database 'src/UnicoreCRM.PlatformOperations' 'InboxDbContext'
-    Update-Database 'src/UnicoreCRM.Platform' 'WorkspaceDbContext' $previousMigration
-    $columns = [int](Invoke-SqlScalar "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('workspace.InitialProvisioningRecords') AND name IN ('State','CompletedAt');")
-    Assert-True ($columns -eq 0) 'Upgrade: database starts at the previous Workspace schema'
+function New-Database([string] $database) {
+    & sqlcmd -S $server -d master -b -Q "IF DB_ID('$database') IS NOT NULL BEGIN ALTER DATABASE [$database] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$database]; END; CREATE DATABASE [$database];" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated database $database." }
+    $script:activeDatabase = $database
+    $env:ConnectionStrings__UnicoreCRM = Get-ConnectionString $database
+}
+
+function Update-OwnerDatabases {
+    foreach ($entry in $ownerContexts) { Update-Database $entry.Project $entry.Context }
 }
 
 function Set-HostEnvironment([string] $identityEmail, [bool] $resumeEnabled) {
     $env:ASPNETCORE_ENVIRONMENT = 'Development'
     $env:DOTNET_ENVIRONMENT = 'Development'
     $env:ASPNETCORE_URLS = $baseUrl
-    $env:ConnectionStrings__UnicoreCRM = $connection
+    $env:ConnectionStrings__UnicoreCRM = Get-ConnectionString $activeDatabase
     $env:IdentityAuth__Jwt__SigningKey = $jwtKey
     $env:IdentityAuth__RefreshTokenPepper = $pepper
     $env:IdentityAuth__DevelopmentBootstrap__Enabled = 'true'
@@ -176,62 +193,61 @@ function Get-Token([string] $email) {
     return ($response.Body | ConvertFrom-Json).accessToken
 }
 
-function Get-AccountId([string] $email) {
-    return Invoke-SqlScalar "SELECT AccountId FROM iam.Accounts WHERE NormalizedEmail='$($email.ToUpperInvariant())';"
+function New-Accounts([string[]] $emails) {
+    foreach ($email in $emails) {
+        $process = Start-ApiHost $email $false
+        Stop-ApiHost $process
+    }
 }
 
-function Get-MemberId([string] $email) {
-    return Invoke-SqlScalar "SELECT MemberId FROM iam.Accounts WHERE NormalizedEmail='$($email.ToUpperInvariant())';"
-}
-
-function New-PreviousVersionState([string] $email, [string] $keySuffix, [bool] $seedAccessAssignment) {
-    # Realistic state written by the previous version: Workspace, ACTIVE creator membership,
-    # configuration seed and provisioning anchor, all at the previous schema.
-    $accountId = Get-AccountId $email
-    $memberId = Get-MemberId $email
+function New-SeededAnchor([string] $email, [string] $keySuffix, [bool] $seedAccessAssignment, [int] $completionOffsetSeconds) {
+    # Realistic provisioned state: Workspace, ACTIVE creator membership, configuration seed and
+    # anchor. A completion offset of zero reproduces the legacy fabricated signature exactly.
+    $accountId = Invoke-SqlScalar "SELECT AccountId FROM iam.Accounts WHERE NormalizedEmail='$($email.ToUpperInvariant())';"
+    $memberId = Invoke-SqlScalar "SELECT MemberId FROM iam.Accounts WHERE NormalizedEmail='$($email.ToUpperInvariant())';"
     $suffix = [Guid]::NewGuid().ToString('N')
     $workspaceId = "ws_$suffix"
     $membershipId = "wsm_$suffix"
     $workspaceKey = "upgrade-$keySuffix-$($suffix.Substring(0, 8))"
-    $now = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffffff+00:00')
-    $capabilitiesJson = '[]'
-    $modulesJson = '["leads","deals","tasks"]'
-    $spacesJson = '["crm"]'
-    Invoke-Sql "INSERT INTO workspace.Workspaces (WorkspaceId,[Key],Name,LogoText,CreatedAt) VALUES ('$workspaceId','$workspaceKey','Upgrade $keySuffix Workspace','UP','$now');"
-    Invoke-Sql "INSERT INTO workspace.Memberships (MembershipId,WorkspaceId,AccountId,MemberId,Status,CreatedAt) VALUES ('$membershipId','$workspaceId','$accountId','$memberId','Active','$now');"
-    Invoke-Sql "INSERT INTO workspace.BootstrapProjections (WorkspaceId,ContextVersion,ConfigurationVersion,Locale,TimeZone,BaseCurrency,CapabilitiesJson,EnabledModuleKeysJson,AvailableProductSpacesJson) VALUES ('$workspaceId',0,0,'en','UTC','USD','$capabilitiesJson','$modulesJson','$spacesJson');"
-    Invoke-Sql "INSERT INTO workspace.InitialProvisioningRecords (AccountId,MemberId,WorkspaceId,MembershipId,IdempotencyKey,RequestFingerprint,ProvisionedAt) VALUES ('$accountId','$memberId','$workspaceId','$membershipId','idem-previous-version-$keySuffix','$(('0' * 64))','$now');"
+    $provisionedAt = (Get-Date).ToUniversalTime().AddMinutes(-10)
+    $provisionedAtText = $provisionedAt.ToString('yyyy-MM-ddTHH:mm:ss.fffffff+00:00')
+    $completedAtText = $provisionedAt.AddSeconds($completionOffsetSeconds).ToString('yyyy-MM-ddTHH:mm:ss.fffffff+00:00')
+    Invoke-Sql "INSERT INTO workspace.Workspaces (WorkspaceId,[Key],Name,LogoText,CreatedAt) VALUES ('$workspaceId','$workspaceKey','Upgrade $keySuffix Workspace','UP','$provisionedAtText');"
+    Invoke-Sql "INSERT INTO workspace.Memberships (MembershipId,WorkspaceId,AccountId,MemberId,Status,CreatedAt) VALUES ('$membershipId','$workspaceId','$accountId','$memberId','Active','$provisionedAtText');"
+    Invoke-Sql "INSERT INTO workspace.BootstrapProjections (WorkspaceId,ContextVersion,ConfigurationVersion,Locale,TimeZone,BaseCurrency,CapabilitiesJson,EnabledModuleKeysJson,AvailableProductSpacesJson) VALUES ('$workspaceId',0,0,'en','UTC','USD','[]','[""leads"",""deals"",""tasks""]','[""crm""]');"
+    Invoke-Sql "INSERT INTO workspace.InitialProvisioningRecords (AccountId,MemberId,WorkspaceId,MembershipId,IdempotencyKey,RequestFingerprint,State,CompletedAt,ProvisionedAt) VALUES ('$accountId','$memberId','$workspaceId','$membershipId','idem-legacy-$keySuffix','$(('0' * 64))','Completed','$completedAtText','$provisionedAtText');"
 
     $roleId = $null
     $assignmentId = $null
     if ($seedAccessAssignment) {
         $roleId = "role_$suffix"
         $assignmentId = "assignment_$suffix"
-        Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$roleId','$workspaceId','Workspace Owner','Initial Workspace provisioning role for the account that created this Workspace.',NULL,1,0,'$now','$now');"
+        Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$roleId','$workspaceId','Workspace Owner','Initial Workspace provisioning role for the account that created this Workspace.',NULL,1,0,'$provisionedAtText','$provisionedAtText');"
         foreach ($capability in $initialCapabilities) {
             Invoke-Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$roleId','$capability');"
         }
-        Invoke-Sql "INSERT INTO access.MembershipRoleAssignments (AssignmentId,WorkspaceId,MembershipId,RoleId,AssignedAt) VALUES ('$assignmentId','$workspaceId','$membershipId','$roleId','$now');"
+        Invoke-Sql "INSERT INTO access.MembershipRoleAssignments (AssignmentId,WorkspaceId,MembershipId,RoleId,AssignedAt) VALUES ('$assignmentId','$workspaceId','$membershipId','$roleId','$provisionedAtText');"
     }
 
     return [pscustomobject] @{
         Email = $email
         AccountId = $accountId
-        MemberId = $memberId
         WorkspaceId = $workspaceId
-        WorkspaceKey = $workspaceKey
         MembershipId = $membershipId
         RoleId = $roleId
         AssignmentId = $assignmentId
+        CompletedAtText = $completedAtText
     }
 }
 
-function Wait-ProvisioningState([string] $accountId, [string] $expectedState, [int] $timeoutSeconds = 60) {
+function Get-AnchorState([string] $accountId) {
+    return Invoke-SqlScalar "SELECT State FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountId';"
+}
+
+function Wait-AnchorState([string] $accountId, [string] $expectedState, [int] $timeoutSeconds = 60) {
     $deadline = (Get-Date).AddSeconds($timeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        if ((Invoke-SqlScalar "SELECT State FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountId';") -eq $expectedState) {
-            return $true
-        }
+        if ((Get-AnchorState $accountId) -eq $expectedState) { return $true }
         Start-Sleep -Milliseconds 500
     }
     return $false
@@ -263,67 +279,114 @@ function Assert-SingleState($state, [string] $label) {
 
 $hostProcess = $null
 try {
-    Initialize-PreviousSchema
-
-    # The previous version's accounts have to exist before the recovery migration runs. The
-    # Workspace Development bootstrap and the resume pass stay disabled so nothing touches the
-    # previous-schema Workspace tables through the current model.
-    foreach ($email in @($accountAssigned, $accountUnassigned)) {
-        $hostProcess = Start-ApiHost $email $false
-        Stop-ApiHost $hostProcess
-        $hostProcess = $null
-    }
-    $checks.Add('Upgrade: previous-version accounts created=PASS')
-
-    # A. anchor plus an existing AccessControl role and assignment.
-    # B. anchor with no AccessControl assignment at all.
-    $stateA = New-PreviousVersionState $accountAssigned 'assigned' $true
-    $stateB = New-PreviousVersionState $accountUnassigned 'unassigned' $false
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateA.WorkspaceId)';") -eq 1) 'A: previous version left an access assignment'
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateB.WorkspaceId)';") -eq 0) 'B: previous version left no access assignment'
-
-    # Apply only the recovery migration.
+    # ---------------------------------------------------------------- D. fresh full chain
+    New-Database $freshDatabase
+    Update-OwnerDatabases
     Update-Database 'src/UnicoreCRM.Platform' 'WorkspaceDbContext'
-    $checks.Add('Upgrade: recovery migration applied=PASS')
+    $appliedChain = Invoke-SqlScalar "SELECT MigrationId FROM workspace.__EFMigrationsHistory WHERE MigrationId LIKE '%InitialWorkspaceProvisioning%' ORDER BY MigrationId;"
+    Assert-True ($appliedChain -like "*$provisioningMigration*") 'D: fresh chain applied the provisioning migration'
+    Assert-True ($appliedChain -like "*$recoveryMigration*") 'D: fresh chain applied the recovery migration'
+    Assert-True ($appliedChain -like "*$correctionMigration*") 'D: fresh chain applied the correction migration'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('workspace.InitialProvisioningRecords') AND name IN ('State','CompletedAt');") -eq 2) 'D: fresh chain produced the current anchor schema'
+    Assert-True ([int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.InitialProvisioningRecords;') -eq 0) 'D: fresh chain leaves no anchors'
+
+    # ---------------------------------------------------------------- A / B / C. correction
+    # Build the database at the schema state that already applied the faulty recovery migration.
+    New-Database $correctionDatabase
+    Update-OwnerDatabases
+    Update-Database 'src/UnicoreCRM.Platform' 'WorkspaceDbContext' $recoveryMigration
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.__EFMigrationsHistory WHERE MigrationId LIKE '%$correctionMigration';") -eq '0') 'Correction: database starts before the corrective migration'
+
+    $emailA = 'upgrade.legacy.assigned@example.test'
+    $emailB = 'upgrade.legacy.unassigned@example.test'
+    $emailC = 'upgrade.genuine.completed@example.test'
+    New-Accounts @($emailA, $emailB, $emailC)
+    $checks.Add('Correction: previous-version accounts created=PASS')
+
+    # A and B carry the legacy fabricated signature; C carries a real completion time.
+    $stateA = New-SeededAnchor $emailA 'legacy-assigned' $true 0
+    $stateB = New-SeededAnchor $emailB 'legacy-unassigned' $false 0
+    $stateC = New-SeededAnchor $emailC 'genuine-completed' $true 5
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateA.WorkspaceId)';") -eq 1) 'A: legacy anchor has an existing access assignment'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateB.WorkspaceId)';") -eq 0) 'B: legacy anchor has no access assignment'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE State='Completed' AND CompletedAt=ProvisionedAt;") -eq 2) 'Correction: exactly the two legacy anchors carry the fabricated signature'
+
+    Update-Database 'src/UnicoreCRM.Platform' 'WorkspaceDbContext'
+    $checks.Add('Correction: corrective migration applied=PASS')
     foreach ($pair in @(@{ Label = 'A'; State = $stateA }, @{ Label = 'B'; State = $stateB })) {
         $accountId = $pair.State.AccountId
-        Assert-True ((Invoke-SqlScalar "SELECT State FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountId';") -eq 'AccessPending') "$($pair.Label): migrated anchor is AccessPending"
-        Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountId' AND CompletedAt IS NULL;") -eq '1') "$($pair.Label): migrated anchor has no completion time"
+        Assert-True ((Get-AnchorState $accountId) -eq 'AccessPending') "$($pair.Label): legacy anchor corrected to AccessPending"
+        Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountId' AND CompletedAt IS NULL;") -eq '1') "$($pair.Label): corrected anchor has no completion time"
     }
+    Assert-True ((Get-AnchorState $stateC.AccountId) -eq 'Completed') 'C: genuinely completed anchor was not reset'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateC.AccountId)' AND CompletedAt IS NOT NULL;") -eq '1') 'C: genuine completion time was preserved'
+    $completedAtC = Invoke-SqlScalar "SELECT CONVERT(varchar(33), CompletedAt, 126) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateC.AccountId)';"
 
-    # Start the current host with the resume pass enabled. Convergence must need no client action.
-    $hostProcess = Start-ApiHost $accountAssigned $true
-    Assert-True (Wait-ProvisioningState $stateA.AccountId 'Completed') 'A: durable resume completed the migrated anchor'
-    Assert-True (Wait-ProvisioningState $stateB.AccountId 'Completed') 'B: durable resume completed the migrated anchor'
+    # The current host with the durable resume path enabled must converge A and B without any
+    # client action and must not touch C.
+    $hostProcess = Start-ApiHost $emailA $true
+    Assert-True (Wait-AnchorState $stateA.AccountId 'Completed') 'A: durable resume completed the corrected anchor'
+    Assert-True (Wait-AnchorState $stateB.AccountId 'Completed') 'B: durable resume completed the corrected anchor'
+    Assert-True ((Invoke-SqlScalar "SELECT CONVERT(varchar(33), CompletedAt, 126) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateC.AccountId)';") -eq $completedAtC) 'C: genuine anchor was never replayed'
 
     Assert-RuntimeUsable $stateA 'A:'
     Assert-RuntimeUsable $stateB 'B:'
+    Assert-RuntimeUsable $stateC 'C:'
     Assert-SingleState $stateA 'A:'
     Assert-SingleState $stateB 'B:'
-
-    # A: the existing role and assignment must be reused, not replaced or duplicated.
+    Assert-SingleState $stateC 'C:'
     Assert-True ((Invoke-SqlScalar "SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($stateA.WorkspaceId)';") -eq $stateA.RoleId) 'A: the pre-existing role identity was preserved'
     Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateA.WorkspaceId)';") -eq $stateA.AssignmentId) 'A: the pre-existing assignment identity was preserved'
-
-    # B: the missing assignment must have been created exactly once.
     Assert-True ((Invoke-SqlScalar "SELECT MembershipId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateB.WorkspaceId)';") -eq $stateB.MembershipId) 'B: the created assignment targets the creator membership'
     Assert-True ((Invoke-SqlScalar "SELECT Name FROM access.Roles WHERE WorkspaceId='$($stateB.WorkspaceId)';") -eq 'Workspace Owner') 'B: the created role is the server-owned initial role'
+    Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateC.WorkspaceId)';") -eq $stateC.AssignmentId) 'C: the untouched assignment identity was preserved'
 
-    # A second resume window must not add anything.
     Start-Sleep -Seconds 5
     Assert-SingleState $stateA 'A (after another resume window):'
     Assert-SingleState $stateB 'B (after another resume window):'
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE State<>'Completed';") -eq 0) 'Upgrade: no outstanding provisioning remains'
-    Assert-True ([int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.Workspaces;') -eq 2) 'Upgrade: exactly the two migrated Workspaces exist'
+    Assert-SingleState $stateC 'C (after another resume window):'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE State<>'Completed';") -eq 0) 'Correction: no outstanding provisioning remains'
+    Stop-ApiHost $hostProcess
+    $hostProcess = $null
+
+    # ---------------------------------------------------------------- E. never applied the faulty migration
+    New-Database $chainDatabase
+    Update-OwnerDatabases
+    Update-Database 'src/UnicoreCRM.Platform' 'WorkspaceDbContext' $provisioningMigration
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('workspace.InitialProvisioningRecords') AND name IN ('State','CompletedAt');") -eq 0) 'E: database starts before the recovery migration'
+    $emailE = 'upgrade.prerecovery@example.test'
+    New-Accounts @($emailE)
+    $accountE = Invoke-SqlScalar "SELECT AccountId FROM iam.Accounts WHERE NormalizedEmail='$($emailE.ToUpperInvariant())';"
+    $memberE = Invoke-SqlScalar "SELECT MemberId FROM iam.Accounts WHERE NormalizedEmail='$($emailE.ToUpperInvariant())';"
+    $suffixE = [Guid]::NewGuid().ToString('N')
+    $workspaceE = "ws_$suffixE"
+    $membershipE = "wsm_$suffixE"
+    $nowE = (Get-Date).ToUniversalTime().AddMinutes(-10).ToString('yyyy-MM-ddTHH:mm:ss.fffffff+00:00')
+    Invoke-Sql "INSERT INTO workspace.Workspaces (WorkspaceId,[Key],Name,LogoText,CreatedAt) VALUES ('$workspaceE','upgrade-prerecovery-$($suffixE.Substring(0,8))','Upgrade Pre Recovery Workspace','UP','$nowE');"
+    Invoke-Sql "INSERT INTO workspace.Memberships (MembershipId,WorkspaceId,AccountId,MemberId,Status,CreatedAt) VALUES ('$membershipE','$workspaceE','$accountE','$memberE','Active','$nowE');"
+    Invoke-Sql "INSERT INTO workspace.BootstrapProjections (WorkspaceId,ContextVersion,ConfigurationVersion,Locale,TimeZone,BaseCurrency,CapabilitiesJson,EnabledModuleKeysJson,AvailableProductSpacesJson) VALUES ('$workspaceE',0,0,'en','UTC','USD','[]','[""leads"",""deals"",""tasks""]','[""crm""]');"
+    Invoke-Sql "INSERT INTO workspace.InitialProvisioningRecords (AccountId,MemberId,WorkspaceId,MembershipId,IdempotencyKey,RequestFingerprint,ProvisionedAt) VALUES ('$accountE','$memberE','$workspaceE','$membershipE','idem-prerecovery','$(('0' * 64))','$nowE');"
+
+    Update-Database 'src/UnicoreCRM.Platform' 'WorkspaceDbContext'
+    Assert-True ((Get-AnchorState $accountE) -eq 'AccessPending') 'E: the whole chain leaves the pre-recovery anchor as outstanding work'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountE' AND CompletedAt IS NULL;") -eq '1') 'E: the pre-recovery anchor has no completion time'
+    $stateE = [pscustomobject] @{ Email = $emailE; AccountId = $accountE; WorkspaceId = $workspaceE; MembershipId = $membershipE }
+    $hostProcess = Start-ApiHost $emailE $true
+    Assert-True (Wait-AnchorState $accountE 'Completed') 'E: durable resume completed the pre-recovery anchor'
+    Assert-RuntimeUsable $stateE 'E:'
+    Assert-SingleState $stateE 'E:'
     Stop-ApiHost $hostProcess
     $hostProcess = $null
 
     [pscustomobject] @{
         Status = 'PASS'
-        Database = $DatabaseName
-        PreviousMigration = $previousMigration
-        AssignedWorkspace = $stateA.WorkspaceId
-        UnassignedWorkspace = $stateB.WorkspaceId
+        CorrectionDatabase = $correctionDatabase
+        FreshDatabase = $freshDatabase
+        ChainDatabase = $chainDatabase
+        LegacyAssignedWorkspace = $stateA.WorkspaceId
+        LegacyUnassignedWorkspace = $stateB.WorkspaceId
+        GenuinelyCompletedWorkspace = $stateC.WorkspaceId
+        PreRecoveryWorkspace = $workspaceE
         Checks = $checks
     } | ConvertTo-Json -Depth 6
 }

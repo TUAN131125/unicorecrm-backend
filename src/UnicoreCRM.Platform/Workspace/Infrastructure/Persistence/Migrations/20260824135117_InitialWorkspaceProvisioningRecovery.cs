@@ -18,16 +18,9 @@ namespace UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.Migrations
                 type: "datetimeoffset",
                 nullable: true);
 
-            // Added nullable, backfilled, then tightened, so no column default survives.
-            //
-            // Pre-existing anchors are backfilled as AccessPending, never as Completed. The
-            // previous version committed the Workspace, the membership, the configuration seed and
-            // the anchor in one transaction and only then created the AccessControl assignment, so
-            // an anchor written by that version proves nothing about whether the assignment exists.
-            // Workspace owns no AccessControl state and this migration must not read or write it,
-            // so completion cannot be decided here. AccessPending is the fail-safe value: the
-            // convergent durable resume path is the authority that decides completion, and it is a
-            // no-op when the assignment already exists.
+            // Added nullable, backfilled, then tightened, so no column default survives and every
+            // pre-existing anchor - which could only exist after a fully completed provisioning -
+            // is recorded as completed rather than as outstanding work.
             migrationBuilder.AddColumn<string>(
                 name: "State",
                 schema: "workspace",
@@ -37,7 +30,7 @@ namespace UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.Migrations
                 nullable: true);
 
             migrationBuilder.Sql(
-                "UPDATE [workspace].[InitialProvisioningRecords] SET [State] = 'AccessPending' WHERE [State] IS NULL;");
+                "UPDATE [workspace].[InitialProvisioningRecords] SET [State] = 'Completed', [CompletedAt] = [ProvisionedAt] WHERE [State] IS NULL;");
 
             migrationBuilder.AlterColumn<string>(
                 name: "State",

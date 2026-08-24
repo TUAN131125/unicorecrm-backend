@@ -303,20 +303,63 @@ Recovery is server-driven and deterministic:
 `listMyWorkspaces` and `getWorkspaceBootstrap` are unchanged. Neither consults the anchor, and
 neither gained recovery logic.
 
-### Upgrade from the pre-anchor-state version
+### Upgrade and migration history
 
-The `InitialWorkspaceProvisioningRecovery` migration adds `State` and `CompletedAt` and backfills
-every pre-existing anchor as **`AccessPending`**, never as `Completed`.
+**A published migration is immutable.** Once a migration ID may exist in any
+`__EFMigrationsHistory` table, its file is never edited, renamed, reordered or reused. A database
+that already ran it will not run it again, so editing the file in place would silently leave that
+database in a state the repository no longer describes. Defects in a published migration are
+repaired by a new migration, never by rewriting the old one.
 
-That is deliberate. The version that wrote those anchors committed the Workspace, the membership,
-the configuration seed and the anchor in one transaction and only then created the AccessControl
-assignment, so an anchor written by that version proves nothing about whether the assignment
-exists. Workspace owns no AccessControl state and the migration must not read or write it, so
-completion cannot be decided in the migration at all. `AccessPending` is the fail-safe value: it
-hands the decision to the convergent resume path, which is the only component allowed to ask
-AccessControl.
+The Workspace chain is therefore:
 
-On the first start after upgrading, the resume pass therefore visits every migrated anchor:
+| Order | Migration | Kind |
+|---|---|---|
+| 1 | `20260823110217_InitialWorkspace` | schema |
+| 2 | `20260824130455_InitialWorkspaceProvisioning` | schema: the provisioning anchor table |
+| 3 | `20260824135117_InitialWorkspaceProvisioningRecovery` | schema: `State` and `CompletedAt`, plus a backfill that is now superseded |
+| 4 | `20260824145451_InitialWorkspaceProvisioningRecoveryCorrection` | data-only correction |
+
+Migration 3 added `State` and `CompletedAt` and backfilled every pre-existing anchor as
+`State = 'Completed', CompletedAt = ProvisionedAt`. That backfill was wrong. The version that wrote
+those anchors committed the Workspace, the membership, the configuration seed and the anchor in one
+transaction and only then created the AccessControl assignment, so such an anchor proves nothing
+about whether the assignment exists. Declaring it complete fabricated a fact the Workspace owner
+cannot know, and any account whose assignment was in fact missing would have been left permanently
+unable to bootstrap. Migration 3 is preserved exactly as published, and migration 4 repairs the rows
+it fabricated.
+
+Migration 4 is data-only; the model is unchanged and the snapshot is untouched. It rewrites only the
+legacy signature:
+
+```sql
+UPDATE [workspace].[InitialProvisioningRecords]
+SET [State] = 'AccessPending',
+    [CompletedAt] = NULL
+WHERE [State] = 'Completed'
+  AND [CompletedAt] = [ProvisionedAt];
+```
+
+**The Workspace migration never inspects AccessControl persistence.** Workspace owns no
+AccessControl state, so completion cannot be decided in a migration at all. All the correction does
+is return ambiguous rows to outstanding work; the durable resume path is the only component allowed
+to ask AccessControl, and it decides completion through the approved contract.
+
+The statement is safe in every case:
+
+- a **genuine completion** writes its own completion time in a later transaction, so `CompletedAt`
+  differs from `ProvisionedAt` and the row is untouched;
+- an anchor that is already `AccessPending` has a `NULL` `CompletedAt`, which the equality excludes;
+- an anchor created after the correction ran is never affected;
+- re-running the statement is a no-op, because repaired rows no longer match;
+- on a fresh database the anchor table is empty and the correction does nothing.
+
+`Down` is deliberately empty: reverting would have to re-fabricate the completion fact this
+migration exists to remove.
+
+On the first start after upgrading, the resume pass visits every anchor the correction returned to
+outstanding work, and every anchor left outstanding by migration 3 on a database that had not yet
+run it:
 
 - if the assignment already exists, the AccessControl participant converges to the existing role and
   assignment, creates nothing, and the anchor is marked `Completed`;
@@ -324,6 +367,11 @@ On the first start after upgrading, the resume pass therefore visits every migra
 
 Either way the account ends with exactly one Workspace, membership, configuration seed, role,
 assignment and anchor, and later resume passes change nothing.
+
+In the residual case where a genuine completion happened inside the same clock tick as provisioning
+and so matches the legacy signature, the correction is still safe rather than merely unlikely: the
+anchor is returned to outstanding work and the next resume pass converges on the existing role and
+assignment without creating duplicate state.
 
 ### Idempotency semantics
 
@@ -371,7 +419,8 @@ the full lifecycle, including Development-only fault injection for the partial-f
 path, against a real ApiHost and a real isolated database.
 
 `backend/scripts/verify-initial-workspace-provisioning-upgrade.ps1 -DatabaseName <isolated database>`
-runs the upgrade path: it builds a real database at the schema state before
-`InitialWorkspaceProvisioningRecovery`, seeds previous-version provisioning state both with and
-without an existing AccessControl assignment, applies only the recovery migration, and proves that
-both anchors migrate as `AccessPending` and converge to `Completed` with no duplicate state.
+runs the migration-chain and correction paths against real databases and a real ApiHost. It covers a
+legacy fabricated anchor whose access assignment already exists, a legacy fabricated anchor whose
+assignment is missing, a genuinely completed anchor that must not be reset or replayed, a fresh
+database applying the whole chain, and a database that never ran the faulty migration and upgrades
+across the whole chain at once.
