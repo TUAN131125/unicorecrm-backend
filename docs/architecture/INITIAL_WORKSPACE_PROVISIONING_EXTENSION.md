@@ -303,22 +303,49 @@ Recovery is server-driven and deterministic:
 `listMyWorkspaces` and `getWorkspaceBootstrap` are unchanged. Neither consults the anchor, and
 neither gained recovery logic.
 
+### Upgrade from the pre-anchor-state version
+
+The `InitialWorkspaceProvisioningRecovery` migration adds `State` and `CompletedAt` and backfills
+every pre-existing anchor as **`AccessPending`**, never as `Completed`.
+
+That is deliberate. The version that wrote those anchors committed the Workspace, the membership,
+the configuration seed and the anchor in one transaction and only then created the AccessControl
+assignment, so an anchor written by that version proves nothing about whether the assignment
+exists. Workspace owns no AccessControl state and the migration must not read or write it, so
+completion cannot be decided in the migration at all. `AccessPending` is the fail-safe value: it
+hands the decision to the convergent resume path, which is the only component allowed to ask
+AccessControl.
+
+On the first start after upgrading, the resume pass therefore visits every migrated anchor:
+
+- if the assignment already exists, the AccessControl participant converges to the existing role and
+  assignment, creates nothing, and the anchor is marked `Completed`;
+- if the assignment is missing, it is created exactly once and the anchor is marked `Completed`.
+
+Either way the account ends with exactly one Workspace, membership, configuration seed, role,
+assignment and anchor, and later resume passes change nothing.
+
 ### Idempotency semantics
 
-These are the exact supported semantics. Two rules govern precedence:
+These are the exact supported semantics. Three rules govern precedence, in this order:
 
-1. **The account-scoped lifecycle decision precedes idempotency comparison.** An account whose
+1. **Request validation precedes every replay rule.** Header and body validation runs first, so a
+   request carrying values that violate the contract - an unsupported locale, an over-long name, an
+   unknown member, an oversized body - returns `422 VALIDATION_FAILED` even when the account has
+   already been provisioned. Replay semantics apply only to contract-valid requests.
+2. **The account-scoped lifecycle decision precedes idempotency comparison.** An account whose
    Workspace access did not come from initial provisioning has no anchor, so it always receives
    `409 WORKSPACE_ALREADY_PROVISIONED` regardless of the supplied key or values.
-2. **On any replay the stored provisioning is authoritative and the supplied setup values are
+3. **On any replay the stored provisioning is authoritative and the supplied setup values are
    ignored.** A replay never renames, reconfigures or otherwise rewrites the existing Workspace.
 
 | Situation | Result |
 |---|---|
 | First call for a zero-workspace account | `201`, `PROVISIONED` |
+| Request values that violate the contract, at any point | `422 VALIDATION_FAILED`, nothing created |
 | Retry with the same key and the same effective values | `200`, `REPLAYED`, same Workspace |
 | Retry with the same key and different effective values | `409 IDEMPOTENCY_KEY_REUSED` |
-| Retry with a different key, any values | `200`, `REPLAYED`, same Workspace, supplied values ignored |
+| Retry with a different key and any contract-valid setup values | `200`, `REPLAYED`, same Workspace, supplied values ignored |
 | Retry while the anchor is `AccessPending` | step two runs, then `200`, `REPLAYED` |
 | Concurrent double submit | exactly one `201`, every other request `200`, one Workspace |
 | Account whose Workspace access came from elsewhere | `409 WORKSPACE_ALREADY_PROVISIONED`, nothing created |
@@ -340,4 +367,11 @@ them is unblocked by this extension.
 ## Reproducible verification
 
 `backend/scripts/verify-initial-workspace-provisioning.ps1 -DatabaseName <isolated database>` runs
-the full lifecycle against a real ApiHost and a real isolated database.
+the full lifecycle, including Development-only fault injection for the partial-failure recovery
+path, against a real ApiHost and a real isolated database.
+
+`backend/scripts/verify-initial-workspace-provisioning-upgrade.ps1 -DatabaseName <isolated database>`
+runs the upgrade path: it builds a real database at the schema state before
+`InitialWorkspaceProvisioningRecovery`, seeds previous-version provisioning state both with and
+without an existing AccessControl assignment, applies only the recovery migration, and proves that
+both anchors migrate as `AccessPending` and converge to `Completed` with no duplicate state.
