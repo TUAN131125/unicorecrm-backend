@@ -18,7 +18,7 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
         if (!LeadValidation.IsEntityId(command.LeadId))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["leadId"] = ["leadId is not a valid entity identifier."] }));
-        if (!LeadValidation.TryAdvance(command.Request, out var target, out var verification, out var fields))
+        if (!AdvanceLeadWorkStateValidation.TryAdvance(command.Request, out var target, out var verification, out var fields))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(fields));
         var fingerprint = LeadCommandSupport.Fingerprint(new { command.LeadId, target, verification, command.Metadata.ExpectedVersion });
         return await execution.ExecuteAsync(
@@ -32,7 +32,7 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
             {
                 LeadTransitionResult.Succeeded => null,
                 LeadTransitionResult.ProfileIncomplete => LeadErrors.ProgressiveProfile(
-                    LeadValidation.ProgressiveProfileErrors(lead.Profile.WithVerification(verification))),
+                    AdvanceLeadWorkStateValidation.ProgressiveProfileErrors(lead.Profile.WithVerification(verification))),
                 _ => LeadErrors.InvalidTransition(lead.LeadId)
             },
             null,

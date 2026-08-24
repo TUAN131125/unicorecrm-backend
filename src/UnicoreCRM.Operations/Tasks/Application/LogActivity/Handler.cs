@@ -16,7 +16,7 @@ internal sealed class Handler(
         var access = await authorization.AuthorizeAsync(TaskCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<ActivityMutationResponse>.Failure(access.Error!);
-        if (!TaskValidation.TryActivity(command.Request, out var input, out var fields))
+        if (!LogActivityValidation.TryActivity(command.Request, out var input, out var fields))
             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(fields));
         var trusted = access.Value!;
         var fingerprint = TaskCommandSupport.Fingerprint(input);

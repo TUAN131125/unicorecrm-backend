@@ -73,22 +73,3 @@ internal static class EffectiveAuthorizationPolicy
         return result;
     }
 }
-
-internal static class AccessPolicyWireValues
-{
-    internal static string ToWireValue(this AccessDataScope scope) => scope switch
-    {
-        AccessDataScope.Own => "OWN",
-        AccessDataScope.Team => "TEAM",
-        AccessDataScope.Workspace => "WORKSPACE",
-        _ => "CUSTOM"
-    };
-
-    internal static string ToWireValue(this AccessFieldAccess access) => access switch
-    {
-        AccessFieldAccess.Masked => "MASKED",
-        AccessFieldAccess.ReadOnly => "READ_ONLY",
-        AccessFieldAccess.ReadWrite => "READ_WRITE",
-        _ => "HIDDEN"
-    };
-}

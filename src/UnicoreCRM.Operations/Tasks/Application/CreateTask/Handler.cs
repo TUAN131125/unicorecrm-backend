@@ -18,7 +18,7 @@ internal sealed class Handler(
         var access = await authorization.AuthorizeAsync(TaskCapabilities.Create, command.Metadata.CorrelationId, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<TaskMutationResponse>.Failure(access.Error!);
-        if (!TaskValidation.TryCreate(command.Request, out var input, out var fields))
+        if (!CreateTaskValidation.TryCreate(command.Request, out var input, out var fields))
             return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.Validation(fields));
         var trusted = access.Value!;
         if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, input!.AssigneeId, cancellationToken))

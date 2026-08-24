@@ -27,7 +27,7 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             fingerprint,
             (deal, now) =>
             {
-                DealValidation.TryProfile(
+                ReplaceDealProfileValidation.TryProfile(
                     command.Request,
                     deal.Profile.OpportunityScore,
                     deal.Profile.OwnerId,

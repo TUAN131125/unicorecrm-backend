@@ -6,6 +6,10 @@ using UnicoreCRM.Crm.Leads.Domain;
 
 namespace UnicoreCRM.Crm.Leads.Application.Common;
 
+/// <summary>
+/// Field-level validation shared by more than one Leads slice. Request-shaped validation
+/// for a single operation belongs to that operation's slice.
+/// </summary>
 internal static partial class LeadValidation
 {
     internal static bool TryProfile(
@@ -110,58 +114,7 @@ internal static partial class LeadValidation
         return true;
     }
 
-    internal static bool TryAdvance(
-        AdvanceLeadWorkStateRequest request,
-        out LeadWorkState target,
-        out LeadVerificationProfile verification,
-        out IReadOnlyDictionary<string, string[]> errors)
-    {
-        var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        target = request.TargetWorkState switch
-        {
-            "CONTACTING" => LeadWorkState.Contacting,
-            "VERIFYING" => LeadWorkState.Verifying,
-            _ => InvalidTarget(fields)
-        };
-        if (target != LeadWorkState.Verifying && request.VerificationProfile is not null)
-            fields["verificationProfile"] = ["verificationProfile is accepted only when targetWorkState is VERIFYING."];
-        verification = new LeadVerificationProfile(
-            Text(request.VerificationProfile?.CompanyName, "verificationProfile.companyName", 0, 240, false, fields),
-            Text(request.VerificationProfile?.PainPoint, "verificationProfile.painPoint", 0, 4000, false, fields),
-            Utc(request.VerificationProfile?.NextFollowUpAt, "verificationProfile.nextFollowUpAt", false, fields));
-        errors = fields;
-        return fields.Count == 0;
-    }
-
-    internal static bool TryDisqualify(
-        DisqualifyLeadRequest request,
-        out string? reason,
-        out string? evidence,
-        out IReadOnlyDictionary<string, string[]> errors)
-    {
-        var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        reason = Text(request.Reason, "reason", 1, 1000, true, fields);
-        evidence = Text(request.Evidence, "evidence", 1, 4000, true, fields);
-        errors = fields;
-        return fields.Count == 0;
-    }
-
     internal static bool IsEntityId(string? value) => value is not null && EntityIdPattern().IsMatch(value);
-
-    internal static IReadOnlyDictionary<string, string[]> ProgressiveProfileErrors(LeadProfile profile)
-    {
-        var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        if (profile.DisplayName.Length == 0)
-            fields["displayName"] = ["displayName is required for this Lead state."];
-        if (profile.OwnerId.Length == 0)
-            fields["ownerId"] = ["ownerId is required for this Lead state."];
-        if (!new[] { profile.Phone, profile.WorkPhone, profile.OtherPhone, profile.Email, profile.PersonalEmail, profile.ZaloId, profile.Facebook }
-            .Any(value => !string.IsNullOrWhiteSpace(value)))
-        {
-            fields["contactChannel"] = ["At least one Lead contact channel is required for this Lead state."];
-        }
-        return fields;
-    }
 
     private static IReadOnlyList<LeadInterestedProduct> InterestedProducts(
         IReadOnlyList<LeadInterestedProductInput>? input,
@@ -281,7 +234,7 @@ internal static partial class LeadValidation
         return input;
     }
 
-    private static string? Text(
+    internal static string? Text(
         string? input,
         string field,
         int minimum,
@@ -309,7 +262,7 @@ internal static partial class LeadValidation
         return value;
     }
 
-    private static DateTimeOffset? Utc(string? input, string field, bool required, IDictionary<string, string[]> fields)
+    internal static DateTimeOffset? Utc(string? input, string field, bool required, IDictionary<string, string[]> fields)
     {
         if (string.IsNullOrEmpty(input))
         {
@@ -324,12 +277,6 @@ internal static partial class LeadValidation
             return null;
         }
         return value.ToUniversalTime();
-    }
-
-    private static LeadWorkState InvalidTarget(IDictionary<string, string[]> fields)
-    {
-        fields["targetWorkState"] = ["targetWorkState must be CONTACTING or VERIFYING."];
-        return LeadWorkState.New;
     }
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", RegexOptions.CultureInvariant)]

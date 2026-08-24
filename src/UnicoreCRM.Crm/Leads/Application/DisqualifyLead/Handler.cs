@@ -17,7 +17,7 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
         if (!LeadValidation.IsEntityId(command.LeadId))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["leadId"] = ["leadId is not a valid entity identifier."] }));
-        if (!LeadValidation.TryDisqualify(command.Request, out var reason, out var evidence, out var fields))
+        if (!DisqualifyLeadValidation.TryDisqualify(command.Request, out var reason, out var evidence, out var fields))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.DisqualificationEvidence(fields));
         var trusted = access.Value!;
         var fingerprint = LeadCommandSupport.Fingerprint(new { command.LeadId, reason, evidence, command.Metadata.ExpectedVersion });

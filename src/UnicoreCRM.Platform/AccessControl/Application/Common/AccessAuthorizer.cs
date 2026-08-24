@@ -46,7 +46,7 @@ internal sealed class AccessAuthorizer(
         var state = await persistence.LoadEffectiveStateAsync(trusted.WorkspaceId, trusted.MembershipId, cancellationToken);
         var now = timeProvider.GetUtcNow();
         var effective = EffectiveAuthorizationPolicy.Evaluate(state);
-        var context = Project(trusted, effective, now);
+        var context = AccessProjection.Context(trusted, effective, now);
         var allowed = effective.Capabilities.Contains(requirement.Capability, StringComparer.Ordinal);
         persistence.AddDecision(new AuthorizationDecisionRecord(
             trusted.WorkspaceId,
@@ -62,21 +62,4 @@ internal sealed class AccessAuthorizer(
 
         return new AccessAuthorizationDecision(true, "AUTHORIZED", context);
     }
-
-    private static AuthorizationContextDocument Project(
-        TrustedWorkspaceContext trusted,
-        EffectiveAuthorizationState effective,
-        DateTimeOffset evaluatedAt) =>
-        new(
-            trusted.WorkspaceId,
-            trusted.MembershipId,
-            trusted.MemberId,
-            trusted.AccountId,
-            effective.RoleIds,
-            effective.RoleTemplateIds,
-            effective.Capabilities,
-            effective.ProductSpaces,
-            effective.DataScopes.Select(policy => new AuthorizationDataScopeEntry(policy.ResourceKey, policy.Scope.ToWireValue())).ToArray(),
-            effective.FieldSecurity.Select(policy => new AuthorizationFieldAccessEntry(policy.ResourceKey, policy.FieldKey, policy.Access.ToWireValue())).ToArray(),
-            evaluatedAt);
 }

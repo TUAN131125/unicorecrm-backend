@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using UnicoreCRM.Integrations.Webhooks.Inbound.Application;
 
-namespace UnicoreCRM.Integrations.Webhooks.Inbound;
+namespace UnicoreCRM.Integrations.Webhooks.Inbound.Contracts;
 
 public static class InboundLeadWebhookEndpoints
 {

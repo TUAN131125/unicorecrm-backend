@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.Integrations.Webhooks.Inbound.Application;
+using UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure;
 
 namespace UnicoreCRM.Integrations.Webhooks.Inbound;
 

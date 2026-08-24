@@ -30,7 +30,7 @@ internal sealed class Handler(
         if (!access.IsSuccess)
             return DealOperationResult<DealListResponse>.Failure(access.Error!);
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        DealValidation.TryCursor(query.Cursor, fields, out var offset);
+        DealListCursor.TryParse(query.Cursor, fields, out var offset);
         var limit = query.Limit ?? 50;
         if (limit is < 1 or > 250)
             fields["limit"] = ["limit must be between 1 and 250."];
@@ -83,7 +83,7 @@ internal sealed class Handler(
         await persistence.SaveChangesAsync(cancellationToken);
         return DealOperationResult<DealListResponse>.Success(new DealListResponse(
             items.Select(DealProjection.Document).ToArray(),
-            new DealPageInfo(hasNext, hasNext ? DealValidation.Cursor(nextOffset) : null, totalCount)));
+            new DealPageInfo(hasNext, hasNext ? DealListCursor.Encode(nextOffset) : null, totalCount)));
     }
 
     private static bool Search(Deal deal, string search) =>

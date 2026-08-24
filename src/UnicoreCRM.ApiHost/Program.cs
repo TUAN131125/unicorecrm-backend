@@ -15,7 +15,7 @@ using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Crm.Deals.Contracts;
-using UnicoreCRM.Integrations.Webhooks.Inbound;
+using UnicoreCRM.Integrations.Webhooks.Inbound.Contracts;
 using UnicoreCRM.AI.Gateway;
 using UnicoreCRM.ApiHost.Development;
 using UnicoreCRM.ApiHost.Serialization;

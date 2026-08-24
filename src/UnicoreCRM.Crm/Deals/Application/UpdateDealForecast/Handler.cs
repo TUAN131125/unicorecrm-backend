@@ -27,7 +27,7 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             fingerprint,
             (deal, now) =>
             {
-                if (!DealValidation.TryForecast(
+                if (!UpdateDealForecastValidation.TryForecast(
                         command.Request,
                         deal,
                         out var closeDate,

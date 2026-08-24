@@ -7,8 +7,10 @@ using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Integrations.Application;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.PlatformOperations.Inbox.Contracts;
+using UnicoreCRM.Integrations.Webhooks.Inbound.Contracts;
+using UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure;
 
-namespace UnicoreCRM.Integrations.Webhooks.Inbound;
+namespace UnicoreCRM.Integrations.Webhooks.Inbound.Application;
 
 internal sealed partial class InboundLeadWebhookCoordinator(
     IInboundIntegrationBindingStore bindingStore,
@@ -107,19 +109,7 @@ internal sealed partial class InboundLeadWebhookCoordinator(
             return Failure(403, "INTEGRATION_AUTHORIZATION_DENIED", "Integration is not authorized", false, request.CorrelationId);
         }
 
-        var createRequest = new CreateLeadRequest
-        {
-            DisplayName = payload.DisplayName,
-            Source = payload.Source,
-            OwnerId = binding.DelegatedMemberId,
-            EstimatedValue = payload.EstimatedValue is null
-                ? null
-                : new Money(payload.EstimatedValue.Amount, payload.EstimatedValue.Currency),
-            Email = payload.Email,
-            Phone = payload.Phone,
-            CompanyName = payload.CompanyName,
-            Description = payload.Description
-        };
+        var createRequest = InboundLeadNormalization.ToCreateLeadRequest(payload, binding.DelegatedMemberId);
         var identityHash = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes($"{ExtensionAuthority}\n{binding.IntegrationId}\n{request.DeliveryId}")));
         var leadResult = await leadIngress.CreateAsync(

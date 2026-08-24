@@ -16,7 +16,7 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
         if (!DealValidation.IsEntityId(command.DealId))
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.NotFound());
-        if (!DealValidation.TryLost(
+        if (!MarkDealLostValidation.TryLost(
                 command.Request,
                 out var reason,
                 out var note,

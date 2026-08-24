@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace UnicoreCRM.Integrations.Webhooks.Inbound;
+namespace UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure;
 
 internal sealed class GenericSignedJsonVerifier(TimeProvider timeProvider)
 {

@@ -21,7 +21,7 @@ internal sealed class Handler(
         if (!access.IsSuccess)
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
 
-        DealValidation.TryCreate(
+        CreateDealValidation.TryCreate(
             command.Request,
             out var profile,
             out var stage,
