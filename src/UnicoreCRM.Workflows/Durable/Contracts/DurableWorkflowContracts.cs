@@ -1,4 +1,4 @@
-namespace UnicoreCRM.Workflows.Atomic.Contracts;
+namespace UnicoreCRM.Workflows.Durable.Contracts;
 
 /// <summary>
 /// The single authenticated Initial Workspace Provisioning intent. Every value is optional:
@@ -25,7 +25,7 @@ public sealed record ProvisionInitialWorkspaceResponse(
     UnicoreCRM.Platform.Workspace.Contracts.WorkspaceMembershipSummary Workspace,
     DateTimeOffset ProvisionedAt);
 
-public sealed record AtomicWorkflowProblemDetails(
+public sealed record DurableWorkflowProblemDetails(
     string Type,
     string Title,
     int Status,

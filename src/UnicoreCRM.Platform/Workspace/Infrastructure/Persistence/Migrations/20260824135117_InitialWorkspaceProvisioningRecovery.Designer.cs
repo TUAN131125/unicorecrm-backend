@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.Platform.Workspace.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.Platform.Workspace.Infrastructure.Persistence;
 namespace UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WorkspaceDbContext))]
-    partial class WorkspaceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260824135117_InitialWorkspaceProvisioningRecovery")]
+    partial class InitialWorkspaceProvisioningRecovery
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

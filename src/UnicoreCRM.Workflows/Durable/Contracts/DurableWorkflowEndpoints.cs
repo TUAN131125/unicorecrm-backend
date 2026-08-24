@@ -1,15 +1,16 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using UnicoreCRM.Workflows.Atomic.Application.Common;
+using UnicoreCRM.Workflows.Durable.Application.Common;
 
-namespace UnicoreCRM.Workflows.Atomic.Contracts;
+namespace UnicoreCRM.Workflows.Durable.Contracts;
 
-public static class AtomicWorkflowEndpoints
+public static class DurableWorkflowEndpoints
 {
-    public static IEndpointRouteBuilder MapAtomicWorkflowEndpoints(this IEndpointRouteBuilder endpoints)
+    public static IEndpointRouteBuilder MapDurableWorkflowEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // The single provisioning intent. It is deliberately not workspace-required: no trusted
         // Workspace can exist for an account that holds zero Workspace memberships.
@@ -24,12 +25,12 @@ public static class AtomicWorkflowEndpoints
         Application.ProvisionInitialWorkspace.Handler handler,
         CancellationToken cancellationToken)
     {
-        if (!AtomicWorkflowHttp.TryMetadata(context, out var metadata, out var metadataError))
+        if (!DurableWorkflowHttp.TryMetadata(context, out var metadata, out var metadataError))
             return metadataError!;
         if (!TryPrincipal(context, out var accountId, out var memberId))
-            return AtomicWorkflowHttp.Error(AtomicWorkflowErrors.AuthenticationRequired(), metadata!.CorrelationId);
+            return DurableWorkflowHttp.Error(DurableWorkflowErrors.AuthenticationRequired(), metadata!.CorrelationId);
 
-        var body = await AtomicWorkflowHttp.ReadBodyAsync<ProvisionInitialWorkspaceRequest>(context, metadata!.CorrelationId, cancellationToken);
+        var body = await DurableWorkflowHttp.ReadBodyAsync<ProvisionInitialWorkspaceRequest>(context, metadata!.CorrelationId, cancellationToken);
         if (body.Error is not null)
             return body.Error;
 
@@ -38,7 +39,7 @@ public static class AtomicWorkflowEndpoints
             cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value, statusCode: result.SuccessStatus)
-            : AtomicWorkflowHttp.Error(result.Error!, metadata.CorrelationId);
+            : DurableWorkflowHttp.Error(result.Error!, metadata.CorrelationId);
     }
 
     private static bool TryPrincipal(HttpContext context, out string accountId, out string memberId)
@@ -49,9 +50,9 @@ public static class AtomicWorkflowEndpoints
     }
 }
 
-internal static class AtomicWorkflowHttp
+internal static class DurableWorkflowHttp
 {
-    internal static bool TryMetadata(HttpContext context, out AtomicWorkflowMetadata? metadata, out IResult? error)
+    internal static bool TryMetadata(HttpContext context, out DurableWorkflowMetadata? metadata, out IResult? error)
     {
         metadata = null;
         error = null;
@@ -68,24 +69,43 @@ internal static class AtomicWorkflowHttp
             fields["Idempotency-Key"] = ["Idempotency-Key must contain between 8 and 128 characters."];
         if (fields.Count != 0)
         {
-            error = Error(AtomicWorkflowErrors.Validation(fields), correlationId);
+            error = Error(DurableWorkflowErrors.Validation(fields), correlationId);
             return false;
         }
 
         context.Response.Headers["X-Correlation-Id"] = correlationId;
-        metadata = new AtomicWorkflowMetadata(requestId, correlationId, idempotencyKey);
+        metadata = new DurableWorkflowMetadata(requestId, correlationId, idempotencyKey);
         return true;
     }
+
+    /// <summary>The provisioning intent carries a handful of short scalars; anything larger is rejected.</summary>
+    internal const int MaximumRequestBodyBytes = 8192;
+
+    /// <summary>
+    /// Strict request reading. Unknown members are rejected here rather than relying on ambient
+    /// host serializer configuration, and the declared Content-Length is never used as the
+    /// emptiness signal, so a chunked body cannot be silently discarded as a Skip.
+    /// </summary>
+    private static readonly JsonSerializerOptions StrictJson = new(JsonSerializerDefaults.Web)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+    };
 
     internal static async Task<BodyRead<T>> ReadBodyAsync<T>(HttpContext context, string correlationId, CancellationToken cancellationToken)
         where T : class, new()
     {
-        // An omitted body is the explicit Skip path and resolves to the server-owned defaults.
-        if (context.Request.ContentLength is null or 0)
+        var buffer = new byte[MaximumRequestBodyBytes + 1];
+        var read = await context.Request.Body.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
+        if (read > MaximumRequestBodyBytes)
+            return new(null, BodyError($"The JSON request body must not exceed {MaximumRequestBodyBytes} bytes.", correlationId));
+
+        // An absent or whitespace-only body is the explicit Skip path.
+        var content = new ReadOnlySpan<byte>(buffer, 0, read);
+        if (IsBlank(content))
             return new(new T(), null);
         try
         {
-            var value = await context.Request.ReadFromJsonAsync<T>(cancellationToken);
+            var value = JsonSerializer.Deserialize<T>(content, StrictJson);
             return value is null ? new(new T(), null) : new(value, null);
         }
         catch (JsonException)
@@ -98,9 +118,19 @@ internal static class AtomicWorkflowHttp
         }
     }
 
-    internal static IResult Error(AtomicWorkflowError error, string correlationId) =>
+    private static bool IsBlank(ReadOnlySpan<byte> content)
+    {
+        foreach (var value in content)
+        {
+            if (value is not ((byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n'))
+                return false;
+        }
+        return true;
+    }
+
+    internal static IResult Error(DurableWorkflowError error, string correlationId) =>
         Results.Json(
-            new AtomicWorkflowProblemDetails(
+            new DurableWorkflowProblemDetails(
                 $"urn:unicore:error:{error.Code.ToLowerInvariant()}",
                 error.Title,
                 error.Status,
@@ -115,7 +145,7 @@ internal static class AtomicWorkflowHttp
             contentType: "application/problem+json");
 
     private static IResult BodyError(string message, string correlationId) =>
-        Error(AtomicWorkflowErrors.Validation(new Dictionary<string, string[]> { ["body"] = [message] }), correlationId);
+        Error(DurableWorkflowErrors.Validation(new Dictionary<string, string[]> { ["body"] = [message] }), correlationId);
 
     internal sealed record BodyRead<T>(T? Value, IResult? Error) where T : class;
 }

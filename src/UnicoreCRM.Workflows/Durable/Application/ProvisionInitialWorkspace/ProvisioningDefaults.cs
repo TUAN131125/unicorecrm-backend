@@ -2,10 +2,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnicoreCRM.Platform.Workspace.Contracts;
-using UnicoreCRM.Workflows.Atomic.Application.Common;
-using UnicoreCRM.Workflows.Atomic.Contracts;
+using UnicoreCRM.Workflows.Durable.Application.Common;
+using UnicoreCRM.Workflows.Durable.Contracts;
 
-namespace UnicoreCRM.Workflows.Atomic.Application.ProvisionInitialWorkspace;
+namespace UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace;
 
 /// <summary>
 /// The server-owned, deterministic and documented defaults for Initial Workspace Provisioning.
@@ -28,7 +28,7 @@ internal static partial class ProvisioningDefaults
 
     private static readonly string[] SupportedLocales = [Locale, "vi"];
 
-    internal static AtomicWorkflowError? Resolve(
+    internal static DurableWorkflowError? Resolve(
         ProvisionInitialWorkspaceRequest request,
         out string name,
         out string logoText,
@@ -60,7 +60,7 @@ internal static partial class ProvisioningDefaults
             fields["baseCurrency"] = ["baseCurrency must be a three-letter uppercase currency code."];
 
         if (fields.Count != 0)
-            return AtomicWorkflowErrors.Validation(fields);
+            return DurableWorkflowErrors.Validation(fields);
 
         name = resolvedName;
         logoText = suppliedLogo ?? ComposeLogoText(resolvedName);

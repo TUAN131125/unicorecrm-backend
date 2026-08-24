@@ -46,6 +46,30 @@ internal sealed class EfInitialWorkspaceProvisioningPersistence(WorkspaceDbConte
              workspace.LogoText))
         .SingleOrDefaultAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<InitialWorkspaceProvisioningRecord>> ListAccessPendingAsync(
+        int limit,
+        CancellationToken cancellationToken) =>
+        await dbContext.InitialProvisioningRecords
+            .AsNoTracking()
+            .Where(record => record.State == InitialWorkspaceProvisioningState.AccessPending)
+            .OrderBy(record => record.ProvisionedAt)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<bool> TryCompleteProvisioningAsync(
+        string accountId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var record = await dbContext.InitialProvisioningRecords
+            .SingleOrDefaultAsync(item => item.AccountId == accountId, cancellationToken);
+        if (record is null)
+            return false;
+        record.MarkCompleted(now);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<bool> TryCommitProvisioningAsync(
         WorkspaceDefinition workspace,
         WorkspaceMembership membership,

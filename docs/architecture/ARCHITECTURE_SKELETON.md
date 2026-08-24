@@ -151,6 +151,12 @@ B00 creates none of these schemas or tables. Future persistence may use owner-sp
 
 B00 implements no workflows and introduces no Saga engine.
 
+Initial Workspace Provisioning is the first implemented workflow. It writes through two
+owner-specific `DbContext` instances, so it cannot commit or roll back in one local transaction and
+is therefore `Durable/`, not `Atomic/`. Its durable progress is a Workspace-owned provisioning
+anchor plus an in-process resume pass; it introduces no Saga engine, event bus or distributed
+transaction.
+
 ## Integrations boundary
 
 Future inbound flow:

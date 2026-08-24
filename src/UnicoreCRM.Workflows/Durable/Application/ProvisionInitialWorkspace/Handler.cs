@@ -1,41 +1,43 @@
-using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
-using UnicoreCRM.Workflows.Atomic.Application.Common;
-using UnicoreCRM.Workflows.Atomic.Contracts;
+using UnicoreCRM.Workflows.Durable.Application.Common;
+using UnicoreCRM.Workflows.Durable.Contracts;
 
-namespace UnicoreCRM.Workflows.Atomic.Application.ProvisionInitialWorkspace;
+namespace UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace;
 
 /// <summary>
 /// The multi-owner Initial Workspace Provisioning workflow. It orchestrates approved owner
 /// contracts only: IdentityAuth verifies the authenticated principal, Workspace creates the
-/// Workspace, the ACTIVE creator membership and the configuration seed, and AccessControl
-/// creates the initial access assignment. The workflow owns no foreign DbContext, repository or
+/// Workspace, the ACTIVE creator membership and the configuration seed, and AccessControl creates
+/// the initial access assignment. The workflow owns no foreign DbContext, repository or
 /// Infrastructure type and writes no foreign state itself.
 ///
-/// The two owner writes are separate owner-local transactions, so the whole workflow is not one
-/// atomic commit. Convergence is used instead: the Workspace step is anchored on an
-/// account-scoped uniqueness constraint and the AccessControl step is idempotent, so a retry
-/// after a partial failure completes the missing work without creating a second Workspace.
+/// It is a durable workflow, not an atomic one. The two owner writes are separate owner-local
+/// transactions and cannot commit or roll back together, so completion is durable progress rather
+/// than a single commit: the Workspace step commits an <c>AccessPending</c> anchor, and the anchor
+/// is advanced to completed only after the AccessControl participant commits. An attempt that
+/// stops in between leaves authoritative outstanding work that both this request path and
+/// <see cref="InitialWorkspaceProvisioningResumeService"/> converge on, without ever creating a
+/// second Workspace.
 /// </summary>
 internal sealed class Handler(
     IAuthenticatedIdentityReferenceLookup identities,
     IInitialWorkspaceProvisioning workspaces,
-    IInitialWorkspaceAccessProvisioning access,
+    InitialWorkspaceAccessCompletion completion,
     TimeProvider timeProvider)
 {
-    internal async Task<AtomicWorkflowResult<ProvisionInitialWorkspaceResponse>> HandleAsync(
+    internal async Task<DurableWorkflowResult<ProvisionInitialWorkspaceResponse>> HandleAsync(
         Command command,
         CancellationToken cancellationToken)
     {
         var validation = ProvisioningDefaults.Resolve(command.Request, out var name, out var logoText, out var configuration);
         if (validation is not null)
-            return AtomicWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(validation);
+            return DurableWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(validation);
 
         // Fail closed: a structurally valid token is not enough, the account must still be active.
         var identity = await identities.FindActiveAsync(command.AccountId, command.MemberId, cancellationToken);
         if (identity is null)
-            return AtomicWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(AtomicWorkflowErrors.AccessDenied());
+            return DurableWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(DurableWorkflowErrors.AccessDenied());
 
         var fingerprint = ProvisioningDefaults.Fingerprint(name, logoText, configuration);
         var provisioning = await workspaces.EnsureInitialWorkspaceAsync(
@@ -49,8 +51,10 @@ internal sealed class Handler(
                 fingerprint),
             cancellationToken);
 
+        // The account-scoped lifecycle decision precedes idempotency comparison: an account whose
+        // Workspace access did not come from initial provisioning has no anchor to compare against.
         if (provisioning.Status == InitialWorkspaceProvisioningStatus.RejectedExistingWorkspace)
-            return AtomicWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(AtomicWorkflowErrors.WorkspaceAlreadyProvisioned());
+            return DurableWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(DurableWorkflowErrors.WorkspaceAlreadyProvisioned());
 
         var workspace = provisioning.Workspace
             ?? throw new InvalidOperationException("Workspace provisioning succeeded without an authoritative Workspace summary.");
@@ -59,21 +63,23 @@ internal sealed class Handler(
             && string.Equals(provisioning.IdempotencyKey, command.Metadata.IdempotencyKey, StringComparison.Ordinal)
             && !string.Equals(provisioning.RequestFingerprint, fingerprint, StringComparison.Ordinal))
         {
-            return AtomicWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(
-                AtomicWorkflowErrors.IdempotencyReused(command.Metadata.IdempotencyKey));
+            return DurableWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(
+                DurableWorkflowErrors.IdempotencyReused(command.Metadata.IdempotencyKey));
         }
 
-        // Always re-run the AccessControl participant so an interrupted earlier attempt converges.
-        await access.EnsureInitialWorkspaceAccessAsync(workspace.WorkspaceId, workspace.MembershipId, cancellationToken);
+        // Outstanding work only. A completed anchor needs no further AccessControl write, and a
+        // replay never rewrites the stored provisioning values.
+        if (provisioning.AccessPending)
+            await completion.CompleteAsync(identity.AccountId, workspace.WorkspaceId, workspace.MembershipId, cancellationToken);
 
         var response = new ProvisionInitialWorkspaceResponse(
-            AtomicWorkflowIds.New("command"),
+            DurableWorkflowIds.New("command"),
             command.Metadata.CorrelationId,
             replayed ? "REPLAYED" : "PROVISIONED",
             workspace.WorkspaceId,
             workspace.MembershipId,
             workspace,
             provisioning.ProvisionedAt ?? timeProvider.GetUtcNow());
-        return AtomicWorkflowResult<ProvisionInitialWorkspaceResponse>.Success(response, replayed ? 200 : 201);
+        return DurableWorkflowResult<ProvisionInitialWorkspaceResponse>.Success(response, replayed ? 200 : 201);
     }
 }

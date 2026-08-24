@@ -14,9 +14,15 @@ internal interface IInitialWorkspaceProvisioningPersistence
     Task<bool> WorkspaceKeyExistsAsync(string workspaceKey, CancellationToken cancellationToken);
     Task<WorkspaceMembershipReadModel?> FindMembershipAsync(string workspaceId, string membershipId, CancellationToken cancellationToken);
 
+    /// <summary>Reads outstanding anchors whose access assignment is not confirmed yet, oldest first.</summary>
+    Task<IReadOnlyList<InitialWorkspaceProvisioningRecord>> ListAccessPendingAsync(int limit, CancellationToken cancellationToken);
+
+    /// <summary>Advances the anchor to completed. Returns false when no anchor exists for the account.</summary>
+    Task<bool> TryCompleteProvisioningAsync(string accountId, DateTimeOffset now, CancellationToken cancellationToken);
+
     /// <summary>
     /// Commits the Workspace, the ACTIVE creator membership, the configuration seed and the
-    /// account-scoped provisioning record inside one owner-local transaction. It returns
+    /// account-scoped provisioning anchor inside one owner-local transaction. It returns
     /// <c>false</c> when the account-scoped uniqueness constraint rejected the write, which is
     /// the concurrent double-submit signal, and leaves no partial state behind.
     /// </summary>

@@ -15,6 +15,7 @@ $accountA = 'provisioning.finish@example.test'
 $accountB = 'provisioning.skip@example.test'
 $accountC = 'provisioning.concurrent@example.test'
 $accountD = 'provisioning.existing@example.test'
+$accountE = 'provisioning.recovery@example.test'
 $existingWorkspaceKey = 'provisioning-existing-member'
 $temporaryDirectory = New-Item -ItemType Directory -Path ([IO.Path]::Combine([IO.Path]::GetTempPath(), 'unicore-initial-provisioning-' + [Guid]::NewGuid().ToString('N')))
 $hostDll = (Resolve-Path "$PSScriptRoot/../src/UnicoreCRM.ApiHost/bin/Debug/net10.0/UnicoreCRM.ApiHost.dll").Path
@@ -60,7 +61,7 @@ function Initialize-Database {
     $checks.Add('Isolated database migrated=PASS')
 }
 
-function Set-HostEnvironment([string] $identityEmail, [bool] $enableWorkspaceBootstrap) {
+function Set-HostEnvironment([string] $identityEmail, [bool] $enableWorkspaceBootstrap, [bool] $failAccessAssignment, [bool] $resumeEnabled) {
     $env:ASPNETCORE_ENVIRONMENT = 'Development'
     $env:DOTNET_ENVIRONMENT = 'Development'
     $env:ASPNETCORE_URLS = $baseUrl
@@ -91,10 +92,13 @@ function Set-HostEnvironment([string] $identityEmail, [bool] $enableWorkspaceBoo
     $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__AvailableProductSpaces__0 = 'crm'
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
     $env:Integrations__DevelopmentBootstrap__Enabled = 'false'
+    $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = $resumeEnabled.ToString().ToLowerInvariant()
+    $env:Workflows__InitialWorkspaceProvisioning__ResumeIntervalSeconds = '2'
+    $env:Workflows__InitialWorkspaceProvisioning__DevelopmentFaultInjection__FailAccessAssignment = $failAccessAssignment.ToString().ToLowerInvariant()
 }
 
-function Start-ApiHost([string] $identityEmail, [bool] $enableWorkspaceBootstrap = $false) {
-    Set-HostEnvironment $identityEmail $enableWorkspaceBootstrap
+function Start-ApiHost([string] $identityEmail, [bool] $enableWorkspaceBootstrap = $false, [bool] $failAccessAssignment = $false, [bool] $resumeEnabled = $true) {
+    Set-HostEnvironment $identityEmail $enableWorkspaceBootstrap $failAccessAssignment $resumeEnabled
     $standardOut = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.out.log')
     $standardError = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.err.log')
     $process = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput $standardOut -RedirectStandardError $standardError -PassThru
@@ -201,6 +205,33 @@ function Invoke-Provisioning([string] $token, [string] $idempotencyKey, $payload
     return Send-Json 'POST' '/workspaces/initial-provisioning' $body (New-Headers $token $null $idempotencyKey)
 }
 
+function Send-ChunkedJson([string] $path, [string] $body, [hashtable] $headers) {
+    # Chunked framing omits Content-Length. The contract must still read the body, so a declared
+    # length can never be used as the Skip signal.
+    $message = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new('POST'), "$baseUrl$path")
+    $message.Content = [System.Net.Http.StringContent]::new($body, [Text.Encoding]::UTF8, 'application/json')
+    $message.Content.Headers.ContentLength = $null
+    $message.Headers.TransferEncodingChunked = $true
+    foreach ($entry in $headers.GetEnumerator()) {
+        $null = $message.Headers.TryAddWithoutValidation([string] $entry.Key, [string] $entry.Value)
+    }
+    $response = $client.SendAsync($message).GetAwaiter().GetResult()
+    $text = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    $message.Dispose()
+    return [pscustomobject] @{ Status = [int] $response.StatusCode; Body = $text }
+}
+
+function Wait-ProvisioningState([string] $accountId, [string] $expectedState, [int] $timeoutSeconds = 60) {
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ((Invoke-SqlScalar "SELECT State FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountId';") -eq $expectedState) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
 function Get-AccountId([string] $email) {
     return Invoke-SqlScalar "SELECT AccountId FROM iam.Accounts WHERE NormalizedEmail='$($email.ToUpperInvariant())';"
 }
@@ -286,6 +317,17 @@ try {
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountAId';") -eq 1) 'E/G: no duplicate membership'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate access assignment'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate configuration'
+
+    # Request contract strictness. An unknown member must be rejected, and it must still be
+    # rejected when the body arrives chunked, which proves the body is read rather than assumed.
+    $unknownField = Invoke-Provisioning $tokenA ('idem-provision-unknown-' + [Guid]::NewGuid().ToString('N')) @{ name = 'Northwind Trading'; unsupportedField = 'x' }
+    Assert-Status $unknownField 422 'Contract: unknown request member rejected'
+    Assert-True ((($unknownField.Body | ConvertFrom-Json).code) -eq 'VALIDATION_FAILED') 'Contract: unknown member uses VALIDATION_FAILED'
+    $chunkedUnknown = Send-ChunkedJson '/workspaces/initial-provisioning' '{"unsupportedField":"x"}' (New-Headers $tokenA $null ('idem-provision-chunked-' + [Guid]::NewGuid().ToString('N')))
+    Assert-Status $chunkedUnknown 422 'Contract: chunked body is read and validated'
+    $oversized = Invoke-Provisioning $tokenA ('idem-provision-large-' + [Guid]::NewGuid().ToString('N')) @{ name = ('x' * 9000) }
+    Assert-Status $oversized 422 'Contract: oversized request body rejected'
+    Assert-True ([int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.Workspaces;') -eq 1) 'Contract: rejected requests created nothing'
 
     # I. Owner regressions inside the provisioned Workspace.
     $memberA = $sessionA.session.principal.memberId
@@ -378,10 +420,51 @@ try {
     Stop-ApiHost $hostProcess
     $hostProcess = $null
 
+    # ---------------------------------------------------------------- Case J (partial-failure recovery)
+    # Force the AccessControl participant to fail after the Workspace commit, with the durable
+    # resume path disabled, so the exact wedge state is created deliberately.
+    $hostProcess = Start-ApiHost $accountE $false $true $false
+    $accountEId = Get-AccountId $accountE
+    $tokenE = (Get-Session $accountE).accessToken
+    Assert-True ((Get-Workspaces $tokenE).items.Count -eq 0) 'J: recovery account starts with zero memberships'
+    $injected = Invoke-Provisioning $tokenE ('idem-provision-recovery-' + [Guid]::NewGuid().ToString('N')) @{ name = 'Recovery Workspace' }
+    Assert-Status $injected 500 'J: injected AccessControl failure surfaces as a server error'
+    $workspaceE = Invoke-SqlScalar "SELECT WorkspaceId FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountEId';"
+    Assert-True ($workspaceE.Length -gt 0) 'J: Workspace committed before the failure'
+    Assert-True ((Invoke-SqlScalar "SELECT State FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountEId';") -eq 'AccessPending') 'J: anchor records outstanding access work'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountEId' AND Status='Active';") -eq 1) 'J: ACTIVE membership exists'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$workspaceE';") -eq 0) 'J: access assignment is missing'
+    # The wedge is real: the account now lists an active membership but cannot bootstrap.
+    Assert-True ((Get-Workspaces $tokenE).items.Count -eq 1) 'J: listMyWorkspaces already reports the Workspace'
+    Assert-Status (Send-Json 'GET' "/workspaces/$workspaceE/bootstrap" $null (New-Headers $tokenE)) 403 'J: bootstrap is wedged before recovery'
+    Stop-ApiHost $hostProcess
+    $hostProcess = $null
+
+    # Restart without fault injection. Recovery must converge with no client action at all.
+    $hostProcess = Start-ApiHost $accountE
+    Assert-True (Wait-ProvisioningState $accountEId 'Completed') 'J: durable resume completed the anchor after restart'
+    $tokenE = (Get-Session $accountE).accessToken
+    $listE = Get-Workspaces $tokenE
+    Assert-True ($listE.items.Count -eq 1 -and $listE.items[0].workspaceId -eq $workspaceE) 'J: listMyWorkspaces returns the recovered Workspace'
+    $null = Assert-ProvisionedRuntime $tokenE $workspaceE 'J'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Workspaces WHERE WorkspaceId='$workspaceE';") -eq 1) 'J: exactly one Workspace remains'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountEId';") -eq 1) 'J: exactly one Membership remains'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections WHERE WorkspaceId='$workspaceE';") -eq 1) 'J: exactly one configuration seed remains'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.Roles WHERE WorkspaceId='$workspaceE';") -eq 1) 'J: exactly one initial role remains'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$workspaceE';") -eq 1) 'J: exactly one access assignment remains'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountEId';") -eq 1) 'J: exactly one provisioning anchor remains'
+    $afterRecovery = Invoke-Provisioning $tokenE ('idem-provision-recovery-retry-' + [Guid]::NewGuid().ToString('N')) @{ name = 'Recovery Workspace' }
+    Assert-Status $afterRecovery 200 'J: provisioning after recovery replays'
+    Assert-True ((($afterRecovery.Body | ConvertFrom-Json).workspaceId) -eq $workspaceE) 'J: replay converges on the recovered Workspace'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountEId';") -eq 1) 'J: replay created no second Workspace membership'
+    Stop-ApiHost $hostProcess
+    $hostProcess = $null
+
     $totals = @{
         Workspaces = [int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.Workspaces;')
         Memberships = [int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.Memberships;')
         ProvisioningRecords = [int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.InitialProvisioningRecords;')
+        OutstandingProvisioning = [int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE State<>'Completed';")
         AccessAssignments = [int](Invoke-SqlScalar 'SELECT COUNT(*) FROM access.MembershipRoleAssignments;')
         BootstrapProjections = [int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.BootstrapProjections;')
     }
@@ -392,6 +475,7 @@ try {
         FinishWorkspace = $workspaceA
         SkipWorkspace = $workspaceB
         ConcurrentWorkspace = $workspaceC
+        RecoveredWorkspace = $workspaceE
         Totals = $totals
         Checks = $checks
     } | ConvertTo-Json -Depth 6

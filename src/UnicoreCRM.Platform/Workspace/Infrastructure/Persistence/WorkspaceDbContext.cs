@@ -64,7 +64,9 @@ internal sealed class WorkspaceDbContext(DbContextOptions<WorkspaceDbContext> op
             entity.Property(x => x.MembershipId).HasMaxLength(128);
             entity.Property(x => x.IdempotencyKey).HasMaxLength(128);
             entity.Property(x => x.RequestFingerprint).HasMaxLength(64);
+            entity.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(x => x.WorkspaceId).IsUnique();
+            entity.HasIndex(x => new { x.State, x.ProvisionedAt });
             entity.HasOne<WorkspaceDefinition>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
         });
 

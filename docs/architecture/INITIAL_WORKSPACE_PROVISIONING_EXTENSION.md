@@ -66,7 +66,7 @@ IdentityAuth or the session.
 
 ### Request
 
-Every field is optional. An absent, empty or omitted body is the Skip path.
+Every field is optional. An absent, empty, whitespace-only or JSON-`null` body is the Skip path, as is `{}`.
 
 ```json
 {
@@ -89,8 +89,11 @@ Accepted values match the shapes the current OpenAPI already declares for
 | `timeZone` | 1–100 characters |
 | `baseCurrency` | `^[A-Z]{3}$` |
 
-Unknown members are rejected by the host serializer contract. Violations return
-`VALIDATION_FAILED` with per-field detail.
+Unknown members are rejected by the endpoint's own strict serializer options rather than by ambient
+host configuration, so the guarantee holds regardless of how the host is composed. The request body
+is read from the stream and is never inferred from a declared `Content-Length`, so a chunked body is
+validated exactly like a buffered one. Bodies larger than 8192 bytes are rejected. Every violation
+returns `VALIDATION_FAILED` with per-field detail.
 
 The caller **cannot** supply the creator account, the creator member, the membership status, the
 Workspace aggregate identifier, the membership aggregate identifier, the Workspace key, a role, a
@@ -157,12 +160,18 @@ authority.
 | `WORKSPACE_ALREADY_PROVISIONED` | 409 | the account already holds active Workspace access that initial provisioning did not create |
 | `INTERNAL_ERROR` | 500 | unhandled failure |
 
-## Ownership
+## Ownership and workflow classification
 
-`ProvisionInitialWorkspace` is a multi-owner mutation, so it lives in
-`UnicoreCRM.Workflows/Atomic` and not inside Workspace. The workflow calls approved owner contracts
-only. It holds no foreign `DbContext`, repository, Infrastructure type, EF entity or SQL surface,
-and it owns no persistence of its own.
+`ProvisionInitialWorkspace` is a multi-owner mutation, so it lives in Workflows and not inside
+Workspace. `ARCHITECTURE_SKELETON.md` reserves `Atomic/` for multi-owner mutations that must commit
+or roll back together in one local database transaction, and `Durable/` for multi-owner work where
+retry or progress has business meaning and completion cannot occur in one local transaction.
+
+Provisioning writes through two owner-specific `DbContext` instances and therefore cannot commit or
+roll back as one local transaction. It is implemented in **`UnicoreCRM.Workflows/Durable`**, and it
+is the first durable workflow in the system. The workflow calls approved owner contracts only. It
+holds no foreign `DbContext`, repository, Infrastructure type, EF entity or SQL surface, and it owns
+no persistence of its own.
 
 ### IdentityAuth
 
@@ -184,12 +193,17 @@ owner-local transaction on `WorkspaceDbContext` it decides and writes:
 2. the `WorkspaceMembership` for the authenticated caller, with a Workspace-assigned
    `MembershipId` and `ACTIVE` status;
 3. the initial configuration seed (below);
-4. the account-scoped `InitialWorkspaceProvisioningRecord`.
+4. the account-scoped `InitialWorkspaceProvisioningRecord`, committed in the `AccessPending` state.
 
 Workspace also owns the lifecycle decision and returns one of three outcomes: `Provisioned`,
 `AlreadyProvisioned` (an initial Workspace already exists for this account) or
 `RejectedExistingWorkspace` (the account already holds an active membership that initial
 provisioning did not create).
+
+Because the anchor carries durable progress, Workspace additionally owns two recovery-facing
+operations on the same contract: `ListAccessPendingAsync`, the authoritative outstanding-work query,
+and `CompleteInitialWorkspaceAsync`, the idempotent transition to `Completed`. Neither creates,
+activates or otherwise mutates a Workspace or a membership.
 
 ### AccessControl
 
@@ -250,42 +264,71 @@ configuration change after provisioning remains an authority gap.
 
 The Workspace write and the AccessControl write are **separate owner-local transactions**. The
 whole workflow is therefore **not** one atomic commit, and this extension does not claim it is.
-Owner-specific `DbContext` boundaries are preserved, and no distributed transaction, MSDTC
-promotion, event bus, saga or microservice is introduced. This matches the existing
-`PROJECT_EXTENSION_INBOUND_LEAD_WEBHOOK` precedent, where Inbox and Leads also use separate
-owner-local transactions and converge.
+That is exactly why the workflow is classified `Durable` rather than `Atomic`. Owner-specific
+`DbContext` boundaries are preserved, and no distributed transaction, MSDTC promotion, event bus,
+saga or microservice is introduced.
 
-Correctness comes from convergence anchored on durable uniqueness:
+Correctness comes from durable progress plus convergence, anchored on durable uniqueness:
 
 - `workspace.InitialProvisioningRecords` has `AccountId` as its primary key. At most one initial
   Workspace can ever exist per account.
-- The Workspace step writes the Workspace, the membership, the configuration seed and that record
-  in one transaction under `READ COMMITTED`. A losing writer's whole transaction rolls back, so no
-  orphan Workspace, membership or configuration row can survive.
-- A losing or retrying caller re-reads the record and returns the winner's authoritative result.
-- The AccessControl step is convergent and is re-run on every provisioning call, including
-  replays. An attempt that committed the Workspace and then failed before the assignment is
-  completed by the next call rather than duplicated.
+- Step one writes the Workspace, the membership, the configuration seed and the anchor
+  (`AccessPending`) in one transaction under `READ COMMITTED`. A losing writer's whole transaction
+  rolls back, so no orphan Workspace, membership or configuration row can survive.
+- Step two runs the AccessControl participant and then advances the anchor to `Completed`. Both are
+  convergent, so re-running them against an already-assigned Workspace changes nothing.
+- A losing or retrying caller re-reads the anchor and returns the winner's authoritative result.
 
-Resulting semantics:
+### Partial-failure recovery
+
+The only non-atomic window is: step one committed, step two did not. The account then holds one
+active Workspace membership, so `listMyWorkspaces` reports it, the client legitimately skips Initial
+Setup and never sends the provisioning intent again, and `getWorkspaceBootstrap` denies access
+because the creator has no capability. Without recovery that account is permanently wedged.
+
+Recovery is server-driven and deterministic:
+
+- The `AccessPending` anchor is the authoritative outstanding-work record. It is Workspace-owned
+  state about provisioning progress, not a first-login flag, not a client-held value and not a
+  persisted current workspace.
+- `InitialWorkspaceProvisioningResumeService`, a hosted service in `Workflows/Durable`, reads
+  outstanding anchors and finishes them through the same owner contracts. It runs once at host
+  start and then on a server-owned interval (default 30 seconds, configurable), so convergence does
+  not depend on the client retrying, on a login event, or on any client state.
+- The request path converges too: a provisioning intent that finds an `AccessPending` anchor runs
+  step two before returning. A `Completed` anchor performs no further AccessControl write.
+- Recovery never creates a second Workspace, membership, configuration seed, role or assignment,
+  and it never mutates membership status.
+
+`listMyWorkspaces` and `getWorkspaceBootstrap` are unchanged. Neither consults the anchor, and
+neither gained recovery logic.
+
+### Idempotency semantics
+
+These are the exact supported semantics. Two rules govern precedence:
+
+1. **The account-scoped lifecycle decision precedes idempotency comparison.** An account whose
+   Workspace access did not come from initial provisioning has no anchor, so it always receives
+   `409 WORKSPACE_ALREADY_PROVISIONED` regardless of the supplied key or values.
+2. **On any replay the stored provisioning is authoritative and the supplied setup values are
+   ignored.** A replay never renames, reconfigures or otherwise rewrites the existing Workspace.
 
 | Situation | Result |
 |---|---|
 | First call for a zero-workspace account | `201`, `PROVISIONED` |
 | Retry with the same key and the same effective values | `200`, `REPLAYED`, same Workspace |
 | Retry with the same key and different effective values | `409 IDEMPOTENCY_KEY_REUSED` |
-| Retry with a different key | `200`, `REPLAYED`, same Workspace |
+| Retry with a different key, any values | `200`, `REPLAYED`, same Workspace, supplied values ignored |
+| Retry while the anchor is `AccessPending` | step two runs, then `200`, `REPLAYED` |
 | Concurrent double submit | exactly one `201`, every other request `200`, one Workspace |
 | Account whose Workspace access came from elsewhere | `409 WORKSPACE_ALREADY_PROVISIONED`, nothing created |
 
-The idempotency key and a SHA-256 fingerprint of the effective provisioning values are retained on
-the account anchor as execution evidence. The anchor, not the key, is the business invariant: even
-an unrelated key cannot produce a second initial Workspace.
-
-The known non-atomic window is exactly this: the Workspace commit succeeds and the AccessControl
-assignment then fails. The account owns a Workspace whose bootstrap denies authorization until the
-provisioning intent is sent again, which converges. No duplicate Workspace, membership,
-configuration or assignment can result.
+The idempotency key and a SHA-256 fingerprint of the effective provisioning values are stored on the
+anchor at creation and are never rewritten, so the comparison is always against the values that
+actually produced the Workspace. The anchor, not the key, is the business invariant: even an
+unrelated key cannot produce a second initial Workspace. The key is compared only against the value
+stored on that account's own anchor; it is not a global reservation and reusing it on a different
+account is not a conflict.
 
 ## Explicitly out of scope
 

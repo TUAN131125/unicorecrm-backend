@@ -11,6 +11,10 @@ namespace UnicoreCRM.Platform.Workspace.Application.ProvisionInitialWorkspace;
 /// Workspace aggregate identifier, the Workspace key, the ACTIVE creator membership identifier
 /// and the account-scoped provisioning anchor. It never accepts an aggregate identifier, a
 /// membership status or a Workspace key from the caller.
+///
+/// The anchor is committed as <c>AccessPending</c> together with the Workspace, so an attempt
+/// that stops before the AccessControl participant commits leaves an authoritative
+/// outstanding-work record rather than a silently broken Workspace.
 /// </summary>
 internal sealed partial class InitialWorkspaceProvisioningService(
     IInitialWorkspaceProvisioningPersistence persistence,
@@ -70,7 +74,8 @@ internal sealed partial class InitialWorkspaceProvisioningService(
                         workspace.LogoText)),
                     now,
                     request.IdempotencyKey,
-                    request.RequestFingerprint);
+                    request.RequestFingerprint,
+                    true);
             }
 
             // The write lost the account-scoped uniqueness race or the generated key collided.
@@ -97,7 +102,30 @@ internal sealed partial class InitialWorkspaceProvisioningService(
             WorkspaceProjection.Membership(membership),
             record.ProvisionedAt,
             record.IdempotencyKey,
-            record.RequestFingerprint);
+            record.RequestFingerprint,
+            record.State == InitialWorkspaceProvisioningState.AccessPending);
+    }
+
+    public async Task<IReadOnlyList<PendingInitialWorkspaceProvisioning>> ListAccessPendingAsync(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+        var records = await persistence.ListAccessPendingAsync(limit, cancellationToken);
+        return records
+            .Select(record => new PendingInitialWorkspaceProvisioning(
+                record.AccountId,
+                record.WorkspaceId,
+                record.MembershipId,
+                record.ProvisionedAt))
+            .ToArray();
+    }
+
+    public async Task CompleteInitialWorkspaceAsync(string accountId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+        if (!await persistence.TryCompleteProvisioningAsync(accountId, timeProvider.GetUtcNow(), cancellationToken))
+            throw new InvalidOperationException("No initial Workspace provisioning anchor exists for the account.");
     }
 
     private async Task<string?> ReserveKeyAsync(string name, CancellationToken cancellationToken)
