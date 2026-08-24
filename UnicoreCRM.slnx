@@ -1,0 +1,15 @@
+<Solution>
+  <Project Path="src/UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
+  <Project Path="src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+  <Project Path="src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+  <Project Path="src/UnicoreCRM.Sales/UnicoreCRM.Sales.csproj" />
+  <Project Path="src/UnicoreCRM.Billing/UnicoreCRM.Billing.csproj" />
+  <Project Path="src/UnicoreCRM.Fulfillment/UnicoreCRM.Fulfillment.csproj" />
+  <Project Path="src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
+  <Project Path="src/UnicoreCRM.CommercialEvidence/UnicoreCRM.CommercialEvidence.csproj" />
+  <Project Path="src/UnicoreCRM.Workflows/UnicoreCRM.Workflows.csproj" />
+  <Project Path="src/UnicoreCRM.Integrations/UnicoreCRM.Integrations.csproj" />
+  <Project Path="src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" />
+  <Project Path="src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
+  <Project Path="src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj" />
+</Solution>

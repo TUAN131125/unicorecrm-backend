@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>UnicoreCRM.BuildingBlocks</RootNamespace>
+    <AssemblyName>UnicoreCRM.BuildingBlocks</AssemblyName>
+  </PropertyGroup>
+</Project>

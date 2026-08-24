@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>UnicoreCRM.AI</RootNamespace>
+    <AssemblyName>UnicoreCRM.AI</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
+  </ItemGroup>
+</Project>

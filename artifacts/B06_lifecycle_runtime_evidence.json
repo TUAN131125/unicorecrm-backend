@@ -1,0 +1,22 @@
+{
+  "Status": "PASS",
+  "DealId": "deal_dbd270134afd4bebb0cf67828340147f",
+  "FinalVersion": 6,
+  "Checks": [
+    "signIn=200",
+    "workspaces=200",
+    "createReplay=201",
+    "replayOutcome=REPLAYED",
+    "idempotencyConflict=409",
+    "listDeals=200",
+    "getDeal=200",
+    "updateDeal=200",
+    "staleVersion=412",
+    "changeStage=200",
+    "updateForecast=200",
+    "updateNextAction=200",
+    "assignOwner=200",
+    "markWon=200",
+    "terminalConflict=409"
+  ]
+}

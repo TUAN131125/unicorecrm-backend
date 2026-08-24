@@ -1,0 +1,29 @@
+{
+  "Status": "PASS",
+  "Checks": [
+    "signIn=200",
+    "getCurrentSession=200",
+    "listMyWorkspaces=200",
+    "getWorkspaceBootstrap=200",
+    "getAuthorizationContext=200",
+    "createTask=201",
+    "getTask=200",
+    "createLead=201",
+    "getLead=200",
+    "createForLost=201",
+    "markLost=200",
+    "createForArchive=201",
+    "archiveDeal=200",
+    "createBatchOne=201",
+    "createBatchTwo=201",
+    "archiveBatch=200",
+    "forecastSummary=200",
+    "productSnapshotGap=422",
+    "customStageGap=422",
+    "foreignWorkspaceDenied=403"
+  ],
+  "LostDealId": "deal_3599f10804474ddb8fa78b7d90212be4",
+  "ArchivedDealId": "deal_ab0fb953b07f4811ace5f9b14a16b6b7",
+  "BatchId": "deal_batch_1a1cf9b01ceb4bdcb67507528c9e0e47",
+  "ForecastBucketCount": 0
+}

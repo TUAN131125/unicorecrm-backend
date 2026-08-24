@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>UnicoreCRM.ApiHost</RootNamespace>
+    <AssemblyName>UnicoreCRM.ApiHost</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Sales/UnicoreCRM.Sales.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Billing/UnicoreCRM.Billing.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Fulfillment/UnicoreCRM.Fulfillment.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
+    <ProjectReference Include="../UnicoreCRM.CommercialEvidence/UnicoreCRM.CommercialEvidence.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Workflows/UnicoreCRM.Workflows.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Integrations/UnicoreCRM.Integrations.csproj" />
+    <ProjectReference Include="../UnicoreCRM.AI/UnicoreCRM.AI.csproj" />
+    <ProjectReference Include="../UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
+  </ItemGroup>
+</Project>

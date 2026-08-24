@@ -1,0 +1,27 @@
+ , 
+-,-
+Deals,7
+ , 
+-,-
+IdempotencyRecords,16
+ , 
+-,-
+AuditRecords,23
+ , 
+-,-
+OutboxMessages,16
+EventType, 
+---------,-
+DEAL_ARCHIVED,1
+DEAL_CREATED,7
+DEAL_FORECAST_UPDATED,1
+DEAL_MARKED_LOST,1
+DEAL_MARKED_WON,1
+DEAL_NEXT_ACTION_UPDATED,1
+DEAL_OWNER_ASSIGNED,1
+DEAL_PROFILE_REPLACED,1
+DEAL_STAGE_CHANGED,1
+DEALS_ARCHIVED_BATCH,1
+DealId,Version,StageCode,StageCategory
+------,-------,---------,-------------
+deal_dbd270134afd4bebb0cf67828340147f,6,WON,Won

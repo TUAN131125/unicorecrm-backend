@@ -1,0 +1,22 @@
+{
+  "Status": "PASS",
+  "OwnerWorkspaceId": "ws_5103f0bf379a44cd83c97e459acb1a22",
+  "DeniedWorkspaceId": "ws_5cae1781b8574856a44f2eb14995844a",
+  "OwnerDealCount": 7,
+  "Checks": [
+    "ownerSignIn=200",
+    "ownerWorkspaces=200",
+    "createForecastPipeline=201",
+    "createForecastBestCase=201",
+    "forecastSummary=200",
+    "forecastArithmetic=400/300/100/175",
+    "ownerListBeforeDenied=200",
+    "deniedSignIn=200",
+    "deniedWorkspaces=200",
+    "deniedReadCapability=403",
+    "deniedCreateCapability=403",
+    "ownerListAfterDenied=200",
+    "deniedMutationPersisted=false",
+    "otherMemberWorkspaceDenied=403"
+  ]
+}
