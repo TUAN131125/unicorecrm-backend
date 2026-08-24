@@ -22,6 +22,8 @@ internal static class AccessControlModule
         services.AddScoped<CurrentAuthorizationContextAccessor>();
         services.AddScoped<ICurrentAuthorizationContext>(provider => provider.GetRequiredService<CurrentAuthorizationContextAccessor>());
         services.AddScoped<IResolvedAuthorizationContextSetter>(provider => provider.GetRequiredService<CurrentAuthorizationContextAccessor>());
+        services.AddScoped<Application.ProvisionInitialWorkspaceAccess.IInitialWorkspaceAccessPersistence, EfInitialWorkspaceAccessPersistence>();
+        services.AddScoped<IInitialWorkspaceAccessProvisioning, Application.ProvisionInitialWorkspaceAccess.InitialWorkspaceAccessProvisioningService>();
         services.AddScoped<IAccessAuthorizer, AccessAuthorizer>();
         services.AddScoped<IDelegatedAccessAuthorizer, AccessAuthorizer>();
         services.AddScoped<Application.GetCurrentAuthorizationContext.Handler>();

@@ -29,6 +29,7 @@ internal static class IdentityAuthModule
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "iam")));
         services.AddScoped<IIdentityAuthPersistence, EfIdentityAuthPersistence>();
         services.AddScoped<IDevelopmentIdentityReferenceLookup, EfDevelopmentIdentityReferenceLookup>();
+        services.AddScoped<IAuthenticatedIdentityReferenceLookup, EfAuthenticatedIdentityReferenceLookup>();
         services.AddSingleton<IIdentityPasswordHasher, FrameworkPasswordHasher>();
         services.AddSingleton<IIdentityTokenIssuer, JwtIdentityTokenIssuer>();
         services.AddSingleton<IRefreshTokenProtector, HmacRefreshTokenProtector>();

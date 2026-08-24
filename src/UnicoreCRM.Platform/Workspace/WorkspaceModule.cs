@@ -26,6 +26,8 @@ internal static class WorkspaceModule
         services.AddScoped<CurrentWorkspaceAccessor>();
         services.AddScoped<ICurrentWorkspace>(provider => provider.GetRequiredService<CurrentWorkspaceAccessor>());
         services.AddScoped<ITrustedWorkspaceSetter>(provider => provider.GetRequiredService<CurrentWorkspaceAccessor>());
+        services.AddScoped<Application.ProvisionInitialWorkspace.IInitialWorkspaceProvisioningPersistence, EfInitialWorkspaceProvisioningPersistence>();
+        services.AddScoped<IInitialWorkspaceProvisioning, Application.ProvisionInitialWorkspace.InitialWorkspaceProvisioningService>();
         services.AddScoped<Application.ListMyWorkspaces.Handler>();
         services.AddScoped<Application.GetWorkspaceBootstrap.Handler>();
         services.AddHostedService<DevelopmentWorkspaceBootstrap>();

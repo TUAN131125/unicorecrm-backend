@@ -9,6 +9,7 @@ internal sealed class WorkspaceDbContext(DbContextOptions<WorkspaceDbContext> op
     internal DbSet<WorkspaceMembership> Memberships => Set<WorkspaceMembership>();
     internal DbSet<WorkspaceBootstrapProjection> BootstrapProjections => Set<WorkspaceBootstrapProjection>();
     internal DbSet<WorkspaceAccessRecord> AccessRecords => Set<WorkspaceAccessRecord>();
+    internal DbSet<InitialWorkspaceProvisioningRecord> InitialProvisioningRecords => Set<InitialWorkspaceProvisioningRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -51,6 +52,20 @@ internal sealed class WorkspaceDbContext(DbContextOptions<WorkspaceDbContext> op
             entity.Property(x => x.EnabledModuleKeysJson).HasColumnType("nvarchar(max)");
             entity.Property(x => x.AvailableProductSpacesJson).HasColumnType("nvarchar(max)");
             entity.HasOne<WorkspaceDefinition>().WithOne().HasForeignKey<WorkspaceBootstrapProjection>(x => x.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<InitialWorkspaceProvisioningRecord>(entity =>
+        {
+            entity.ToTable("InitialProvisioningRecords");
+            entity.HasKey(x => x.AccountId);
+            entity.Property(x => x.AccountId).HasMaxLength(64);
+            entity.Property(x => x.MemberId).HasMaxLength(64);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.MembershipId).HasMaxLength(128);
+            entity.Property(x => x.IdempotencyKey).HasMaxLength(128);
+            entity.Property(x => x.RequestFingerprint).HasMaxLength(64);
+            entity.HasIndex(x => x.WorkspaceId).IsUnique();
+            entity.HasOne<WorkspaceDefinition>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WorkspaceAccessRecord>(entity =>
