@@ -14,6 +14,8 @@ public static class IdentityAuthEndpoints
     public static IEndpointRouteBuilder MapIdentityAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/auth/accounts", RegisterAccountAsync).AllowAnonymous().WithName("registerAccount");
+        endpoints.MapPost("/auth/email-verification-requests", RequestEmailVerificationAsync).AllowAnonymous().WithName("requestEmailVerification");
+        endpoints.MapPost("/auth/email-verifications", VerifyEmailAsync).AllowAnonymous().WithName("verifyEmail");
         endpoints.MapPost("/auth/sessions", SignInAsync).AllowAnonymous().WithName("signIn");
         endpoints.MapGet("/auth/session", GetCurrentSessionAsync).RequireAuthorization().WithName("getCurrentSession");
         endpoints.MapPost("/auth/session/refresh", RefreshSessionAsync).AllowAnonymous().WithName("refreshSession");
@@ -35,6 +37,39 @@ public static class IdentityAuthEndpoints
         var result = await handler.HandleAsync(new Application.RegisterAccount.Command(request.Email, request.Password, request.DisplayName, metadata!), cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value, statusCode: StatusCodes.Status201Created)
+            : IdentityHttp.Error(result.Error!, metadata!.CorrelationId);
+    }
+
+    private static async Task<IResult> RequestEmailVerificationAsync(
+        HttpContext httpContext,
+        Application.RequestEmailVerification.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        if (!IdentityHttp.TryMetadata(httpContext, true, out var metadata, out var headerError))
+            return headerError!;
+        var body = await IdentityHttp.ReadBodyAsync<RequestEmailVerificationRequest>(httpContext, cancellationToken);
+        if (body.Error is not null)
+            return body.Error;
+        var result = await handler.HandleAsync(new Application.RequestEmailVerification.Command(body.Value!.Email, metadata!), cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value, statusCode: StatusCodes.Status202Accepted)
+            : IdentityHttp.Error(result.Error!, metadata!.CorrelationId);
+    }
+
+    private static async Task<IResult> VerifyEmailAsync(
+        HttpContext httpContext,
+        Application.VerifyEmail.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        if (!IdentityHttp.TryMetadata(httpContext, true, out var metadata, out var headerError))
+            return headerError!;
+        var body = await IdentityHttp.ReadBodyAsync<VerifyEmailRequest>(httpContext, cancellationToken);
+        if (body.Error is not null)
+            return body.Error;
+        var request = body.Value!;
+        var result = await handler.HandleAsync(new Application.VerifyEmail.Command(request.Email, request.Code, metadata!), cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value, statusCode: StatusCodes.Status200OK)
             : IdentityHttp.Error(result.Error!, metadata!.CorrelationId);
     }
 

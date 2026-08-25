@@ -95,7 +95,7 @@ The current Identity/Auth wire surface contains ten operations. B01 admits and i
 The following four operations remain fail-closed `AUTHORITY_GAP` despite having OpenAPI success schemas and registry readiness labels:
 
 - `verifyMfa`: no current authority defines enrollment, authenticator/provider ownership, challenge issuance, attempt locking, or secret lifecycle. B01 does not fabricate MFA challenges or success.
-- `verifyEmail`: no current authority defines verification-token issuance, delivery, hashing, expiry, or consumption semantics.
+- `verifyEmail`: no current authority defines verification-token issuance, delivery, hashing, expiry, or consumption semantics. **Superseded** by `PROJECT_EXTENSION_EMAIL_VERIFICATION_OTP` below, which admits a six-digit emailed code as the canonical credential and retires the token request body; `verifyMfa`, `requestPasswordReset` and `resetPassword` remain fail-closed.
 - `requestPasswordReset` and `resetPassword`: no current authority defines reset-token issuance/delivery, hashing, expiry, consumption, or required session-revocation semantics.
 
 `acceptWorkspaceInvitation` was routed to B02 for owner resolution and is now fail-closed `AUTHORITY_GAP`: its success requires a Workspace membership mutation, but current authority does not define an approved IdentityAuth/Workspace/AccessControl owner contract or the invitation issuance, token validation, expiry, target-binding, replay, and membership-mutation semantics. IdentityAuth and Workspace must not fabricate or duplicate that state. Resolution must be reconciled with the B03 AccessControl invitation producer.
@@ -255,6 +255,108 @@ A published migration is immutable: once a migration ID may exist in any `__EFMi
 `InitialWorkspaceProvisioningRecovery` added `State` and `CompletedAt` and backfilled every pre-existing anchor as `State = 'Completed', CompletedAt = ProvisionedAt`. That backfill was wrong: the version that wrote those anchors committed the Workspace, membership, configuration seed and anchor in one transaction and only then created the AccessControl assignment, so such an anchor proves nothing about whether the assignment exists, and any account whose assignment was in fact missing would have been left permanently unable to bootstrap. That migration is preserved exactly as published. The data-only `InitialWorkspaceProvisioningRecoveryCorrection` repairs the rows it fabricated, rewriting only `State = 'Completed' AND CompletedAt = ProvisionedAt` to `State = 'AccessPending', CompletedAt = NULL`. It introduces no model change and leaves the snapshot untouched, its `Down` is deliberately empty because reverting would re-fabricate the removed completion fact, and it is idempotent: repaired rows no longer match, genuine completions carry a later completion time, already-outstanding anchors carry a `NULL` completion time, and a fresh database has no rows at all. The Workspace migration never inspects AccessControl persistence; it only returns ambiguous rows to outstanding work, and the durable resume path decides completion through the approved AccessControl contract.
 
 Upgrade verification on 2026-08-24 used three isolated LocalDB databases. `UnicoreCRM_ProvisioningCorrection_20260824_Fresh` proved the whole chain applies to an empty database, produces the current anchor schema and leaves no anchors. `UnicoreCRM_ProvisioningCorrection_20260824` was built at the schema state that had already applied the faulty migration and seeded three accounts: a legacy fabricated anchor with an existing `Workspace Owner` role and creator assignment, a legacy fabricated anchor with no AccessControl assignment, and a genuinely completed anchor whose completion time is later than its provisioning time. Applying only the corrective migration returned both legacy anchors to `AccessPending` with no completion time and left the genuine anchor `Completed` with its completion time intact. Starting the current host with the resume pass enabled and no client action completed both corrected anchors while never replaying the genuine one; the pre-existing role and assignment identities were preserved rather than replaced or duplicated, the missing assignment was created exactly once against the creator membership, all three accounts passed list, bootstrap, authorization-context and workspace-required Tasks/Leads/Deals reads, a further resume window changed nothing, and each account retained exactly one Workspace, membership, configuration seed, role, assignment and anchor. `UnicoreCRM_ProvisioningCorrection_20260824_Chain` proved the path for a database that never applied the faulty migration: a pre-recovery anchor upgraded across the whole chain ends as outstanding work, converges to `Completed`, and reaches the same single-record runtime state. Reproducible upgrade checks are retained in `backend/scripts/verify-initial-workspace-provisioning-upgrade.ps1`. Therefore `INITIAL WORKSPACE PROVISIONING: PASS`; the deferred WorkspaceConfig, invitation, member-administration and Studio gaps above remain fail-closed. Reproducible runtime checks are retained in `backend/scripts/verify-initial-workspace-provisioning.ps1`.
+
+## Email Verification OTP implementation authority
+
+`verifyEmail` was recorded above as a fail-closed `AUTHORITY_GAP` because no current authority
+defined verification-token issuance, delivery, hashing, expiry or consumption. That gap is now
+resolved under explicit project authority by `PROJECT_EXTENSION_EMAIL_VERIFICATION_OTP`, frozen in
+`EMAIL_VERIFICATION_OTP_EXTENSION.md`. The admitted decision is that a six-digit one-time code
+delivered by email is the canonical email-verification credential. This section supersedes the
+`verifyEmail` entry in the B01 gap list; every other operation listed there — `verifyMfa`,
+`requestPasswordReset`, `resetPassword` and `acceptWorkspaceInvitation` — remains fail-closed and
+unimplemented.
+
+The extension admits one new operation, `requestEmailVerification` (`POST
+/auth/email-verification-requests`), and retires the token-based request body of the canonical
+`verifyEmail` operation. `POST /auth/email-verifications` keeps its path, operation name, `200`
+`UserAccountDocument` response and header contract, but its request body is now `{ email, code }`.
+The historical `VerifyEmailRequest` carrying an opaque `token` is retired, is not implemented, and is
+rejected as `VALIDATION_FAILED` because the host rejects unmapped members. No verification link,
+emailed URL or token issuance exists anywhere in the implementation. As with the inbound Lead
+webhook, AI assistant and initial Workspace provisioning extensions, the pinned OpenAPI artefacts are
+not edited: `frontend/unicorecrm-web/docs/api/openapi.json` and its byte-identical
+`design-authority/contracts/openapi.json` baseline both remain at SHA-256
+`8278547df0fd4be9a9af9b8a6d5f3e15ddad8d005d804c99a7c9248e0f402757`. For these two operations the
+extension document controls the implemented backend, and the divergence from the pinned baseline is
+deliberate and recorded.
+
+IdentityAuth owns the whole feature. `registerAccount` keeps its wire contract and still creates a
+`PENDING_VERIFICATION` account with a server-assigned identifier, still provisions no Workspace and
+still performs no AccessControl mutation; it now also persists the first verification challenge and
+dispatches its code inside the same serializable registration transaction. `signIn`,
+`getCurrentSession`, `refreshSession`, `signOut`, the `HttpOnly` `SameSite=Strict` refresh cookie and
+the existing `EMAIL_NOT_VERIFIED` refusal for a non-active account are unchanged. Workspace and
+AccessControl ownership, registration provisioning semantics and the Initial Workspace Provisioning
+lifecycle are untouched.
+
+`iam.EmailVerificationChallenges` is the new IdentityAuth-owned persistent state: account reference,
+keyed code digest, creation, expiry, resend availability, attempt count, the attempt ceiling captured
+at issuance, and the consumption and supersession markers. The plaintext code is never persisted,
+audited, logged by the application outside the Development sender, or returned on the wire; only a
+purpose-separated HMAC-SHA256 digest bound to the owning account is stored, and comparison is
+fixed-time. Codes are drawn from a cryptographic generator across the whole six-digit range without
+modulo bias. A challenge is usable only while it is unconsumed, unsuperseded, unexpired and below its
+ceiling. A wrong code commits its attempt increment before responding; an exhausted ceiling refuses
+even the correct code; issuing a new challenge supersedes every outstanding one, so a resend
+immediately invalidates the previous code; and successful verification consumes the challenge and
+sets `Status = Active` with `EmailVerifiedAt = now` in one serializable transaction. Only a
+`PENDING_VERIFICATION` account can be activated this way, so email verification never reinstates a
+suspended account.
+
+Account existence is not disclosed beyond what the flow requires. A contract-valid verification
+request returns the same `202` acceptance for an unknown address, an already active account, a
+suspended account and an account still inside its resend cooldown; the cooldown is enforced by
+silently issuing nothing rather than by a distinguishable rejection. Verification failures collapse
+to one `TOKEN_INVALID` answer for an unknown address, a non-pending account, a missing, superseded or
+consumed challenge and a wrong code. Only an expired code and an exhausted ceiling are reported
+distinctly, because the caller must be able to act on them and both require an outstanding challenge
+the caller already holds. A configured-but-failing email boundary returns `INTEGRATION_UNAVAILABLE`
+rather than claiming a code was sent.
+
+`IIdentityEmailSender` is the IdentityAuth-owned provider-neutral outbound boundary. The fail-closed
+`UnavailableIdentityEmailSender` is the default in every environment and is the only sender a
+non-Development host can resolve; it throws, so the caller's transaction never commits an account or
+challenge whose code nobody received. The console `DevelopmentLoggingIdentityEmailSender` is
+registered only when the running host environment is Development and the sender kind is explicitly
+`DevelopmentLog`. There is no no-op or pretend-success production sender: until a real provider is
+implemented and configured, registration fails closed with `INTEGRATION_UNAVAILABLE` rather than
+creating accounts nobody can activate. Dispatch runs inside the caller's transaction after the
+challenge is saved and before commit; a real remote provider should later move dispatch behind an
+IdentityAuth-owned outbox rather than holding serializable locks across a network call.
+
+Only `IdentityAuthDbContext` gained a migration, `20260825013815_IdentityEmailVerification`. Runtime
+verification on 2026-08-25 used the isolated `UnicoreCRM_EmailOtp_Verification_20260825` LocalDB
+database and a real ApiHost, and proved: registration producing a `PENDING_VERIFICATION` account with
+exactly one challenge and one dispatched code; the plaintext code absent from persistence with a
+64-character digest stored instead; `EMAIL_NOT_VERIFIED` before verification; `VALIDATION_FAILED` for
+a five-digit, non-numeric or malformed-address request; a wrong code rejected with its attempt
+increment committed; a resend inside the cooldown accepted while issuing nothing and leaving the
+usable code intact; a resend after the cooldown superseding the previous code and immediately
+refusing it; the attempt ceiling refusing even the correct code with `RATE_LIMITED`; an exhausted
+challenge buying no new code inside the resend cooldown; an expired code refused with
+`TOKEN_EXPIRED`; the correct code activating the account exactly once with the
+verification stamp set, one consumed challenge and none outstanding; the consumed code refused on
+reuse; a request for an already active account issuing nothing; sign-in succeeding after
+verification; an unknown address answered with the same acceptance while creating no account and no
+challenge; idempotent replay returning the same acceptance and a reused key with a different address
+failing closed; a challenge and its code surviving a host restart and verifying afterwards; and both
+fail-closed sender paths — an unconfigured sender and a non-Development host that tries to select the
+Development sender — returning `INTEGRATION_UNAVAILABLE` while creating no account and leaving no
+orphaned challenge. All six owner models reported no pending changes.
+
+Regressions passed in the same session on isolated LocalDB databases:
+`UnicoreCRM_OtpRegression_Provisioning_20260825` passed the frozen Initial Workspace Provisioning
+harness including its IdentityAuth register/sign-in/session/refresh/sign-out and Tasks/Leads/Deals
+checks, and `UnicoreCRM_OtpRegression_Upgrade_20260825` passed the migration-chain upgrade harness.
+Therefore `EMAIL VERIFICATION OTP: PASS`. Reproducible runtime checks are retained in
+`backend/scripts/verify-email-verification-otp.ps1`.
+
+The current frontend still routes email verification through a `token` query parameter and the
+retired contract, so the connected frontend cannot complete verification until it is aligned to the
+OTP contract. That is separate frontend work and is not performed here. Password reset, MFA, admin
+verification override, outbound provider integration and background cleanup of spent challenges
+remain out of scope and fail-closed.
 
 ## Never-invent rule
 

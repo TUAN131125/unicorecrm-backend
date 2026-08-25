@@ -23,4 +23,8 @@ internal static class IdentityErrors
     internal static OperationError SessionRevoked() => new("SESSION_REVOKED", 401, "Session revoked");
     internal static OperationError DuplicateEmail() => new("DUPLICATE_BUSINESS_KEY", 409, "Account already exists");
     internal static OperationError IdempotencyReused() => new("IDEMPOTENCY_KEY_REUSED", 409, "Idempotency key was reused with a different request");
+    internal static OperationError VerificationCodeInvalid() => new("TOKEN_INVALID", 401, "Verification code is invalid");
+    internal static OperationError VerificationCodeExpired() => new("TOKEN_EXPIRED", 401, "Verification code has expired");
+    internal static OperationError VerificationAttemptsExhausted() => new("RATE_LIMITED", 429, "Too many verification attempts", true);
+    internal static OperationError EmailDeliveryUnavailable() => new("INTEGRATION_UNAVAILABLE", 503, "Email delivery is unavailable", true);
 }

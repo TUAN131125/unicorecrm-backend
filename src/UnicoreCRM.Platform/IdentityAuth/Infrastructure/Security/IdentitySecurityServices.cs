@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -118,4 +119,62 @@ internal sealed class ConfiguredIdentitySessionPolicy(IOptions<IdentityAuthOptio
 {
     public TimeSpan IdleLifetime => TimeSpan.FromDays(options.Value.Session.IdleDays);
     public TimeSpan AbsoluteLifetime => TimeSpan.FromDays(options.Value.Session.AbsoluteDays);
+}
+
+/// <summary>
+/// Six-digit verification codes and their keyed hashes.
+///
+/// The code is drawn from a cryptographic generator over the whole six-digit space without modulo
+/// bias. Only a keyed HMAC-SHA256 digest is ever persisted, and the digest is bound to the owning
+/// account so a digest read from one account row cannot be replayed against another. The HMAC key
+/// is derived from the configured identity pepper under a distinct purpose label, so the same
+/// secret never produces interchangeable digests across refresh tokens, idempotency fingerprints
+/// and verification codes. Comparison is fixed-time.
+///
+/// A six-digit code has a small keyspace by contract, so the hash is a containment measure and not
+/// the primary control: short expiry, a per-code attempt ceiling, single use and resend supersession
+/// carry that weight.
+/// </summary>
+internal sealed class HmacIdentityVerificationCodeProtector : IIdentityVerificationCodeProtector
+{
+    private const string PurposeLabel = "unicore:identity:email-verification-code:v1";
+    private readonly byte[] key;
+
+    public HmacIdentityVerificationCodeProtector(IOptions<IdentityAuthOptions> options) =>
+        key = HMACSHA256.HashData(Encoding.UTF8.GetBytes(options.Value.RefreshTokenPepper), Encoding.UTF8.GetBytes(PurposeLabel));
+
+    public string Create() => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
+
+    public string Hash(string accountId, string code) =>
+        Convert.ToHexString(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{accountId}\u001f{code}")));
+
+    public bool Matches(string accountId, string code, string expectedHash)
+    {
+        if (expectedHash.Length != 64)
+        {
+            return false;
+        }
+
+        byte[] expected;
+        try
+        {
+            expected = Convert.FromHexString(expectedHash);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        var actual = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{accountId}\u001f{code}"));
+        return CryptographicOperations.FixedTimeEquals(actual, expected);
+    }
+}
+
+internal sealed class ConfiguredIdentityEmailVerificationPolicy(IOptions<IdentityAuthOptions> options) : IIdentityEmailVerificationPolicy
+{
+    // Nested option members are not covered by the host's data-annotation validation, so the
+    // admitted contract windows are enforced here rather than trusted from configuration.
+    public TimeSpan CodeLifetime => TimeSpan.FromMinutes(Math.Clamp(options.Value.EmailVerification.ExpiryMinutes, 5, 10));
+    public TimeSpan ResendInterval => TimeSpan.FromSeconds(Math.Clamp(options.Value.EmailVerification.ResendIntervalSeconds, 30, 3600));
+    public int MaxAttempts => Math.Clamp(options.Value.EmailVerification.MaxAttempts, 1, 10);
 }

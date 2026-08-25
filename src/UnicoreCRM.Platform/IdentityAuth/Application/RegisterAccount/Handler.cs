@@ -7,6 +7,7 @@ namespace UnicoreCRM.Platform.IdentityAuth.Application.RegisterAccount;
 internal sealed class Handler(
     IIdentityAuthPersistence persistence,
     IIdentityPasswordHasher passwordHasher,
+    EmailVerificationChallengeIssuer issuer,
     IIdentityRequestFingerprinter fingerprinter,
     TimeProvider timeProvider)
 {
@@ -41,6 +42,18 @@ internal sealed class Handler(
         persistence.AddAudit(new IdentityAuditRecord("registerAccount", "SUCCEEDED", account.AccountId, command.Metadata.CorrelationId, now));
         persistence.AddSecurityEvent(new IdentitySecurityEvent("IDENTITY_ACCOUNT_REGISTERED", account.AccountId, command.Metadata.CorrelationId, now));
         await persistence.SaveChangesAsync(cancellationToken);
+        // The account is created awaiting verification, so registration is only complete once the
+        // first challenge is persisted and dispatched. A sender that fails closed leaves the
+        // transaction uncommitted, so no account is stranded without a way to reach Active.
+        try
+        {
+            await issuer.IssueAsync(account, command.Metadata.CorrelationId, now, cancellationToken);
+        }
+        catch (IdentityEmailSenderUnavailableException)
+        {
+            return OperationResult<UserAccountDocument>.Failure(IdentityErrors.EmailDeliveryUnavailable());
+        }
+
         await transaction.CommitAsync(cancellationToken);
         return OperationResult<UserAccountDocument>.Success(IdentityProjection.Account(account));
     }

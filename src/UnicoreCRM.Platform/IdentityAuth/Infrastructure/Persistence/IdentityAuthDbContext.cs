@@ -8,6 +8,7 @@ internal sealed class IdentityAuthDbContext(DbContextOptions<IdentityAuthDbConte
     internal DbSet<IdentityAccount> Accounts => Set<IdentityAccount>();
     internal DbSet<IdentityCredential> Credentials => Set<IdentityCredential>();
     internal DbSet<IdentitySession> Sessions => Set<IdentitySession>();
+    internal DbSet<IdentityEmailVerificationChallenge> EmailVerificationChallenges => Set<IdentityEmailVerificationChallenge>();
     internal DbSet<IdentityIdempotencyRecord> IdempotencyRecords => Set<IdentityIdempotencyRecord>();
     internal DbSet<IdentityAuditRecord> AuditRecords => Set<IdentityAuditRecord>();
     internal DbSet<IdentitySecurityEvent> SecurityEvents => Set<IdentitySecurityEvent>();
@@ -52,6 +53,18 @@ internal sealed class IdentityAuthDbContext(DbContextOptions<IdentityAuthDbConte
             entity.Property(x => x.DeviceId).HasMaxLength(64);
             entity.Property(x => x.DeviceLabel).HasMaxLength(160);
             entity.Property(x => x.UserAgent).HasMaxLength(512);
+            entity.HasOne<IdentityAccount>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IdentityEmailVerificationChallenge>(entity =>
+        {
+            entity.ToTable("EmailVerificationChallenges");
+            entity.HasKey(x => x.ChallengeId);
+            entity.Property(x => x.ChallengeId).HasMaxLength(64);
+            entity.Property(x => x.AccountId).HasMaxLength(64);
+            entity.Property(x => x.CodeHash).HasMaxLength(64);
+            // Serves the only query shape the owner performs: the outstanding challenges of one account.
+            entity.HasIndex(x => new { x.AccountId, x.ConsumedAt, x.SupersededAt });
             entity.HasOne<IdentityAccount>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
 

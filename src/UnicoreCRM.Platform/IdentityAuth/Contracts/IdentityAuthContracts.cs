@@ -69,3 +69,9 @@ public sealed record IdentityProblemDetails(
     string? Detail = null,
     string? Instance = null,
     IReadOnlyDictionary<string, string[]>? FieldErrors = null);
+
+public sealed record RequestEmailVerificationRequest(string Email);
+
+public sealed record EmailVerificationRequestAcceptedResponse(string RequestId, DateTimeOffset AcceptedAt);
+
+public sealed record VerifyEmailRequest(string Email, string Code);

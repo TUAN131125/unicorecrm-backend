@@ -10,9 +10,11 @@ internal interface IIdentityAuthPersistence
     Task<IdentityCredential?> FindCredentialAsync(string accountId, CancellationToken cancellationToken);
     Task<IdentitySession?> FindSessionAsync(string sessionId, CancellationToken cancellationToken);
     Task<IdentityIdempotencyRecord?> FindIdempotencyAsync(string operation, string key, CancellationToken cancellationToken);
+    Task<IReadOnlyList<IdentityEmailVerificationChallenge>> ListOutstandingEmailVerificationChallengesAsync(string accountId, CancellationToken cancellationToken);
     void AddAccount(IdentityAccount account);
     void AddCredential(IdentityCredential credential);
     void AddSession(IdentitySession session);
+    void AddEmailVerificationChallenge(IdentityEmailVerificationChallenge challenge);
     void AddIdempotency(IdentityIdempotencyRecord record);
     void AddAudit(IdentityAuditRecord record);
     void AddSecurityEvent(IdentitySecurityEvent securityEvent);

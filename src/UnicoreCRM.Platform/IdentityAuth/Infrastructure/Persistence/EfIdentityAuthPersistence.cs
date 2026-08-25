@@ -26,9 +26,16 @@ internal sealed class EfIdentityAuthPersistence(IdentityAuthDbContext dbContext)
     public Task<IdentityIdempotencyRecord?> FindIdempotencyAsync(string operation, string key, CancellationToken cancellationToken) =>
         dbContext.IdempotencyRecords.SingleOrDefaultAsync(x => x.Operation == operation && x.Key == key, cancellationToken);
 
+    public async Task<IReadOnlyList<IdentityEmailVerificationChallenge>> ListOutstandingEmailVerificationChallengesAsync(string accountId, CancellationToken cancellationToken) =>
+        await dbContext.EmailVerificationChallenges
+            .Where(x => x.AccountId == accountId && x.ConsumedAt == null && x.SupersededAt == null)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+
     public void AddAccount(IdentityAccount account) => dbContext.Accounts.Add(account);
     public void AddCredential(IdentityCredential credential) => dbContext.Credentials.Add(credential);
     public void AddSession(IdentitySession session) => dbContext.Sessions.Add(session);
+    public void AddEmailVerificationChallenge(IdentityEmailVerificationChallenge challenge) => dbContext.EmailVerificationChallenges.Add(challenge);
     public void AddIdempotency(IdentityIdempotencyRecord record) => dbContext.IdempotencyRecords.Add(record);
     public void AddAudit(IdentityAuditRecord record) => dbContext.AuditRecords.Add(record);
     public void AddSecurityEvent(IdentitySecurityEvent securityEvent) => dbContext.SecurityEvents.Add(securityEvent);

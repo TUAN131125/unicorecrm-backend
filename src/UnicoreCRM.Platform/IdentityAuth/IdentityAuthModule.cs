@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using UnicoreCRM.BuildingBlocks;
 using Microsoft.IdentityModel.Tokens;
 using UnicoreCRM.Platform.IdentityAuth.Application.Common;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
 using UnicoreCRM.Platform.IdentityAuth.Infrastructure;
+using UnicoreCRM.Platform.IdentityAuth.Infrastructure.Email;
 using UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence;
 using UnicoreCRM.Platform.IdentityAuth.Infrastructure.Security;
 
@@ -39,9 +41,22 @@ internal static class IdentityAuthModule
         services.AddSingleton<IRefreshTokenProtector, HmacRefreshTokenProtector>();
         services.AddSingleton<IIdentityRequestFingerprinter, HmacIdentityRequestFingerprinter>();
         services.AddSingleton<IIdentitySessionPolicy, ConfiguredIdentitySessionPolicy>();
+        services.AddSingleton<IIdentityVerificationCodeProtector, HmacIdentityVerificationCodeProtector>();
+        services.AddSingleton<IIdentityEmailVerificationPolicy, ConfiguredIdentityEmailVerificationPolicy>();
+        // Email delivery fails closed by default. The Development console sender is resolved only
+        // when the running host is Development and the sender kind is explicitly configured, so no
+        // deployed host can fall back to a fake sender.
+        services.AddSingleton<IIdentityEmailSender>(provider =>
+            provider.GetRequiredService<IHostEnvironment>().IsDevelopment()
+            && string.Equals(settings.EmailVerification.Sender.Kind, "DevelopmentLog", StringComparison.Ordinal)
+                ? ActivatorUtilities.CreateInstance<DevelopmentLoggingIdentityEmailSender>(provider)
+                : ActivatorUtilities.CreateInstance<UnavailableIdentityEmailSender>(provider));
         services.AddSingleton(TimeProvider.System);
 
+        services.AddScoped<EmailVerificationChallengeIssuer>();
         services.AddScoped<Application.RegisterAccount.Handler>();
+        services.AddScoped<Application.RequestEmailVerification.Handler>();
+        services.AddScoped<Application.VerifyEmail.Handler>();
         services.AddScoped<Application.SignIn.Handler>();
         services.AddScoped<Application.RefreshSession.Handler>();
         services.AddScoped<Application.GetCurrentSession.Handler>();
