@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Platform.Workspace.Application.Common;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Platform.Workspace.Infrastructure;
@@ -19,6 +20,9 @@ internal static class WorkspaceModule
         services.AddDbContext<WorkspaceDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "workspace")));
         services.AddScoped<IWorkspacePersistence, EfWorkspacePersistence>();
+        services.AddDevelopmentSchemaMigration(
+            "workspace",
+            (provider, cancellationToken) => provider.GetRequiredService<WorkspaceDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<IDevelopmentWorkspaceReferenceLookup, EfDevelopmentWorkspaceReferenceLookup>();
         services.AddScoped<IWorkspaceMemberReferenceValidator, EfWorkspaceMemberReferenceValidator>();
         services.AddScoped<ITrustedWorkspaceMemberResolver, EfWorkspaceMemberReferenceValidator>();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Crm.Leads.Application.Common;
 using UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
 
@@ -14,6 +15,9 @@ internal static class LeadsModule
         services.AddDbContext<LeadsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "leads")));
         services.AddScoped<ILeadsPersistence, EfLeadsPersistence>();
+        services.AddDevelopmentSchemaMigration(
+            "leads",
+            (provider, cancellationToken) => provider.GetRequiredService<LeadsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<LeadAuthorization>();
         services.AddScoped<Application.CreateLead.LeadCreateExecution>();
         services.AddScoped<Contracts.IInboundLeadIngress, Application.CreateLead.InboundLeadIngress>();

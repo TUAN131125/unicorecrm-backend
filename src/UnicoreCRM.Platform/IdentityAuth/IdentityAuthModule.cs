@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using Microsoft.IdentityModel.Tokens;
 using UnicoreCRM.Platform.IdentityAuth.Application.Common;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
@@ -28,6 +29,9 @@ internal static class IdentityAuthModule
         services.AddDbContext<IdentityAuthDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "iam")));
         services.AddScoped<IIdentityAuthPersistence, EfIdentityAuthPersistence>();
+        services.AddDevelopmentSchemaMigration(
+            "identity-auth",
+            (provider, cancellationToken) => provider.GetRequiredService<IdentityAuthDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<IDevelopmentIdentityReferenceLookup, EfDevelopmentIdentityReferenceLookup>();
         services.AddScoped<IAuthenticatedIdentityReferenceLookup, EfAuthenticatedIdentityReferenceLookup>();
         services.AddSingleton<IIdentityPasswordHasher, FrameworkPasswordHasher>();

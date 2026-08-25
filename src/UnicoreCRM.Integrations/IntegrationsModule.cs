@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Integrations.Application;
 using UnicoreCRM.Integrations.Infrastructure;
 using UnicoreCRM.Integrations.Infrastructure.Persistence;
@@ -20,6 +21,9 @@ public static class IntegrationsModule
         services.AddDbContext<IntegrationsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "integration")));
         services.AddScoped<IInboundIntegrationBindingStore, EfInboundIntegrationBindingStore>();
+        services.AddDevelopmentSchemaMigration(
+            "integrations",
+            (provider, cancellationToken) => provider.GetRequiredService<IntegrationsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddSingleton<IWebhookSecretProvider, ConfigurationWebhookSecretProvider>();
         services.AddHostedService<DevelopmentInboundBindingBootstrap>();
         services.AddInboundModule();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Platform.AccessControl.Application.Common;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.AccessControl.Infrastructure;
@@ -19,6 +20,9 @@ internal static class AccessControlModule
         services.AddDbContext<AccessControlDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "access")));
         services.AddScoped<IAccessControlPersistence, EfAccessControlPersistence>();
+        services.AddDevelopmentSchemaMigration(
+            "access-control",
+            (provider, cancellationToken) => provider.GetRequiredService<AccessControlDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<CurrentAuthorizationContextAccessor>();
         services.AddScoped<ICurrentAuthorizationContext>(provider => provider.GetRequiredService<CurrentAuthorizationContextAccessor>());
         services.AddScoped<IResolvedAuthorizationContextSetter>(provider => provider.GetRequiredService<CurrentAuthorizationContextAccessor>());

@@ -122,6 +122,9 @@ function Set-HostEnvironment([string] $identityEmail, [bool] $resumeEnabled) {
     $env:IdentityAuth__DevelopmentBootstrap__DisplayName = 'Provisioning Upgrade Fixture'
     $env:Workspace__DevelopmentBootstrap__Enabled = 'false'
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
+    # This harness owns the exact schema state under test, so the one-click Development
+    # migration pass must stay off.
+    $env:Development__ApplyMigrations = 'false'
     $env:Integrations__DevelopmentBootstrap__Enabled = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = $resumeEnabled.ToString().ToLowerInvariant()
     $env:Workflows__InitialWorkspaceProvisioning__ResumeIntervalSeconds = '2'

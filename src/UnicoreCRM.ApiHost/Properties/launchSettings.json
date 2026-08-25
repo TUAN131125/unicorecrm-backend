@@ -2,11 +2,19 @@
   "profiles": {
     "UnicoreCRM.ApiHost": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "launchBrowser": false,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "https://localhost:59884;http://localhost:59885"
+      "applicationUrl": "http://localhost:5080"
+    },
+    "UnicoreCRM.ApiHost (https)": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:7080;http://localhost:5080"
     }
   }
 }

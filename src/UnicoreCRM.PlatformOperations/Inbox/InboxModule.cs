@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.PlatformOperations.Inbox.Contracts;
 using UnicoreCRM.PlatformOperations.Inbox.Infrastructure.Persistence;
 
@@ -14,6 +15,9 @@ internal static class InboxModule
         services.AddDbContext<InboxDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "ops")));
         services.AddScoped<IInboundDeliveryInbox, EfInboundDeliveryInbox>();
+        services.AddDevelopmentSchemaMigration(
+            "inbox",
+            (provider, cancellationToken) => provider.GetRequiredService<InboxDbContext>().Database.MigrateAsync(cancellationToken));
         return services;
     }
 }

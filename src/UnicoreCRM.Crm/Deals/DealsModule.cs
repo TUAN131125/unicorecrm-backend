@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Crm.Deals.Application.Common;
 using UnicoreCRM.Crm.Deals.Infrastructure.Persistence;
 
@@ -14,6 +15,9 @@ internal static class DealsModule
         services.AddDbContext<DealsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "deals")));
         services.AddScoped<IDealsPersistence, EfDealsPersistence>();
+        services.AddDevelopmentSchemaMigration(
+            "deals",
+            (provider, cancellationToken) => provider.GetRequiredService<DealsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<DealAuthorization>();
         services.AddScoped<DealMutationExecution>();
         services.AddScoped<Contracts.IDealSummaryReader, Application.ReadDealSummary.DealSummaryReader>();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Operations.Tasks.Application.Common;
 using UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
 
@@ -14,6 +15,9 @@ internal static class TasksModule
         services.AddDbContext<TasksDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "tasks")));
         services.AddScoped<ITasksPersistence, EfTasksPersistence>();
+        services.AddDevelopmentSchemaMigration(
+            "tasks",
+            (provider, cancellationToken) => provider.GetRequiredService<TasksDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<TaskAuthorization>();
         services.AddScoped<TaskMutationExecution>();
         services.AddScoped<Contracts.ITaskSummaryReader, Application.ReadTaskSummary.TaskSummaryReader>();
