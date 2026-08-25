@@ -8,6 +8,7 @@ internal sealed class Handler(
     IIdentityAuthPersistence persistence,
     IIdentityPasswordHasher passwordHasher,
     EmailVerificationChallengeIssuer issuer,
+    IIdentityEmailDispatchTrigger dispatchTrigger,
     IIdentityRequestFingerprinter fingerprinter,
     TimeProvider timeProvider)
 {
@@ -43,8 +44,9 @@ internal sealed class Handler(
         persistence.AddSecurityEvent(new IdentitySecurityEvent("IDENTITY_ACCOUNT_REGISTERED", account.AccountId, command.Metadata.CorrelationId, now));
         await persistence.SaveChangesAsync(cancellationToken);
         // The account is created awaiting verification, so registration is only complete once the
-        // first challenge is persisted and dispatched. A sender that fails closed leaves the
-        // transaction uncommitted, so no account is stranded without a way to reach Active.
+        // first challenge and its outbox message are staged. A host that cannot deliver mail at all
+        // fails here and leaves the transaction uncommitted, so no account is stranded without a way
+        // to reach Active. Delivery itself happens after the commit.
         try
         {
             await issuer.IssueAsync(account, command.Metadata.CorrelationId, now, cancellationToken);
@@ -55,6 +57,7 @@ internal sealed class Handler(
         }
 
         await transaction.CommitAsync(cancellationToken);
+        dispatchTrigger.RequestDispatch();
         return OperationResult<UserAccountDocument>.Success(IdentityProjection.Account(account));
     }
 }

@@ -170,6 +170,80 @@ internal sealed class HmacIdentityVerificationCodeProtector : IIdentityVerificat
     }
 }
 
+/// <summary>
+/// Authenticated encryption for the one value the email outbox must reconstruct after its issuing
+/// transaction commits: the code it still has to send.
+///
+/// AES-GCM under a purpose-separated key derived from the configured identity pepper, with the
+/// owning challenge identifier as associated data, so a stored payload cannot be moved to another
+/// challenge row and cannot be read without the host's configured secret. Verification never uses
+/// this path - it compares against the one-way digest on the challenge - so an unreadable payload
+/// costs at most one undeliverable queued message.
+/// </summary>
+internal sealed class AesGcmIdentityEmailPayloadProtector : IIdentityEmailPayloadProtector
+{
+    private const string PurposeLabel = "unicore:identity:email-outbox-payload:v1";
+    private const int NonceLength = 12;
+    private const int TagLength = 16;
+    private readonly byte[] key;
+
+    public AesGcmIdentityEmailPayloadProtector(IOptions<IdentityAuthOptions> options) =>
+        key = HMACSHA256.HashData(Encoding.UTF8.GetBytes(options.Value.RefreshTokenPepper), Encoding.UTF8.GetBytes(PurposeLabel));
+
+    public string Protect(string challengeId, string code)
+    {
+        var plaintext = Encoding.UTF8.GetBytes(code);
+        var nonce = RandomNumberGenerator.GetBytes(NonceLength);
+        var ciphertext = new byte[plaintext.Length];
+        var tag = new byte[TagLength];
+        using var aes = new AesGcm(key, TagLength);
+        aes.Encrypt(nonce, plaintext, ciphertext, tag, Encoding.UTF8.GetBytes(challengeId));
+        var payload = new byte[NonceLength + TagLength + ciphertext.Length];
+        nonce.CopyTo(payload, 0);
+        tag.CopyTo(payload, NonceLength);
+        ciphertext.CopyTo(payload, NonceLength + TagLength);
+        return Convert.ToBase64String(payload);
+    }
+
+    public bool TryUnprotect(string challengeId, string protectedPayload, out string code)
+    {
+        code = string.Empty;
+        byte[] payload;
+        try
+        {
+            payload = Convert.FromBase64String(protectedPayload);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        if (payload.Length <= NonceLength + TagLength)
+        {
+            return false;
+        }
+
+        var plaintext = new byte[payload.Length - NonceLength - TagLength];
+        try
+        {
+            using var aes = new AesGcm(key, TagLength);
+            aes.Decrypt(
+                payload.AsSpan(0, NonceLength),
+                payload.AsSpan(NonceLength + TagLength),
+                payload.AsSpan(NonceLength, TagLength),
+                plaintext,
+                Encoding.UTF8.GetBytes(challengeId));
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+
+        code = Encoding.UTF8.GetString(plaintext);
+        return true;
+    }
+}
+
 internal sealed class ConfiguredIdentityEmailVerificationPolicy(IOptions<IdentityAuthOptions> options) : IIdentityEmailVerificationPolicy
 {
     // Nested option members are not covered by the host's data-annotation validation, so the
@@ -177,4 +251,5 @@ internal sealed class ConfiguredIdentityEmailVerificationPolicy(IOptions<Identit
     public TimeSpan CodeLifetime => TimeSpan.FromMinutes(Math.Clamp(options.Value.EmailVerification.ExpiryMinutes, 5, 10));
     public TimeSpan ResendInterval => TimeSpan.FromSeconds(Math.Clamp(options.Value.EmailVerification.ResendIntervalSeconds, 30, 3600));
     public int MaxAttempts => Math.Clamp(options.Value.EmailVerification.MaxAttempts, 1, 10);
+    public int DeliveryMaxAttempts => Math.Clamp(options.Value.EmailVerification.Outbox.MaxAttempts, 1, 20);
 }

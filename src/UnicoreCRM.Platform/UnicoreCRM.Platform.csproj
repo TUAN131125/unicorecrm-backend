@@ -12,6 +12,12 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+    <!-- SMTP transport for the IdentityAuth-owned email sender. MailKit types never leave
+         IdentityAuth/Infrastructure/Email, so the compile assets are kept private: a project that
+         references UnicoreCRM.Platform cannot bind to a MailKit or MimeKit type even by accident, and
+         the transport stays an implementation detail of one owner. Runtime assets still flow, because
+         the host that loads this assembly has to be able to run that sender. -->
+    <PackageReference Include="MailKit" PrivateAssets="compile" />
     <PackageReference Include="System.Security.Cryptography.Xml" PrivateAssets="all" />
     <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
   </ItemGroup>

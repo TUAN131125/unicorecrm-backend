@@ -16,10 +16,16 @@ namespace UnicoreCRM.Platform.IdentityAuth.Application.RequestEmailVerification;
 ///
 /// The one case that is not uniform is a configured-but-failing email boundary: the caller is told
 /// the delivery could not happen instead of being told a code is on its way that never was.
+///
+/// A resend also declines silently while the account's current code is mid-delivery. Replacing a code
+/// revokes it, and a code that has already been handed to the provider cannot be revoked, so issuing
+/// there would be the one thing the outbox must never do: deliver a credential the system has already
+/// invalidated. The claim is bounded by the delivery lease, so asking again shortly afterwards works.
 /// </summary>
 internal sealed class Handler(
     IIdentityAuthPersistence persistence,
     EmailVerificationChallengeIssuer issuer,
+    IIdentityEmailDispatchTrigger dispatchTrigger,
     IIdentityRequestFingerprinter fingerprinter,
     TimeProvider timeProvider)
 {
@@ -62,13 +68,22 @@ internal sealed class Handler(
                 try
                 {
                     await issuer.IssueAsync(account, command.Metadata.CorrelationId, now, cancellationToken);
+                    outcome = "ISSUED";
                 }
                 catch (IdentityEmailSenderUnavailableException)
                 {
                     return OperationResult<EmailVerificationRequestAcceptedResponse>.Failure(IdentityErrors.EmailDeliveryUnavailable());
                 }
-
-                outcome = "ISSUED";
+                catch (IdentityEmailDeliveryInFlightException)
+                {
+                    // The current code is being handed to the provider right now. Issuing a
+                    // replacement would revoke a code that is already on its way, and the holder would
+                    // then receive a credential the system had just invalidated. Nothing is issued and
+                    // the cooldown is not restarted, so the caller may simply ask again once the claim
+                    // - bounded by the delivery lease - has resolved. The response stays the same
+                    // uniform acceptance as every other non-issuing outcome.
+                    outcome = "ACCEPTED_DELIVERY_IN_FLIGHT";
+                }
             }
             else
             {
@@ -80,6 +95,11 @@ internal sealed class Handler(
         persistence.AddAudit(new IdentityAuditRecord(Operation, outcome, account?.AccountId, command.Metadata.CorrelationId, now));
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        if (outcome == "ISSUED")
+        {
+            dispatchTrigger.RequestDispatch();
+        }
+
         return OperationResult<EmailVerificationRequestAcceptedResponse>.Success(new EmailVerificationRequestAcceptedResponse(requestId, now));
     }
 }

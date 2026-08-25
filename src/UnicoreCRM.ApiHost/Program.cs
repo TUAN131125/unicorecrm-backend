@@ -23,6 +23,8 @@ using UnicoreCRM.ApiHost.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddDevelopmentLocalConfiguration();
+
 builder.AddDevelopmentDemoBootstrap();
 // Registered before the modules so the owner-registered schema migrations run ahead of
 // every owner Development seed. ApiHost invokes owner callbacks only; it holds no DbContext.

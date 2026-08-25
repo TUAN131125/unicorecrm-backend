@@ -55,16 +55,80 @@ internal sealed class EmailVerificationOptions
     public int ResendIntervalSeconds { get; init; } = 60;
 
     public EmailSenderOptions Sender { get; init; } = new();
+    public EmailOutboxOptions Outbox { get; init; } = new();
 }
 
 internal sealed class EmailSenderOptions
 {
     /// <summary>
-    /// Sender selection. Only <c>DevelopmentLog</c> is implemented, and only the Development host
-    /// environment may select it. Every other value, and every other environment, resolves the
-    /// unavailable sender and fails closed until a real provider is implemented and configured.
+    /// Sender selection: <c>GmailSmtp</c>, <c>DevelopmentLog</c>, <c>DevelopmentFailing</c> or
+    /// <c>Unavailable</c>. The two <c>Development*</c> kinds are accepted only by a Development host.
+    /// Every unrecognised value, and every non-Development host that asks for one of them, resolves
+    /// the unavailable sender and fails closed.
     /// </summary>
     public string Kind { get; init; } = "Unavailable";
+
+    public string Host { get; init; } = "smtp.gmail.com";
+
+    public int Port { get; init; } = 587;
+
+    public bool UseStartTls { get; init; } = true;
+
+    /// <summary>SMTP account. Secret-adjacent: supply it from untracked local configuration.</summary>
+    public string Username { get; init; } = string.Empty;
+
+    /// <summary>Google App Password. A secret: never tracked, never logged, never echoed.</summary>
+    public string AppPassword { get; init; } = string.Empty;
+
+    public string FromAddress { get; init; } = string.Empty;
+
+    public string FromName { get; init; } = "UnicoreCRM";
+
+    public int TimeoutSeconds { get; init; } = 30;
+
+    /// <summary>
+    /// Development-only: an artificial pause, in milliseconds, before the console sender reports a
+    /// send complete. It exists so a verification harness can hold a delivery attempt open long
+    /// enough to observe the claim protecting it, and to drive several sequential sends past the
+    /// duration of any single claim. Zero in every tracked configuration.
+    /// </summary>
+    public int SimulatedSendDelayMilliseconds { get; init; }
+
+    /// <summary>
+    /// Development-only, and meaningful only to the <c>DevelopmentFailing</c> sender: where that
+    /// sender writes the provider error text it fabricates. It stands in for a provider's own
+    /// transcript, so a verification harness can read the exact recipient, subject and code the
+    /// simulated provider echoed and then prove none of them reached the outbox or the log. Empty in
+    /// every tracked configuration.
+    /// </summary>
+    public string SimulatedFailureTranscriptPath { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Delivery sweep policy for the IdentityAuth-owned email outbox. These values shape retries only;
+/// they never affect whether a verification code is valid.
+/// </summary>
+internal sealed class EmailOutboxOptions
+{
+    /// <summary>Idle interval between dispatch passes. A committed message also signals the pass immediately.</summary>
+    public int DispatchIntervalSeconds { get; init; } = 15;
+
+    /// <summary>Delivery attempts before a message is abandoned. Unrelated to OTP verification attempts.</summary>
+    public int MaxAttempts { get; init; } = 5;
+
+    /// <summary>First retry delay. Later delays back off exponentially from this value.</summary>
+    public int RetryBackoffSeconds { get; init; } = 30;
+
+    /// <summary>Messages claimed per pass.</summary>
+    public int BatchSize { get; init; } = 20;
+
+    /// <summary>
+    /// How long an individual delivery claim holds. Each message is claimed separately immediately
+    /// before its own send, so this is the lifetime of one claim, never of a whole batch. The
+    /// dispatcher raises it when it would otherwise be shorter than the sender timeout plus its
+    /// safety margin, because a claim must always outlast the send it protects.
+    /// </summary>
+    public int LeaseSeconds { get; init; } = 120;
 }
 
 internal sealed class DevelopmentBootstrapOptions

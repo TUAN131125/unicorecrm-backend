@@ -314,18 +314,130 @@ distinctly, because the caller must be able to act on them and both require an o
 the caller already holds. A configured-but-failing email boundary returns `INTEGRATION_UNAVAILABLE`
 rather than claiming a code was sent.
 
-`IIdentityEmailSender` is the IdentityAuth-owned provider-neutral outbound boundary. The fail-closed
-`UnavailableIdentityEmailSender` is the default in every environment and is the only sender a
-non-Development host can resolve; it throws, so the caller's transaction never commits an account or
-challenge whose code nobody received. The console `DevelopmentLoggingIdentityEmailSender` is
-registered only when the running host environment is Development and the sender kind is explicitly
-`DevelopmentLog`. There is no no-op or pretend-success production sender: until a real provider is
-implemented and configured, registration fails closed with `INTEGRATION_UNAVAILABLE` rather than
-creating accounts nobody can activate. Dispatch runs inside the caller's transaction after the
-challenge is saved and before commit; a real remote provider should later move dispatch behind an
-IdentityAuth-owned outbox rather than holding serializable locks across a network call.
+`IIdentityEmailSender` is the IdentityAuth-owned provider-neutral outbound boundary, and it answers
+two separate questions: `EnsureConfigured` asks whether this host could ever deliver mail, without a
+network call and on the request path, while `SendEmailVerificationCodeAsync` performs the remote call
+and is reached only from the outbox dispatcher. Four senders exist. The fail-closed
+`UnavailableIdentityEmailSender` is the default in every environment and the fallback for every
+unrecognised kind. The console `DevelopmentLoggingIdentityEmailSender` is registered only when the
+running host environment is Development and the sender kind is explicitly `DevelopmentLog`. The
+`SimulatedFailingIdentityEmailSender`, gated identically under the kind `DevelopmentFailing`, always
+fails with an error string that deliberately echoes the recipient, the full subject and the live
+code back at the caller; it exists only so verification can prove that provider-authored text
+reaches neither persisted delivery evidence nor a log.
+`GmailSmtpIdentityEmailSender` performs real delivery through Gmail's submission service using the
+configured account and a Google App Password, and is available to any environment. There is no no-op
+or pretend-success sender: a host with no usable sender configuration fails registration and
+verification requests closed with `INTEGRATION_UNAVAILABLE` rather than creating accounts nobody can
+activate.
 
-Only `IdentityAuthDbContext` gained a migration, `20260825013815_IdentityEmailVerification`. Runtime
+`GmailSmtpIdentityEmailSender` is the only type in the solution that touches an SMTP or MIME type. It
+uses MailKit, and no MailKit or MimeKit type appears in IdentityAuth's Domain, Application or
+Contracts layer or in any other module. Its transport is always encrypted - STARTTLS on the
+submission port, or implicit TLS when STARTTLS is disabled - with no plaintext fallback. It logs
+nothing, and no provider-authored text leaves it at all. `Username`, `AppPassword` and `FromAddress`
+are absent from every tracked configuration file and are supplied only from untracked local
+configuration or a deployment secret store.
+
+Provider error text is classified, never quoted. A failed send is mapped onto one of IdentityAuth's
+own bounded values - `SMTP_AUTH_FAILED`, `SMTP_CONNECT_FAILED`, `SMTP_TIMEOUT`,
+`SMTP_PROTOCOL_ERROR`, `SMTP_COMMAND_FAILED`, `SMTP_RECIPIENT_REJECTED`,
+`SMTP_PROVIDER_UNAVAILABLE` or `UNKNOWN_DELIVERY_FAILURE` - by inspecting only the exception's type,
+and the exception itself is discarded. Redacting known credentials out of a provider message was a
+denylist and could not be complete: SMTP error text quotes server dialogue, and that dialogue echoes
+the recipient address, the headers and a `Subject` line that in this product contains the
+verification code itself. The complete vocabulary that may reach `iam.EmailOutboxMessages.LastError`
+is the `EmailOutboxReasons` constant set, which adds `EMAIL_SENDER_UNAVAILABLE`,
+`PAYLOAD_UNREADABLE`, `CODE_EXPIRED_BEFORE_DELIVERY`, `CHALLENGE_SUPERSEDED`, `CHALLENGE_CONSUMED`,
+`CHALLENGE_EXPIRED` and `CHALLENGE_NOT_DELIVERABLE` for the outcomes the dispatcher decides itself.
+Logs carry those same codes with identifiers and attempt counts, and never a recipient, a code, a
+credential or provider text. MailKit's compile assets are private to `UnicoreCRM.Platform`, so no
+consuming project can bind to a MailKit or MimeKit type even by accident, while its runtime assets
+still flow to the host that has to run the sender.
+
+Remote SMTP is never performed inside the serializable issuing transaction, because a network call
+would hold locks for its whole duration and a provider outage would roll back an account. Issuance
+checks sender configuration, then commits the challenge and exactly one `iam.EmailOutboxMessages` row
+together. `IdentityEmailOutboxDispatcher`, an IdentityAuth-owned hosted service, delivers afterwards;
+a committed transaction signals it so it runs immediately, and a dropped signal only delays a message
+because the idle pass finds the same durable rows. PlatformOperations owns an `Outbox` module, but it
+is an empty placeholder with no approved cross-owner contract, and LAW-04/LAW-05 forbid reaching into
+another owner's persistence, so this is deliberately the smallest IdentityAuth-owned durable
+mechanism: one table and one hosted service, with no broker, queue product or other distributed
+infrastructure.
+
+The outbox never stores the code in the clear. It holds AES-GCM ciphertext under a purpose-separated
+key derived from the identity pepper, with the owning challenge identifier as associated data, and
+clears the payload the moment a message reaches any terminal state. Verification never reads that
+path; it still compares against the one-way digest on the challenge.
+
+A queued message carries a credential, so it is deliverable only for as long as its challenge is, and
+no code may be delivered once its challenge is superseded, consumed or expired. Delivering a revoked
+code is worse than delivering nothing, because the holder would enter it, fail, and spend an attempt
+of the challenge that actually is active. Two redundant mechanisms enforce this. The serializable
+transaction that revokes a code also retires the message carrying it, setting the terminal
+non-deliverable `Cancelled` status, dropping the payload and recording `CHALLENGE_SUPERSEDED` or
+`CHALLENGE_CONSUMED`; the message is deliberately not recorded as `Sent`, because nothing was sent.
+Independently, the dispatcher re-reads the challenge immediately before every send and cancels the
+message with no network call if it is no longer eligible, which also covers an expiry that simply
+elapsed and any future writer that omits the first step.
+
+A code that is already being delivered cannot be revoked, because the send may already have reached
+the provider. `LeasedUntil` is the durable signal that separates a queued message from one whose
+delivery attempt is claimed and unresolved, and the claim commits it before any network call. An
+issuing transaction reads it and, when the account's current message is in flight, raises
+`IdentityEmailDeliveryInFlightException` and issues nothing rather than creating the forbidden state
+in which the old code is invalid, the new code is active and the old email still arrives.
+`requestEmailVerification` answers with its usual uniform `202` and an `ACCEPTED_DELIVERY_IN_FLIGHT`
+audit outcome, does not restart the cooldown, and the caller may simply ask again; registration
+cannot reach this path because a new account has no outstanding challenge. The two transactions
+serialize on the same outbox row, so either the claim commits first and issuance declines, or the
+cancellation commits first and the message is no longer claimable. No SMTP call moved into the
+issuing transaction to achieve this.
+
+Claims are per message, never per batch. A pass reads a bounded set of due candidates without locking
+or claiming anything, then re-reads, re-checks and claims each one in its own small serializable
+transaction immediately before that message's own send. A batch-wide claim could not hold the
+invariant: messages are delivered sequentially, so one timestamp shared across a batch is already
+stale by the time the later messages start, and with the shipped defaults a later send could begin
+after the claim covering it had expired - a send in flight with no live claim, which is exactly the
+state a resend is entitled to assume cannot exist. The effective lease is never shorter than the
+sender timeout plus a thirty-second safety margin, and every send is capped at the remaining time on
+its own claim; if that remaining time is not positive the sender is not called at all, the claim is
+released, and a later pass claims the message afresh. No path falls back to the sender's own timeout
+once the durable claim has lapsed. Because eligibility is re-checked inside the claim transaction and
+before the attempt is counted, a message retired without ever being sent no longer spends a delivery
+attempt.
+
+`iam.EmailOutboxMessages` carries a `rowversion` concurrency token as defence in depth behind those
+rules. A delivery outcome written against a stale row image raises `DbUpdateConcurrencyException`
+rather than winning silently; the dispatcher reloads the row, preserves whatever the other writer
+committed, and logs the conflict with the status it preserved. It never retries the write, because a
+retry would be a finished send stamping `Sent` over a row that has since been cancelled - the
+database asserting that a revoked code was delivered.
+
+Claiming a message is a lease: the claim counts the attempt and pushes the next attempt out inside a
+serializable transaction that commits before any network call, so a dispatcher that dies mid-send
+releases that message by expiry and two passes never send the same message at once, because an
+already-claimed candidate is skipped. Delivery is
+therefore at-least-once, and a repeat can only ever resend the same code, because the message is
+keyed one-to-one to its challenge by a unique index and creates no account or challenge state of its
+own; a transient provider failure can never produce a duplicate account or a duplicate OTP challenge.
+Failures record a scrubbed reason and reschedule with capped exponential backoff, and a message is
+abandoned once its delivery ceiling is reached or once its code expires before delivery, leaving the
+account `PENDING_VERIFICATION` and free to request a new code. A host whose sender configuration is
+unusable holds every message untouched instead of burning attempts.
+
+One consequence is deliberate and is recorded here rather than left implicit: registration now fails
+closed only on misconfiguration. A transient provider failure no longer fails registration - the
+account is created `PENDING_VERIFICATION`, the message stays queued and delivery is retried - which
+is the trade for keeping SMTP out of the transaction.
+
+Only `IdentityAuthDbContext` gained migrations: `20260825013815_IdentityEmailVerification`,
+`20260825031648_IdentityEmailOutbox`, the additive `20260825060515_IdentityEmailOutboxSupersession`,
+which adds the single nullable `LeasedUntil` column, and the additive
+`20260825072836_IdentityEmailOutboxConcurrencyToken`, which adds the `rowversion` column that SQL
+Server populates for existing rows. Runtime
 verification on 2026-08-25 used the isolated `UnicoreCRM_EmailOtp_Verification_20260825` LocalDB
 database and a real ApiHost, and proved: registration producing a `PENDING_VERIFICATION` account with
 exactly one challenge and one dispatched code; the plaintext code absent from persistence with a
@@ -351,6 +463,123 @@ harness including its IdentityAuth register/sign-in/session/refresh/sign-out and
 checks, and `UnicoreCRM_OtpRegression_Upgrade_20260825` passed the migration-chain upgrade harness.
 Therefore `EMAIL VERIFICATION OTP: PASS`. Reproducible runtime checks are retained in
 `backend/scripts/verify-email-verification-otp.ps1`.
+
+Gmail SMTP delivery and the outbox were verified on 2026-08-25. The isolated
+`UnicoreCRM_Outbox_Verification_20260825` LocalDB database and a real ApiHost re-proved every OTP
+behaviour above and additionally proved: registration staging exactly one outbox message whose
+payload never contains the plaintext code; delivery after commit clearing that payload in one
+attempt; a resend staging and delivering a second message; registration still succeeding with
+`PENDING_VERIFICATION` while the provider is unreachable, with the message left pending, its scrubbed
+failure reason recorded, its payload retained for retry and no credential anywhere in the host log; a
+host restart resuming the pending message and creating no second account, challenge or message; and
+the recovered boundary delivering the original message so its original code still verified and signed
+in. The isolated `UnicoreCRM_GmailAuth_20260825` database proved the real transport end to end
+against `smtp.gmail.com:587`: MailKit completed the STARTTLS handshake and Gmail answered
+`535 5.7.8 Username and Password not accepted` for deliberately wrong credentials, after which the
+message stayed pending with one attempt, the recorded reason contained neither the username nor the
+app password, and neither appeared in the host log. Delivery to a real inbox with valid credentials
+is confirmed separately by the repository owner, because it needs a live Gmail account. The frozen
+Initial Workspace Provisioning harness passed on
+`UnicoreCRM_OutboxRegression_Provisioning_20260825`, and all six owner models reported no pending
+changes.
+
+The supersession and error-recording semantics above were verified on 2026-08-25 on the isolated
+`UnicoreCRM_OtpSupersession2_20260825` LocalDB database and a real ApiHost, which re-proved every OTP
+and outbox behaviour already recorded and additionally proved the two review findings closed.
+
+For the stale-message case it reproduced the reviewed scenario exactly: an account registered while
+the provider was unreachable, its message left retrying with its payload intact, the resend cooldown
+elapsed, a resend issued, and the provider then recovered. A resend attempted while the message's
+delivery claim was unresolved issued nothing, left the challenge unrevoked and left the message
+uncancelled. Once the claim resolved, the resend superseded the challenge and drove the stale message
+to `Cancelled` with its payload cleared, `SentAt` still null and `CHALLENGE_SUPERSEDED` recorded.
+After the provider recovered, only the currently valid message was delivered, exactly one code was
+ever handed to a sender for that account, the live challenge had spent no attempt, and that one code
+verified and signed in. The dispatcher's own gate was proved independently on a second account whose
+challenge was superseded directly in the database, leaving its message `Pending` and still holding a
+deliverable payload: the dispatcher retired it as `Cancelled` with `CHALLENGE_SUPERSEDED`, dropped
+the payload, never recorded it as sent, and never handed the code to the console sender that would
+have logged it.
+
+For the error-recording case a Development-only simulated provider failed with an error string
+containing the exact recipient, the full subject, the live six-digit code and the configured SMTP
+username, writing that string to its own transcript so the assertions ran against the real values.
+`UNKNOWN_DELIVERY_FAILURE` was persisted instead, and none of the recipient, the code, the subject,
+the username or the fabricated text appeared in `LastError` or in any host log. A whole-run sweep
+confirmed every persisted delivery reason was an application-owned value.
+
+The real transport was re-proved on the isolated `UnicoreCRM_GmailTransport_20260825` database
+against `smtp.gmail.com:587`: MailKit completed the STARTTLS handshake and Gmail rejected
+deliberately wrong credentials, which classified as `SMTP_AUTH_FAILED` in exactly one attempt with
+nothing reported as delivered, and neither the username, the app password, the recipient, the Gmail
+response text nor its enhanced status code reached `LastError` or the host log. That run sends no
+mail and is retained as `backend/scripts/verify-gmail-transport.ps1`.
+
+End-to-end delivery to a real inbox was then verified on 2026-08-25 on the isolated
+`UnicoreCRM_GmailInbox_20260825` database, with the repository owner reading the codes out of the
+mailbox, using the real credentials from untracked local configuration and plus-addressed
+recipients. Registration returned `201` `PENDING_VERIFICATION` with exactly one challenge and one
+outbox message; the message was accepted by Gmail on its first attempt with its payload cleared and
+no error recorded; the code arrived in the real mailbox; submitting it returned `200` `ACTIVE` with
+`emailVerifiedAt` set and exactly one challenge consumed and none left outstanding; sign-in then
+returned `200` with an access token; and the consumed code was refused on reuse.
+
+The supersession path was exercised against the live provider on a second account. Its first message
+was staged while the submission endpoint was unreachable, so it stayed `Pending` with its payload
+intact after three attempts, each recorded as `SMTP_CONNECT_FAILED`. After the resend cooldown had
+genuinely elapsed, a resend superseded the first challenge and drove that message to `Cancelled`
+with its payload cleared, `SentAt` still null and `CHALLENGE_SUPERSEDED` recorded. With the real
+submission endpoint restored, only the currently valid message reached Gmail, the superseded message
+stayed terminal, the live challenge had spent no attempt, and the newly delivered code verified to
+`ACTIVE` and signed in. Across the whole live run no message ever retained a payload, every recorded
+delivery reason was a bounded application-owned value, and no configured credential, Gmail response
+text, enhanced status code or delivered six-digit code appeared in any of the six host logs - whose
+only email lines carry a message identifier, an account identifier, an attempt number and a reason
+code.
+
+Per-message claiming and the concurrency token were verified on 2026-08-25 on the isolated
+`UnicoreCRM_H3Batch2_20260825` database, whose 198 checks include every behaviour recorded above.
+
+The batch dimension is covered explicitly, because a harness that delivers one due message at a time
+cannot see the defect at all. Five accounts were staged against an unreachable submission endpoint so
+their messages ended up queued together, then released into a single dispatcher batch behind a sender
+that took nine seconds per send, with the effective lease reduced to thirty-one seconds. All five were
+claimed individually, each with its own distinct claim expiry equal to the full effective lease, and
+every claim was still in the future while its own send was running. The decisive assertion is that the
+last send began *after* the first message's claim had already expired while still holding a live claim
+of its own: under a batch-wide claim that send would have been running unprotected, which is exactly
+the state that let a resend revoke a code already on its way. No claim outlived its send, and every
+delivered message recorded a clean outcome.
+
+The in-flight semantics were asserted from inside that window: with the resend cooldown deliberately
+cleared beforehand, a resend issued while a send was blocked in the sender returned the uniform `202`,
+superseded nothing, cancelled nothing and staged neither a new challenge nor a new message; once the
+send resolved, a resend for the same account in the same cooldown state did issue, which proves the
+refusal came from the live claim rather than from a cooldown.
+
+The concurrency token was proved end to end rather than in isolation. A message was retired to
+`Cancelled` by a second writer while its send was still running; the row's token advanced, and when
+the finished send tried to record its outcome the write failed instead of winning. The row remained
+`Cancelled` with a null `SentAt`, its reason code intact and its payload cleared, and the dispatcher
+logged that another writer had committed `Cancelled` first and that state was preserved. The stale
+message regression is unchanged and still passes.
+
+The real Gmail path was re-verified after the change on `UnicoreCRM_GmailInbox_20260825`, with the
+repository owner reading the code out of the mailbox: registration returned `201`
+`PENDING_VERIFICATION` with exactly one challenge and one outbox message, the message was accepted by
+Gmail on its first attempt with its payload cleared and no error recorded, the code arrived, verifying
+it returned `200` `ACTIVE` with `emailVerifiedAt` set and one challenge consumed, sign-in returned
+`200`, the consumed code was refused on reuse, and no credential, Gmail response text or delivered
+code appeared in any host log.
+
+The frozen Initial Workspace Provisioning harness passed on
+`UnicoreCRM_H3Regression_Provisioning_20260825`, the local developer configuration contract
+passed on `UnicoreCRM_H3LocalConfig_20260825` - which now runs against a synthetic content root and
+leaves the developer's own `appsettings.Development.Local.json` byte-for-byte untouched - and all
+owner models reported no pending changes. Reproducible checks are retained in
+`backend/scripts/verify-email-verification-otp.ps1`,
+`backend/scripts/verify-development-local-configuration.ps1` and
+`backend/scripts/verify-gmail-transport.ps1`.
 
 The current frontend still routes email verification through a `token` query parameter and the
 retired contract, so the connected frontend cannot complete verification until it is aligned to the

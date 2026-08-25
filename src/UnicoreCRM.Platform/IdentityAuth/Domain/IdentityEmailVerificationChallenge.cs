@@ -50,6 +50,14 @@ internal sealed class IdentityEmailVerificationChallenge
 
     internal bool IsExpired(DateTimeOffset now) => now >= ExpiresAt;
 
+    /// <summary>
+    /// Whether this challenge's code may still be delivered. A code that can no longer be used is a
+    /// revoked credential, and emailing a revoked credential is worse than emailing nothing: the
+    /// holder would enter it, fail, and spend an attempt of the challenge that actually is active.
+    /// The outbox therefore checks this immediately before every send.
+    /// </summary>
+    internal bool IsDeliverable(DateTimeOffset now) => IsOutstanding && !IsExpired(now);
+
     internal bool CanResend(DateTimeOffset now) => now >= ResendAvailableAt;
 
     internal void RegisterFailedAttempt()

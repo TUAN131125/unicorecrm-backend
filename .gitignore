@@ -1,0 +1,23 @@
+# Visual Studio / IDE state
+.vs/
+*.user
+*.suo
+
+# Build output
+**/bin/
+**/obj/
+
+# Local developer configuration. Real local credentials belong here and are never tracked.
+# Copy src/UnicoreCRM.ApiHost/appsettings.Development.Local.example.json to
+# src/UnicoreCRM.ApiHost/appsettings.Development.Local.json and fill in real values.
+**/appsettings.Development.Local.json
+**/appsettings.Development.Local.json.bak
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Transient output
+*.log
+*.tmp

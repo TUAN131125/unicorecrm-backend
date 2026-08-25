@@ -75,6 +75,20 @@ internal sealed class Handler(
             stale.Supersede(now);
         }
 
+        // Every challenge closed above has had its code revoked, so no undelivered message may still
+        // carry one to the holder's inbox. In practice the consumed challenge's own message was
+        // delivered - that is how the caller knows the code - but a message left queued here would be
+        // an email of a spent credential, so it is retired terminally and its payload dropped. A
+        // message whose delivery attempt is already in flight is left alone: it cannot be recalled,
+        // and the dispatcher records its own outcome when the attempt resolves.
+        var undelivered = await persistence.ListUndeliveredEmailOutboxMessagesAsync(
+            outstanding.Select(x => x.ChallengeId).ToArray(),
+            cancellationToken);
+        foreach (var message in undelivered.Where(message => !message.IsDeliveryInFlight(now)))
+        {
+            message.Cancel(now, EmailOutboxReasons.ChallengeConsumed);
+        }
+
         account.MarkEmailVerified(now);
         persistence.AddIdempotency(new IdentityIdempotencyRecord(Operation, command.Metadata.IdempotencyKey, fingerprint, account.AccountId, now));
         persistence.AddAudit(new IdentityAuditRecord(Operation, "SUCCEEDED", account.AccountId, command.Metadata.CorrelationId, now));

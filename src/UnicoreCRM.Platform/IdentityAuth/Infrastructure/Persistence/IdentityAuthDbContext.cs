@@ -9,6 +9,7 @@ internal sealed class IdentityAuthDbContext(DbContextOptions<IdentityAuthDbConte
     internal DbSet<IdentityCredential> Credentials => Set<IdentityCredential>();
     internal DbSet<IdentitySession> Sessions => Set<IdentitySession>();
     internal DbSet<IdentityEmailVerificationChallenge> EmailVerificationChallenges => Set<IdentityEmailVerificationChallenge>();
+    internal DbSet<IdentityEmailOutboxMessage> EmailOutboxMessages => Set<IdentityEmailOutboxMessage>();
     internal DbSet<IdentityIdempotencyRecord> IdempotencyRecords => Set<IdentityIdempotencyRecord>();
     internal DbSet<IdentityAuditRecord> AuditRecords => Set<IdentityAuditRecord>();
     internal DbSet<IdentitySecurityEvent> SecurityEvents => Set<IdentitySecurityEvent>();
@@ -65,6 +66,31 @@ internal sealed class IdentityAuthDbContext(DbContextOptions<IdentityAuthDbConte
             entity.Property(x => x.CodeHash).HasMaxLength(64);
             // Serves the only query shape the owner performs: the outstanding challenges of one account.
             entity.HasIndex(x => new { x.AccountId, x.ConsumedAt, x.SupersededAt });
+            entity.HasOne<IdentityAccount>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IdentityEmailOutboxMessage>(entity =>
+        {
+            entity.ToTable("EmailOutboxMessages");
+            entity.HasKey(x => x.MessageId);
+            entity.Property(x => x.MessageId).HasMaxLength(64);
+            entity.Property(x => x.AccountId).HasMaxLength(64);
+            entity.Property(x => x.ChallengeId).HasMaxLength(64);
+            // One message per challenge: a delivery retry can repeat an email but never a challenge.
+            entity.HasIndex(x => x.ChallengeId).IsUnique();
+            entity.Property(x => x.Recipient).HasMaxLength(254);
+            entity.Property(x => x.DisplayName).HasMaxLength(160);
+            entity.Property(x => x.ProtectedCode).HasMaxLength(512);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            // Only bounded, application-owned reason codes are ever written here: never provider
+            // error text, which quotes the recipient, the headers and this product's code-bearing
+            // subject line back at the caller.
+            entity.Property(x => x.LastError).HasMaxLength(500);
+            // A delivery outcome is written seconds after the row was read, so a concurrent resend or
+            // verification must not be silently overwritten by it.
+            entity.Property(x => x.RowVersion).IsRowVersion();
+            // Serves the dispatcher's only query: the due pending messages, oldest first.
+            entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
             entity.HasOne<IdentityAccount>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
 

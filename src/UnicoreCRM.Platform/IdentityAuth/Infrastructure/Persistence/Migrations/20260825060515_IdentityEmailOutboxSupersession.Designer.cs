@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence;
 namespace UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IdentityAuthDbContext))]
-    partial class IdentityAuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825060515_IdentityEmailOutboxSupersession")]
+    partial class IdentityEmailOutboxSupersession
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -179,12 +182,6 @@ namespace UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(254)
                         .HasColumnType("nvarchar(254)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
 
                     b.Property<DateTimeOffset?>("SentAt")
                         .HasColumnType("datetimeoffset");

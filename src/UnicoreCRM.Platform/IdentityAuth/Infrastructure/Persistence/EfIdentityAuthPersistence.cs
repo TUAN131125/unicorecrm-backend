@@ -32,10 +32,18 @@ internal sealed class EfIdentityAuthPersistence(IdentityAuthDbContext dbContext)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<IdentityEmailOutboxMessage>> ListUndeliveredEmailOutboxMessagesAsync(IReadOnlyCollection<string> challengeIds, CancellationToken cancellationToken) =>
+        challengeIds.Count == 0
+            ? []
+            : await dbContext.EmailOutboxMessages
+                .Where(x => challengeIds.Contains(x.ChallengeId) && x.Status == EmailOutboxStatus.Pending)
+                .ToListAsync(cancellationToken);
+
     public void AddAccount(IdentityAccount account) => dbContext.Accounts.Add(account);
     public void AddCredential(IdentityCredential credential) => dbContext.Credentials.Add(credential);
     public void AddSession(IdentitySession session) => dbContext.Sessions.Add(session);
     public void AddEmailVerificationChallenge(IdentityEmailVerificationChallenge challenge) => dbContext.EmailVerificationChallenges.Add(challenge);
+    public void AddEmailOutboxMessage(IdentityEmailOutboxMessage message) => dbContext.EmailOutboxMessages.Add(message);
     public void AddIdempotency(IdentityIdempotencyRecord record) => dbContext.IdempotencyRecords.Add(record);
     public void AddAudit(IdentityAuditRecord record) => dbContext.AuditRecords.Add(record);
     public void AddSecurityEvent(IdentitySecurityEvent securityEvent) => dbContext.SecurityEvents.Add(securityEvent);

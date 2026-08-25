@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence;
 namespace UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IdentityAuthDbContext))]
-    partial class IdentityAuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825072836_IdentityEmailOutboxConcurrencyToken")]
+    partial class IdentityEmailOutboxConcurrencyToken
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

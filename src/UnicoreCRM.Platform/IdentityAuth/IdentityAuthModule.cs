@@ -43,14 +43,24 @@ internal static class IdentityAuthModule
         services.AddSingleton<IIdentitySessionPolicy, ConfiguredIdentitySessionPolicy>();
         services.AddSingleton<IIdentityVerificationCodeProtector, HmacIdentityVerificationCodeProtector>();
         services.AddSingleton<IIdentityEmailVerificationPolicy, ConfiguredIdentityEmailVerificationPolicy>();
-        // Email delivery fails closed by default. The Development console sender is resolved only
-        // when the running host is Development and the sender kind is explicitly configured, so no
-        // deployed host can fall back to a fake sender.
-        services.AddSingleton<IIdentityEmailSender>(provider =>
-            provider.GetRequiredService<IHostEnvironment>().IsDevelopment()
-            && string.Equals(settings.EmailVerification.Sender.Kind, "DevelopmentLog", StringComparison.Ordinal)
-                ? ActivatorUtilities.CreateInstance<DevelopmentLoggingIdentityEmailSender>(provider)
-                : ActivatorUtilities.CreateInstance<UnavailableIdentityEmailSender>(provider));
+        services.AddSingleton<IIdentityEmailPayloadProtector, AesGcmIdentityEmailPayloadProtector>();
+        // Email delivery fails closed by default. GmailSmtp is the real provider and is available to
+        // any environment; the Development console sender is resolved only when the running host is
+        // Development and asks for it by name, so no deployed host can fall back to a fake sender.
+        // Every unrecognised kind resolves the unavailable sender.
+        services.AddSingleton<IIdentityEmailSender>(provider => settings.EmailVerification.Sender.Kind switch
+        {
+            "GmailSmtp" => ActivatorUtilities.CreateInstance<GmailSmtpIdentityEmailSender>(provider),
+            "DevelopmentLog" when provider.GetRequiredService<IHostEnvironment>().IsDevelopment() =>
+                ActivatorUtilities.CreateInstance<DevelopmentLoggingIdentityEmailSender>(provider),
+            // The deliberately hostile sender used to prove that provider error text cannot reach the
+            // outbox or the log. Gated exactly like the console sender.
+            "DevelopmentFailing" when provider.GetRequiredService<IHostEnvironment>().IsDevelopment() =>
+                ActivatorUtilities.CreateInstance<SimulatedFailingIdentityEmailSender>(provider),
+            _ => ActivatorUtilities.CreateInstance<UnavailableIdentityEmailSender>(provider)
+        });
+        services.AddSingleton<IdentityEmailOutboxSignal>();
+        services.AddSingleton<IIdentityEmailDispatchTrigger>(provider => provider.GetRequiredService<IdentityEmailOutboxSignal>());
         services.AddSingleton(TimeProvider.System);
 
         services.AddScoped<EmailVerificationChallengeIssuer>();
@@ -61,6 +71,7 @@ internal static class IdentityAuthModule
         services.AddScoped<Application.RefreshSession.Handler>();
         services.AddScoped<Application.GetCurrentSession.Handler>();
         services.AddScoped<Application.SignOut.Handler>();
+        services.AddHostedService<IdentityEmailOutboxDispatcher>();
         services.AddHostedService<DevelopmentIdentityBootstrap>();
 
         services.ConfigureHttpJsonOptions(options =>
