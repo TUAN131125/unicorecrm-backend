@@ -27,6 +27,17 @@ public sealed record WorkspaceBootstrapDocument(
     WorkspaceRuntimeConfiguration Configuration,
     DateTimeOffset ResolvedAt);
 
+public sealed record WorkspaceCurrencyConfiguration(
+    string BaseCurrency,
+    long ConfigurationVersion);
+
+public interface IWorkspaceCurrencyConfigurationReader
+{
+    Task<WorkspaceCurrencyConfiguration?> FindAsync(
+        string workspaceId,
+        CancellationToken cancellationToken);
+}
+
 public sealed record WorkspaceProblemDetails(
     string Type,
     string Title,

@@ -15,6 +15,7 @@ using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Crm.Deals.Contracts;
+using UnicoreCRM.Sales.Products.Contracts;
 using UnicoreCRM.Integrations.Webhooks.Inbound.Contracts;
 using UnicoreCRM.Workflows.Durable.Contracts;
 using UnicoreCRM.AI.Gateway;
@@ -49,7 +50,7 @@ if (builder.Environment.IsDevelopment())
 
 builder.Services.AddPlatformModule(builder.Configuration);
 builder.Services.AddCrmModule(builder.Configuration);
-builder.Services.AddSalesModule();
+builder.Services.AddSalesModule(builder.Configuration);
 builder.Services.AddBillingModule();
 builder.Services.AddFulfillmentModule();
 builder.Services.AddOperationsModule(builder.Configuration);
@@ -90,6 +91,7 @@ app.MapDurableWorkflowEndpoints();
 app.MapTasksEndpoints();
 app.MapLeadsEndpoints();
 app.MapDealsEndpoints();
+app.MapProductsEndpoints();
 app.MapInboundLeadWebhookEndpoints();
 app.MapAiEndpoints();
 

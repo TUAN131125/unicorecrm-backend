@@ -30,6 +30,7 @@ $checks = [System.Collections.Generic.List[string]]::new()
 $expectedInitialCapabilities = @(
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'leads.create', 'leads.qualify', 'leads.read', 'leads.update',
+    'products.create', 'products.delete', 'products.edit', 'products.read',
     'tasks.assign', 'tasks.complete', 'tasks.create', 'tasks.read', 'tasks.update',
     'workspace.context.resolve'
 )
