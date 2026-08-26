@@ -25,7 +25,7 @@ internal static class WorkspaceModule
             (provider, cancellationToken) => provider.GetRequiredService<WorkspaceDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<IDevelopmentWorkspaceReferenceLookup, EfDevelopmentWorkspaceReferenceLookup>();
         services.AddScoped<IWorkspaceMemberReferenceValidator, EfWorkspaceMemberReferenceValidator>();
-        services.AddScoped<IWorkspaceCurrencyConfigurationReader, EfWorkspaceCurrencyConfigurationReader>();
+        services.AddScoped<IEffectiveWorkspaceBaseCurrencyReader, EfEffectiveWorkspaceBaseCurrencyReader>();
         services.AddScoped<ITrustedWorkspaceMemberResolver, EfWorkspaceMemberReferenceValidator>();
         services.AddScoped<IWorkspaceContextResolver, WorkspaceContextResolver>();
         services.AddScoped<CurrentWorkspaceAccessor>();

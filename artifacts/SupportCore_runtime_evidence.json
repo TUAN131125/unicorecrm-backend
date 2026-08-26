@@ -1,0 +1,359 @@
+{
+  "kind": "SupportCoreRuntimeEvidence",
+  "module": "Support",
+  "boundedContext": "Operations",
+  "assembly": "UnicoreCRM.Operations",
+  "recordedAt": "2026-08-26T08:44:14.0000000Z",
+  "host": "UnicoreCRM.ApiHost (Development)",
+  "database": "UnicoreCRM_SupportVerification (isolated verification database)",
+  "openApiVersion": "0.23.20-contract.0",
+  "operations": [
+    "listSupportCases",
+    "getSupportCase",
+    "createSupportCase",
+    "replaceSupportCaseProfile",
+    "assignSupportCase",
+    "transitionSupportCase",
+    "addSupportCaseReply",
+    "addSupportCaseInternalNote"
+  ],
+  "passed": 67,
+  "failed": 0,
+  "checks": [
+    {
+      "result": "PASS",
+      "check": "unauthenticated listSupportCases -> 401",
+      "observed": "401"
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases empty -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases empty count",
+      "observed": "0"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase -> 201",
+      "observed": "201"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase outcome",
+      "observed": "COMMITTED"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase aggregateType",
+      "observed": "SUPPORT_CASE"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase initial status",
+      "observed": "new"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase caseNumber",
+      "observed": "CASE-2026-0001"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase version",
+      "observed": "0"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase slaStatus fail-closed",
+      "observed": "not_applicable"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase emitted 1 event",
+      "observed": "1"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase 1 audit id",
+      "observed": "1"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase replay -> 201",
+      "observed": "201"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase replay outcome",
+      "observed": "REPLAYED"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase replay same aggregate",
+      "observed": "case_790b1fab54484938811fdf1f3f6235d3"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase key reuse -> 409",
+      "observed": "409"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase key reuse code",
+      "observed": "IDEMPOTENCY_KEY_REUSED"
+    },
+    {
+      "result": "PASS",
+      "check": "getSupportCase -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "getSupportCase id",
+      "observed": "case_790b1fab54484938811fdf1f3f6235d3"
+    },
+    {
+      "result": "PASS",
+      "check": "getSupportCase relationship type",
+      "observed": "ORGANIZATION_ACCOUNT"
+    },
+    {
+      "result": "PASS",
+      "check": "getSupportCase omits customerName",
+      "observed": ""
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases filtered -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases filtered count",
+      "observed": "1"
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases non-matching status count",
+      "observed": "0"
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases slaStatus=breached fail-closed count",
+      "observed": "0"
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases invalid status -> 422",
+      "observed": "422"
+    },
+    {
+      "result": "PASS",
+      "check": "replaceSupportCaseProfile stale If-Match -> 412",
+      "observed": "412"
+    },
+    {
+      "result": "PASS",
+      "check": "replaceSupportCaseProfile stale code",
+      "observed": "VERSION_CONFLICT"
+    },
+    {
+      "result": "PASS",
+      "check": "stale replace mutated nothing (version)",
+      "observed": "0"
+    },
+    {
+      "result": "PASS",
+      "check": "stale replace mutated nothing (title)",
+      "observed": "Printer will not start"
+    },
+    {
+      "result": "PASS",
+      "check": "replaceSupportCaseProfile -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "replaceSupportCaseProfile version bumped",
+      "observed": "1"
+    },
+    {
+      "result": "PASS",
+      "check": "replaceSupportCaseProfile legacy category accepted",
+      "observed": "technical_support"
+    },
+    {
+      "result": "PASS",
+      "check": "replaceSupportCaseProfile cleared contactId",
+      "observed": ""
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase legacy category -> 422",
+      "observed": "422"
+    },
+    {
+      "result": "PASS",
+      "check": "createSupportCase legacy category code",
+      "observed": "VALIDATION_FAILED"
+    },
+    {
+      "result": "PASS",
+      "check": "assignSupportCase foreign owner -> 422",
+      "observed": "422"
+    },
+    {
+      "result": "PASS",
+      "check": "assignSupportCase -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "assignSupportCase ownerId recorded",
+      "observed": "mem_79dc8a99efef47f98233fecf64ef64b0"
+    },
+    {
+      "result": "PASS",
+      "check": "assignSupportCase does not change status",
+      "observed": "new"
+    },
+    {
+      "result": "PASS",
+      "check": "transition new->resolved rejected -> 409",
+      "observed": "409"
+    },
+    {
+      "result": "PASS",
+      "check": "transition new->resolved code",
+      "observed": "SUPPORT_CASE_INVALID_TRANSITION"
+    },
+    {
+      "result": "PASS",
+      "check": "rejected transition mutated nothing",
+      "observed": "new"
+    },
+    {
+      "result": "PASS",
+      "check": "transition new->in_progress -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "transition in_progress->waiting_customer -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "transition waiting_customer->resolved -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "resolve stamps resolvedAt",
+      "observed": "yes"
+    },
+    {
+      "result": "PASS",
+      "check": "resolve records resolutionSummary",
+      "observed": "Firmware reflashed."
+    },
+    {
+      "result": "PASS",
+      "check": "transition resolved->closed -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "close stamps closedAt",
+      "observed": "yes"
+    },
+    {
+      "result": "PASS",
+      "check": "transition closed->reopened -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "reopen stamps reopenedAt",
+      "observed": "yes"
+    },
+    {
+      "result": "PASS",
+      "check": "reopen clears resolvedAt",
+      "observed": ""
+    },
+    {
+      "result": "PASS",
+      "check": "reopen clears closedAt",
+      "observed": ""
+    },
+    {
+      "result": "PASS",
+      "check": "same-state transition replay -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "transition reopened->closed rejected -> 409",
+      "observed": "409"
+    },
+    {
+      "result": "PASS",
+      "check": "addSupportCaseReply -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "addSupportCaseReply bumps version",
+      "observed": "10"
+    },
+    {
+      "result": "PASS",
+      "check": "addSupportCaseInternalNote -> 200",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "addSupportCaseReply empty body -> 422",
+      "observed": "422"
+    },
+    {
+      "result": "PASS",
+      "check": "addSupportCaseReply without Idempotency-Key -> 422",
+      "observed": "422"
+    },
+    {
+      "result": "PASS",
+      "check": "addSupportCaseReply without If-Match -> 422",
+      "observed": "422"
+    },
+    {
+      "result": "PASS",
+      "check": "addSupportCaseReply rejects unmapped member -> 422",
+      "observed": "422"
+    },
+    {
+      "result": "PASS",
+      "check": "getSupportCase across workspace boundary fails closed",
+      "observed": "403"
+    },
+    {
+      "result": "PASS",
+      "check": "getSupportCase unknown id -> 404",
+      "observed": "404"
+    },
+    {
+      "result": "PASS",
+      "check": "second createSupportCase -> 201",
+      "observed": "201"
+    },
+    {
+      "result": "PASS",
+      "check": "second case number increments",
+      "observed": "CASE-2026-0002"
+    }
+  ]
+}

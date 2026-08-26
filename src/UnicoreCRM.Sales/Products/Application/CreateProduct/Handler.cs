@@ -10,7 +10,7 @@ internal sealed record Command(CreateProductRequest Request, ProductCommandMetad
 internal sealed class Handler(
     ProductAuthorization authorization,
     IProductsPersistence persistence,
-    IWorkspaceCurrencyConfigurationReader currencyReader,
+    IEffectiveWorkspaceBaseCurrencyReader currencyReader,
     TimeProvider timeProvider)
 {
     internal async Task<ProductOperationResult<ProductMutationResponse>> HandleAsync(
@@ -24,17 +24,8 @@ internal sealed class Handler(
         if (!access.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(access.Error!);
 
-        var trusted = access.Value!;
-        var currency = await currencyReader.FindAsync(trusted.WorkspaceId, cancellationToken);
-        if (currency is null)
-        {
-            return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(
-                new Dictionary<string, string[]> { ["unitPrice.currency"] = ["Workspace currency configuration is unavailable."] }));
-        }
-
         ProductValidation.TryProfile(
             command.Request,
-            currency.BaseCurrency,
             out var profile,
             out var fields,
             out var pricingFields);
@@ -43,7 +34,8 @@ internal sealed class Handler(
         if (pricingFields.Count != 0)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(pricingFields));
 
-        var fingerprint = ProductCommandSupport.Fingerprint(new { Profile = profile, currency.ConfigurationVersion });
+        var trusted = access.Value!;
+        var fingerprint = ProductCommandSupport.Fingerprint(new { Profile = profile });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = ProductCommandSupport.ScopeKey(trusted, "createProduct", "WORKSPACE", command.Metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
@@ -54,6 +46,16 @@ internal sealed class Handler(
                 ? ProductOperationResult<ProductMutationResponse>.Success(ProductCommandSupport.Replay(existing))
                 : ProductOperationResult<ProductMutationResponse>.Failure(replayError);
         }
+
+        var currency = await currencyReader.FindAsync(trusted.WorkspaceId, cancellationToken);
+        if (currency is null)
+        {
+            return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(
+                new Dictionary<string, string[]> { ["unitPrice.currency"] = ["Effective Workspace base currency is unavailable."] }));
+        }
+        var currencyFields = ProductValidation.ValidateEffectiveCurrency(profile!, currency.BaseCurrency);
+        if (currencyFields.Count != 0)
+            return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(currencyFields));
 
         if (await persistence.SkuExistsAsync(trusted.WorkspaceId, profile!.NormalizedSku, null, cancellationToken))
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.SkuConflict());

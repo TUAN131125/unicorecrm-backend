@@ -9,7 +9,7 @@ internal sealed record Query(string ProductId, string? Quantity, ProductRequestM
 internal sealed class Handler(
     ProductAuthorization authorization,
     IProductsPersistence persistence,
-    IWorkspaceCurrencyConfigurationReader currencyReader,
+    IEffectiveWorkspaceBaseCurrencyReader currencyReader,
     TimeProvider timeProvider)
 {
     internal async Task<ProductOperationResult<ProductPriceProjectionReadModel>> HandleAsync(
@@ -54,29 +54,26 @@ internal sealed class Handler(
             || !ProductDecimal.TryParse(product.Profile.TaxRate, out var taxRate))
             throw new InvalidOperationException("Persisted Product pricing is invalid.");
 
-        var subtotal = ProductDecimal.Multiply(unitPrice, quantity);
-        var hundred = new ProductDecimal(100, 0);
-        var taxAmount = product.Profile.TaxMode switch
-        {
-            "exclusive" => ProductDecimal.Divide(ProductDecimal.Multiply(subtotal, taxRate), hundred),
-            "inclusive" when !taxRate.IsZero => ProductDecimal.Add(
-                subtotal,
-                Negate(ProductDecimal.Divide(ProductDecimal.Multiply(subtotal, hundred), ProductDecimal.Add(hundred, taxRate)))),
-            _ => default
-        };
-        var total = product.Profile.TaxMode == "exclusive" ? ProductDecimal.Add(subtotal, taxAmount) : subtotal;
+        var calculation = ProductPricingCalculator.Calculate(unitPrice, quantity, taxRate, product.Profile.TaxMode);
         var moneyCurrency = product.Profile.UnitPrice.Currency;
-        var evaluatedAt = ProductProjection.Utc(timeProvider.GetUtcNow());
-        return ProductOperationResult<ProductPriceProjectionReadModel>.Success(new(
+        var now = timeProvider.GetUtcNow();
+        var response = new ProductPriceProjectionReadModel(
             product.ProductId,
             quantity.ToString(),
             new ProductMoney(unitPrice.ToString(), moneyCurrency),
-            new ProductMoney(subtotal.ToString(), moneyCurrency),
-            new ProductMoney(taxAmount.ToString(), moneyCurrency),
-            new ProductMoney(total.ToString(), moneyCurrency),
-            $"product-{product.Version}-workspace-{currency.ConfigurationVersion}",
-            evaluatedAt));
+            new ProductMoney(calculation.Subtotal.ToString(), moneyCurrency),
+            new ProductMoney(calculation.TaxAmount.ToString(), moneyCurrency),
+            new ProductMoney(calculation.Total.ToString(), moneyCurrency),
+            $"product-{product.Version}-effective-currency-source-{currency.SourceVersion}",
+            ProductProjection.Utc(now));
+        await ProductReadAudit.RecordAsync(
+            persistence,
+            product,
+            trusted,
+            query.Metadata,
+            "getProductPriceProjection",
+            now,
+            cancellationToken);
+        return ProductOperationResult<ProductPriceProjectionReadModel>.Success(response);
     }
-
-    private static ProductDecimal Negate(ProductDecimal value) => new(-value.Unscaled, value.Scale);
 }

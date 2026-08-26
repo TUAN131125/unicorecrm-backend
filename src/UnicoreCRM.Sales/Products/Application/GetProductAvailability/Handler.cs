@@ -43,12 +43,22 @@ internal sealed class Handler(
             _ => "ARCHIVED"
         };
         var blockers = status == "AVAILABLE" ? [] : new[] { $"PRODUCT_{status}" };
-        return ProductOperationResult<ProductAvailabilityReadModel>.Success(new(
+        var now = timeProvider.GetUtcNow();
+        var response = new ProductAvailabilityReadModel(
             product.ProductId,
             status == "AVAILABLE",
             status,
             blockers,
             product.Version,
-            ProductProjection.Utc(timeProvider.GetUtcNow())));
+            ProductProjection.Utc(now));
+        await ProductReadAudit.RecordAsync(
+            persistence,
+            product,
+            access.Value!,
+            query.Metadata,
+            "getProductAvailability",
+            now,
+            cancellationToken);
+        return ProductOperationResult<ProductAvailabilityReadModel>.Success(response);
     }
 }

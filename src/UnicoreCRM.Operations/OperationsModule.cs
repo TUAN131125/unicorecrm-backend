@@ -10,7 +10,7 @@ public static class OperationsModule
     public static IServiceCollection AddOperationsModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddTasksModule(configuration);
-        services.AddSupportModule();
+        services.AddSupportModule(configuration);
 
         return services;
     }

@@ -20,7 +20,6 @@ internal static partial class ProductValidation
 
     internal static bool TryProfile(
         CreateProductRequest request,
-        string baseCurrency,
         out ProductProfile? profile,
         out Dictionary<string, string[]> fields,
         out Dictionary<string, string[]> pricingFields) =>
@@ -28,11 +27,10 @@ internal static partial class ProductValidation
             request.Sku, request.Name, request.Type, request.Status, request.Category, request.Description,
             request.Unit, request.UnitPrice, request.CostPrice, request.TaxRate, request.TaxMode,
             request.BillingCycle, request.IsSubscription, request.IsRenewable, request.WarrantyMonths,
-            request.DefaultContractMonths, request.Tags, baseCurrency, out profile, out fields, out pricingFields);
+            request.DefaultContractMonths, request.Tags, out profile, out fields, out pricingFields);
 
     internal static bool TryProfile(
         ReplaceProductRequest request,
-        string baseCurrency,
         out ProductProfile? profile,
         out Dictionary<string, string[]> fields,
         out Dictionary<string, string[]> pricingFields) =>
@@ -40,7 +38,18 @@ internal static partial class ProductValidation
             request.Sku, request.Name, request.Type, request.Status, request.Category, request.Description,
             request.Unit, request.UnitPrice, request.CostPrice, request.TaxRate, request.TaxMode,
             request.BillingCycle, request.IsSubscription, request.IsRenewable, request.WarrantyMonths,
-            request.DefaultContractMonths, request.Tags, baseCurrency, out profile, out fields, out pricingFields);
+            request.DefaultContractMonths, request.Tags, out profile, out fields, out pricingFields);
+
+    internal static Dictionary<string, string[]> ValidateEffectiveCurrency(
+        ProductProfile profile,
+        string baseCurrency)
+    {
+        var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        ValidateEffectiveCurrency(profile.UnitPrice, "unitPrice", baseCurrency, fields);
+        if (profile.CostPrice is not null)
+            ValidateEffectiveCurrency(profile.CostPrice, "costPrice", baseCurrency, fields);
+        return fields;
+    }
 
     internal static string? OptionalText(string? value, string field, int maximum, Dictionary<string, string[]> fields)
     {
@@ -80,7 +89,6 @@ internal static partial class ProductValidation
         int? warrantyMonths,
         int? defaultContractMonths,
         IReadOnlyList<string?>? tags,
-        string baseCurrency,
         out ProductProfile? profile,
         out Dictionary<string, string[]> fields,
         out Dictionary<string, string[]> pricingFields)
@@ -130,10 +138,10 @@ internal static partial class ProductValidation
             }
         }
 
-        var normalizedUnitPrice = ValidateMoney(unitPrice, "unitPrice", baseCurrency, pricingFields);
+        var normalizedUnitPrice = ValidateMoney(unitPrice, "unitPrice", pricingFields);
         var normalizedCostPrice = costPrice is null
             ? null
-            : ValidateMoney(costPrice, "costPrice", baseCurrency, pricingFields);
+            : ValidateMoney(costPrice, "costPrice", pricingFields);
         ProductDecimal? normalizedTaxRate = null;
         if (!ProductDecimal.TryParse(taxRate, out var parsedTaxRate)
             || parsedTaxRate.IsNegative
@@ -177,21 +185,29 @@ internal static partial class ProductValidation
     private static ProductMoneyValue? ValidateMoney(
         ProductMoney? money,
         string field,
-        string baseCurrency,
         Dictionary<string, string[]> fields)
     {
         if (money is null
             || !ProductDecimal.TryParse(money.Amount, out var amount)
             || amount.IsNegative
             || money.Currency is null
-            || !CurrencyRegex().IsMatch(money.Currency)
-            || !string.Equals(money.Currency, baseCurrency, StringComparison.Ordinal))
+            || !CurrencyRegex().IsMatch(money.Currency))
         {
-            fields[field] = [$"{field} must be a non-negative decimal-string Money value in Workspace currency {baseCurrency}."];
+            fields[field] = [$"{field} must be a non-negative decimal-string Money value with an uppercase three-letter currency."];
             return null;
         }
 
         return new ProductMoneyValue(amount.ToString(), money.Currency);
+    }
+
+    private static void ValidateEffectiveCurrency(
+        ProductMoneyValue money,
+        string field,
+        string baseCurrency,
+        Dictionary<string, string[]> fields)
+    {
+        if (!string.Equals(money.Currency, baseCurrency, StringComparison.Ordinal))
+            fields[field] = [$"{field} currency must match the effective Workspace base currency {baseCurrency}."];
     }
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", RegexOptions.CultureInvariant)]

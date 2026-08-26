@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string] $DatabaseName
+    [string] $DatabaseName,
+
+    [switch] $RunConnectedAcceptance
 )
 
 $ErrorActionPreference = 'Stop'
@@ -44,6 +46,7 @@ function Initialize-Database {
     & sqlcmd -S $server -d master -b -Q "IF DB_ID('$DatabaseName') IS NOT NULL BEGIN ALTER DATABASE [$DatabaseName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DatabaseName]; END; CREATE DATABASE [$DatabaseName];" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Could not create the isolated Products verification database.' }
     $env:ConnectionStrings__UnicoreCRM = $connection
+    $env:Frontend__AllowedOrigins__0 = 'http://127.0.0.1:3000'
     $contexts = @(
         @{ Project = 'src/UnicoreCRM.Platform'; Context = 'IdentityAuthDbContext' },
         @{ Project = 'src/UnicoreCRM.Platform'; Context = 'WorkspaceDbContext' },
@@ -211,6 +214,31 @@ function Product-Body(
     } | ConvertTo-Json -Compress -Depth 6
 }
 
+function Invoke-ConnectedBrowserAcceptance(
+    [string] $accessToken,
+    [string] $trustedWorkspaceId,
+    [string] $targetProductId) {
+    $frontendRoot = (Resolve-Path "$PSScriptRoot/../../frontend/unicorecrm-web").Path
+    $env:UNICORECRM_TEST_API_BASE_URL = $baseUrl
+    $env:UNICORECRM_TEST_ACCESS_TOKEN = $accessToken
+    $env:UNICORECRM_TEST_WORKSPACE_ID = $trustedWorkspaceId
+    $env:UNICORECRM_TEST_WORKSPACE_KEY = $workspaceKey
+    $env:UNICORECRM_TEST_EMAIL = $email
+    $env:UNICORECRM_TEST_PASSWORD = $password
+    $env:UNICORECRM_TEST_PRODUCT_ID = $targetProductId
+    $env:UNICORECRM_TEST_PRODUCT_NAME = 'Core Product Replaced'
+    $env:PLAYWRIGHT_DISABLE_VIDEO = '1'
+    Push-Location $frontendRoot
+    try {
+        & npm run e2e:connected -- --grep 'connected Product UI preserves version-bound projections across mutation'
+        if ($LASTEXITCODE -ne 0) { throw 'Connected Product browser acceptance failed.' }
+    }
+    finally {
+        Pop-Location
+    }
+    $checks.Add('Real backend/frontend Product browser acceptance=PASS')
+}
+
 $process = $null
 try {
     Initialize-Database
@@ -233,12 +261,14 @@ try {
     $productId = $created.result.product.id
     Assert-True ($created.version -eq 0 -and $created.result.product.unitPrice.amount -eq '10.125') 'Server identity and decimal-string Money'
 
+    Invoke-Sql "UPDATE workspace.BootstrapProjections SET BaseCurrency='EUR', ConfigurationVersion=ConfigurationVersion+1 WHERE WorkspaceId='$workspaceId';"
     $replay = Send-Json 'POST' '/products' $createBody (New-Headers $token $workspaceId $createKey)
     Assert-Status $replay 201 'createProduct replay'
-    Assert-True (($replay.Body | ConvertFrom-Json).outcome -eq 'REPLAYED') 'Idempotent replay outcome'
+    Assert-True (($replay.Body | ConvertFrom-Json).outcome -eq 'REPLAYED') 'Create replay ignores later effective-currency change'
     $reuse = Send-Json 'POST' '/products' (Product-Body 'SKU-CORE-CHANGED' 'Changed Product') (New-Headers $token $workspaceId $createKey)
     Assert-Status $reuse 409 'createProduct changed-payload reuse'
     Assert-True (($reuse.Body | ConvertFrom-Json).code -eq 'IDEMPOTENCY_KEY_REUSED') 'Changed-payload stable error'
+    Invoke-Sql "UPDATE workspace.BootstrapProjections SET BaseCurrency='USD', ConfigurationVersion=ConfigurationVersion+1 WHERE WorkspaceId='$workspaceId';"
 
     $skuConflict = Send-Json 'POST' '/products' (Product-Body 'sku-core-001' 'Duplicate SKU') (New-Headers $token $workspaceId 'idem-product-sku-conflict')
     Assert-Status $skuConflict 409 'Workspace case-insensitive SKU uniqueness'
@@ -249,6 +279,9 @@ try {
     Assert-Status (Send-Json 'GET' '/products' $null (New-Headers $token $workspaceId)) 200 'listProducts'
     Assert-Status (Send-Json 'GET' "/products/$productId" $null (New-Headers $token $workspaceId)) 200 'getProduct'
 
+    $projectionAuditBefore = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ';")
+    $projectionOutboxBefore = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.OutboxMessages WHERE WorkspaceId='$workspaceId';")
+    $authorizationAuditBefore = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$workspaceId' AND RequiredCapability='products.read';")
     Assert-Status (Send-Json 'GET' "/products/$productId/availability" $null (New-Headers $token $workspaceId '' 0)) 200 'getProductAvailability'
     Assert-Status (Send-Json 'GET' "/products/$productId/availability" $null (New-Headers $token $workspaceId)) 400 'Availability required If-Match'
     $price = Send-Json 'GET' "/products/$productId/price-projection?quantity=2.5" $null (New-Headers $token $workspaceId '' 0)
@@ -258,6 +291,18 @@ try {
         $priceBody.subtotal.amount -eq '25.3125' -and
         $priceBody.taxAmount.amount -eq '2.53125' -and
         $priceBody.total.amount -eq '27.84375') 'Exact authoritative price arithmetic'
+    $availabilityAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Operation='getProductAvailability' AND AggregateId='$productId' AND Outcome='READ';")
+    $priceAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Operation='getProductPriceProjection' AND AggregateId='$productId' AND Outcome='READ';")
+    $projectionAuditAfter = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ';")
+    $projectionOutboxAfter = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.OutboxMessages WHERE WorkspaceId='$workspaceId';")
+    $authorizationAuditAfter = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$workspaceId' AND RequiredCapability='products.read';")
+    $invalidProjectionAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ' AND (Operation IS NULL OR Operation='' OR ActorId IS NULL OR ActorId='' OR AggregateId IS NULL OR AggregateId='' OR RequestId IS NULL OR RequestId='' OR CorrelationId IS NULL OR CorrelationId='' OR OccurredAt IS NULL);")
+    $productAfterRead = Send-Json 'GET' "/products/$productId" $null (New-Headers $token $workspaceId)
+    Assert-True ($availabilityAuditCount -eq 1 -and $priceAuditCount -eq 1 -and $projectionAuditAfter -eq ($projectionAuditBefore + 2)) 'Product-owned projection READ_AUDIT evidence'
+    Assert-True ($invalidProjectionAuditCount -eq 0) 'Product READ_AUDIT authoritative fields'
+    Assert-True ($authorizationAuditAfter -ge ($authorizationAuditBefore + 2)) 'AccessControl authorization audit remains separate from Product READ_AUDIT'
+    Assert-True ($projectionOutboxAfter -eq $projectionOutboxBefore) 'Projection reads emit no Product outbox event'
+    Assert-True ((($productAfterRead.Body | ConvertFrom-Json).version -eq 0)) 'Projection READ_AUDIT preserves Product version'
     $wrongCurrency = Send-Json 'POST' '/products' ((Product-Body 'SKU-EUR' 'Wrong Currency').Replace('"currency":"USD"', '"currency":"EUR"')) (New-Headers $token $workspaceId 'idem-product-wrong-currency')
     Assert-Status $wrongCurrency 422 'Workspace currency authority'
     Assert-True (($wrongCurrency.Body | ConvertFrom-Json).code -eq 'PRODUCT_PRICING_INVALID') 'Pricing error code'
@@ -265,6 +310,11 @@ try {
     $replace = Send-Json 'PUT' "/products/$productId" (Product-Body 'SKU-CORE-001' 'Core Product Replaced' 'DRAFT') (New-Headers $token $workspaceId 'idem-product-replace' 0)
     Assert-Status $replace 200 'replaceProduct'
     Assert-True (($replace.Body | ConvertFrom-Json).version -eq 1) 'Replace increments version'
+    Invoke-Sql "UPDATE workspace.BootstrapProjections SET BaseCurrency='EUR', ConfigurationVersion=ConfigurationVersion+1 WHERE WorkspaceId='$workspaceId';"
+    $replaceReplay = Send-Json 'PUT' "/products/$productId" (Product-Body 'SKU-CORE-001' 'Core Product Replaced' 'DRAFT') (New-Headers $token $workspaceId 'idem-product-replace' 0)
+    Assert-Status $replaceReplay 200 'replaceProduct replay after effective-currency change'
+    Assert-True (($replaceReplay.Body | ConvertFrom-Json).outcome -eq 'REPLAYED') 'Replace replay depends only on stable client intent'
+    Invoke-Sql "UPDATE workspace.BootstrapProjections SET BaseCurrency='USD', ConfigurationVersion=ConfigurationVersion+1 WHERE WorkspaceId='$workspaceId';"
     $stale = Send-Json 'PUT' "/products/$productId" (Product-Body 'SKU-CORE-001' 'Stale Product') (New-Headers $token $workspaceId 'idem-product-stale' 0)
     Assert-Status $stale 412 'replaceProduct stale version'
     Assert-True (($stale.Body | ConvertFrom-Json).code -eq 'VERSION_CONFLICT') 'Version conflict stable error'
@@ -297,6 +347,25 @@ try {
     Assert-Status $halfUpPrice 200 'HALF_UP projection'
     $halfUpPriceBody = $halfUpPrice.Body | ConvertFrom-Json
     Assert-True ($halfUpPriceBody.taxAmount.amount -eq '0.000001' -and $halfUpPriceBody.total.amount -eq '0.000002') 'HALF_UP maximum-scale rounding'
+
+    $below = Send-Json 'POST' '/products' (Product-Body 'SKU-ROUND-BELOW' 'Round Below' 'ACTIVE' '1.234567' 'exclusive' '50.000001') (New-Headers $token $workspaceId 'idem-product-round-below')
+    $midpoint = Send-Json 'POST' '/products' (Product-Body 'SKU-ROUND-MID' 'Round Midpoint' 'ACTIVE' '0.000001' 'inclusive' '33.333333') (New-Headers $token $workspaceId 'idem-product-round-mid')
+    $above = Send-Json 'POST' '/products' (Product-Body 'SKU-ROUND-ABOVE' 'Round Above' 'ACTIVE' '0.000001' 'none' '99.999999') (New-Headers $token $workspaceId 'idem-product-round-above')
+    Assert-Status $below 201 'Rounding below-boundary Product create'
+    Assert-Status $midpoint 201 'Rounding midpoint Product create'
+    Assert-Status $above 201 'Rounding above-boundary Product create'
+    $belowProjection = Send-Json 'GET' "/products/$(($below.Body | ConvertFrom-Json).aggregateId)/price-projection?quantity=0.000001" $null (New-Headers $token $workspaceId '' 0)
+    $midpointProjection = Send-Json 'GET' "/products/$(($midpoint.Body | ConvertFrom-Json).aggregateId)/price-projection?quantity=0.5" $null (New-Headers $token $workspaceId '' 0)
+    $aboveProjection = Send-Json 'GET' "/products/$(($above.Body | ConvertFrom-Json).aggregateId)/price-projection?quantity=0.6" $null (New-Headers $token $workspaceId '' 0)
+    Assert-Status $belowProjection 200 'Exclusive below-5 boundary projection'
+    Assert-Status $midpointProjection 200 'Inclusive exactly-5 boundary projection'
+    Assert-Status $aboveProjection 200 'None above-5 boundary projection'
+    $belowBody = $belowProjection.Body | ConvertFrom-Json
+    $midpointBody = $midpointProjection.Body | ConvertFrom-Json
+    $aboveBody = $aboveProjection.Body | ConvertFrom-Json
+    Assert-True ($belowBody.subtotal.amount -eq '0.000001' -and $belowBody.taxAmount.amount -eq '0.000001' -and $belowBody.total.amount -eq '0.000002') 'Exclusive exact-first calculation and explicit rounding'
+    Assert-True ($midpointBody.subtotal.amount -eq '0.000001' -and $midpointBody.taxAmount.amount -eq '0' -and $midpointBody.total.amount -eq '0.000001') 'Inclusive HALF_UP exactly-5 boundary'
+    Assert-True ($aboveBody.subtotal.amount -eq '0.000001' -and $aboveBody.taxAmount.amount -eq '0' -and $aboveBody.total.amount -eq '0.000001') 'No-tax HALF_UP above-5 boundary'
     $staleBatchBody = @{ items = @(@{ productId = $secondId; expectedVersion = 0 }, @{ productId = $thirdId; expectedVersion = 99 }); reason = 'Atomic stale check' } | ConvertTo-Json -Compress -Depth 5
     Assert-Status (Send-Json 'POST' '/products/archive-batch' $staleBatchBody (New-Headers $token $workspaceId 'idem-product-batch-stale')) 412 'Batch stale version'
     $secondAfterFailure = Send-Json 'GET' "/products/$secondId" $null (New-Headers $token $workspaceId)
@@ -317,10 +386,16 @@ try {
     Assert-Status $crossWorkspace 403 'Cross-Workspace Product access'
     Assert-True (($crossWorkspace.Body | ConvertFrom-Json).code -eq 'WORKSPACE_MISMATCH') 'Cross-Workspace stable error'
 
-    $auditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId';")
+    $auditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='COMMITTED';")
+    $readAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ';")
     $outboxCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.OutboxMessages WHERE WorkspaceId='$workspaceId';")
-    Assert-True ($auditCount -eq 10) 'Immutable command audit count'
-    Assert-True ($outboxCount -eq 8) 'Atomic Product outbox count'
+    Assert-True ($auditCount -eq 13) 'Immutable command audit count'
+    Assert-True ($readAuditCount -ge 8) 'Immutable Product READ_AUDIT count'
+    Assert-True ($outboxCount -eq 11) 'Atomic Product outbox count'
+
+    if ($RunConnectedAcceptance) {
+        Invoke-ConnectedBrowserAcceptance $token $workspaceId $productId
+    }
 
     Invoke-Sql "DELETE rc FROM access.RoleCapabilities rc INNER JOIN access.Roles r ON r.RoleId=rc.RoleId WHERE r.WorkspaceId='$workspaceId' AND rc.Capability='products.create';"
     $beforeDenied = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.Products WHERE WorkspaceId='$workspaceId';")

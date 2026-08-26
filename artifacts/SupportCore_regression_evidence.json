@@ -1,0 +1,69 @@
+{
+  "kind": "SupportCoreRegressionEvidence",
+  "scope": "Previously verified UnicoreCRM modules re-exercised on the same host after Support was wired in.",
+  "recordedAt": "2026-08-26T08:44:14.0000000Z",
+  "passed": 12,
+  "failed": 0,
+  "checks": [
+    {
+      "result": "PASS",
+      "check": "auth getCurrentSession",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listMyWorkspaces",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "getWorkspaceBootstrap",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listTasks",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listActivities",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listLeads",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listDeals",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listProducts",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "listSupportCases",
+      "observed": "200"
+    },
+    {
+      "result": "PASS",
+      "check": "createTask still commits",
+      "observed": "201"
+    },
+    {
+      "result": "PASS",
+      "check": "createTask outcome",
+      "observed": "COMMITTED"
+    },
+    {
+      "result": "PASS",
+      "check": "createLead reachable (not 5xx)",
+      "observed": "true"
+    }
+  ]
+}

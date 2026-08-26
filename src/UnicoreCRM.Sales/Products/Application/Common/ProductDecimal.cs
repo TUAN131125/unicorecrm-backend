@@ -51,21 +51,26 @@ internal readonly record struct ProductDecimal(BigInteger Unscaled, int Scale)
     }
 
     internal static ProductDecimal Multiply(ProductDecimal left, ProductDecimal right) =>
-        Round(new ProductDecimal(left.Unscaled * right.Unscaled, left.Scale + right.Scale), 6);
+        Normalize(new ProductDecimal(left.Unscaled * right.Unscaled, left.Scale + right.Scale));
 
-    internal static ProductDecimal Divide(ProductDecimal numerator, ProductDecimal denominator)
+    internal static ProductDecimal DivideAndRoundHalfUp(
+        ProductDecimal numerator,
+        ProductDecimal denominator,
+        int maximumScale)
     {
         if (denominator.Unscaled.IsZero)
             throw new DivideByZeroException();
 
-        const int outputScale = 6;
-        var scaledNumerator = numerator.Unscaled * Pow10(denominator.Scale + outputScale);
+        var scaledNumerator = numerator.Unscaled * Pow10(denominator.Scale + maximumScale);
         var scaledDenominator = denominator.Unscaled * Pow10(numerator.Scale);
         var quotient = BigInteger.DivRem(scaledNumerator, scaledDenominator, out var remainder);
         if (BigInteger.Abs(remainder) * 2 >= BigInteger.Abs(scaledDenominator))
             quotient += scaledNumerator.Sign == scaledDenominator.Sign ? BigInteger.One : -BigInteger.One;
-        return Normalize(new ProductDecimal(quotient, outputScale));
+        return Normalize(new ProductDecimal(quotient, maximumScale));
     }
+
+    internal static ProductDecimal RoundHalfUp(ProductDecimal value, int maximumScale) =>
+        Round(value, maximumScale);
 
     public override string ToString()
     {
