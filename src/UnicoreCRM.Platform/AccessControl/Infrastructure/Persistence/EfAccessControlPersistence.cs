@@ -60,5 +60,7 @@ internal sealed class EfAccessControlPersistence(AccessControlDbContext dbContex
 
     public void AddDecision(AuthorizationDecisionRecord decision) => dbContext.AuthorizationDecisions.Add(decision);
 
+    public void AddRecordDecision(RecordAccessDecisionRecord decision) => dbContext.RecordAccessDecisions.Add(decision);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

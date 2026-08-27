@@ -27,7 +27,7 @@ internal static class AccessProjection
             effective.FieldSecurity.Select(policy => new AuthorizationFieldAccessEntry(policy.ResourceKey, policy.FieldKey, ToWireValue(policy.Access))).ToArray(),
             evaluatedAt);
 
-    private static string ToWireValue(AccessDataScope scope) => scope switch
+    internal static string ToWireValue(AccessDataScope scope) => scope switch
     {
         AccessDataScope.Own => "OWN",
         AccessDataScope.Team => "TEAM",
@@ -35,7 +35,7 @@ internal static class AccessProjection
         _ => "CUSTOM"
     };
 
-    private static string ToWireValue(AccessFieldAccess access) => access switch
+    internal static string ToWireValue(AccessFieldAccess access) => access switch
     {
         AccessFieldAccess.Masked => "MASKED",
         AccessFieldAccess.ReadOnly => "READ_ONLY",

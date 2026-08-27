@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -14,6 +15,10 @@ public static class AccessControlEndpoints
             .RequireAuthorization()
             .RequireTrustedWorkspace()
             .WithName("getCurrentAuthorizationContext");
+        endpoints.MapPost("/access/records/evaluate", EvaluateEffectiveRecordAccessAsync)
+            .RequireAuthorization()
+            .RequireTrustedWorkspace()
+            .WithName("evaluateEffectiveRecordAccess");
         return endpoints;
     }
 
@@ -25,6 +30,62 @@ public static class AccessControlEndpoints
         var correlationId = CorrelationId(context);
         var result = await handler.HandleAsync(
             new Application.GetCurrentAuthorizationContext.Query(correlationId),
+            cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value)
+            : AccessHttp.Error(result.Error!, correlationId);
+    }
+
+    private static async Task<IResult> EvaluateEffectiveRecordAccessAsync(
+        HttpContext context,
+        Application.EvaluateEffectiveRecordAccess.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = CorrelationId(context);
+        var requestId = context.Request.Headers["X-Request-Id"].ToString();
+        if (requestId.Length is < 8 or > 128)
+        {
+            return AccessHttp.Error(
+                AccessErrors.Validation(new Dictionary<string, string[]>
+                {
+                    ["X-Request-Id"] = ["X-Request-Id must contain between 8 and 128 characters."]
+                }),
+                correlationId);
+        }
+
+        EvaluateEffectiveRecordAccessRequest? body;
+        try
+        {
+            body = await context.Request.ReadFromJsonAsync<EvaluateEffectiveRecordAccessRequest>(cancellationToken);
+        }
+        catch (JsonException)
+        {
+            // Unmapped members are disallowed on the request contract, so a caller-supplied
+            // workspace, owner or team fact lands here rather than being silently ignored.
+            return AccessHttp.Error(
+                AccessErrors.Validation(new Dictionary<string, string[]>
+                {
+                    ["body"] = ["The JSON request body does not match the contract."]
+                }),
+                correlationId);
+        }
+        catch (NotSupportedException)
+        {
+            body = null;
+        }
+
+        if (body is null)
+        {
+            return AccessHttp.Error(
+                AccessErrors.Validation(new Dictionary<string, string[]>
+                {
+                    ["body"] = ["A JSON request body is required."]
+                }),
+                correlationId);
+        }
+
+        var result = await handler.HandleAsync(
+            new Application.EvaluateEffectiveRecordAccess.Query(body, requestId, correlationId),
             cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value)
@@ -48,7 +109,8 @@ internal static class AccessHttp
                 error.Status,
                 error.Code,
                 false,
-                correlationId),
+                correlationId,
+                FieldErrors: error.FieldErrors),
             statusCode: error.Status,
             contentType: "application/problem+json");
 }

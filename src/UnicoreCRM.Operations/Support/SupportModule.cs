@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Operations.Support.Application.Common;
 using UnicoreCRM.Operations.Support.Infrastructure.Persistence;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Operations.Support;
 
@@ -28,6 +29,9 @@ internal static class SupportModule
         services.AddScoped<Application.TransitionSupportCase.Handler>();
         services.AddScoped<Application.AddSupportCaseReply.Handler>();
         services.AddScoped<Application.AddSupportCaseInternalNote.Handler>();
+        // Support publishes its own record-access facts to AccessControl. AccessControl never
+        // reaches into SupportDbContext; it resolves this owner-owned contract instead.
+        services.AddScoped<IRecordAccessFactProvider, Application.ProvideSupportRecordAccessFacts.SupportRecordAccessFactProvider>();
         return services;
     }
 }

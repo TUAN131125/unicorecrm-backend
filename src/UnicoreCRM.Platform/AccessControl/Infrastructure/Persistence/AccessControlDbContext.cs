@@ -11,6 +11,7 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
     internal DbSet<RoleDataScopePolicy> RoleDataScopes => Set<RoleDataScopePolicy>();
     internal DbSet<RoleFieldSecurityPolicy> RoleFieldSecurity => Set<RoleFieldSecurityPolicy>();
     internal DbSet<AuthorizationDecisionRecord> AuthorizationDecisions => Set<AuthorizationDecisionRecord>();
+    internal DbSet<RecordAccessDecisionRecord> RecordAccessDecisions => Set<RecordAccessDecisionRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,6 +91,25 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.Property(x => x.RequiredCapability).HasMaxLength(160);
             entity.Property(x => x.CorrelationId).HasMaxLength(128);
             entity.HasIndex(x => new { x.WorkspaceId, x.MembershipId, x.EvaluatedAt });
+        });
+
+        modelBuilder.Entity<RecordAccessDecisionRecord>(entity =>
+        {
+            entity.ToTable("RecordAccessDecisions");
+            entity.HasKey(x => x.DecisionId);
+            entity.Property(x => x.DecisionId).HasMaxLength(128);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.MembershipId).HasMaxLength(128);
+            entity.Property(x => x.MemberId).HasMaxLength(128);
+            entity.Property(x => x.ResourceKey).HasMaxLength(160);
+            entity.Property(x => x.RecordId).HasMaxLength(128);
+            entity.Property(x => x.RequiredCapability).HasMaxLength(160);
+            entity.Property(x => x.EvaluatedScope).HasMaxLength(32);
+            entity.Property(x => x.DecisionCode).HasMaxLength(160);
+            entity.Property(x => x.RequestId).HasMaxLength(128);
+            entity.Property(x => x.CorrelationId).HasMaxLength(128);
+            entity.HasIndex(x => new { x.WorkspaceId, x.MembershipId, x.EvaluatedAt });
+            entity.HasIndex(x => new { x.WorkspaceId, x.ResourceKey, x.RecordId });
         });
     }
 }
