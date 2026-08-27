@@ -108,6 +108,9 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.Property(x => x.DecisionCode).HasMaxLength(160);
             entity.Property(x => x.RequestId).HasMaxLength(128);
             entity.Property(x => x.CorrelationId).HasMaxLength(128);
+            entity.Property(x => x.EnforcementPoint).HasMaxLength(160);
+            entity.Property(x => x.PolicyFingerprint).HasMaxLength(64);
+            entity.Property(x => x.RestrictedFields).HasMaxLength(2000);
             entity.HasIndex(x => new { x.WorkspaceId, x.MembershipId, x.EvaluatedAt });
             entity.HasIndex(x => new { x.WorkspaceId, x.ResourceKey, x.RecordId });
         });

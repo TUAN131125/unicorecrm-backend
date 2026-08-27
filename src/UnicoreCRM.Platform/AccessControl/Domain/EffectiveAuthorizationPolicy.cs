@@ -26,19 +26,29 @@ internal static class EffectiveAuthorizationPolicy
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
+        // Resource and field keys are one canonical identity regardless of casing. Grouping them
+        // case-sensitively would let two roles that spell the same key differently produce two
+        // separate effective entries, so a role holding `Support`/`READ_WRITE` could sit beside a
+        // role holding `support`/`MASKED` and the restrictive entry would never win. The emitted
+        // spelling is the ordinal-least member of the group, so the projection stays deterministic
+        // and is unchanged whenever the stored rows already agree on casing.
         var dataScopes = state.DataScopes
-            .GroupBy(policy => policy.ResourceKey, StringComparer.Ordinal)
-            .Select(group => new EffectiveDataScopePolicy(group.Key, group.Max(policy => policy.Scope)))
-            .OrderBy(policy => policy.ResourceKey, StringComparer.Ordinal)
+            .GroupBy(policy => policy.ResourceKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new EffectiveDataScopePolicy(
+                CanonicalKey(group.Select(policy => policy.ResourceKey)),
+                group.Max(policy => policy.Scope)))
+            .OrderBy(policy => policy.ResourceKey, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var fieldSecurity = state.FieldSecurity
-            .GroupBy(policy => (policy.ResourceKey, policy.FieldKey))
+            .GroupBy(
+                policy => (policy.ResourceKey, policy.FieldKey),
+                RecordAccessKey.PairComparer)
             .Select(group => new EffectiveFieldSecurityPolicy(
-                group.Key.ResourceKey,
-                group.Key.FieldKey,
+                CanonicalKey(group.Select(policy => policy.ResourceKey)),
+                CanonicalKey(group.Select(policy => policy.FieldKey)),
                 group.Min(policy => policy.Access)))
-            .OrderBy(policy => policy.ResourceKey, StringComparer.Ordinal)
-            .ThenBy(policy => policy.FieldKey, StringComparer.Ordinal)
+            .OrderBy(policy => policy.ResourceKey, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(policy => policy.FieldKey, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         if (dataScopes.Length > 1000)
@@ -54,6 +64,9 @@ internal static class EffectiveAuthorizationPolicy
             dataScopes,
             fieldSecurity);
     }
+
+    private static string CanonicalKey(IEnumerable<string> spellings) =>
+        spellings.Order(StringComparer.Ordinal).First();
 
     private static IReadOnlyList<string> ProductSpaces(IReadOnlyList<string> capabilities)
     {

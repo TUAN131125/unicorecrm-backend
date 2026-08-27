@@ -17,8 +17,18 @@ internal sealed class EfDealsPersistence(DealsDbContext dbContext) : IDealsPersi
     public Task<Deal?> ReadDealAsync(string workspaceId, string dealId, CancellationToken cancellationToken) =>
         dbContext.Deals.AsNoTracking().SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.DealId == dealId, cancellationToken);
 
-    public async Task<IReadOnlyList<Deal>> ReadDealsAsync(string workspaceId, CancellationToken cancellationToken) =>
-        await dbContext.Deals.AsNoTracking().Where(item => item.WorkspaceId == workspaceId).ToArrayAsync(cancellationToken);
+    public async Task<IReadOnlyList<Deal>> ReadDealsAsync(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        CancellationToken cancellationToken)
+    {
+        IQueryable<Deal> query = dbContext.Deals.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
+        // The AccessControl record scope is part of the SQL query, so a hidden deal is never
+        // materialised and cannot reach the count, the ordering or the page.
+        if (scopeOwnerMemberId is not null)
+            query = query.Where(item => item.ScopeOwnerId == scopeOwnerMemberId);
+        return await query.ToArrayAsync(cancellationToken);
+    }
 
     public async Task<IReadOnlyList<Deal>> LoadDealsAsync(
         string workspaceId,

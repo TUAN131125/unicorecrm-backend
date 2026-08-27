@@ -11,10 +11,8 @@ internal sealed class Handler(ProductAuthorization authorization, IProductsPersi
         Query query,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(
-            ProductCapabilities.Read,
-            query.Metadata.CorrelationId,
-            cancellationToken);
+        var metadata = new ProductRequestMetadata(query.Metadata.RequestId, query.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(ProductCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return ProductOperationResult<ProductDocument>.Failure(access.Error!);
         if (!ProductValidation.IsEntityId(query.ProductId))
@@ -22,9 +20,18 @@ internal sealed class Handler(ProductAuthorization authorization, IProductsPersi
 
         var ownership = ProductResource.ValidateOwned(
             await persistence.ReadProductAsync(query.ProductId, cancellationToken),
-            access.Value!);
-        return ownership.IsSuccess
-            ? ProductOperationResult<ProductDocument>.Success(ProductProjection.Document(ownership.Value!))
-            : ProductOperationResult<ProductDocument>.Failure(ownership.Error!);
+            access.Value!.Trusted);
+        if (!ownership.IsSuccess)
+            return ProductOperationResult<ProductDocument>.Failure(ownership.Error!);
+
+        // Record scope is enforced here, not left to the consumer. Product has no member owner, so
+        // an OWN policy denies every Product and the record is reported as not found.
+        var denied = await authorization.EnforceRecordAsync(
+            access.Value!, ownership.Value!, "getProduct", metadata, cancellationToken);
+        if (denied is not null)
+            return ProductOperationResult<ProductDocument>.Failure(denied);
+
+        return ProductOperationResult<ProductDocument>.Success(
+            ProductFieldSecurity.Project(ProductProjection.Document(ownership.Value!), access.Value!.Authorization));
     }
 }

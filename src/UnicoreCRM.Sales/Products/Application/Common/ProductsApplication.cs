@@ -34,7 +34,11 @@ internal interface IProductsPersistence
     Task<IProductsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
     Task<Product?> LoadProductAsync(string productId, CancellationToken cancellationToken);
     Task<Product?> ReadProductAsync(string productId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<Product>> ReadProductsAsync(string workspaceId, CancellationToken cancellationToken);
+    /// <param name="scopeOwnerMemberId">
+    /// The AccessControl-resolved record-scope owner. Product has no member-owner concept, so a
+    /// non-null value can never match and the query correctly returns nothing.
+    /// </param>
+    Task<IReadOnlyList<Product>> ReadProductsAsync(string workspaceId, string? scopeOwnerMemberId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Product>> LoadProductsAsync(IReadOnlyCollection<string> productIds, CancellationToken cancellationToken);
     Task<bool> SkuExistsAsync(string workspaceId, string normalizedSku, string? exceptProductId, CancellationToken cancellationToken);
     Task<ProductIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);

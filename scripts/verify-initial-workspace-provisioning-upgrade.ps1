@@ -41,9 +41,15 @@ $activeDatabase = $DatabaseName
 
 # The frozen server-owned initial capability set. Seeded roles use exactly this set so the
 # convergent AccessControl participant recognises them instead of failing closed.
+# It mirrors InitialWorkspaceAccessPolicy.Capabilities exactly. The products.* and support.* entries
+# were added to that policy by the Products Core and Support Core tasks without this seed being
+# updated, so a legacy role seeded here no longer matched the policy and the convergent participant
+# refused to resume - a stale fixture, not a defect in the resume path.
 $initialCapabilities = @(
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'leads.create', 'leads.qualify', 'leads.read', 'leads.update',
+    'products.create', 'products.delete', 'products.edit', 'products.read',
+    'support.assign', 'support.create', 'support.read', 'support.update',
     'tasks.assign', 'tasks.complete', 'tasks.create', 'tasks.read', 'tasks.update',
     'workspace.context.resolve'
 )

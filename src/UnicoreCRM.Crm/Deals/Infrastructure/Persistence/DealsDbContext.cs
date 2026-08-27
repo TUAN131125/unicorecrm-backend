@@ -23,6 +23,7 @@ internal sealed class DealsDbContext(DbContextOptions<DealsDbContext> options) :
             entity.HasKey(item => item.DealId);
             entity.Property(item => item.DealId).HasMaxLength(128);
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
+            entity.Property(item => item.ScopeOwnerId).HasMaxLength(128);
             entity.Property(item => item.Profile).HasConversion<DealProfileValueConverter>().HasColumnType("nvarchar(max)");
             entity.Property(item => item.StageCode).HasMaxLength(120);
             entity.Property(item => item.StageCategory).HasConversion<string>().HasMaxLength(16);

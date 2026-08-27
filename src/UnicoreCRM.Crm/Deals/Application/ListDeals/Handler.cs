@@ -2,6 +2,7 @@ using System.Numerics;
 using UnicoreCRM.Crm.Deals.Application.Common;
 using UnicoreCRM.Crm.Deals.Contracts;
 using UnicoreCRM.Crm.Deals.Domain;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Crm.Deals.Application.ListDeals;
 
@@ -26,7 +27,8 @@ internal sealed class Handler(
 {
     internal async Task<DealOperationResult<DealListResponse>> HandleAsync(Query query, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Read, query.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(query.RequestId, query.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealListResponse>.Failure(access.Error!);
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -54,8 +56,21 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return DealOperationResult<DealListResponse>.Failure(DealErrors.Validation(fields));
 
-        var trusted = access.Value!;
-        var deals = await persistence.ReadDealsAsync(trusted.WorkspaceId, cancellationToken);
+        var trusted = access.Value!.Trusted;
+
+        // AccessControl resolves the record scope once and Deals pushes it into the SQL query ahead
+        // of the count and the page, so a hidden deal affects neither totalCount nor a page boundary.
+        var scope = access.Value!.Authorization.ScopeFilter;
+        if (scope == RecordAccessScopeFilter.Denied)
+        {
+            return DealOperationResult<DealListResponse>.Success(
+                new DealListResponse([], new DealPageInfo(false, null, 0)));
+        }
+
+        var deals = await persistence.ReadDealsAsync(
+            trusted.WorkspaceId,
+            scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null,
+            cancellationToken);
         var filtered = deals.Where(deal =>
             (search is null || Search(deal, search))
             && (query.StageCode is null || deal.StageCode == query.StageCode)

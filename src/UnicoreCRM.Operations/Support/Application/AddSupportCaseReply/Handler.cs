@@ -21,7 +21,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(SupportCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new SupportRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(SupportCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(access.Error!);
         if (!SupportValidation.IsEntityId(command.CaseId))
@@ -32,10 +33,10 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.Validation(fields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var fingerprint = SupportCommandSupport.Fingerprint(new { command.CaseId, body, command.Metadata.ExpectedVersion });
         return await execution.ExecuteAsync(
-            trusted,
+            access.Value!,
             "addSupportCaseReply",
             "SUPPORT_CASE_REPLY_ADDED",
             command.CaseId,
@@ -54,6 +55,8 @@ internal sealed class Handler(
                 return null;
             },
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "addSupportCaseReply", metadata, cancellationToken),
             cancellationToken);
     }
 }

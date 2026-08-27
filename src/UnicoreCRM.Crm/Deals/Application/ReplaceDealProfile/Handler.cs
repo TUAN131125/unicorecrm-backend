@@ -11,7 +11,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
         if (!DealValidation.IsEntityId(command.DealId))
@@ -46,6 +47,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                 return deal.ReplaceProfile(profile!, now) ? null : DealErrors.LifecycleConflict(deal.DealId);
             },
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "replaceDealProfile", metadata, cancellationToken),
             cancellationToken);
     }
 }

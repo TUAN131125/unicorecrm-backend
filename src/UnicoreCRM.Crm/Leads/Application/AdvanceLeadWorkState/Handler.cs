@@ -12,7 +12,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(LeadCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new LeadRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(LeadCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return LeadOperationResult<LeadMutationResponse>.Failure(access.Error!);
         if (!LeadValidation.IsEntityId(command.LeadId))
@@ -36,6 +37,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
                 _ => LeadErrors.InvalidTransition(lead.LeadId)
             },
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "advanceLeadWorkState", metadata, cancellationToken, "leadWorkState"),
             cancellationToken);
     }
 }

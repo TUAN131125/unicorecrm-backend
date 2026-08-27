@@ -43,7 +43,8 @@ public sealed class RecordAccessResourceDescriptor
         string? deleteCapability,
         string? exportCapability,
         string? approveCapability,
-        IReadOnlyDictionary<string, string> commandCapabilities)
+        IReadOnlyDictionary<string, string> commandCapabilities,
+        IReadOnlyDictionary<string, bool> enforceableFields)
     {
         ResourceKey = resourceKey;
         ReadCapability = readCapability;
@@ -52,6 +53,7 @@ public sealed class RecordAccessResourceDescriptor
         ExportCapability = exportCapability;
         ApproveCapability = approveCapability;
         CommandCapabilities = commandCapabilities;
+        EnforceableFields = enforceableFields;
     }
 
     public string ResourceKey { get; }
@@ -64,6 +66,15 @@ public sealed class RecordAccessResourceDescriptor
     /// <summary>Command name to the canonical capability that command requires.</summary>
     public IReadOnlyDictionary<string, string> CommandCapabilities { get; }
 
+    /// <summary>
+    /// The field keys this owner can actually enforce a field-security policy on, mapped to whether
+    /// the wire contract makes the field required. A restrictive policy on a field absent from this
+    /// vocabulary cannot be honoured at all, and one on a required field cannot be honoured either,
+    /// because no admitted representation exists for a required field whose value must not be
+    /// exposed. Both cases fail the operation closed rather than returning the forbidden value.
+    /// </summary>
+    public IReadOnlyDictionary<string, bool> EnforceableFields { get; }
+
     public static RecordAccessResourceDescriptor Create(
         string resourceKey,
         string readCapability,
@@ -71,7 +82,8 @@ public sealed class RecordAccessResourceDescriptor
         string? deleteCapability = null,
         string? exportCapability = null,
         string? approveCapability = null,
-        IReadOnlyDictionary<string, string>? commandCapabilities = null)
+        IReadOnlyDictionary<string, string>? commandCapabilities = null,
+        IReadOnlyDictionary<string, bool>? enforceableFields = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
         if (resourceKey.Trim().Length is < 1 or > 160)
@@ -85,6 +97,14 @@ public sealed class RecordAccessResourceDescriptor
             commands[pair.Key] = Canonical(pair.Value, nameof(commandCapabilities));
         }
 
+        var fields = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in enforceableFields ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase))
+        {
+            if (pair.Key.Length is < 1 or > 160)
+                throw new ArgumentException("A field key must contain between 1 and 160 characters.", nameof(enforceableFields));
+            fields[pair.Key] = pair.Value;
+        }
+
         return new RecordAccessResourceDescriptor(
             resourceKey.Trim(),
             Canonical(readCapability, nameof(readCapability)),
@@ -92,7 +112,8 @@ public sealed class RecordAccessResourceDescriptor
             OptionalCanonical(deleteCapability, nameof(deleteCapability)),
             OptionalCanonical(exportCapability, nameof(exportCapability)),
             OptionalCanonical(approveCapability, nameof(approveCapability)),
-            commands);
+            commands,
+            fields);
     }
 
     private static string Canonical(string capability, string parameterName)

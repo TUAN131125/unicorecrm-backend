@@ -13,16 +13,24 @@ internal sealed class Handler(
 {
     internal async Task<LeadOperationResult<LeadDocument>> HandleAsync(Query query, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(LeadCapabilities.Read, query.CorrelationId, cancellationToken);
+        var metadata = new LeadRequestMetadata(query.RequestId, query.CorrelationId);
+        var access = await authorization.AuthorizeAsync(LeadCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return LeadOperationResult<LeadDocument>.Failure(access.Error!);
         if (!LeadValidation.IsEntityId(query.LeadId))
             return LeadOperationResult<LeadDocument>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["leadId"] = ["leadId is not a valid entity identifier."] }));
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var lead = await persistence.ReadLeadAsync(trusted.WorkspaceId, query.LeadId, cancellationToken);
         if (lead is null)
             return LeadOperationResult<LeadDocument>.Failure(LeadErrors.NotFound());
+
+        // Record scope is enforced here, not left to the consumer. A lead inside the trusted
+        // Workspace but outside the caller's record scope is reported as not found.
+        var denied = await authorization.EnforceRecordAsync(access.Value!, lead, "getLead", metadata, cancellationToken);
+        if (denied is not null)
+            return LeadOperationResult<LeadDocument>.Failure(denied);
+
         persistence.AddAudit(new LeadAuditRecord(
             "getLead",
             trusted.WorkspaceId,
@@ -35,6 +43,7 @@ internal sealed class Handler(
             lead.Version,
             timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
-        return LeadOperationResult<LeadDocument>.Success(LeadProjection.Document(lead));
+        return LeadOperationResult<LeadDocument>.Success(
+            LeadFieldSecurity.Project(LeadProjection.Document(lead), access.Value!.Authorization));
     }
 }

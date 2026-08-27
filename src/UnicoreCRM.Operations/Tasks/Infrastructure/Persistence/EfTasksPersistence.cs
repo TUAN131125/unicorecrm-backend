@@ -24,6 +24,10 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
         CancellationToken cancellationToken)
     {
         IQueryable<TaskItem> query = dbContext.Tasks.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
+        // The AccessControl record scope is part of the query, not a post-filter, so hidden rows
+        // never reach the count, the ordering or the page.
+        if (specification.ScopeAssigneeMemberId is not null)
+            query = query.Where(item => item.AssigneeId == specification.ScopeAssigneeMemberId);
         if (!string.IsNullOrEmpty(specification.Search))
             query = query.Where(item => item.Title.Contains(specification.Search) || (item.Description != null && item.Description.Contains(specification.Search)) || (item.RecordLabel != null && item.RecordLabel.Contains(specification.Search)) || item.AssigneeId.Contains(specification.Search));
         if (specification.Status is not null)

@@ -159,6 +159,11 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
 
+                    b.Property<string>("EnforcementPoint")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
                     b.Property<DateTimeOffset>("EvaluatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -180,6 +185,11 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                     b.Property<bool?>("OwnerMatch")
                         .HasColumnType("bit");
 
+                    b.Property<string>("PolicyFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("RecordId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -198,6 +208,11 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                         .IsRequired()
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("RestrictedFields")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("WorkspaceId")
                         .IsRequired()

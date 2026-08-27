@@ -54,6 +54,11 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
                     b.Property<int?>("QualificationOutcome")
                         .HasColumnType("int");
 
+                    b.Property<string>("ScopeOwnerId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<int>("Score")
                         .HasColumnType("int");
 
@@ -99,16 +104,12 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("DelegatedSubjectId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
                     b.Property<string>("CorrelationId")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("SourceReference")
+                    b.Property<string>("DelegatedSubjectId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
@@ -133,6 +134,10 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("RequestId")
                         .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SourceReference")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 

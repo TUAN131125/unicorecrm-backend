@@ -16,10 +16,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(
-            ProductCapabilities.Edit,
-            command.Metadata.CorrelationId,
-            cancellationToken);
+        var metadata = new ProductRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(ProductCapabilities.Edit, metadata, cancellationToken);
         if (!access.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(access.Error!);
         if (!ProductValidation.IsEntityId(command.ProductId))
@@ -35,7 +33,7 @@ internal sealed class Handler(
         if (pricingFields.Count != 0)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(pricingFields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var fingerprint = ProductCommandSupport.Fingerprint(new
         {
             command.ProductId,
@@ -43,13 +41,27 @@ internal sealed class Handler(
             command.Metadata.ExpectedVersion
         });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+
+        // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
+        // This slice owns its own transaction rather than using ProductMutationExecution, so the
+        // guard is applied here explicitly rather than being inherited.
+        var guardedOwnership = ProductResource.ValidateOwned(
+            await persistence.ReadProductAsync(command.ProductId, cancellationToken),
+            trusted);
+        if (!guardedOwnership.IsSuccess)
+            return ProductOperationResult<ProductMutationResponse>.Failure(guardedOwnership.Error!);
+        var guardError = await authorization.EnforceRecordAsync(
+            access.Value!, guardedOwnership.Value!, "replaceProduct", metadata, cancellationToken);
+        if (guardError is not null)
+            return ProductOperationResult<ProductMutationResponse>.Failure(guardError);
+
         var scopeKey = ProductCommandSupport.ScopeKey(trusted, "replaceProduct", command.ProductId, command.Metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
             var replayError = ProductCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? ProductOperationResult<ProductMutationResponse>.Success(ProductCommandSupport.Replay(existing))
+                ? ProductOperationResult<ProductMutationResponse>.Success(Project(ProductCommandSupport.Replay(existing), access.Value!))
                 : ProductOperationResult<ProductMutationResponse>.Failure(replayError);
         }
 
@@ -109,6 +121,12 @@ internal sealed class Handler(
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.SkuConflict());
         }
         await transaction.CommitAsync(cancellationToken);
-        return ProductOperationResult<ProductMutationResponse>.Success(response);
+        return ProductOperationResult<ProductMutationResponse>.Success(Project(response, access.Value!));
     }
+
+    private static ProductMutationResponse Project(ProductMutationResponse response, ProductAccess access) =>
+        response with
+        {
+            Result = new ProductMutationResult(ProductFieldSecurity.Project(response.Result.Product, access.Authorization))
+        };
 }

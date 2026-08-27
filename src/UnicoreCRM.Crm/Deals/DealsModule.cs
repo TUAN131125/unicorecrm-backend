@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Crm.Deals.Application.Common;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Crm.Deals.Infrastructure.Persistence;
 
 namespace UnicoreCRM.Crm.Deals;
@@ -34,6 +35,9 @@ internal static class DealsModule
         services.AddScoped<Application.MarkDealLost.Handler>();
         services.AddScoped<Application.ArchiveDeal.Handler>();
         services.AddScoped<Application.ArchiveDealsBatch.Handler>();
+        // The owner publishes its own record-access facts to AccessControl, which never reaches into
+        // this module's DbContext.
+        services.AddScoped<IRecordAccessFactProvider, Application.ProvideDealRecordAccessFacts.DealRecordAccessFactProvider>();
         return services;
     }
 }

@@ -15,7 +15,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(SupportCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new SupportRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(SupportCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(access.Error!);
         if (!SupportValidation.IsEntityId(command.CaseId))
@@ -33,7 +34,22 @@ internal sealed class Handler(
             fingerprint,
             (supportCase, now) =>
             {
-                supportCase.ReplaceProfile(profile!, now);
+                // The profile contract carries ownerId, but assignment authority is support.assign,
+                // not support.update. Without this check a caller holding only support.update could
+                // assign, reassign or clear the owner through a profile replacement and quietly
+                // acquire the assignment privilege. Replacing the owner with the value it already
+                // holds is not an assignment and is left alone.
+                if (!string.Equals(supportCase.OwnerId, profile!.OwnerId, StringComparison.Ordinal)
+                    && !access.Value!.Authorization.Holds(SupportCapabilities.Assign.Capability))
+                {
+                    return SupportErrors.OwnerAssignmentDenied();
+                }
+
+                var fieldError = SupportFieldSecurity.GuardProfileWrite(access.Value!.Authorization, supportCase, profile);
+                if (fieldError is not null)
+                    return fieldError;
+
+                supportCase.ReplaceProfile(profile, now);
                 return null;
             },
             profile!.OwnerId is null
@@ -44,6 +60,8 @@ internal sealed class Handler(
                     {
                         ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."]
                     }),
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "replaceSupportCaseProfile", metadata, cancellationToken),
             cancellationToken);
     }
 }

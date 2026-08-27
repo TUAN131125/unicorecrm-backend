@@ -11,7 +11,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(LeadCapabilities.Qualify, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new LeadRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(LeadCapabilities.Qualify, metadata, cancellationToken);
         if (!access.IsSuccess)
             return LeadOperationResult<LeadMutationResponse>.Failure(access.Error!);
         if (!LeadValidation.IsEntityId(command.LeadId))
@@ -19,10 +20,10 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
                 new Dictionary<string, string[]> { ["leadId"] = ["leadId is not a valid entity identifier."] }));
         if (!DisqualifyLeadValidation.TryDisqualify(command.Request, out var reason, out var evidence, out var fields))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.DisqualificationEvidence(fields));
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var fingerprint = LeadCommandSupport.Fingerprint(new { command.LeadId, reason, evidence, command.Metadata.ExpectedVersion });
         return await execution.ExecuteAsync(
-            trusted,
+            access.Value!,
             "disqualifyLead",
             "LEAD_DISQUALIFIED",
             command.LeadId,
@@ -32,6 +33,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
                 ? null
                 : LeadErrors.InvalidTransition(lead.LeadId),
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "disqualifyLead", metadata, cancellationToken, "leadWorkState", "qualificationOutcome", "disqualifiedAt", "disqualifiedBy", "disqualificationReason", "disqualificationNote"),
             cancellationToken);
     }
 }

@@ -16,10 +16,8 @@ internal sealed class Handler(
         Query query,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(
-            ProductCapabilities.Read,
-            query.Metadata.CorrelationId,
-            cancellationToken);
+        var metadata = new ProductRequestMetadata(query.Metadata.RequestId, query.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(ProductCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return ProductOperationResult<ProductPriceProjectionReadModel>.Failure(access.Error!);
         if (!ProductValidation.IsEntityId(query.ProductId))
@@ -30,12 +28,19 @@ internal sealed class Handler(
                 new Dictionary<string, string[]> { ["quantity"] = ["quantity must be a positive decimal string with at most six fractional digits."] }));
         }
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var ownership = ProductResource.ValidateOwned(
             await persistence.ReadProductAsync(query.ProductId, cancellationToken),
             trusted);
         if (!ownership.IsSuccess)
             return ProductOperationResult<ProductPriceProjectionReadModel>.Failure(ownership.Error!);
+
+        // Record scope is enforced before any projection is computed, so a Product the caller's
+        // record scope hides is reported as not found rather than answered.
+        var denied = await authorization.EnforceRecordAsync(
+            access.Value!, ownership.Value!, "getProductPriceProjection", metadata, cancellationToken);
+        if (denied is not null)
+            return ProductOperationResult<ProductPriceProjectionReadModel>.Failure(denied);
 
         var product = ownership.Value!;
         var expectedVersion = query.Metadata.ExpectedVersion!.Value;

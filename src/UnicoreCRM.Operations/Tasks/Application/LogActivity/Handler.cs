@@ -13,12 +13,13 @@ internal sealed class Handler(
 {
     internal async Task<TaskOperationResult<ActivityMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(TaskCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new TaskRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(TaskCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<ActivityMutationResponse>.Failure(access.Error!);
         if (!LogActivityValidation.TryActivity(command.Request, out var input, out var fields))
             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(fields));
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var fingerprint = TaskCommandSupport.Fingerprint(input);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "logActivity", "WORKSPACE", command.Metadata.IdempotencyKey);

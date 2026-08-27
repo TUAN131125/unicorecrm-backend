@@ -35,6 +35,8 @@ internal static class AccessControlModule
         // provider that needs its owner's scoped persistence can be resolved normally, and it
         // rejects two owners claiming the same resource key at composition time.
         services.AddScoped<RecordAccessFactProviderRegistry>();
+        services.AddScoped<RecordAccessEvaluator>();
+        services.AddScoped<IRecordAccessEvaluator>(provider => provider.GetRequiredService<RecordAccessEvaluator>());
         services.AddScoped<Application.EvaluateEffectiveRecordAccess.Handler>();
         services.AddHostedService<DevelopmentAccessControlBootstrap>();
         return services;

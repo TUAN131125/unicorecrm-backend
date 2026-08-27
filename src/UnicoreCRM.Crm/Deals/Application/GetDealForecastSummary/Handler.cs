@@ -2,6 +2,7 @@ using System.Numerics;
 using UnicoreCRM.Crm.Deals.Application.Common;
 using UnicoreCRM.Crm.Deals.Contracts;
 using UnicoreCRM.Crm.Deals.Domain;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Crm.Deals.Application.GetDealForecastSummary;
 
@@ -21,7 +22,8 @@ internal sealed class Handler(
         Query query,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Read, query.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(query.RequestId, query.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealForecastSummaryReadModel>.Failure(access.Error!);
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -32,8 +34,22 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return DealOperationResult<DealForecastSummaryReadModel>.Failure(DealErrors.Validation(fields));
 
-        var trusted = access.Value!;
-        var allDeals = await persistence.ReadDealsAsync(trusted.WorkspaceId, cancellationToken);
+        var trusted = access.Value!.Trusted;
+
+        // The forecast aggregates deal amounts, so an out-of-scope deal must not reach the totals.
+        // The scope is pushed into the query rather than filtered afterwards, which is what keeps a
+        // hidden deal out of the aggregate as well as out of any list.
+        var scope = access.Value!.Authorization.ScopeFilter;
+        if (scope == RecordAccessScopeFilter.Denied)
+        {
+            return DealOperationResult<DealForecastSummaryReadModel>.Success(
+                new DealForecastSummaryReadModel(DealProjection.Utc(timeProvider.GetUtcNow()), [], true));
+        }
+
+        var allDeals = await persistence.ReadDealsAsync(
+            trusted.WorkspaceId,
+            scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null,
+            cancellationToken);
         var deals = allDeals.Where(deal =>
             !deal.IsArchived
             && deal.StageCategory == DealStageCategory.Open

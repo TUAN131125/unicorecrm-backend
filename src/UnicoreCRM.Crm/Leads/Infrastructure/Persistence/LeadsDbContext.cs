@@ -22,6 +22,7 @@ internal sealed class LeadsDbContext(DbContextOptions<LeadsDbContext> options) :
             entity.HasKey(item => item.LeadId);
             entity.Property(item => item.LeadId).HasMaxLength(128);
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
+            entity.Property(item => item.ScopeOwnerId).HasMaxLength(128);
             entity.Property(item => item.Profile).HasConversion<LeadProfileValueConverter>().HasColumnType("nvarchar(max)");
             entity.Property(item => item.DisqualifiedBy).HasMaxLength(128);
             entity.Property(item => item.DisqualificationReason).HasMaxLength(2000);

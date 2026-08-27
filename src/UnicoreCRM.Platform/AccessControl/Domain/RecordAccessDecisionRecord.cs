@@ -25,6 +25,9 @@ internal sealed class RecordAccessDecisionRecord
         string requestId,
         string correlationId,
         bool? ownerMatch,
+        string enforcementPoint,
+        string policyFingerprint,
+        string restrictedFields,
         DateTimeOffset evaluatedAt)
     {
         DecisionId = AccessControlIds.New("recdec");
@@ -40,6 +43,9 @@ internal sealed class RecordAccessDecisionRecord
         RequestId = requestId;
         CorrelationId = correlationId;
         OwnerMatch = ownerMatch;
+        EnforcementPoint = enforcementPoint;
+        PolicyFingerprint = policyFingerprint;
+        RestrictedFields = restrictedFields;
         EvaluatedAt = evaluatedAt;
     }
 
@@ -56,5 +62,26 @@ internal sealed class RecordAccessDecisionRecord
     public string RequestId { get; private set; } = null!;
     public string CorrelationId { get; private set; } = null!;
     public bool? OwnerMatch { get; private set; }
+
+    /// <summary>
+    /// Where the decision was taken - the public evaluation operation, or the owner operation that
+    /// enforced it. Without it an allowed evaluation and an enforced read are indistinguishable.
+    /// </summary>
+    public string EnforcementPoint { get; private set; } = null!;
+
+    /// <summary>
+    /// A digest of the effective policy the decision was taken against. No policy revision is
+    /// admitted by current authority, so this is the minimum evidence that lets a later decision be
+    /// told apart from the same decision under changed policy. It is not a policy version and must
+    /// not be treated as one.
+    /// </summary>
+    public string PolicyFingerprint { get; private set; } = null!;
+
+    /// <summary>
+    /// The decision-relevant field restrictions as `fieldKey:enforcement` pairs. Field keys are
+    /// policy identifiers; no business field value is ever recorded.
+    /// </summary>
+    public string RestrictedFields { get; private set; } = null!;
+
     public DateTimeOffset EvaluatedAt { get; private set; }
 }

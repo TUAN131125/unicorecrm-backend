@@ -1,5 +1,7 @@
 namespace UnicoreCRM.Crm.Leads.Application.Common;
 
+internal sealed record LeadRequestMetadata(string RequestId, string CorrelationId);
+
 internal sealed record LeadCommandMetadata(
     string RequestId,
     string CorrelationId,

@@ -9,7 +9,7 @@ internal sealed class DealMutationExecution(
     TimeProvider timeProvider)
 {
     internal async Task<DealOperationResult<DealMutationResponse>> ExecuteAsync(
-        TrustedWorkspaceContext trusted,
+        DealAccess access,
         string operation,
         string eventType,
         string dealId,
@@ -17,8 +17,10 @@ internal sealed class DealMutationExecution(
         string fingerprint,
         Func<Deal, DateTimeOffset, DealOperationError?> mutate,
         Func<TrustedWorkspaceContext, CancellationToken, Task<DealOperationError?>>? precondition,
+        Func<DealAccess, Deal, Task<DealOperationError?>> recordGuard,
         CancellationToken cancellationToken)
     {
+        var trusted = access.Trusted;
         if (precondition is not null)
         {
             var error = await precondition(trusted, cancellationToken);
@@ -27,13 +29,24 @@ internal sealed class DealMutationExecution(
         }
 
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+
+        // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
+        // Record scope is current authorization, not a business precondition, so a caller who no
+        // longer reaches a deal must not be able to replay a committed command against it.
+        var guarded = await persistence.ReadDealAsync(trusted.WorkspaceId, dealId, cancellationToken);
+        if (guarded is null)
+            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.NotFound());
+        var guardError = await recordGuard(access, guarded);
+        if (guardError is not null)
+            return DealOperationResult<DealMutationResponse>.Failure(guardError);
+
         var scopeKey = DealCommandSupport.ScopeKey(trusted, operation, dealId, metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
             var replayError = DealCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? DealOperationResult<DealMutationResponse>.Success(DealCommandSupport.Replay(existing))
+                ? DealOperationResult<DealMutationResponse>.Success(Project(DealCommandSupport.Replay(existing), access))
                 : DealOperationResult<DealMutationResponse>.Failure(replayError);
         }
 
@@ -69,6 +82,17 @@ internal sealed class DealMutationExecution(
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.VersionConflict(deal.DealId, expectedVersion, deal.Version));
         }
         await transaction.CommitAsync(cancellationToken);
-        return DealOperationResult<DealMutationResponse>.Success(response);
+        return DealOperationResult<DealMutationResponse>.Success(Project(response, access));
     }
+
+    /// <summary>
+    /// Applies field security to the outgoing response. It is applied at the boundary because a
+    /// replay returns a projection serialized under whatever policy was in force when the command
+    /// committed; enforcing here makes stored evidence unable to leak a currently withheld value.
+    /// </summary>
+    private static DealMutationResponse Project(DealMutationResponse response, DealAccess access) =>
+        response with
+        {
+            Result = new DealMutationResult(DealFieldSecurity.Project(response.Result.Deal, access.Authorization))
+        };
 }

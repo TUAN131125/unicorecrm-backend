@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Crm.Leads.Application.Common;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
 
 namespace UnicoreCRM.Crm.Leads;
@@ -30,6 +31,9 @@ internal static class LeadsModule
         services.AddScoped<Application.AdvanceLeadWorkState.Handler>();
         services.AddScoped<Application.DisqualifyLead.Handler>();
         services.AddScoped<Application.ReopenDisqualifiedLead.Handler>();
+        // Leads publishes its own record-access facts to AccessControl. AccessControl never reaches
+        // into LeadsDbContext; it resolves this owner-owned contract instead.
+        services.AddScoped<IRecordAccessFactProvider, Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();
         return services;
     }
 }

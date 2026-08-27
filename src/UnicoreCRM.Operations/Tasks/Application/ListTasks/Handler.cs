@@ -1,6 +1,7 @@
 using UnicoreCRM.Operations.Tasks.Application.Common;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Operations.Tasks.Domain;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 using Domain = UnicoreCRM.Operations.Tasks.Domain;
 
 namespace UnicoreCRM.Operations.Tasks.Application.ListTasks;
@@ -29,7 +30,8 @@ internal sealed class Handler(
 {
     internal async Task<TaskOperationResult<TaskListResponse>> HandleAsync(Query query, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(TaskCapabilities.Read, query.CorrelationId, cancellationToken);
+        var metadata = new TaskRequestMetadata(query.RequestId, query.CorrelationId);
+        var access = await authorization.AuthorizeAsync(TaskCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<TaskListResponse>.Failure(access.Error!);
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -59,7 +61,18 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return TaskOperationResult<TaskListResponse>.Failure(TaskErrors.Validation(fields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
+
+        // The record scope becomes a query predicate rather than a per-row decision: AccessControl
+        // resolves the filter once and Tasks pushes it into the owner query ahead of the count, the
+        // ordering and the page, so a hidden row affects neither totalCount nor a page boundary.
+        var scope = access.Value!.Authorization.ScopeFilter;
+        if (scope == RecordAccessScopeFilter.Denied)
+        {
+            return TaskOperationResult<TaskListResponse>.Success(
+                new TaskListResponse([], new PageInfo(false, null, 0)));
+        }
+
         var page = await persistence.ListTasksAsync(
             trusted.WorkspaceId,
             new TaskListSpecification(
@@ -75,7 +88,8 @@ internal sealed class Handler(
                 query.RecordId,
                 overdueAt,
                 sortBy,
-                descending),
+                descending,
+                scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null),
             cancellationToken);
         var now = timeProvider.GetUtcNow();
         persistence.AddAudit(new TaskAuditRecord(
@@ -91,7 +105,7 @@ internal sealed class Handler(
             now));
         await persistence.SaveChangesAsync(cancellationToken);
         return TaskOperationResult<TaskListResponse>.Success(new TaskListResponse(
-            page.Items.Select(TaskProjection.Task).ToArray(),
+            page.Items.Select(item => TaskFieldSecurity.Project(TaskProjection.Task(item), access.Value!.Authorization)).ToArray(),
             new PageInfo(page.HasNextPage, page.NextOffset is null ? null : TaskValidation.Cursor(page.NextOffset.Value), page.TotalCount)));
     }
 

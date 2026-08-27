@@ -9,7 +9,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
 {
     internal async Task<TaskOperationResult<TaskMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(TaskCapabilities.Complete, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new TaskRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(TaskCapabilities.Complete, metadata, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<TaskMutationResponse>.Failure(access.Error!);
         var outcome = TaskValidation.RequiredText(command.Request.Outcome, "outcome", 4000, out var fields);
@@ -25,6 +26,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
             fingerprint,
             (task, now) => task.Complete(outcome, now),
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "completeTask", metadata, cancellationToken, "status", "completedAt", "outcome"),
             cancellationToken);
     }
 }

@@ -15,6 +15,7 @@ internal sealed class Deal
         DealId = DealIds.New("deal");
         WorkspaceId = workspaceId;
         Profile = profile;
+        ScopeOwnerId = profile.OwnerId;
         StageCode = stageCode;
         StageCategory = stageCategory;
         ForecastCategory = forecastCategory;
@@ -27,6 +28,14 @@ internal sealed class Deal
     public string DealId { get; private set; } = null!;
     public string WorkspaceId { get; private set; } = null!;
     public DealProfile Profile { get; private set; } = null!;
+
+    /// <summary>
+    /// A queryable projection of <c>Profile.OwnerId</c>. The profile is persisted as a single JSON
+    /// column, so the owner inside it cannot be used in a SQL predicate; the AccessControl record
+    /// scope has to be pushed into the query rather than filtered in memory, and that needs a real
+    /// column. It is derived state kept in step with the profile, never an independent fact.
+    /// </summary>
+    public string ScopeOwnerId { get; private set; } = null!;
     public string StageCode { get; private set; } = null!;
     public DealStageCategory StageCategory { get; private set; }
     public DealForecastCategory ForecastCategory { get; private set; }
@@ -61,6 +70,7 @@ internal sealed class Deal
         if (IsArchived)
             return false;
         Profile = profile;
+        ScopeOwnerId = profile.OwnerId;
         Touch(now);
         return true;
     }
@@ -91,6 +101,7 @@ internal sealed class Deal
         if (IsArchived)
             return false;
         Profile = Profile with { OwnerId = ownerId };
+        ScopeOwnerId = ownerId;
         Touch(now);
         return true;
     }

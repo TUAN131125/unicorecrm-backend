@@ -145,7 +145,8 @@ function Invoke-Api {
         [string] $Token,
         [string] $WorkspaceId,
         [string] $IdempotencyKey,
-        [string] $RequestId
+        [string] $RequestId,
+        [string] $IfMatchVersion
     )
     $request = New-Object System.Net.Http.HttpRequestMessage ([System.Net.Http.HttpMethod]::new($Method), "$script:BaseUrl$Path")
     if ([string]::IsNullOrEmpty($RequestId)) {
@@ -163,6 +164,9 @@ function Invoke-Api {
     }
     if (-not [string]::IsNullOrWhiteSpace($IdempotencyKey)) {
         [void]$request.Headers.TryAddWithoutValidation('Idempotency-Key', $IdempotencyKey)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($IfMatchVersion)) {
+        [void]$request.Headers.TryAddWithoutValidation('If-Match', ('"{0}"' -f $IfMatchVersion))
     }
     # An unbound [string] parameter arrives as an empty string, not $null.
     if (-not [string]::IsNullOrEmpty($Body)) {
@@ -190,6 +194,46 @@ function Invoke-Api {
 
 $script:Token = $null
 $script:WorkspaceId = $null
+
+function Invoke-Support {
+    param([string] $Method, [string] $Path, [string] $Body, [string] $IdempotencyKey, [string] $IfMatchVersion)
+    return Invoke-Api -Method $Method -Path $Path -Token $script:Token -WorkspaceId $script:WorkspaceId `
+        -Body $Body -IdempotencyKey $IdempotencyKey -IfMatchVersion $IfMatchVersion
+}
+
+function Set-SupportScope {
+    param([string] $RoleId, [string] $Database, [string] $Scope)
+    Invoke-SqlNonQuery -Database $Database -Query @"
+DELETE FROM access.RoleDataScopes WHERE PolicyId = 'scope_record_access_verify_support';
+INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_record_access_verify_support', '$RoleId', 'support', '$Scope', '[]');
+"@
+}
+
+# Every retrofitted module has its own resource key, so a scope policy has to be written per
+# resource. A single `support` row proves nothing about Tasks, Leads, Deals or Products - which is
+# exactly what an earlier draft of this harness got wrong.
+function Set-ModuleScope {
+    param([string] $RoleId, [string] $Database, [string] $Scope)
+    Invoke-SqlNonQuery -Database $Database -Query @"
+DELETE FROM access.RoleDataScopes WHERE PolicyId LIKE 'scope_retro_%';
+INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson) VALUES
+('scope_retro_tasks', '$RoleId', 'tasks', '$Scope', '[]'),
+('scope_retro_leads', '$RoleId', 'leads', '$Scope', '[]'),
+('scope_retro_deals', '$RoleId', 'deals', '$Scope', '[]'),
+('scope_retro_products', '$RoleId', 'products', '$Scope', '[]');
+"@
+}
+
+function Clear-ModuleScope {
+    param([string] $Database)
+    Invoke-SqlNonQuery -Database $Database -Query "DELETE FROM access.RoleDataScopes WHERE PolicyId LIKE 'scope_retro_%'"
+}
+
+function Clear-SupportScope {
+    param([string] $Database)
+    Invoke-SqlNonQuery -Database $Database -Query "DELETE FROM access.RoleDataScopes WHERE PolicyId = 'scope_record_access_verify_support'"
+}
 
 function Invoke-Evaluate {
     param([hashtable] $Request, [string] $WorkspaceOverride)
@@ -311,6 +355,7 @@ VALUES ('wsm-record-access-verify-other', '$($script:WorkspaceId)', 'acc-record-
             source          = 'manual'
             relationshipRef = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_record_access_001' }
             ownerId         = $OwnerId
+            tags            = @('verify-tag')
         } | ConvertTo-Json -Compress -Depth 6
         $created = Invoke-Api -Method 'POST' -Path '/support/cases' -Token $script:Token `
             -WorkspaceId $script:WorkspaceId -IdempotencyKey $IdempotencyKey -Body $body
@@ -525,7 +570,10 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
 "@
 
     $restrictedFields = Invoke-Evaluate -Request $baseRequest
-    Add-Result 'field: policy MASKED is honoured' 'MASKED' $restrictedFields.Body.fieldAccess.description
+    # No masking representation is admitted anywhere, so a MASKED policy is enforced by withholding
+    # the value and is reported as HIDDEN - which is exactly what the caller will observe. Reporting
+    # MASKED would promise a masked value that never arrives.
+    Add-Result 'field: policy MASKED is enforced as withheld' 'HIDDEN' $restrictedFields.Body.fieldAccess.description
     Add-Result 'field: policy HIDDEN is honoured' 'HIDDEN' $restrictedFields.Body.fieldAccess.slaPolicyId
     Add-Result 'field: policy READ_ONLY is honoured' 'READ_ONLY' $restrictedFields.Body.fieldAccess.status
     Add-Result 'field: unlisted field remains READ_WRITE' 'READ_WRITE' $restrictedFields.Body.fieldAccess.subject
@@ -546,7 +594,7 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
 VALUES ('field_record_access_verify_desc2', 'role_record_access_verify_second', 'support', 'description', 'ReadWrite');
 "@
     $multiRole = Invoke-Evaluate -Request $baseRequest
-    Add-Result 'field: most restrictive role wins across roles' 'MASKED' $multiRole.Body.fieldAccess.description
+    Add-Result 'field: most restrictive role wins across roles' 'HIDDEN' $multiRole.Body.fieldAccess.description
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "DELETE FROM access.Roles WHERE RoleId = 'role_record_access_verify_second'"
 
@@ -555,7 +603,9 @@ VALUES ('field_record_access_verify_desc2', 'role_record_access_verify_second', 
 
     # ------------------------------------------------------------ 10. unowned resource keys
 
-    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'leads'; recordId = 'lead_anything_0001'; requestedFields = @('fullName') }
+    # `contacts` has no implemented owner at all, so it is the honest example of a resource key with
+    # no registered fact authority. `leads` is no longer one: it was retrofitted and now has a provider.
+    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'contacts'; recordId = 'contact_anything_0001'; requestedFields = @('fullName') }
     Add-Result 'authority: resource with no fact owner fails closed' 'False' ($unknownResource.Body.canRead).ToString()
     Add-Result 'authority: unowned resource reports the missing authority' 'RESOURCE_FACT_AUTHORITY_UNAVAILABLE' `
         (($unknownResource.Body.decisionReasons | Where-Object { $_.effect -eq 'DENY' }).code)
@@ -632,6 +682,582 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
 SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE WorkspaceId = '$foreignWorkspaceId'
 "@
     Add-Result 'audit: no decision recorded against a foreign Workspace' '0' $foreignWorkspaceAudit
+
+    # ------------------------------------------------ 15. BACKEND ENFORCEMENT (bypass)
+
+    # Everything above proves the evaluation is right. This block proves the evaluation is also
+    # enforced: the business API is called directly, exactly as an attacker who ignores the
+    # frontend would, and must refuse without the browser being involved at all.
+
+    Set-SupportScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+
+    $hiddenEvaluation = Invoke-Evaluate -Request @{ resourceKey = 'support'; recordId = $otherCaseId }
+    Add-Result 'enforce: evaluation reports the other-owner case as unreadable' 'False' ($hiddenEvaluation.Body.canRead).ToString()
+
+    $bypassRead = Invoke-Support -Method 'GET' -Path "/support/cases/$otherCaseId"
+    Add-Result 'enforce: direct GET of a hidden case is refused' '404' $bypassRead.Status
+    Add-Result 'enforce: direct GET leaks no hidden title' 'True' `
+        ($bypassRead.Raw -notmatch 'Owned by another member').ToString()
+    Add-Result 'enforce: hidden case is indistinguishable from an unknown case' `
+        ((Invoke-Support -Method 'GET' -Path '/support/cases/case_does_not_exist_0003').Body.code) $bypassRead.Body.code
+
+    $ownRead = Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId"
+    Add-Result 'enforce: the caller own case still reads' '200' $ownRead.Status
+    $ownVersion = $ownRead.Body.resourceVersion
+
+    # Mutation bypass: every existing-record Support command against a hidden case.
+    $profileBody = @{
+        title           = 'Bypass attempt'
+        description     = 'Should never commit.'
+        priority        = 'high'
+        category        = 'usage_issue'
+        source          = 'manual'
+        relationshipRef = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_record_access_001' }
+    } | ConvertTo-Json -Compress -Depth 6
+    $bypassProfile = Invoke-Support -Method 'PUT' -Path "/support/cases/$otherCaseId" -Body $profileBody `
+        -IdempotencyKey 'idem-record-access-bypass-profile' -IfMatchVersion '0'
+    Add-Result 'enforce: direct profile replacement on a hidden case is refused' '404' $bypassProfile.Status
+
+    $bypassAssign = Invoke-Support -Method 'POST' -Path "/support/cases/$otherCaseId/assign" `
+        -Body (@{ ownerId = $callerMemberId } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-record-access-bypass-assign' -IfMatchVersion '0'
+    Add-Result 'enforce: direct assignment on a hidden case is refused' '404' $bypassAssign.Status
+
+    $bypassTransition = Invoke-Support -Method 'POST' -Path "/support/cases/$otherCaseId/transition" `
+        -Body (@{ nextStatus = 'in_progress' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-record-access-bypass-transition' -IfMatchVersion '0'
+    Add-Result 'enforce: direct transition on a hidden case is refused' '404' $bypassTransition.Status
+
+    $bypassReply = Invoke-Support -Method 'POST' -Path "/support/cases/$otherCaseId/replies" `
+        -Body (@{ body = 'Bypass reply' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-record-access-bypass-reply' -IfMatchVersion '0'
+    Add-Result 'enforce: direct reply on a hidden case is refused' '404' $bypassReply.Status
+
+    $bypassNote = Invoke-Support -Method 'POST' -Path "/support/cases/$otherCaseId/internal-notes" `
+        -Body (@{ body = 'Bypass note' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-record-access-bypass-note' -IfMatchVersion '0'
+    Add-Result 'enforce: direct internal note on a hidden case is refused' '404' $bypassNote.Status
+
+    $hiddenVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM support.SupportCases WHERE CaseId = '$otherCaseId'"
+    Add-Result 'enforce: no refused command mutated the hidden case' '0' $hiddenVersion
+    $hiddenComments = Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM support.SupportCaseComments WHERE CaseId = '$otherCaseId'"
+    Add-Result 'enforce: no refused command wrote a comment' '0' $hiddenComments
+
+    # List scope pushdown.
+    $ownList = Invoke-Support -Method 'GET' -Path '/support/cases'
+    Add-Result 'enforce: OWN list returns only caller-owned cases' '1' ([int]$ownList.Body.items.Count)
+    Add-Result 'enforce: OWN list returns the caller own case' $ownCaseId $ownList.Body.items[0].id
+    Add-Result 'enforce: OWN list totalCount excludes hidden rows' '1' ([int]$ownList.Body.pageInfo.totalCount)
+    Add-Result 'enforce: OWN list page reports no hidden next page' 'False' ($ownList.Body.pageInfo.hasNextPage).ToString()
+
+    $ownPage = Invoke-Support -Method 'GET' -Path '/support/cases?limit=1'
+    Add-Result 'enforce: OWN pagination is not padded by hidden rows' 'False' ($ownPage.Body.pageInfo.hasNextPage).ToString()
+
+    # WORKSPACE scope restores the other-owner record through the same enforcement path.
+    Set-SupportScope -RoleId $roleId -Database $DatabaseName -Scope 'Workspace'
+    $workspaceRead = Invoke-Support -Method 'GET' -Path "/support/cases/$otherCaseId"
+    Add-Result 'enforce: WORKSPACE scope reads the other-owner case' '200' $workspaceRead.Status
+    $workspaceList = Invoke-Support -Method 'GET' -Path '/support/cases'
+    Add-Result 'enforce: WORKSPACE list returns every case' '2' ([int]$workspaceList.Body.pageInfo.totalCount)
+
+    # TEAM and CUSTOM fail closed at the enforcement point, not only in the evaluation.
+    Set-SupportScope -RoleId $roleId -Database $DatabaseName -Scope 'Team'
+    Add-Result 'enforce: TEAM scope refuses a direct read' '404' (Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId").Status
+    Add-Result 'enforce: TEAM scope returns an empty list' '0' ([int](Invoke-Support -Method 'GET' -Path '/support/cases').Body.pageInfo.totalCount)
+
+    Set-SupportScope -RoleId $roleId -Database $DatabaseName -Scope 'Custom'
+    Add-Result 'enforce: CUSTOM scope refuses a direct read' '404' (Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId").Status
+    Add-Result 'enforce: CUSTOM scope returns an empty list' '0' ([int](Invoke-Support -Method 'GET' -Path '/support/cases').Body.pageInfo.totalCount)
+
+    Clear-SupportScope -Database $DatabaseName
+
+    # ------------------------------------------------ 16. FIELD ENFORCEMENT (backend)
+
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_enforce_%';
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_enforce_owner', '$roleId', 'support', 'ownerId', 'Hidden'),
+('field_enforce_tags', '$roleId', 'support', 'TAGS', 'ReadOnly');
+"@
+
+    $hiddenField = Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId"
+    Add-Result 'field: HIDDEN value is absent from the raw backend JSON' 'True' `
+        ($hiddenField.Raw -notmatch '"ownerId"').ToString()
+    Add-Result 'field: HIDDEN does not leak the owner identifier anywhere' 'True' `
+        ($hiddenField.Raw -notmatch [regex]::Escape($callerMemberId)).ToString()
+    Add-Result 'field: the record itself still reads' '200' $hiddenField.Status
+    Add-Result 'field: READ_ONLY value is still readable' 'True' `
+        ($hiddenField.Raw -match 'verify-tag').ToString()
+
+    $listHidden = Invoke-Support -Method 'GET' -Path '/support/cases'
+    Add-Result 'field: HIDDEN is enforced on the list projection too' 'True' `
+        ($listHidden.Raw -notmatch '"ownerId"').ToString()
+
+    # A READ_ONLY field cannot be written, and the policy key casing must not matter.
+    $currentVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM support.SupportCases WHERE CaseId = '$ownCaseId'"
+    $readOnlyWrite = @{
+        title           = 'Owned by caller'
+        description     = 'Record-access verification fixture.'
+        priority        = 'high'
+        category        = 'usage_issue'
+        source          = 'manual'
+        relationshipRef = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_record_access_001' }
+        tags            = @('newly-added-tag')
+    } | ConvertTo-Json -Compress -Depth 6
+    $readOnlyAttempt = Invoke-Support -Method 'PUT' -Path "/support/cases/$ownCaseId" -Body $readOnlyWrite `
+        -IdempotencyKey 'idem-record-access-readonly-write' -IfMatchVersion $currentVersion
+    Add-Result 'field: writing a READ_ONLY field is refused' '403' $readOnlyAttempt.Status
+    Add-Result 'field: READ_ONLY refusal is an access denial' 'ACCESS_DENIED' $readOnlyAttempt.Body.code
+    Add-Result 'field: case-insensitive field policy cannot be bypassed by casing' $currentVersion `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM support.SupportCases WHERE CaseId = '$ownCaseId'")
+
+    # A restrictive policy on a required wire field cannot be honoured, so the operation fails closed
+    # rather than returning a value the policy forbids.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_enforce_required', '$roleId', 'support', 'description', 'Hidden');
+"@
+    $requiredField = Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId"
+    Add-Result 'field: unwithholdable required field fails the read closed' '403' $requiredField.Status
+    Add-Result 'field: unwithholdable required field never returns the value' 'True' `
+        ($requiredField.Raw -notmatch 'Record-access verification fixture').ToString()
+    $requiredEvaluation = Invoke-Evaluate -Request @{ resourceKey = 'support'; recordId = $ownCaseId; requestedFields = @('description') }
+    Add-Result 'field: the evaluation surfaces the unenforceable policy' 'True' `
+        ((@($requiredEvaluation.Body.decisionReasons | Where-Object { $_.code -eq 'FIELD_POLICY_UNENFORCEABLE' }).Count -gt 0)).ToString()
+
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_enforce_%'"
+
+    # ------------------------------------------------ 17. OWNER ASSIGNMENT PRIVILEGE
+
+    # support.update must not carry assignment authority. The profile contract also carries ownerId,
+    # which is exactly how the privilege used to leak.
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'support.assign'"
+
+    $version = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM support.SupportCases WHERE CaseId = '$ownCaseId'"
+    $reassign = @{
+        title           = 'Owned by caller'
+        description     = 'Record-access verification fixture.'
+        priority        = 'high'
+        category        = 'usage_issue'
+        source          = 'manual'
+        relationshipRef = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_record_access_001' }
+        ownerId         = $otherMemberId
+    } | ConvertTo-Json -Compress -Depth 6
+    $reassignAttempt = Invoke-Support -Method 'PUT' -Path "/support/cases/$ownCaseId" -Body $reassign `
+        -IdempotencyKey 'idem-record-access-owner-change' -IfMatchVersion $version
+    Add-Result 'owner: support.update alone cannot reassign the owner' '403' $reassignAttempt.Status
+
+    $clearOwner = @{
+        title           = 'Owned by caller'
+        description     = 'Record-access verification fixture.'
+        priority        = 'high'
+        category        = 'usage_issue'
+        source          = 'manual'
+        relationshipRef = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_record_access_001' }
+    } | ConvertTo-Json -Compress -Depth 6
+    $clearAttempt = Invoke-Support -Method 'PUT' -Path "/support/cases/$ownCaseId" -Body $clearOwner `
+        -IdempotencyKey 'idem-record-access-owner-clear' -IfMatchVersion $version
+    Add-Result 'owner: support.update alone cannot clear the owner' '403' $clearAttempt.Status
+
+    $assignAttempt = Invoke-Support -Method 'POST' -Path "/support/cases/$ownCaseId/assign" `
+        -Body (@{ ownerId = $otherMemberId } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-record-access-owner-assign-denied' -IfMatchVersion $version
+    Add-Result 'owner: the assignment operation itself is denied without support.assign' '403' $assignAttempt.Status
+
+    Add-Result 'owner: no refused owner change was committed' $callerMemberId `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT OwnerId FROM support.SupportCases WHERE CaseId = '$ownCaseId'")
+
+    # A profile replacement that leaves the owner untouched is still allowed on support.update.
+    $keepOwner = @{
+        title           = 'Owned by caller renamed'
+        description     = 'Record-access verification fixture.'
+        priority        = 'high'
+        category        = 'usage_issue'
+        source          = 'manual'
+        relationshipRef = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_record_access_001' }
+        ownerId         = $callerMemberId
+    } | ConvertTo-Json -Compress -Depth 6
+    $keepAttempt = Invoke-Support -Method 'PUT' -Path "/support/cases/$ownCaseId" -Body $keepOwner `
+        -IdempotencyKey 'idem-record-access-owner-keep' -IfMatchVersion $version
+    Add-Result 'owner: an unchanged owner is not an assignment' '200' $keepAttempt.Status
+
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'support.assign')"
+    $version = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM support.SupportCases WHERE CaseId = '$ownCaseId'"
+    $allowedAssign = Invoke-Support -Method 'POST' -Path "/support/cases/$ownCaseId/assign" `
+        -Body (@{ ownerId = $otherMemberId } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-record-access-owner-assign-allowed' -IfMatchVersion $version
+    Add-Result 'owner: support.assign still assigns through the admitted path' '200' $allowedAssign.Status
+    Add-Result 'owner: the admitted assignment committed' $otherMemberId `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT OwnerId FROM support.SupportCases WHERE CaseId = '$ownCaseId'")
+
+    # Restore the fixture owner so later assertions read the original arrangement.
+    $version = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM support.SupportCases WHERE CaseId = '$ownCaseId'"
+    [void](Invoke-Support -Method 'POST' -Path "/support/cases/$ownCaseId/assign" `
+        -Body (@{ ownerId = $callerMemberId } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-record-access-owner-restore' -IfMatchVersion $version)
+
+    # ------------------------------------------------ 18. POLICY KEY CONSISTENCY
+
+    # Two roles spelling one resource key differently must not produce two effective entries: the
+    # restrictive one has to win, or a casing difference becomes a scope bypass.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.Roles (RoleId, WorkspaceId, Name, Description, SourceTemplateId, IsActive, Version, CreatedAt, UpdatedAt)
+VALUES ('role_record_access_case', '$($script:WorkspaceId)', 'Record Access Case Casing', NULL, NULL, 1, 0, SYSUTCDATETIME(), SYSUTCDATETIME());
+INSERT INTO access.MembershipRoleAssignments (AssignmentId, WorkspaceId, MembershipId, RoleId, AssignedAt)
+SELECT 'assign_record_access_case', WorkspaceId, MembershipId, 'role_record_access_case', SYSUTCDATETIME()
+FROM access.MembershipRoleAssignments WHERE RoleId = '$roleId';
+INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('role_record_access_case', 'support.read');
+INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_record_access_case', 'role_record_access_case', 'SUPPORT', 'Own', '[]');
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_record_access_case', 'role_record_access_case', 'SuPPoRt', 'ownerId', 'Hidden');
+"@
+
+    # The primary role spells the key `support` and the second spells it `SUPPORT`. One canonical
+    # identity means one effective entry; two entries would let resolution pick whichever it matched
+    # first and silently ignore the other role's policy.
+    Set-SupportScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+    $mixedCaseContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
+    $supportScopeEntries = @($mixedCaseContext.Body.dataScopes | Where-Object { $_.resourceKey -match '(?i)^support$' })
+    Add-Result 'keys: mixed-case resource keys collapse to one effective entry' '1' ([int]$supportScopeEntries.Count)
+
+    $mixedCaseRead = Invoke-Support -Method 'GET' -Path "/support/cases/$otherCaseId"
+    Add-Result 'keys: the merged OWN scope is enforced under mixed casing' '404' $mixedCaseRead.Status
+
+    # Field security is most-restrictive-wins, so a HIDDEN policy stored under a differently cased
+    # resource key must still withhold the value.
+    $mixedCaseOwn = Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId"
+    Add-Result 'keys: a mixed-case HIDDEN field policy still withholds the value' 'True' `
+        ($mixedCaseOwn.Raw -notmatch '"ownerId"').ToString()
+
+    Clear-SupportScope -Database $DatabaseName
+
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.Roles WHERE RoleId = 'role_record_access_case'"
+
+    # ------------------------------------------------ 19. RESOURCE-LEVEL CREATE SEMANTICS
+
+    # A create-only caller must not have creation withheld because it cannot read.
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'support.read'"
+    $createOnly = Invoke-Evaluate -Request @{ resourceKey = 'support'; requestedCommands = @('support.create', 'support.update') }
+    Add-Result 'create: resource-level create survives losing support.read' 'True' `
+        ($createOnly.Body.allowedCommands -contains 'support.create').ToString()
+    Add-Result 'create: resource-level read is still reported as denied' 'False' ($createOnly.Body.canRead).ToString()
+    $recordLevel = Invoke-Evaluate -Request @{ resourceKey = 'support'; recordId = $ownCaseId; requestedCommands = @('support.update') }
+    Add-Result 'create: record-level commands still require a readable record' '0' ([int]$recordLevel.Body.allowedCommands.Count)
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'support.read')"
+
+    # ------------------------------------------------ 20. ENFORCEMENT AUDIT AND COST
+
+    $enforcementRows = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE EnforcementPoint = 'getSupportCase'
+"@
+    Add-Result 'audit: owner enforcement writes its own decision evidence' 'True' ([int]$enforcementRows -gt 0).ToString()
+
+    $deniedEnforcement = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) AS N FROM access.RecordAccessDecisions
+WHERE EnforcementPoint IN ('replaceSupportCaseProfile','assignSupportCase','transitionSupportCase','addSupportCaseReply','addSupportCaseInternalNote')
+      AND Allowed = 0
+"@
+    Add-Result 'audit: refused mutations are recorded as denied decisions' 'True' ([int]$deniedEnforcement -gt 0).ToString()
+
+    $fingerprints = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE LEN(PolicyFingerprint) <> 64
+"@
+    Add-Result 'audit: every decision records the effective policy fingerprint' '0' $fingerprints
+
+    $fingerprintChanged = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(DISTINCT PolicyFingerprint) AS N FROM access.RecordAccessDecisions WHERE EnforcementPoint = 'getSupportCase'
+"@
+    Add-Result 'audit: a policy change is visible in the fingerprint' 'True' ([int]$fingerprintChanged -gt 1).ToString()
+
+    # One list request must not evaluate one decision per row.
+    $before = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
+    [void](Invoke-Support -Method 'GET' -Path '/support/cases')
+    $after = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
+    Add-Result 'cost: listing evaluates no per-row record decision' '0' ([int]$after - [int]$before)
+
+    # One authorization per request, not one per enforcement point.
+    $capabilityBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+    [void](Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId")
+    $capabilityAfter = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+    Add-Result 'authority: an enforced read authorizes exactly once' '1' ([int]$capabilityAfter - [int]$capabilityBefore)
+
+    # ------------------------------------------ 21. RETROFITTED MODULE ENFORCEMENT
+
+    # Tasks, Leads, Deals and Products were retrofitted onto the same canonical AccessControl
+    # boundary as Support. Each is proven the same way and without the browser: a record the caller's
+    # record scope hides must be unreachable through the business API itself.
+
+    $otherOwnerId = $otherMemberId
+
+    # ---- fixtures, one record owned by the caller and one owned by another member ----
+    $taskOwn = Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-retro-task-own' `
+        -Body (@{ title = 'Retro task own'; assigneeId = $callerMemberId; dueAt = '2026-12-01T09:00:00.0000000Z' } | ConvertTo-Json -Compress)
+    Add-Result 'tasks: fixture owned by caller created' '201' $taskOwn.Status
+    $taskOwnId = $taskOwn.Body.aggregateId
+    $taskOther = Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-retro-task-other' `
+        -Body (@{ title = 'Retro task other'; assigneeId = $otherOwnerId; dueAt = '2026-12-01T09:00:00.0000000Z' } | ConvertTo-Json -Compress)
+    $taskOtherId = $taskOther.Body.aggregateId
+
+    $leadOwn = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-retro-lead-own' `
+        -Body (@{ displayName = 'Retro lead own'; ownerId = $callerMemberId; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'leads: fixture owned by caller created' '201' $leadOwn.Status
+    $leadOwnId = $leadOwn.Body.aggregateId
+    $leadOther = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-retro-lead-other' `
+        -Body (@{ displayName = 'Retro lead other'; ownerId = $otherOwnerId; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+    $leadOtherId = $leadOther.Body.aggregateId
+
+    $dealOwn = Invoke-Support -Method 'POST' -Path '/deals' -IdempotencyKey 'idem-retro-deal-own' `
+        -Body (@{
+            name                 = 'Retro deal own'
+            buyerRef             = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_retro_001' }
+            stageCode            = 'DISCOVERY'
+            amount               = @{ amount = '1000.00'; currency = 'USD' }
+            opportunityScore     = '10'
+            ownerId              = $callerMemberId
+            expectedCloseDate    = '2026-12-31'
+            interestedProductIds = @()
+            lineItems            = @()
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'deals: fixture owned by caller created' '201' $dealOwn.Status
+    if ($dealOwn.Status -ne 201) { Write-Host ("  deal fixture refused: {0}" -f $dealOwn.Raw) }
+    $dealOwnId = $dealOwn.Body.aggregateId
+    $dealOther = Invoke-Support -Method 'POST' -Path '/deals' -IdempotencyKey 'idem-retro-deal-other' `
+        -Body (@{
+            name                 = 'Retro deal other'
+            buyerRef             = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_retro_001' }
+            stageCode            = 'DISCOVERY'
+            amount               = @{ amount = '2000.00'; currency = 'USD' }
+            opportunityScore     = '10'
+            ownerId              = $otherOwnerId
+            expectedCloseDate    = '2026-12-31'
+            interestedProductIds = @()
+            lineItems            = @()
+        } | ConvertTo-Json -Compress -Depth 6)
+    $dealOtherId = $dealOther.Body.aggregateId
+
+    $productOne = Invoke-Support -Method 'POST' -Path '/products' -IdempotencyKey 'idem-retro-product-01' `
+        -Body (@{
+            sku            = 'RETRO-001'
+            name           = 'Retro product'
+            type           = 'service'
+            status         = 'ACTIVE'
+            category       = 'Professional Services'
+            description    = 'Record-access retrofit fixture'
+            unit           = 'hour'
+            unitPrice      = @{ amount = '10.125'; currency = 'USD' }
+            costPrice      = @{ amount = '4.25'; currency = 'USD' }
+            taxRate        = '10'
+            taxMode        = 'exclusive'
+            billingCycle   = 'one_time'
+            isSubscription = $false
+            isRenewable    = $false
+            tags           = @('verified', 'core')
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'products: fixture created' '201' $productOne.Status
+    if ($productOne.Status -ne 201) { Write-Host ("  product fixture refused: {0}" -f $productOne.Raw) }
+    $productOneId = $productOne.Body.aggregateId
+
+    # ---- OWN scope: the caller's own record stays visible, another member's disappears ----
+    Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+
+    Add-Result 'tasks: OWN allows the caller own task' '200' (Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId").Status
+    $taskHidden = Invoke-Support -Method 'GET' -Path "/tasks/$taskOtherId"
+    Add-Result 'tasks: OWN hides another member task from a direct GET' '404' $taskHidden.Status
+    Add-Result 'tasks: hidden task leaks no title' 'True' ($taskHidden.Raw -notmatch 'Retro task other').ToString()
+
+    Add-Result 'leads: OWN allows the caller own lead' '200' (Invoke-Support -Method 'GET' -Path "/leads/$leadOwnId").Status
+    $leadHidden = Invoke-Support -Method 'GET' -Path "/leads/$leadOtherId"
+    Add-Result 'leads: OWN hides another member lead from a direct GET' '404' $leadHidden.Status
+    Add-Result 'leads: hidden lead leaks no display name' 'True' ($leadHidden.Raw -notmatch 'Retro lead other').ToString()
+
+    Add-Result 'deals: OWN allows the caller own deal' '200' (Invoke-Support -Method 'GET' -Path "/deals/$dealOwnId").Status
+    $dealHidden = Invoke-Support -Method 'GET' -Path "/deals/$dealOtherId"
+    Add-Result 'deals: OWN hides another member deal from a direct GET' '404' $dealHidden.Status
+    Add-Result 'deals: hidden deal leaks no name' 'True' ($dealHidden.Raw -notmatch 'Retro deal other').ToString()
+
+    $dealList = Invoke-Support -Method 'GET' -Path '/deals'
+    Add-Result 'deals: OWN list excludes the hidden deal' 'False' ($dealList.Body.items.id -contains $dealOtherId).ToString()
+    Add-Result 'deals: OWN list totalCount excludes hidden rows' '1' ([int]$dealList.Body.pageInfo.totalCount)
+
+    # The forecast aggregates amounts, so a hidden deal must not reach the totals either.
+    $forecast = Invoke-Support -Method 'GET' -Path '/deals/forecast-summary'
+    Add-Result 'deals: OWN forecast excludes the hidden deal amount' 'True' `
+        ($forecast.Raw -notmatch '2000').ToString()
+
+    $dealMutation = Invoke-Support -Method 'POST' -Path "/deals/$dealOtherId/archive" `
+        -Body (@{ reason = 'bypass attempt' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-retro-deal-bypass' -IfMatchVersion '0'
+    Add-Result 'deals: direct mutation on a hidden deal is refused' '404' $dealMutation.Status
+    Add-Result 'deals: refused mutation did not change the record' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM deals.Deals WHERE DealId = '$dealOtherId'")
+
+    # Product has no member owner, so OWN denies every Product rather than inventing ownership.
+    Add-Result 'products: OWN fails closed for a resource with no owner concept' '404' `
+        (Invoke-Support -Method 'GET' -Path "/products/$productOneId").Status
+    Add-Result 'products: OWN empties the list rather than leaking it' '0' `
+        ([int](Invoke-Support -Method 'GET' -Path '/products').Body.Count)
+
+    # ---- direct mutation bypass ----
+    $taskMutation = Invoke-Support -Method 'POST' -Path "/tasks/$taskOtherId/complete" `
+        -Body (@{ outcome = 'bypass' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-retro-task-bypass' -IfMatchVersion '0'
+    Add-Result 'tasks: direct mutation on a hidden task is refused' '404' $taskMutation.Status
+    Add-Result 'tasks: refused mutation did not change the record' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM tasks.Tasks WHERE TaskId = '$taskOtherId'")
+
+    $leadMutation = Invoke-Support -Method 'POST' -Path "/leads/$leadOtherId/disqualify" `
+        -Body (@{ reason = 'not_interested'; evidence = 'Bypass attempt evidence.' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-retro-lead-bypass' -IfMatchVersion '0'
+    Add-Result 'leads: direct mutation on a hidden lead is refused' '404' $leadMutation.Status
+    Add-Result 'leads: refused mutation did not change the record' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM leads.Leads WHERE LeadId = '$leadOtherId'")
+
+    # ---- list scope: hidden rows are absent and uncounted ----
+    $taskList = Invoke-Support -Method 'GET' -Path '/tasks'
+    Add-Result 'tasks: OWN list excludes the hidden task' 'False' `
+        ($taskList.Body.items.id -contains $taskOtherId).ToString()
+    Add-Result 'tasks: OWN list totalCount excludes hidden rows' '1' ([int]$taskList.Body.pageInfo.totalCount)
+    Add-Result 'tasks: OWN pagination is not padded by hidden rows' 'False' `
+        ((Invoke-Support -Method 'GET' -Path '/tasks?limit=1').Body.pageInfo.hasNextPage).ToString()
+
+    $leadList = Invoke-Support -Method 'GET' -Path '/leads'
+    Add-Result 'leads: OWN list excludes the hidden lead' 'False' ($leadList.Body.id -contains $leadOtherId).ToString()
+    Add-Result 'leads: OWN list returns only the caller own lead' '1' ([int]$leadList.Body.Count)
+
+    # ---- WORKSPACE restores every record through the same enforcement path ----
+    Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Workspace'
+    Add-Result 'tasks: WORKSPACE restores the other-member task' '200' (Invoke-Support -Method 'GET' -Path "/tasks/$taskOtherId").Status
+    Add-Result 'leads: WORKSPACE restores the other-member lead' '200' (Invoke-Support -Method 'GET' -Path "/leads/$leadOtherId").Status
+    Add-Result 'products: WORKSPACE restores the product' '200' (Invoke-Support -Method 'GET' -Path "/products/$productOneId").Status
+    Add-Result 'deals: WORKSPACE restores the other-member deal' '200' (Invoke-Support -Method 'GET' -Path "/deals/$dealOtherId").Status
+    Add-Result 'tasks: WORKSPACE list counts both tasks' '2' ([int](Invoke-Support -Method 'GET' -Path '/tasks').Body.pageInfo.totalCount)
+    Add-Result 'deals: WORKSPACE list counts both deals' '2' ([int](Invoke-Support -Method 'GET' -Path '/deals').Body.pageInfo.totalCount)
+
+    # ---- TEAM and CUSTOM fail closed in every retrofitted module ----
+    foreach ($unsupported in @('Team', 'Custom')) {
+        Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope $unsupported
+        Add-Result ("tasks: {0} scope fails closed" -f $unsupported.ToUpperInvariant()) '404' `
+            (Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId").Status
+        Add-Result ("leads: {0} scope fails closed" -f $unsupported.ToUpperInvariant()) '404' `
+            (Invoke-Support -Method 'GET' -Path "/leads/$leadOwnId").Status
+        Add-Result ("deals: {0} scope fails closed" -f $unsupported.ToUpperInvariant()) '404' `
+            (Invoke-Support -Method 'GET' -Path "/deals/$dealOwnId").Status
+        Add-Result ("products: {0} scope fails closed" -f $unsupported.ToUpperInvariant()) '404' `
+            (Invoke-Support -Method 'GET' -Path "/products/$productOneId").Status
+        Add-Result ("tasks: {0} scope empties the list" -f $unsupported.ToUpperInvariant()) '0' `
+            ([int](Invoke-Support -Method 'GET' -Path '/tasks').Body.pageInfo.totalCount)
+    }
+    Clear-ModuleScope -Database $DatabaseName
+
+    # ---- field enforcement per module, proven on the raw backend JSON ----
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_retro_%';
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_retro_task_desc', '$roleId', 'tasks', 'description', 'Hidden'),
+('field_retro_lead_email', '$roleId', 'LEADS', 'email', 'Hidden'),
+('field_retro_product_cost', '$roleId', 'products', 'costPrice', 'Masked');
+"@
+
+    $taskFields = Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId"
+    Add-Result 'tasks: HIDDEN field is absent from the raw backend JSON' 'True' `
+        ($taskFields.Raw -notmatch '"description"').ToString()
+    Add-Result 'tasks: the record itself still reads' '200' $taskFields.Status
+
+    # The Leads policy is stored as `LEADS`; a casing difference must not bypass it.
+    $leadFields = Invoke-Support -Method 'GET' -Path "/leads/$leadOwnId"
+    Add-Result 'leads: mixed-case field policy is still enforced' 'True' `
+        ($leadFields.Raw -notmatch '"email"').ToString()
+
+    # MASKED has no admitted representation, so it is enforced as withheld.
+    $productFields = Invoke-Support -Method 'GET' -Path "/products/$productOneId"
+    Add-Result 'products: MASKED is enforced as withheld' 'True' `
+        ($productFields.Raw -notmatch '"costPrice"').ToString()
+
+    # A restrictive policy on a required field cannot be represented, so the read fails closed.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_retro_task_required', '$roleId', 'tasks', 'title', 'Hidden');
+"@
+    $taskRequired = Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId"
+    Add-Result 'tasks: unwithholdable required field fails the read closed' '403' $taskRequired.Status
+    Add-Result 'tasks: unwithholdable required field never returns the value' 'True' `
+        ($taskRequired.Raw -notmatch 'Retro task own').ToString()
+
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_retro_%'"
+
+    # ---- capability denial cannot be restored by scope, in every retrofitted module ----
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'tasks.read'"
+    Add-Result 'tasks: losing the read capability denies the record' '403' `
+        (Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId").Status
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'tasks.read')"
+
+    # ---- one authorization and no per-row decision on a list, per module ----
+    foreach ($module in @(
+            @{ Name = 'tasks'; Path = '/tasks' },
+            @{ Name = 'leads'; Path = '/leads' },
+            @{ Name = 'deals'; Path = '/deals' },
+            @{ Name = 'products'; Path = '/products' })) {
+        $before = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
+        $capabilityBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        [void](Invoke-Support -Method 'GET' -Path $module.Path)
+        $after = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
+        $capabilityAfter = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        Add-Result ("cost: {0} list evaluates no per-row record decision" -f $module.Name) '0' ([int]$after - [int]$before)
+        Add-Result ("authority: {0} list authorizes exactly once" -f $module.Name) '1' ([int]$capabilityAfter - [int]$capabilityBefore)
+    }
+
+    # ---- enforcement evidence exists for every retrofitted module ----
+    foreach ($resource in @('tasks', 'leads', 'deals', 'products')) {
+        $rows = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$resource'
+"@
+        Add-Result ("audit: {0} enforcement writes decision evidence" -f $resource) 'True' ([int]$rows -gt 0).ToString()
+    }
+
+    # ------------------------------ 22. AI SUMMARY READERS AFTER THE RETROFIT
+
+    # The Tasks, Leads and Deals summary readers each carried their own copy of the record-scope and
+    # field-visibility rules and were rewritten onto the canonical boundary. `verify-ai-assistant.ps1`
+    # is the harness that normally covers them, but it cannot run on Windows PowerShell 5.1, so their
+    # only consumer is exercised here instead of being left unproven.
+
+    $advisoryBody = @{
+        question          = 'What should I focus on next?'
+        locale            = 'en'
+        contextReferences = @{ leadId = $leadOwnId; dealId = $dealOwnId; taskId = $taskOwnId }
+    } | ConvertTo-Json -Compress -Depth 6
+
+    $advisoryWorkspace = Invoke-Support -Method 'POST' -Path '/ai/advisories' -Body $advisoryBody
+    Add-Result 'ai: advisory still resolves every summary reader' '200' $advisoryWorkspace.Status
+    Add-Result 'ai: advisory resolves the Lead reference' $leadOwnId $advisoryWorkspace.Body.contextReferences.leadId
+    Add-Result 'ai: advisory resolves the Deal reference' $dealOwnId $advisoryWorkspace.Body.contextReferences.dealId
+    Add-Result 'ai: advisory resolves the Task reference' $taskOwnId $advisoryWorkspace.Body.contextReferences.taskId
+
+    # Under OWN scope the readers must refuse a record the caller does not own, exactly as the
+    # module read endpoints do - the rewrite must not have widened what AI can see.
+    Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+    $advisoryHidden = @{
+        question          = 'What should I focus on next?'
+        locale            = 'en'
+        contextReferences = @{ leadId = $leadOtherId; dealId = $dealOtherId; taskId = $taskOtherId }
+    } | ConvertTo-Json -Compress -Depth 6
+    $advisoryDenied = Invoke-Support -Method 'POST' -Path '/ai/advisories' -Body $advisoryHidden
+    Add-Result 'ai: a hidden record is not summarised for AI' 'True' `
+        (($advisoryDenied.Status -ne 200) -or ($advisoryDenied.Raw -notmatch 'Retro (lead|deal|task) other')).ToString()
+
+    # The caller's own records stay readable through the same readers under OWN scope.
+    $advisoryOwn = Invoke-Support -Method 'POST' -Path '/ai/advisories' -Body $advisoryBody
+    Add-Result 'ai: the caller own records remain summarisable under OWN' '200' $advisoryOwn.Status
+    Clear-ModuleScope -Database $DatabaseName
 
     # ------------------------------------------------------------ 13. regressions
 

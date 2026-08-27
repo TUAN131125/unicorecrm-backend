@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Operations.Tasks.Application.Common;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
 
 namespace UnicoreCRM.Operations.Tasks;
@@ -31,6 +32,9 @@ internal static class TasksModule
         services.AddScoped<Application.RescheduleTask.Handler>();
         services.AddScoped<Application.ArchiveTask.Handler>();
         services.AddScoped<Application.LogActivity.Handler>();
+        // Tasks publishes its own record-access facts to AccessControl. AccessControl never reaches
+        // into TasksDbContext; it resolves this owner-owned contract instead.
+        services.AddScoped<IRecordAccessFactProvider, Application.ProvideTaskRecordAccessFacts.TaskRecordAccessFactProvider>();
         return services;
     }
 }

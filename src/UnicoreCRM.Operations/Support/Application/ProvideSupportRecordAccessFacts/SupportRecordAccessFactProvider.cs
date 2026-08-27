@@ -42,7 +42,8 @@ internal sealed class SupportRecordAccessFactProvider(ISupportPersistence persis
             ["support.close"] = SupportCapabilities.Update.Capability,
             ["support.reopen"] = SupportCapabilities.Update.Capability,
             ["support.cancel"] = SupportCapabilities.Update.Capability
-        });
+        },
+        enforceableFields: SupportFieldSecurity.EnforceableFields);
 
     public RecordAccessResourceDescriptor Descriptor => SupportDescriptor;
 

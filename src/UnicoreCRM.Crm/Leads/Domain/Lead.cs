@@ -9,6 +9,7 @@ internal sealed class Lead
         LeadId = LeadIds.New("lead");
         WorkspaceId = workspaceId;
         Profile = profile;
+        ScopeOwnerId = profile.OwnerId;
         WorkState = LeadWorkState.New;
         Score = 0;
         CreatedAt = now;
@@ -18,6 +19,14 @@ internal sealed class Lead
     public string LeadId { get; private set; } = null!;
     public string WorkspaceId { get; private set; } = null!;
     public LeadProfile Profile { get; private set; } = null!;
+
+    /// <summary>
+    /// A queryable projection of <c>Profile.OwnerId</c>. The profile is persisted as a single JSON
+    /// column, so the owner inside it cannot be used in a SQL predicate; the AccessControl record
+    /// scope has to be pushed into the query rather than filtered in memory, and that needs a real
+    /// column. It is derived state kept in step with the profile, never an independent fact.
+    /// </summary>
+    public string ScopeOwnerId { get; private set; } = null!;
     public LeadWorkState WorkState { get; private set; }
     public LeadQualificationOutcome? QualificationOutcome { get; private set; }
     public int Score { get; private set; }
@@ -32,6 +41,7 @@ internal sealed class Lead
     internal void ReplaceProfile(LeadProfile profile, DateTimeOffset now)
     {
         Profile = profile;
+        ScopeOwnerId = profile.OwnerId;
         Touch(now);
     }
 
@@ -54,6 +64,7 @@ internal sealed class Lead
             return LeadTransitionResult.ProfileIncomplete;
 
         Profile = nextProfile;
+        ScopeOwnerId = nextProfile.OwnerId;
         WorkState = target;
         QualificationOutcome = null;
         Touch(now);

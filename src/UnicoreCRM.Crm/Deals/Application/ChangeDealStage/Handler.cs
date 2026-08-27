@@ -12,7 +12,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
         if (!DealValidation.IsEntityId(command.DealId))
@@ -42,7 +43,7 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                 var progressive = DealValidation.ProgressiveProfileErrors(deal.Profile, targetStage.Code, forecast);
                 if (progressive.Count != 0)
                     return DealErrors.ProgressiveProfile(progressive);
-                return deal.ChangeStage(targetStage.Code, targetStage.Category, forecast, access.Value!.MemberId, now) switch
+                return deal.ChangeStage(targetStage.Code, targetStage.Category, forecast, access.Value!.Trusted.MemberId, now) switch
                 {
                     DealTransitionResult.Succeeded => null,
                     DealTransitionResult.InvalidTransition => DealErrors.InvalidStageTransition(deal.DealId),
@@ -50,6 +51,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                 };
             },
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "changeDealStage", metadata, cancellationToken, "stageCode", "stageCategory", "stageEnteredAt"),
             cancellationToken);
     }
 }

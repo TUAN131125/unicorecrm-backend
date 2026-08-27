@@ -27,7 +27,8 @@ internal sealed class Handler(
 {
     internal async Task<TaskOperationResult<ActivityListResponse>> HandleAsync(Query query, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(TaskCapabilities.Read, query.CorrelationId, cancellationToken);
+        var metadata = new TaskRequestMetadata(query.RequestId, query.CorrelationId);
+        var access = await authorization.AuthorizeAsync(TaskCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<ActivityListResponse>.Failure(access.Error!);
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -59,7 +60,7 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return TaskOperationResult<ActivityListResponse>.Failure(TaskErrors.Validation(fields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var page = await persistence.ListActivitiesAsync(
             trusted.WorkspaceId,
             new ActivityListSpecification(

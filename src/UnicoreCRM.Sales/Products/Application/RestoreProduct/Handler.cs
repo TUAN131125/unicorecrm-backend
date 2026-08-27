@@ -11,10 +11,8 @@ internal sealed class Handler(ProductAuthorization authorization, ProductMutatio
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(
-            ProductCapabilities.Edit,
-            command.Metadata.CorrelationId,
-            cancellationToken);
+        var metadata = new ProductRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(ProductCapabilities.Edit, metadata, cancellationToken);
         if (!access.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(access.Error!);
         if (!ProductValidation.IsEntityId(command.ProductId))
@@ -38,6 +36,8 @@ internal sealed class Handler(ProductAuthorization authorization, ProductMutatio
             command.Metadata,
             fingerprint,
             (product, now) => product.Restore(now) ? null : ProductErrors.RestoreBlocked(product.ProductId),
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "restoreProduct", metadata, cancellationToken, "status", "archivedAt", "archiveReason"),
             cancellationToken);
     }
 }

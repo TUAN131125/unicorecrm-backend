@@ -20,13 +20,19 @@ namespace UnicoreCRM.Operations.Support.Application.Common;
 /// <para>Placing the precondition after the lookup is what makes a replay durable: a Workspace
 /// member who is deactivated after a command commits must not turn that command's replay into
 /// a validation failure. A stale version mutates nothing.</para>
+///
+/// <para>Record-access enforcement is deliberately <em>not</em> placed with the precondition. Record
+/// scope is authorization, not a business precondition, and capability authorization already runs
+/// ahead of the lookup, so a caller who no longer reaches a record must not be able to replay a
+/// committed command against it. The guard therefore runs first, inside the same transaction,
+/// against Support's own authoritative facts.</para>
 /// </summary>
 internal sealed class SupportMutationExecution(
     ISupportPersistence persistence,
     TimeProvider timeProvider)
 {
     internal async Task<SupportOperationResult<SupportCaseMutationResponse>> ExecuteAsync(
-        TrustedWorkspaceContext trusted,
+        SupportAccess access,
         string operation,
         string eventType,
         string caseId,
@@ -34,9 +40,21 @@ internal sealed class SupportMutationExecution(
         string fingerprint,
         Func<SupportCase, DateTimeOffset, SupportOperationError?> mutate,
         Func<TrustedWorkspaceContext, CancellationToken, Task<SupportOperationError?>>? precondition,
+        Func<SupportAccess, SupportCase, Task<SupportOperationError?>> recordGuard,
         CancellationToken cancellationToken)
     {
+        var trusted = access.Trusted;
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+
+        // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
+        // A record the caller may not reach is reported as missing, exactly as an unknown record is.
+        var guarded = await persistence.ReadCaseAsync(trusted.WorkspaceId, caseId, cancellationToken);
+        if (guarded is null)
+            return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.NotFound());
+        var guardError = await recordGuard(access, guarded);
+        if (guardError is not null)
+            return SupportOperationResult<SupportCaseMutationResponse>.Failure(guardError);
+
         var scopeKey = SupportCommandSupport.ScopeKey(trusted, operation, caseId, metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
@@ -46,7 +64,7 @@ internal sealed class SupportMutationExecution(
             // retroactively invalidate the replay.
             var replayError = SupportCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? SupportOperationResult<SupportCaseMutationResponse>.Success(SupportCommandSupport.Replay(existing))
+                ? SupportOperationResult<SupportCaseMutationResponse>.Success(Project(SupportCommandSupport.Replay(existing), access))
                 : SupportOperationResult<SupportCaseMutationResponse>.Failure(replayError);
         }
 
@@ -92,6 +110,19 @@ internal sealed class SupportMutationExecution(
                 SupportErrors.VersionConflict(supportCase.CaseId, expectedVersion, supportCase.Version));
         }
         await transaction.CommitAsync(cancellationToken);
-        return SupportOperationResult<SupportCaseMutationResponse>.Success(response);
+        return SupportOperationResult<SupportCaseMutationResponse>.Success(Project(response, access));
     }
+
+    /// <summary>
+    /// Applies field security to the outgoing response. It is applied here rather than where the
+    /// response is built because a replay returns a projection serialized under whatever policy was
+    /// in force when the command committed; enforcing at the boundary makes the stored evidence
+    /// unable to leak a value the caller's current policy withholds.
+    /// </summary>
+    private static SupportCaseMutationResponse Project(SupportCaseMutationResponse response, SupportAccess access) =>
+        response with
+        {
+            Result = new SupportCaseMutationResult(
+                SupportFieldSecurity.Project(response.Result.SupportCase, access.Authorization))
+        };
 }

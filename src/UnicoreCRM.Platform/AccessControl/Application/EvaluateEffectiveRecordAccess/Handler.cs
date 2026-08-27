@@ -1,32 +1,30 @@
 using UnicoreCRM.Platform.AccessControl.Application.Common;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.AccessControl.Domain;
-using UnicoreCRM.Platform.Workspace.Contracts;
 
 namespace UnicoreCRM.Platform.AccessControl.Application.EvaluateEffectiveRecordAccess;
 
 /// <summary>
-/// Evaluates authoritative object-level access for one record.
+/// Reports authoritative object-level access for one record.
 ///
-/// The authority chain is preserved end to end: authenticated identity -> trusted Workspace ->
-/// capability authorization -> authoritative record facts from the owning module -> record-scope
-/// evaluation -> field-security projection -> immutable AccessControl decision evidence. Record
-/// access is strictly additional to capability authorization and can never grant a capability the
-/// caller does not hold.
+/// <para>This operation only <em>reports</em> a decision. It is not the enforcement point, and a
+/// consumer that never calls it is not thereby unprotected: every business owner enforces the same
+/// decision through <see cref="IRecordAccessEvaluator"/>, which is the same authority this handler
+/// uses. The two therefore cannot diverge.</para>
 ///
-/// A record the caller may not see produces a successful evaluation whose document denies
+/// <para>A record the caller may not see produces a successful evaluation whose document denies
 /// everything. A record that does not exist, a record owned by another Workspace and a record
-/// hidden by scope therefore return identical documents, so no status code or payload difference
-/// discloses foreign or hidden existence.
+/// hidden by scope return identical documents, so no status code or payload difference discloses
+/// foreign or hidden existence.</para>
 /// </summary>
 internal sealed class Handler(
-    IAccessAuthorizer authorizer,
-    ICurrentWorkspace currentWorkspace,
+    IRecordAccessEvaluator evaluator,
+    RecordAccessEvaluator decisionWriter,
     RecordAccessFactProviderRegistry providers,
-    IAccessControlPersistence persistence,
     TimeProvider timeProvider)
 {
     private const string DecisionSource = "access-control";
+    private const string EnforcementPoint = "evaluateEffectiveRecordAccess";
 
     internal async Task<AccessOperationResult<EffectiveRecordAccessDocument>> HandleAsync(
         Query query,
@@ -35,111 +33,92 @@ internal sealed class Handler(
         if (!Validator.TryValidate(query.Request, out var request, out var fieldErrors))
             return AccessOperationResult<EffectiveRecordAccessDocument>.Failure(AccessErrors.Validation(fieldErrors!));
 
-        var decision = await authorizer.AuthorizeAsync(
-            AccessCapabilities.WorkspaceContextResolve,
-            query.CorrelationId,
+        var context = new RecordAccessRequestContext(query.RequestId, query.CorrelationId);
+        var provider = providers.Find(request!.ResourceKey);
+        var descriptor = provider?.Descriptor;
+
+        // The read capability is the owner's own declaration. With no registered owner there is no
+        // capability vocabulary and no authoritative fact, so the evaluation denies by default.
+        var readCapability = descriptor?.ReadCapability ?? UnresolvableCapability;
+        var authorization = await evaluator.AuthorizeResourceAsync(
+            request.ResourceKey,
+            readCapability,
+            request.RequestedFields,
+            context,
             cancellationToken);
-        if (!decision.IsAllowed || decision.Context is not { } context)
+
+        if (authorization.TrustedWorkspace is not { } trusted)
         {
             return AccessOperationResult<EffectiveRecordAccessDocument>.Failure(
-                decision.Code == "WORKSPACE_MISMATCH" ? AccessErrors.WorkspaceMismatch() : AccessErrors.AccessDenied());
+                authorization.Code == "WORKSPACE_MISMATCH" ? AccessErrors.WorkspaceMismatch() : AccessErrors.AccessDenied());
         }
 
-        var trusted = currentWorkspace.Require();
         var reasons = new List<EffectiveAccessDecisionReasonDocument>(6);
-        var provider = providers.Find(request!.ResourceKey);
-        if (provider is null)
+        if (descriptor is null)
         {
-            // No business owner is authoritative for this resource key, so no record fact can be
-            // established. Deny by default rather than falling back to capability-only access.
             reasons.Add(new EffectiveAccessDecisionReasonDocument(
                 "RESOURCE_FACT_AUTHORITY_UNAVAILABLE",
                 "DENY",
                 "No authoritative record-fact owner is registered for this resource key.",
                 DecisionSource));
-            return await DenyAsync(query, request, trusted, reasons, cancellationToken);
+            await decisionWriter.WriteDecisionAsync(
+                trusted, authorization, request.RecordId, false, "UNAVAILABLE",
+                "RESOURCE_FACT_AUTHORITY_UNAVAILABLE", EnforcementPoint, null, context, cancellationToken);
+            return Denied(trusted.WorkspaceId, request, reasons, timeProvider.GetUtcNow());
         }
 
-        var descriptor = provider.Descriptor;
-        var capabilities = context.Capabilities;
-        var hasRead = capabilities.Contains(descriptor.ReadCapability, StringComparer.Ordinal);
-        var scope = RecordAccessPolicy.ResolveScope(ToScopePolicies(context.DataScopes), descriptor.ResourceKey);
-
-        var facts = RecordAccessFacts.NotFound;
+        var hasRead = authorization.IsAllowed;
+        RecordAccessRecordDecision? recordDecision = null;
         if (hasRead && request.RecordId is not null)
         {
             // The owner is consulted only after capability authorization allows the read, so a
             // caller without the capability never causes a business lookup for a record.
-            facts = await provider.ReadFactsAsync(
-                trusted,
-                request.RecordId,
-                new RecordAccessRequestContext(query.RequestId, query.CorrelationId),
-                cancellationToken);
+            var facts = await provider!.ReadFactsAsync(trusted, request.RecordId, context, cancellationToken);
+            recordDecision = await evaluator.AuthorizeRecordAsync(
+                authorization, request.RecordId, facts, EnforcementPoint, context, cancellationToken);
         }
 
-        var scopeDecision = RecordAccessPolicy.EvaluateScope(
-            scope,
-            recordRequested: request.RecordId is not null,
-            recordFound: facts.Status == RecordAccessFactStatus.Found,
-            facts.OwnerMemberId,
-            trusted.MemberId);
+        var recordEvaluated = request.RecordId is not null;
+        var canRead = hasRead && (!recordEvaluated || recordDecision!.IsAllowed);
 
-        var canRead = hasRead && scopeDecision.Outcome != RecordScopeOutcome.Denied;
-        var canUpdate = canRead && Holds(capabilities, descriptor.UpdateCapability);
-        var canDelete = canRead && Holds(capabilities, descriptor.DeleteCapability);
-        var canExport = canRead && request.IncludeExport && Holds(capabilities, descriptor.ExportCapability);
-        var canApprove = canRead && request.IncludeApproval && Holds(capabilities, descriptor.ApproveCapability);
-
+        // Resource-level and record-level questions are answered differently on purpose. Without a
+        // record identifier the caller is asking what the resource permits, so a command is granted
+        // from its own capability alone - `support.create` must not silently require `support.read`.
+        // With a record identifier the commands target that record, so they additionally require it
+        // to be readable and in scope.
+        var commandGate = recordEvaluated ? canRead : true;
         var allowedCommands = new List<string>();
-        if (canRead)
+        if (commandGate)
         {
             foreach (var command in request.RequestedCommands)
             {
                 if (descriptor.CommandCapabilities.TryGetValue(command, out var required)
-                    && capabilities.Contains(required, StringComparer.Ordinal))
+                    && authorization.Holds(required))
                 {
                     allowedCommands.Add(command);
                 }
             }
         }
 
-        var fieldSecurity = ToFieldPolicies(context.FieldSecurity);
+        var canUpdate = canRead && authorization.Holds(descriptor.UpdateCapability ?? string.Empty);
+        var canDelete = canRead && authorization.Holds(descriptor.DeleteCapability ?? string.Empty);
+        var canExport = canRead && request.IncludeExport && authorization.Holds(descriptor.ExportCapability ?? string.Empty);
+        var canApprove = canRead && request.IncludeApproval && authorization.Holds(descriptor.ApproveCapability ?? string.Empty);
+
         var fieldAccess = new Dictionary<string, string>(StringComparer.Ordinal);
         var restricted = 0;
         foreach (var fieldKey in request.RequestedFields)
         {
-            var resolved = RecordAccessPolicy.ResolveFieldAccess(fieldSecurity, descriptor.ResourceKey, fieldKey);
-            var capped = RecordAccessPolicy.Cap(resolved, canRead, canUpdate);
-            if (capped != AccessFieldAccess.ReadWrite)
+            var enforcement = authorization.FieldEnforcement.TryGetValue(fieldKey, out var value)
+                ? value
+                : RecordFieldEnforcement.ReadWrite;
+            var wire = Wire(enforcement, canRead, canUpdate);
+            if (wire != "READ_WRITE")
                 restricted++;
-            fieldAccess[fieldKey] = AccessProjection.ToWireValue(capped);
+            fieldAccess[fieldKey] = wire;
         }
 
-        var decisionCode = BuildReasons(
-            reasons,
-            hasRead,
-            scopeDecision,
-            canRead,
-            allowedCommands.Count,
-            request.RequestedCommands.Count,
-            restricted);
-
-        var now = timeProvider.GetUtcNow();
-        persistence.AddRecordDecision(new RecordAccessDecisionRecord(
-            trusted.WorkspaceId,
-            trusted.MembershipId,
-            trusted.MemberId,
-            descriptor.ResourceKey,
-            request.RecordId,
-            descriptor.ReadCapability,
-            canRead,
-            ScopeEvidence(scopeDecision),
-            decisionCode,
-            query.RequestId,
-            query.CorrelationId,
-            scopeDecision.OwnerMatch,
-            now));
-        await persistence.SaveChangesAsync(cancellationToken);
+        BuildReasons(reasons, hasRead, recordEvaluated, recordDecision, canRead, allowedCommands.Count, request.RequestedCommands.Count, restricted, authorization.UnenforceableFieldKeys.Count);
 
         return AccessOperationResult<EffectiveRecordAccessDocument>.Success(new EffectiveRecordAccessDocument(
             trusted.WorkspaceId,
@@ -153,51 +132,36 @@ internal sealed class Handler(
             allowedCommands,
             fieldAccess,
             reasons,
-            now,
+            timeProvider.GetUtcNow(),
             "backend"));
     }
+
+    /// <summary>
+    /// A capability identifier no role can hold, used when no owner declares one. It is deliberately
+    /// not a guessed `{resourceKey}.read`: inferring a capability name would let an unowned resource
+    /// resolve against a real capability that governs something else.
+    /// </summary>
+    private const string UnresolvableCapability = "unresolvable.record.access";
 
     /// <summary>
     /// The fully denied projection. Every requested field collapses to HIDDEN and every command is
     /// withheld, so the response carries no signal about the record beyond the caller's own input.
     /// </summary>
-    private async Task<AccessOperationResult<EffectiveRecordAccessDocument>> DenyAsync(
-        Query query,
+    private static AccessOperationResult<EffectiveRecordAccessDocument> Denied(
+        string workspaceId,
         ValidatedRecordAccessRequest request,
-        TrustedWorkspaceContext trusted,
-        List<EffectiveAccessDecisionReasonDocument> reasons,
-        CancellationToken cancellationToken)
+        IReadOnlyList<EffectiveAccessDecisionReasonDocument> reasons,
+        DateTimeOffset now)
     {
         var fieldAccess = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var fieldKey in request.RequestedFields)
             fieldAccess[fieldKey] = AccessProjection.ToWireValue(AccessFieldAccess.Hidden);
 
-        var now = timeProvider.GetUtcNow();
-        persistence.AddRecordDecision(new RecordAccessDecisionRecord(
-            trusted.WorkspaceId,
-            trusted.MembershipId,
-            trusted.MemberId,
-            request.ResourceKey,
-            request.RecordId,
-            "-",
-            false,
-            "UNAVAILABLE",
-            "RESOURCE_FACT_AUTHORITY_UNAVAILABLE",
-            query.RequestId,
-            query.CorrelationId,
-            null,
-            now));
-        await persistence.SaveChangesAsync(cancellationToken);
-
         return AccessOperationResult<EffectiveRecordAccessDocument>.Success(new EffectiveRecordAccessDocument(
-            trusted.WorkspaceId,
+            workspaceId,
             request.ResourceKey,
             request.RecordId,
-            false,
-            false,
-            false,
-            false,
-            false,
+            false, false, false, false, false,
             [],
             fieldAccess,
             reasons,
@@ -205,14 +169,29 @@ internal sealed class Handler(
             "backend"));
     }
 
-    private static string BuildReasons(
+    private static string Wire(RecordFieldEnforcement enforcement, bool canRead, bool canUpdate)
+    {
+        // A field is never more permissive than the record it belongs to.
+        if (!canRead)
+            return "HIDDEN";
+        return enforcement switch
+        {
+            RecordFieldEnforcement.Withheld => "HIDDEN",
+            RecordFieldEnforcement.ReadOnly => "READ_ONLY",
+            _ => canUpdate ? "READ_WRITE" : "READ_ONLY"
+        };
+    }
+
+    private static void BuildReasons(
         List<EffectiveAccessDecisionReasonDocument> reasons,
         bool hasRead,
-        RecordScopeDecision scopeDecision,
+        bool recordEvaluated,
+        RecordAccessRecordDecision? recordDecision,
         bool canRead,
         int allowedCommandCount,
         int requestedCommandCount,
-        int restrictedFieldCount)
+        int restrictedFieldCount,
+        int unenforceableFieldCount)
     {
         if (!hasRead)
         {
@@ -221,29 +200,26 @@ internal sealed class Handler(
                 "DENY",
                 "The membership does not hold the resource read capability.",
                 DecisionSource));
-            return "CAPABILITY_DENIED";
         }
-
-        reasons.Add(new EffectiveAccessDecisionReasonDocument("CAPABILITY_GRANTED", "ALLOW", null, DecisionSource));
-
-        string code;
-        switch (scopeDecision.Outcome)
+        else
         {
-            case RecordScopeOutcome.NotEvaluated:
+            reasons.Add(new EffectiveAccessDecisionReasonDocument("CAPABILITY_GRANTED", "ALLOW", null, DecisionSource));
+
+            if (!recordEvaluated)
+            {
                 reasons.Add(new EffectiveAccessDecisionReasonDocument(
                     "RECORD_SCOPE_NOT_EVALUATED",
                     "LIMIT",
                     "No record identifier was supplied, so the decision is resource-level only.",
                     DecisionSource));
-                code = "RECORD_SCOPE_NOT_EVALUATED";
-                break;
-            case RecordScopeOutcome.Allowed:
-                code = scopeDecision.Scope == AccessDataScope.Own
-                    ? "RECORD_SCOPE_OWN_MATCHED"
-                    : "RECORD_SCOPE_WORKSPACE";
+            }
+            else if (recordDecision!.IsAllowed)
+            {
+                var code = recordDecision.OwnerMatch is true ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE";
                 reasons.Add(new EffectiveAccessDecisionReasonDocument(code, "ALLOW", null, DecisionSource));
-                break;
-            default:
+            }
+            else
+            {
                 // One code, one message and one source for a missing record, a foreign-Workspace
                 // record, an owner mismatch and an unsupported scope. Splitting them would let a
                 // caller probe existence.
@@ -252,11 +228,10 @@ internal sealed class Handler(
                     "DENY",
                     "The record is not available to this membership.",
                     DecisionSource));
-                code = "RECORD_ACCESS_DENIED";
-                break;
+            }
         }
 
-        if (canRead && allowedCommandCount < requestedCommandCount)
+        if (allowedCommandCount < requestedCommandCount)
         {
             reasons.Add(new EffectiveAccessDecisionReasonDocument(
                 "COMMAND_CAPABILITY_DENIED",
@@ -274,49 +249,15 @@ internal sealed class Handler(
                 DecisionSource));
         }
 
-        return code;
+        if (unenforceableFieldCount > 0)
+        {
+            // Surfaced rather than hidden: the owner will fail this record closed, so a consumer
+            // told only that the field is restricted would not understand the refusal it then gets.
+            reasons.Add(new EffectiveAccessDecisionReasonDocument(
+                "FIELD_POLICY_UNENFORCEABLE",
+                "DENY",
+                "A restrictive field policy names a field the owner cannot withhold, so the owner fails the record closed.",
+                DecisionSource));
+        }
     }
-
-    private static string ScopeEvidence(RecordScopeDecision decision) =>
-        decision.Outcome == RecordScopeOutcome.NotEvaluated
-            ? "NOT_EVALUATED"
-            : AccessProjection.ToWireValue(decision.Scope);
-
-    private static bool Holds(IReadOnlyList<string> capabilities, string? capability) =>
-        capability is not null && capabilities.Contains(capability, StringComparer.Ordinal);
-
-    private static IReadOnlyList<EffectiveDataScopePolicy> ToScopePolicies(IReadOnlyList<AuthorizationDataScopeEntry> entries)
-    {
-        var result = new List<EffectiveDataScopePolicy>(entries.Count);
-        foreach (var entry in entries)
-            result.Add(new EffectiveDataScopePolicy(entry.ResourceKey, ParseScope(entry.Scope)));
-        return result;
-    }
-
-    private static IReadOnlyList<EffectiveFieldSecurityPolicy> ToFieldPolicies(IReadOnlyList<AuthorizationFieldAccessEntry> entries)
-    {
-        var result = new List<EffectiveFieldSecurityPolicy>(entries.Count);
-        foreach (var entry in entries)
-            result.Add(new EffectiveFieldSecurityPolicy(entry.ResourceKey, entry.FieldKey, ParseFieldAccess(entry.Access)));
-        return result;
-    }
-
-    // The projected context is the module's own wire vocabulary, so an unrecognised value can only
-    // mean the projection gained a state this evaluator has not admitted. Both parsers therefore
-    // fall back to the most restrictive interpretation.
-    private static AccessDataScope ParseScope(string scope) => scope switch
-    {
-        "OWN" => AccessDataScope.Own,
-        "TEAM" => AccessDataScope.Team,
-        "WORKSPACE" => AccessDataScope.Workspace,
-        _ => AccessDataScope.Custom
-    };
-
-    private static AccessFieldAccess ParseFieldAccess(string access) => access switch
-    {
-        "READ_WRITE" => AccessFieldAccess.ReadWrite,
-        "READ_ONLY" => AccessFieldAccess.ReadOnly,
-        "MASKED" => AccessFieldAccess.Masked,
-        _ => AccessFieldAccess.Hidden
-    };
 }

@@ -91,6 +91,11 @@ namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("RevisitAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("ScopeOwnerId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("StageCategory")
                         .IsRequired()
                         .HasMaxLength(16)

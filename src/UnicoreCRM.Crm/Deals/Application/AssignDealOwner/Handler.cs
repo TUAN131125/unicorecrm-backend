@@ -15,7 +15,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Assign, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Assign, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
         if (!DealValidation.IsEntityId(command.DealId))
@@ -41,6 +42,8 @@ internal sealed class Handler(
             async (trusted, token) => await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, ownerId!, token)
                 ? null
                 : DealErrors.OwnerNotAssignable(),
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "assignDealOwner", metadata, cancellationToken, "ownerId"),
             cancellationToken);
     }
 }

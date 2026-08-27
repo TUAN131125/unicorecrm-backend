@@ -15,7 +15,12 @@ internal sealed record TaskListSpecification(
     string? RecordId,
     DateTimeOffset? OverdueAt,
     string SortBy,
-    bool Descending);
+    bool Descending,
+    /// <summary>
+    /// The AccessControl-resolved record-scope assignee. When set, only tasks assigned to that
+    /// member are in scope, and the predicate is applied before the count, the ordering and the page.
+    /// </summary>
+    string? ScopeAssigneeMemberId = null);
 
 internal sealed record ActivityListSpecification(
     int Offset,

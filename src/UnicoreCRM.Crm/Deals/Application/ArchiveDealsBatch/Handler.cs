@@ -16,7 +16,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Bulk, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Bulk, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealBatchMutationResponse>.Failure(access.Error!);
 
@@ -42,7 +43,7 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return DealOperationResult<DealBatchMutationResponse>.Failure(DealErrors.Validation(fields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var fingerprint = DealCommandSupport.Fingerprint(new { Items = normalizedItems, Reason = reason });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = DealCommandSupport.ScopeKey(trusted, "archiveDealsBatch", "WORKSPACE", command.Metadata.IdempotencyKey);
@@ -60,6 +61,19 @@ internal sealed class Handler(
         if (deals.Count != normalizedItems.Count)
             return DealOperationResult<DealBatchMutationResponse>.Failure(DealErrors.NotFound());
         var byId = deals.ToDictionary(deal => deal.DealId, StringComparer.Ordinal);
+
+        // Every record the batch names is authorized individually. That is one decision per named
+        // record, not an N+1 over a list: the caller enumerated these records, and the resource
+        // authorization above still happened exactly once for the whole request.
+        foreach (var item in normalizedItems)
+        {
+            var denied = await authorization.EnforceRecordAsync(
+                access.Value!, byId[item.DealId], "archiveDealsBatch", metadata, cancellationToken,
+                "archivedAt", "archiveReason");
+            if (denied is not null)
+                return DealOperationResult<DealBatchMutationResponse>.Failure(denied);
+        }
+
         foreach (var item in normalizedItems)
         {
             var deal = byId[item.DealId];

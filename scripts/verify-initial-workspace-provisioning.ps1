@@ -27,10 +27,14 @@ $client = [System.Net.Http.HttpClient]::new($clientHandler)
 $client.Timeout = [TimeSpan]::FromSeconds(30)
 $checks = [System.Collections.Generic.List[string]]::new()
 
+# Mirrors InitialWorkspaceAccessPolicy.Capabilities exactly. The four support.* entries were added
+# to that policy by the Support Core task and this list was not updated with it, so the harness had
+# drifted from the admitted policy and failed on a capability set that is correct.
 $expectedInitialCapabilities = @(
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'leads.create', 'leads.qualify', 'leads.read', 'leads.update',
     'products.create', 'products.delete', 'products.edit', 'products.read',
+    'support.assign', 'support.create', 'support.read', 'support.update',
     'tasks.assign', 'tasks.complete', 'tasks.create', 'tasks.read', 'tasks.update',
     'workspace.context.resolve'
 )

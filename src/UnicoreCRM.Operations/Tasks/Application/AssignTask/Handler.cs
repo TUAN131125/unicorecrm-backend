@@ -13,7 +13,8 @@ internal sealed class Handler(
 {
     internal async Task<TaskOperationResult<TaskMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(TaskCapabilities.Assign, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new TaskRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(TaskCapabilities.Assign, metadata, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<TaskMutationResponse>.Failure(access.Error!);
         var assigneeId = TaskValidation.RequiredEntity(command.Request.AssigneeId, "assigneeId", out var fields);
@@ -34,6 +35,8 @@ internal sealed class Handler(
                 {
                     ["assigneeId"] = ["assigneeId must reference an active member of the trusted workspace."]
                 }),
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "assignTask", metadata, cancellationToken, "assigneeId"),
             cancellationToken);
     }
 }

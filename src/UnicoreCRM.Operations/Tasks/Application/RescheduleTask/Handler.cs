@@ -9,7 +9,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
 {
     internal async Task<TaskOperationResult<TaskMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(TaskCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new TaskRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(TaskCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return TaskOperationResult<TaskMutationResponse>.Failure(access.Error!);
         var dueAt = TaskValidation.RequiredUtc(command.Request.DueAt, "dueAt", out var fields);
@@ -25,6 +26,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
             fingerprint,
             (task, now) => task.Reschedule(dueAt.Value, now),
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "rescheduleTask", metadata, cancellationToken, "dueAt"),
             cancellationToken);
     }
 }

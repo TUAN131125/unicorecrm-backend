@@ -36,6 +36,14 @@ internal sealed record SupportOperationResult<T>(T? Value, SupportOperationError
 internal static class SupportErrors
 {
     internal static SupportOperationError AccessDenied() => new("ACCESS_DENIED", 403, "Access denied");
+
+    /// <summary>
+    /// Owner assignment is governed by <c>support.assign</c>. The profile-replacement contract also
+    /// carries <c>ownerId</c>, so a caller holding only <c>support.update</c> is refused here rather
+    /// than silently acquiring the assignment privilege through the wider command.
+    /// </summary>
+    internal static SupportOperationError OwnerAssignmentDenied() =>
+        new("ACCESS_DENIED", 403, "Access denied", "Changing the Support Case owner requires the support.assign capability.");
     internal static SupportOperationError WorkspaceMismatch() => new("WORKSPACE_MISMATCH", 403, "Workspace context mismatch");
     internal static SupportOperationError NotFound() => new("RESOURCE_NOT_FOUND", 404, "Resource not found");
     internal static SupportOperationError VersionConflict(string caseId, long expected, long current) =>
@@ -60,7 +68,12 @@ internal sealed record SupportCaseListSpecification(
     string? RelationshipId,
     string? SlaStatus,
     string SortBy,
-    bool Descending);
+    bool Descending,
+    /// <summary>
+    /// The AccessControl-resolved record-scope owner. When set, only records owned by that member
+    /// are in scope, and the predicate is applied before the count, the ordering and the page.
+    /// </summary>
+    string? ScopeOwnerMemberId = null);
 
 internal sealed record SupportPage<T>(IReadOnlyList<T> Items, bool HasNextPage, int? NextOffset, int TotalCount);
 

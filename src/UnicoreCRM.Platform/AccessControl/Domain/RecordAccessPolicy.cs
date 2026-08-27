@@ -41,7 +41,7 @@ internal static class RecordAccessPolicy
     {
         foreach (var policy in dataScopes)
         {
-            if (string.Equals(policy.ResourceKey, resourceKey, StringComparison.OrdinalIgnoreCase))
+            if (RecordAccessKey.Matches(policy.ResourceKey, resourceKey))
                 return policy.Scope;
         }
 
@@ -95,8 +95,8 @@ internal static class RecordAccessPolicy
     {
         foreach (var policy in fieldSecurity)
         {
-            if (string.Equals(policy.ResourceKey, resourceKey, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(policy.FieldKey, fieldKey, StringComparison.OrdinalIgnoreCase))
+            if (RecordAccessKey.Matches(policy.ResourceKey, resourceKey)
+                && RecordAccessKey.Matches(policy.FieldKey, fieldKey))
             {
                 return policy.Access;
             }

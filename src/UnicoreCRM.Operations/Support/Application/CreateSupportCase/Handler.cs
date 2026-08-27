@@ -17,13 +17,24 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(SupportCapabilities.Create, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new SupportRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(SupportCapabilities.Create, metadata, cancellationToken);
         if (!access.IsSuccess)
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(access.Error!);
         if (!CreateSupportCaseValidation.TryProfile(command.Request, out var profile, out var fields))
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.Validation(fields));
 
-        var trusted = access.Value!;
+        // Creation is a resource-level question, so no record scope applies, but field security
+        // still does: a field the caller may not write must not be written on the way in either.
+        // Assignment authority is separate from creation authority, so naming an owner at creation
+        // requires support.assign exactly as a later assignment does.
+        var createWriteError = SupportFieldSecurity.GuardCreateWrite(access.Value!.Authorization, profile!);
+        if (createWriteError is not null)
+            return SupportOperationResult<SupportCaseMutationResponse>.Failure(createWriteError);
+        if (profile!.OwnerId is not null && !access.Value!.Authorization.Holds(SupportCapabilities.Assign.Capability))
+            return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.OwnerAssignmentDenied());
+
+        var trusted = access.Value!.Trusted;
         var fingerprint = SupportCommandSupport.Fingerprint(profile);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = SupportCommandSupport.ScopeKey(trusted, "createSupportCase", "WORKSPACE", command.Metadata.IdempotencyKey);
@@ -34,7 +45,7 @@ internal sealed class Handler(
             // commit cannot retroactively invalidate the replay or create a second SupportCase.
             var replayError = SupportCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? SupportOperationResult<SupportCaseMutationResponse>.Success(SupportCommandSupport.Replay(existing))
+                ? SupportOperationResult<SupportCaseMutationResponse>.Success(Project(SupportCommandSupport.Replay(existing), access.Value!))
                 : SupportOperationResult<SupportCaseMutationResponse>.Failure(replayError);
         }
 
@@ -42,7 +53,7 @@ internal sealed class Handler(
         // Workspace member, which the admitted narrow Workspace contract can verify. The buyer
         // relationship and the related order/product references are foreign-owner scalars with no
         // admitted reference contract, so they are recorded unverified.
-        if (profile!.OwnerId is not null
+        if (profile.OwnerId is not null
             && !await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile.OwnerId, cancellationToken))
         {
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.Validation(
@@ -74,6 +85,13 @@ internal sealed class Handler(
             now);
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return SupportOperationResult<SupportCaseMutationResponse>.Success(response);
+        return SupportOperationResult<SupportCaseMutationResponse>.Success(Project(response, access.Value!));
     }
+
+    private static SupportCaseMutationResponse Project(SupportCaseMutationResponse response, SupportAccess access) =>
+        response with
+        {
+            Result = new SupportCaseMutationResult(
+                SupportFieldSecurity.Project(response.Result.SupportCase, access.Authorization))
+        };
 }

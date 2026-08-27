@@ -17,10 +17,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(
-            ProductCapabilities.Create,
-            command.Metadata.CorrelationId,
-            cancellationToken);
+        var metadata = new ProductRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(ProductCapabilities.Create, metadata, cancellationToken);
         if (!access.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(access.Error!);
 
@@ -34,7 +32,7 @@ internal sealed class Handler(
         if (pricingFields.Count != 0)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(pricingFields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var fingerprint = ProductCommandSupport.Fingerprint(new { Profile = profile });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = ProductCommandSupport.ScopeKey(trusted, "createProduct", "WORKSPACE", command.Metadata.IdempotencyKey);

@@ -9,7 +9,7 @@ internal sealed class LeadMutationExecution(
     TimeProvider timeProvider)
 {
     internal async Task<LeadOperationResult<LeadMutationResponse>> ExecuteAsync(
-        TrustedWorkspaceContext trusted,
+        LeadAccess access,
         string operation,
         string eventType,
         string leadId,
@@ -17,8 +17,10 @@ internal sealed class LeadMutationExecution(
         string fingerprint,
         Func<Lead, DateTimeOffset, LeadOperationError?> mutate,
         Func<TrustedWorkspaceContext, CancellationToken, Task<LeadOperationError?>>? precondition,
+        Func<LeadAccess, Lead, Task<LeadOperationError?>> recordGuard,
         CancellationToken cancellationToken)
     {
+        var trusted = access.Trusted;
         if (precondition is not null)
         {
             var error = await precondition(trusted, cancellationToken);
@@ -27,13 +29,24 @@ internal sealed class LeadMutationExecution(
         }
 
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+
+        // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
+        // Record scope is current authorization, not a business precondition, so a caller who no
+        // longer reaches a lead must not be able to replay a committed command against it.
+        var guarded = await persistence.ReadLeadAsync(trusted.WorkspaceId, leadId, cancellationToken);
+        if (guarded is null)
+            return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.NotFound());
+        var guardError = await recordGuard(access, guarded);
+        if (guardError is not null)
+            return LeadOperationResult<LeadMutationResponse>.Failure(guardError);
+
         var scopeKey = LeadCommandSupport.ScopeKey(trusted, operation, leadId, metadata);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
             var replayError = LeadCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? LeadOperationResult<LeadMutationResponse>.Success(LeadCommandSupport.Replay(existing))
+                ? LeadOperationResult<LeadMutationResponse>.Success(Project(LeadCommandSupport.Replay(existing), access))
                 : LeadOperationResult<LeadMutationResponse>.Failure(replayError);
         }
 
@@ -69,6 +82,14 @@ internal sealed class LeadMutationExecution(
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.VersionConflict(lead.LeadId, expectedVersion, lead.Version));
         }
         await transaction.CommitAsync(cancellationToken);
-        return LeadOperationResult<LeadMutationResponse>.Success(response);
+        return LeadOperationResult<LeadMutationResponse>.Success(Project(response, access));
     }
+
+    /// <summary>
+    /// Applies field security to the outgoing response. It is applied at the boundary because a
+    /// replay returns a projection serialized under whatever policy was in force when the command
+    /// committed; enforcing here makes stored evidence unable to leak a currently withheld value.
+    /// </summary>
+    private static LeadMutationResponse Project(LeadMutationResponse response, LeadAccess access) =>
+        response with { Result = LeadFieldSecurity.Project(response.Result, access.Authorization) };
 }

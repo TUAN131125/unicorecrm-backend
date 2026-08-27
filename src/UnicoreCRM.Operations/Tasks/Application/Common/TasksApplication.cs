@@ -1,6 +1,8 @@
 
 namespace UnicoreCRM.Operations.Tasks.Application.Common;
 
+internal sealed record TaskRequestMetadata(string RequestId, string CorrelationId);
+
 internal sealed record TaskCommandMetadata(
     string RequestId,
     string CorrelationId,

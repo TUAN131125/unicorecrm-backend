@@ -1,14 +1,17 @@
 using UnicoreCRM.Operations.Tasks.Application.Common;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Operations.Tasks.Domain;
-using UnicoreCRM.Platform.AccessControl.Contracts;
-using UnicoreCRM.Platform.Workspace.Contracts;
 
 namespace UnicoreCRM.Operations.Tasks.Application.ReadTaskSummary;
 
+/// <summary>
+/// The minimized Task projection AI reads through. It carried its own copy of the record-scope and
+/// field-visibility rules, which made it a second authorization authority over the same stored
+/// policy; it now goes through the canonical AccessControl boundary like every other Tasks use case,
+/// so one authority decides and this reader only applies the result.
+/// </summary>
 internal sealed class TaskSummaryReader(
-    ICurrentWorkspace currentWorkspace,
-    IAccessAuthorizer accessAuthorizer,
+    TaskAuthorization authorization,
     ITasksPersistence persistence,
     TimeProvider timeProvider) : ITaskSummaryReader
 {
@@ -18,13 +21,11 @@ internal sealed class TaskSummaryReader(
         string correlationId,
         CancellationToken cancellationToken)
     {
-        if (!currentWorkspace.IsResolved)
-            return new(TaskSummaryReadStatus.WorkspaceMismatch);
-
-        var access = await accessAuthorizer.AuthorizeAsync(TaskCapabilities.Read, correlationId, cancellationToken);
-        if (!access.IsAllowed)
+        var metadata = new TaskRequestMetadata(requestId, correlationId);
+        var access = await authorization.AuthorizeAsync(TaskCapabilities.Read, metadata, cancellationToken);
+        if (!access.IsSuccess)
         {
-            return new(access.Code == "WORKSPACE_MISMATCH"
+            return new(access.Error!.Code == "WORKSPACE_MISMATCH"
                 ? TaskSummaryReadStatus.WorkspaceMismatch
                 : TaskSummaryReadStatus.AccessDenied);
         }
@@ -32,18 +33,22 @@ internal sealed class TaskSummaryReader(
         if (!TaskValidation.IsEntityId(taskId))
             return new(TaskSummaryReadStatus.InvalidReference);
 
-        var trusted = currentWorkspace.Require();
+        var trusted = access.Value!.Trusted;
         var task = await persistence.ReadTaskAsync(trusted.WorkspaceId, taskId, cancellationToken);
-        if (task is null || !CanReadRecord(access.Context!, trusted.MemberId, task.AssigneeId))
+        if (task is null)
+            return new(TaskSummaryReadStatus.NotFound);
+        if (await authorization.EnforceRecordAsync(access.Value!, task, "readTaskSummary", metadata, cancellationToken) is not null)
             return new(TaskSummaryReadStatus.NotFound);
 
-        var document = TaskProjection.Task(task);
+        // The projection is the canonical field-enforced one, then narrowed to the fixed minimized
+        // shape this contract exposes. A field AccessControl withheld is already absent.
+        var document = TaskFieldSecurity.Project(TaskProjection.Task(task), access.Value!.Authorization);
         var summary = new TaskSummaryProjection(
             task.TaskId,
-            Visible(access.Context!, "title") ? document.Title : null,
-            Visible(access.Context!, "status") ? document.Status : null,
-            Visible(access.Context!, "priority") ? document.Priority : null,
-            Visible(access.Context!, "dueAt") ? document.DueAt : null);
+            access.Value!.Authorization.CanRead("title") ? document.Title : null,
+            access.Value!.Authorization.CanRead("status") ? document.Status : null,
+            access.Value!.Authorization.CanRead("priority") ? document.Priority : null,
+            access.Value!.Authorization.CanRead("dueAt") ? document.DueAt : null);
 
         persistence.AddAudit(new TaskAuditRecord(
             "readTaskSummary",
@@ -58,25 +63,5 @@ internal sealed class TaskSummaryReader(
             timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
         return new(TaskSummaryReadStatus.Succeeded, summary);
-    }
-
-    private static bool CanReadRecord(AuthorizationContextDocument context, string memberId, string assigneeId)
-    {
-        var scope = context.DataScopes.FirstOrDefault(item =>
-            string.Equals(item.ResourceKey, "tasks", StringComparison.OrdinalIgnoreCase));
-        return scope?.Scope.ToUpperInvariant() switch
-        {
-            null or "WORKSPACE" => true,
-            "OWN" => string.Equals(memberId, assigneeId, StringComparison.Ordinal),
-            _ => false
-        };
-    }
-
-    private static bool Visible(AuthorizationContextDocument context, string fieldKey)
-    {
-        var field = context.FieldSecurity.FirstOrDefault(item =>
-            string.Equals(item.ResourceKey, "tasks", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(item.FieldKey, fieldKey, StringComparison.OrdinalIgnoreCase));
-        return field is null || field.Access is "READ_ONLY" or "READ_WRITE";
     }
 }

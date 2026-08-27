@@ -15,7 +15,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(LeadCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new LeadRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(LeadCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return LeadOperationResult<LeadMutationResponse>.Failure(access.Error!);
         if (!LeadValidation.IsEntityId(command.LeadId))
@@ -42,6 +43,8 @@ internal sealed class Handler(
                 {
                     ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."]
                 }),
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "replaceLeadProfile", metadata, cancellationToken),
             cancellationToken);
     }
 }

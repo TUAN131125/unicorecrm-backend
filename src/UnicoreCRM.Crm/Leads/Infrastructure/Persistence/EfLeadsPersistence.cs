@@ -17,13 +17,21 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
     public Task<Lead?> ReadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken) =>
         dbContext.Leads.AsNoTracking().SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.LeadId == leadId, cancellationToken);
 
-    public async Task<IReadOnlyList<Lead>> ListLeadsAsync(string workspaceId, CancellationToken cancellationToken) =>
-        await dbContext.Leads
-            .AsNoTracking()
-            .Where(item => item.WorkspaceId == workspaceId)
+    public async Task<IReadOnlyList<Lead>> ListLeadsAsync(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        CancellationToken cancellationToken)
+    {
+        IQueryable<Lead> query = dbContext.Leads.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
+        // The AccessControl record scope is part of the query, not a post-filter, so hidden rows are
+        // never materialised and never reach the ordering or the projection.
+        if (scopeOwnerMemberId is not null)
+            query = query.Where(item => item.ScopeOwnerId == scopeOwnerMemberId);
+        return await query
             .OrderByDescending(item => item.UpdatedAt)
             .ThenByDescending(item => item.LeadId)
             .ToArrayAsync(cancellationToken);
+    }
 
     public Task<LeadIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) =>
         dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);

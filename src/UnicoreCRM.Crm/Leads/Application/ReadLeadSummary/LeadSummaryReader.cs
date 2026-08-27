@@ -1,14 +1,16 @@
 using UnicoreCRM.Crm.Leads.Application.Common;
 using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Crm.Leads.Domain;
-using UnicoreCRM.Platform.AccessControl.Contracts;
-using UnicoreCRM.Platform.Workspace.Contracts;
 
 namespace UnicoreCRM.Crm.Leads.Application.ReadLeadSummary;
 
+/// <summary>
+/// The minimized Lead projection AI reads through. It carried its own copy of the record-scope and
+/// field-visibility rules, which made it a second authorization authority over the same stored
+/// policy; it now goes through the canonical AccessControl boundary like every other Leads use case.
+/// </summary>
 internal sealed class LeadSummaryReader(
-    ICurrentWorkspace currentWorkspace,
-    IAccessAuthorizer accessAuthorizer,
+    LeadAuthorization authorization,
     ILeadsPersistence persistence,
     TimeProvider timeProvider) : ILeadSummaryReader
 {
@@ -18,13 +20,11 @@ internal sealed class LeadSummaryReader(
         string correlationId,
         CancellationToken cancellationToken)
     {
-        if (!currentWorkspace.IsResolved)
-            return new(LeadSummaryReadStatus.WorkspaceMismatch);
-
-        var access = await accessAuthorizer.AuthorizeAsync(LeadCapabilities.Read, correlationId, cancellationToken);
-        if (!access.IsAllowed)
+        var metadata = new LeadRequestMetadata(requestId, correlationId);
+        var access = await authorization.AuthorizeAsync(LeadCapabilities.Read, metadata, cancellationToken);
+        if (!access.IsSuccess)
         {
-            return new(access.Code == "WORKSPACE_MISMATCH"
+            return new(access.Error!.Code == "WORKSPACE_MISMATCH"
                 ? LeadSummaryReadStatus.WorkspaceMismatch
                 : LeadSummaryReadStatus.AccessDenied);
         }
@@ -32,19 +32,22 @@ internal sealed class LeadSummaryReader(
         if (!LeadValidation.IsEntityId(leadId))
             return new(LeadSummaryReadStatus.InvalidReference);
 
-        var trusted = currentWorkspace.Require();
+        var trusted = access.Value!.Trusted;
         var lead = await persistence.ReadLeadAsync(trusted.WorkspaceId, leadId, cancellationToken);
-        if (lead is null || !CanReadRecord(access.Context!, trusted.MemberId, lead.Profile.OwnerId))
+        if (lead is null)
+            return new(LeadSummaryReadStatus.NotFound);
+        if (await authorization.EnforceRecordAsync(access.Value!, lead, "readLeadSummary", metadata, cancellationToken) is not null)
             return new(LeadSummaryReadStatus.NotFound);
 
-        var document = LeadProjection.Document(lead);
+        var policy = access.Value!.Authorization;
+        var document = LeadFieldSecurity.Project(LeadProjection.Document(lead), policy);
         var summary = new LeadSummaryProjection(
             lead.LeadId,
-            Visible(access.Context!, "displayName") ? document.DisplayName : null,
-            Visible(access.Context!, "leadWorkState") ? document.LeadWorkState : null,
-            Visible(access.Context!, "score") ? document.Score : null,
-            Visible(access.Context!, "priority") ? document.Priority : null,
-            Visible(access.Context!, "nextFollowUpAt") ? document.NextFollowUpAt : null);
+            policy.CanRead("displayName") ? document.DisplayName : null,
+            policy.CanRead("leadWorkState") ? document.LeadWorkState : null,
+            policy.CanRead("score") ? document.Score : null,
+            policy.CanRead("priority") ? document.Priority : null,
+            policy.CanRead("nextFollowUpAt") ? document.NextFollowUpAt : null);
 
         persistence.AddAudit(new LeadAuditRecord(
             "readLeadSummary",
@@ -59,25 +62,5 @@ internal sealed class LeadSummaryReader(
             timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
         return new(LeadSummaryReadStatus.Succeeded, summary);
-    }
-
-    private static bool CanReadRecord(AuthorizationContextDocument context, string memberId, string ownerId)
-    {
-        var scope = context.DataScopes.FirstOrDefault(item =>
-            string.Equals(item.ResourceKey, "leads", StringComparison.OrdinalIgnoreCase));
-        return scope?.Scope.ToUpperInvariant() switch
-        {
-            null or "WORKSPACE" => true,
-            "OWN" => string.Equals(memberId, ownerId, StringComparison.Ordinal),
-            _ => false
-        };
-    }
-
-    private static bool Visible(AuthorizationContextDocument context, string fieldKey)
-    {
-        var field = context.FieldSecurity.FirstOrDefault(item =>
-            string.Equals(item.ResourceKey, "leads", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(item.FieldKey, fieldKey, StringComparison.OrdinalIgnoreCase));
-        return field is null || field.Access is "READ_ONLY" or "READ_WRITE";
     }
 }

@@ -34,7 +34,12 @@ internal interface IDealsPersistence
     Task<IDealsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
     Task<Deal?> LoadDealAsync(string workspaceId, string dealId, CancellationToken cancellationToken);
     Task<Deal?> ReadDealAsync(string workspaceId, string dealId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<Deal>> ReadDealsAsync(string workspaceId, CancellationToken cancellationToken);
+    /// <param name="scopeOwnerMemberId">
+    /// The AccessControl-resolved record-scope owner. When set, only deals owned by that member are
+    /// in scope, and the predicate is part of the SQL query rather than an in-memory filter, so a
+    /// hidden row never reaches the count or the page.
+    /// </param>
+    Task<IReadOnlyList<Deal>> ReadDealsAsync(string workspaceId, string? scopeOwnerMemberId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Deal>> LoadDealsAsync(string workspaceId, IReadOnlyCollection<string> dealIds, CancellationToken cancellationToken);
     Task<DealIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddDeal(Deal deal);

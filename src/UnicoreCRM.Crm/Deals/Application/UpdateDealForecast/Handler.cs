@@ -11,7 +11,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
         if (!DealValidation.IsEntityId(command.DealId))
@@ -39,11 +40,13 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                 var progressive = DealValidation.ProgressiveProfileErrors(profile, deal.StageCode, category);
                 if (progressive.Count != 0)
                     return DealErrors.ProgressiveProfile(progressive);
-                return deal.UpdateForecast(closeDate, score, category, access.Value!.MemberId, now)
+                return deal.UpdateForecast(closeDate, score, category, access.Value!.Trusted.MemberId, now)
                     ? null
                     : DealErrors.LifecycleConflict(deal.DealId);
             },
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "updateDealForecast", metadata, cancellationToken, "forecastCategory", "forecastHistory"),
             cancellationToken);
     }
 }

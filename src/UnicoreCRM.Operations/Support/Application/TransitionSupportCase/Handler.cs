@@ -21,7 +21,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(SupportCapabilities.Update, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new SupportRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(SupportCapabilities.Update, metadata, cancellationToken);
         if (!access.IsSuccess)
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(access.Error!);
         if (!SupportValidation.IsEntityId(command.CaseId))
@@ -51,10 +52,19 @@ internal sealed class Handler(
             command.CaseId,
             command.Metadata,
             fingerprint,
-            (supportCase, now) => supportCase.Transition(nextStatus!.Value, resolutionSummary, now)
-                ? null
-                : SupportErrors.InvalidTransition(supportCase.CaseId),
+            (supportCase, now) =>
+            {
+                var writes = resolutionSummary is null ? new[] { "status" } : ["status", "resolutionSummary"];
+                var fieldError = SupportFieldSecurity.GuardFieldWrite(access.Value!.Authorization, writes);
+                if (fieldError is not null)
+                    return fieldError;
+                return supportCase.Transition(nextStatus!.Value, resolutionSummary, now)
+                    ? null
+                    : SupportErrors.InvalidTransition(supportCase.CaseId);
+            },
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "transitionSupportCase", metadata, cancellationToken),
             cancellationToken);
     }
 }

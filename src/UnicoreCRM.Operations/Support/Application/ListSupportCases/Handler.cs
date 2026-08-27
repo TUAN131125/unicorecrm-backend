@@ -1,6 +1,7 @@
 using UnicoreCRM.Operations.Support.Application.Common;
 using UnicoreCRM.Operations.Support.Contracts;
 using UnicoreCRM.Operations.Support.Domain;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Operations.Support.Application.ListSupportCases;
 
@@ -29,7 +30,8 @@ internal sealed class Handler(
         Query query,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(SupportCapabilities.Read, query.CorrelationId, cancellationToken);
+        var metadata = new SupportRequestMetadata(query.RequestId, query.CorrelationId);
+        var access = await authorization.AuthorizeAsync(SupportCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return SupportOperationResult<SupportCaseListResponse>.Failure(access.Error!);
 
@@ -66,7 +68,19 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return SupportOperationResult<SupportCaseListResponse>.Failure(SupportErrors.Validation(fields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
+
+        // The record scope becomes a query predicate rather than a per-row decision: AccessControl
+        // resolves the filter once, and Support pushes it into the owner query ahead of the count,
+        // the ordering and the page. Filtering after the fact would leak hidden rows through
+        // totalCount and through page boundaries.
+        var scope = access.Value!.Authorization.ScopeFilter;
+        if (scope == RecordAccessScopeFilter.Denied)
+        {
+            return SupportOperationResult<SupportCaseListResponse>.Success(
+                new SupportCaseListResponse([], new SupportPageInfo(false, null, 0)));
+        }
+
         var page = await persistence.ListCasesAsync(
             trusted.WorkspaceId,
             new SupportCaseListSpecification(
@@ -81,7 +95,8 @@ internal sealed class Handler(
                 query.RelationshipId,
                 query.SlaStatus,
                 sortBy,
-                descending),
+                descending,
+                scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null),
             cancellationToken);
 
         var now = timeProvider.GetUtcNow();
@@ -98,7 +113,7 @@ internal sealed class Handler(
             now));
         await persistence.SaveChangesAsync(cancellationToken);
         return SupportOperationResult<SupportCaseListResponse>.Success(new SupportCaseListResponse(
-            page.Items.Select(SupportProjection.Case).ToArray(),
+            page.Items.Select(item => SupportFieldSecurity.Project(SupportProjection.Case(item), access.Value!.Authorization)).ToArray(),
             new SupportPageInfo(
                 page.HasNextPage,
                 page.NextOffset is null ? null : SupportValidation.Cursor(page.NextOffset.Value),

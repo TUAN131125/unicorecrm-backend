@@ -11,7 +11,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Delete, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Delete, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
         if (!DealValidation.IsEntityId(command.DealId))
@@ -31,6 +32,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             fingerprint,
             (deal, now) => deal.Archive(reason!, now) ? null : DealErrors.LifecycleConflict(deal.DealId),
             null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "archiveDeal", metadata, cancellationToken, "archivedAt", "archiveReason"),
             cancellationToken);
     }
 }

@@ -1,14 +1,17 @@
 using UnicoreCRM.Crm.Deals.Application.Common;
 using UnicoreCRM.Crm.Deals.Contracts;
 using UnicoreCRM.Crm.Deals.Domain;
-using UnicoreCRM.Platform.AccessControl.Contracts;
-using UnicoreCRM.Platform.Workspace.Contracts;
 
 namespace UnicoreCRM.Crm.Deals.Application.ReadDealSummary;
 
+/// <summary>
+/// The minimized Deal projection AI reads through. It carried its own copy of the record-scope and
+/// field-visibility rules, which made it a second authorization authority over the same stored
+/// policy; it now goes through the canonical AccessControl boundary like every other Deals use case,
+/// so one authority decides and this reader only applies the result.
+/// </summary>
 internal sealed class DealSummaryReader(
-    ICurrentWorkspace currentWorkspace,
-    IAccessAuthorizer accessAuthorizer,
+    DealAuthorization authorization,
     IDealsPersistence persistence,
     TimeProvider timeProvider) : IDealSummaryReader
 {
@@ -18,13 +21,11 @@ internal sealed class DealSummaryReader(
         string correlationId,
         CancellationToken cancellationToken)
     {
-        if (!currentWorkspace.IsResolved)
-            return new(DealSummaryReadStatus.WorkspaceMismatch);
-
-        var access = await accessAuthorizer.AuthorizeAsync(DealCapabilities.Read, correlationId, cancellationToken);
-        if (!access.IsAllowed)
+        var metadata = new DealRequestMetadata(requestId, correlationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Read, metadata, cancellationToken);
+        if (!access.IsSuccess)
         {
-            return new(access.Code == "WORKSPACE_MISMATCH"
+            return new(access.Error!.Code == "WORKSPACE_MISMATCH"
                 ? DealSummaryReadStatus.WorkspaceMismatch
                 : DealSummaryReadStatus.AccessDenied);
         }
@@ -32,21 +33,24 @@ internal sealed class DealSummaryReader(
         if (!DealValidation.IsEntityId(dealId))
             return new(DealSummaryReadStatus.InvalidReference);
 
-        var trusted = currentWorkspace.Require();
+        var trusted = access.Value!.Trusted;
         var deal = await persistence.ReadDealAsync(trusted.WorkspaceId, dealId, cancellationToken);
-        if (deal is null || !CanReadRecord(access.Context!, trusted.MemberId, deal.Profile.OwnerId))
+        if (deal is null)
+            return new(DealSummaryReadStatus.NotFound);
+        if (await authorization.EnforceRecordAsync(access.Value!, deal, "readDealSummary", metadata, cancellationToken) is not null)
             return new(DealSummaryReadStatus.NotFound);
 
-        var document = DealProjection.Document(deal);
+        var policy = access.Value!.Authorization;
+        var document = DealFieldSecurity.Project(DealProjection.Document(deal), policy);
         var summary = new DealSummaryProjection(
             deal.DealId,
-            Visible(access.Context!, "name") ? document.Name : null,
-            Visible(access.Context!, "stageCode") ? document.StageCode : null,
-            Visible(access.Context!, "stageCategory") ? document.StageCategory : null,
-            Visible(access.Context!, "opportunityScore") ? document.OpportunityScore : null,
-            Visible(access.Context!, "expectedCloseDate") ? document.ExpectedCloseDate : null,
-            Visible(access.Context!, "nextActionAt") ? document.NextActionAt : null,
-            Visible(access.Context!, "nextActionSummary") ? document.NextActionSummary : null);
+            policy.CanRead("name") ? document.Name : null,
+            policy.CanRead("stageCode") ? document.StageCode : null,
+            policy.CanRead("stageCategory") ? document.StageCategory : null,
+            policy.CanRead("opportunityScore") ? document.OpportunityScore : null,
+            policy.CanRead("expectedCloseDate") ? document.ExpectedCloseDate : null,
+            policy.CanRead("nextActionAt") ? document.NextActionAt : null,
+            policy.CanRead("nextActionSummary") ? document.NextActionSummary : null);
 
         persistence.AddAudit(new DealAuditRecord(
             "readDealSummary",
@@ -61,25 +65,5 @@ internal sealed class DealSummaryReader(
             timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
         return new(DealSummaryReadStatus.Succeeded, summary);
-    }
-
-    private static bool CanReadRecord(AuthorizationContextDocument context, string memberId, string ownerId)
-    {
-        var scope = context.DataScopes.FirstOrDefault(item =>
-            string.Equals(item.ResourceKey, "deals", StringComparison.OrdinalIgnoreCase));
-        return scope?.Scope.ToUpperInvariant() switch
-        {
-            null or "WORKSPACE" => true,
-            "OWN" => string.Equals(memberId, ownerId, StringComparison.Ordinal),
-            _ => false
-        };
-    }
-
-    private static bool Visible(AuthorizationContextDocument context, string fieldKey)
-    {
-        var field = context.FieldSecurity.FirstOrDefault(item =>
-            string.Equals(item.ResourceKey, "deals", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(item.FieldKey, fieldKey, StringComparison.OrdinalIgnoreCase));
-        return field is null || field.Access is "READ_ONLY" or "READ_WRITE";
     }
 }

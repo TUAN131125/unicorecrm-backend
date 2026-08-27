@@ -20,9 +20,10 @@ internal sealed class ProductBatchMutationExecution(
         CancellationToken cancellationToken)
     {
         var specification = Specification(kind);
+        var requestMetadata = new ProductRequestMetadata(metadata.RequestId, metadata.CorrelationId);
         var access = await authorization.AuthorizeAsync(
             specification.Requirement,
-            metadata.CorrelationId,
+            requestMetadata,
             cancellationToken);
         if (!access.IsSuccess)
             return ProductOperationResult<ProductBatchMutationResponse>.Failure(access.Error!);
@@ -56,7 +57,7 @@ internal sealed class ProductBatchMutationExecution(
         if (fields.Count != 0)
             return ProductOperationResult<ProductBatchMutationResponse>.Failure(ProductErrors.Validation(fields));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         var fingerprint = ProductCommandSupport.Fingerprint(new { Items = normalizedItems, Reason = reason });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = ProductCommandSupport.ScopeKey(trusted, specification.Operation, "WORKSPACE", metadata.IdempotencyKey);
@@ -77,6 +78,19 @@ internal sealed class ProductBatchMutationExecution(
             return ProductOperationResult<ProductBatchMutationResponse>.Failure(ProductErrors.WorkspaceMismatch());
 
         var byId = products.ToDictionary(product => product.ProductId, StringComparer.Ordinal);
+
+        // Every record the batch names is authorized individually. That is one decision per named
+        // record, not an N+1 over a list: the caller enumerated these records, and the resource
+        // authorization above still happened exactly once for the whole request.
+        foreach (var item in normalizedItems)
+        {
+            var denied = await authorization.EnforceRecordAsync(
+                access.Value!, byId[item.ProductId], specification.Operation, requestMetadata, cancellationToken,
+                "status", "archivedAt", "archiveReason");
+            if (denied is not null)
+                return ProductOperationResult<ProductBatchMutationResponse>.Failure(denied);
+        }
+
         foreach (var item in normalizedItems)
         {
             var product = byId[item.ProductId];

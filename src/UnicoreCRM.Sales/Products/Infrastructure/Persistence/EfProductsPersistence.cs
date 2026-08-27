@@ -18,13 +18,23 @@ internal sealed class EfProductsPersistence(ProductsDbContext dbContext) : IProd
     public Task<Product?> ReadProductAsync(string productId, CancellationToken cancellationToken) =>
         dbContext.Products.AsNoTracking().SingleOrDefaultAsync(item => item.ProductId == productId, cancellationToken);
 
-    public async Task<IReadOnlyList<Product>> ReadProductsAsync(string workspaceId, CancellationToken cancellationToken) =>
-        await dbContext.Products
+    public async Task<IReadOnlyList<Product>> ReadProductsAsync(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        CancellationToken cancellationToken)
+    {
+        // Product carries no member-owner column, so an owner-scoped request can match nothing. The
+        // caller resolves that to an empty result before reaching persistence; this guard keeps the
+        // contract honest if a future caller forgets.
+        if (scopeOwnerMemberId is not null)
+            return [];
+        return await dbContext.Products
             .AsNoTracking()
             .Where(item => item.WorkspaceId == workspaceId)
             .OrderByDescending(item => item.CreatedAt)
             .ThenBy(item => item.ProductId)
             .ToArrayAsync(cancellationToken);
+    }
 
     public async Task<IReadOnlyList<Product>> LoadProductsAsync(
         IReadOnlyCollection<string> productIds,

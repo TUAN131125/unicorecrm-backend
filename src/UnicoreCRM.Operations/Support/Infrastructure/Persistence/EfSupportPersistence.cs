@@ -45,6 +45,10 @@ internal sealed class EfSupportPersistence(SupportDbContext dbContext) : ISuppor
         }
 
         IQueryable<SupportCase> query = dbContext.Cases.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
+        // The AccessControl record scope is part of the query, not a post-filter, so hidden rows
+        // never reach the count, the ordering or the page.
+        if (specification.ScopeOwnerMemberId is not null)
+            query = query.Where(item => item.OwnerId == specification.ScopeOwnerMemberId);
         if (!string.IsNullOrEmpty(specification.Search))
         {
             query = query.Where(item =>

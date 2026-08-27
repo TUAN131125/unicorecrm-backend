@@ -17,7 +17,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Create, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new DealRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(DealCapabilities.Create, metadata, cancellationToken);
         if (!access.IsSuccess)
             return DealOperationResult<DealMutationResponse>.Failure(access.Error!);
 
@@ -45,7 +46,7 @@ internal sealed class Handler(
         if (progressive.Count != 0)
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.ProgressiveProfile(progressive));
 
-        var trusted = access.Value!;
+        var trusted = access.Value!.Trusted;
         if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, cancellationToken))
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.OwnerNotAssignable());
 

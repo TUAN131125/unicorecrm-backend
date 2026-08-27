@@ -14,10 +14,8 @@ internal sealed class Handler(
         Query query,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(
-            ProductCapabilities.Read,
-            query.Metadata.CorrelationId,
-            cancellationToken);
+        var metadata = new ProductRequestMetadata(query.Metadata.RequestId, query.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(ProductCapabilities.Read, metadata, cancellationToken);
         if (!access.IsSuccess)
             return ProductOperationResult<ProductAvailabilityReadModel>.Failure(access.Error!);
         if (!ProductValidation.IsEntityId(query.ProductId))
@@ -25,9 +23,16 @@ internal sealed class Handler(
 
         var ownership = ProductResource.ValidateOwned(
             await persistence.ReadProductAsync(query.ProductId, cancellationToken),
-            access.Value!);
+            access.Value!.Trusted);
         if (!ownership.IsSuccess)
             return ProductOperationResult<ProductAvailabilityReadModel>.Failure(ownership.Error!);
+
+        // Record scope is enforced before any projection is computed, so a Product the caller's
+        // record scope hides is reported as not found rather than answered.
+        var denied = await authorization.EnforceRecordAsync(
+            access.Value!, ownership.Value!, "getProductAvailability", metadata, cancellationToken);
+        if (denied is not null)
+            return ProductOperationResult<ProductAvailabilityReadModel>.Failure(denied);
 
         var product = ownership.Value!;
         var expectedVersion = query.Metadata.ExpectedVersion!.Value;
@@ -54,7 +59,7 @@ internal sealed class Handler(
         await ProductReadAudit.RecordAsync(
             persistence,
             product,
-            access.Value!,
+            access.Value!.Trusted,
             query.Metadata,
             "getProductAvailability",
             now,

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Sales.Products.Application.Common;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Sales.Products.Infrastructure.Persistence;
 
 namespace UnicoreCRM.Sales.Products;
@@ -31,6 +32,9 @@ internal static class ProductsModule
         services.AddScoped<Application.RestoreProduct.Handler>();
         services.AddScoped<Application.ArchiveProductsBatch.Handler>();
         services.AddScoped<Application.RestoreProductsBatch.Handler>();
+        // The owner publishes its own record-access facts to AccessControl, which never reaches into
+        // this module's DbContext.
+        services.AddScoped<IRecordAccessFactProvider, Application.ProvideProductRecordAccessFacts.ProductRecordAccessFactProvider>();
         return services;
     }
 }

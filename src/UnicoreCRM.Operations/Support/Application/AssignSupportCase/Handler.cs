@@ -20,7 +20,8 @@ internal sealed class Handler(
         Command command,
         CancellationToken cancellationToken)
     {
-        var access = await authorization.AuthorizeAsync(SupportCapabilities.Assign, command.Metadata.CorrelationId, cancellationToken);
+        var metadata = new SupportRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
+        var access = await authorization.AuthorizeAsync(SupportCapabilities.Assign, metadata, cancellationToken);
         if (!access.IsSuccess)
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(access.Error!);
         if (!SupportValidation.IsEntityId(command.CaseId))
@@ -41,6 +42,9 @@ internal sealed class Handler(
             fingerprint,
             (supportCase, now) =>
             {
+                var fieldError = SupportFieldSecurity.GuardFieldWrite(access.Value!.Authorization, "ownerId");
+                if (fieldError is not null)
+                    return fieldError;
                 supportCase.Assign(ownerId!, now);
                 return null;
             },
@@ -50,6 +54,8 @@ internal sealed class Handler(
                 {
                     ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."]
                 }),
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, "assignSupportCase", metadata, cancellationToken),
             cancellationToken);
     }
 }
