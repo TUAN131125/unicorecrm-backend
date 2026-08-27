@@ -11,17 +11,46 @@ namespace UnicoreCRM.Operations.Support.Application.Common;
 internal static class SupportProjection
 {
     /// <summary>
-    /// The fail-closed SLA projection.
+    /// The SLA projection, held open as a recorded <c>SUPPORT SLA AUTHORITY_GAP</c>.
     ///
-    /// <para>Support authority proves that SLA deadline fields exist and that the
-    /// <c>SupportCaseSlaStatus</c> vocabulary contains <c>on_track</c>, <c>at_risk</c>,
-    /// <c>breached</c>, <c>paused</c> and <c>not_applicable</c>. It does not define the
-    /// deadline policy, the at-risk threshold, the pause conditions, or the event that
-    /// satisfies a first response. SLA configuration administration is also outside the
-    /// admitted scope. Every value except <c>not_applicable</c> would therefore be an
-    /// invented compliance claim, so Support reports <c>not_applicable</c> until an SLA
-    /// authority is admitted. The stored due timestamps remain exactly what the caller
-    /// declared.</para>
+    /// <para>This value is a reconciled fail-closed decision, not a convenience default. Every
+    /// element the projection would need was searched for across current implementation
+    /// authority, the verified OpenAPI, the operation/command/query registries, the Design
+    /// Authority and read-only frontend evidence, and none is provable:</para>
+    ///
+    /// <list type="bullet">
+    /// <item><b>Deadline rules.</b> The canonical Support module doc names the
+    /// <c>SUPPORT_CASE_SLA_RULES</c> and <c>calculateSupportCaseSla</c> symbols but states no
+    /// durations. The only concrete durations live in frontend source, which the frontend
+    /// read-only evidence rule forbids from creating backend authority. That frontend
+    /// calculator is additionally dead code: no caller invokes it, and the frontend create
+    /// command passes the caller-supplied due timestamps straight through instead.</item>
+    /// <item><b>First-response semantics.</b> The read model declares
+    /// <c>firstRespondedAt</c> and the activity vocabulary declares <c>first_response</c>, but
+    /// no authority names the event that satisfies a first response. Support therefore never
+    /// sets <c>firstRespondedAt</c>.</item>
+    /// <item><b>Breach rule.</b> Only frontend source compares now against the due timestamp,
+    /// and its choice to prefer the resolution deadline over the first-response deadline is
+    /// stated nowhere in authority.</item>
+    /// <item><b>At-risk rule.</b> The only evidence is a frontend heuristic - the greater of
+    /// one hour or twenty percent of the resolution limit - self-described in its own comment
+    /// as approximate.</item>
+    /// <item><b>Pause rule.</b> <c>paused</c> appears in the declared enum and in no
+    /// behavioral evidence anywhere; nothing in the repository can produce it.</item>
+    /// <item><b>Terminal behavior.</b> Frontend source maps resolved/closed/cancelled to
+    /// <c>not_applicable</c> but leaves <c>reopened</c> evaluated. No authority states whether
+    /// a terminal or reopened case suspends its SLA clock.</item>
+    /// <item><b>Meaning of <c>not_applicable</c>.</b> Never defined. The single frontend
+    /// implementation already overloads it for two different situations - a terminal case and
+    /// a case with no deadlines - so it cannot be treated as a settled semantic.</item>
+    /// </list>
+    ///
+    /// <para>Because none of the seven is provable, Support computes no deadline, asserts no
+    /// compliance state, and reports the one declared value that makes no compliance claim.
+    /// Caller-declared <c>firstResponseDueAt</c> and <c>resolutionDueAt</c> are still stored
+    /// and returned verbatim, so no client-supplied fact is lost and the projection can be
+    /// implemented later without a data migration. See the Support Core section of
+    /// CURRENT_IMPLEMENTATION_AUTHORITY.md.</para>
     /// </summary>
     internal const string UnresolvedSlaStatus = "not_applicable";
 

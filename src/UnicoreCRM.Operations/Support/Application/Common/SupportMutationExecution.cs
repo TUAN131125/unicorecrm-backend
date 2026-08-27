@@ -5,11 +5,21 @@ using UnicoreCRM.Platform.Workspace.Contracts;
 namespace UnicoreCRM.Operations.Support.Application.Common;
 
 /// <summary>
-/// The single SupportCase mutation transaction. It enforces, in order: idempotent replay,
-/// Workspace-scoped load, the declared If-Match optimistic-concurrency contract, the slice
-/// mutation, then Support-owned audit/outbox/idempotency evidence - all inside one
-/// SERIALIZABLE transaction, matching the declared
-/// <c>SINGLE_SUPPORT_CASE_TRANSACTION</c> boundary. A stale version mutates nothing.
+/// The single SupportCase mutation transaction.
+///
+/// <para>The semantic order is fixed: the caller has already been authenticated, resolved to a
+/// trusted Workspace and authorized, and has normalized its request into a stable client-intent
+/// fingerprint. This method then performs the idempotency lookup <em>before</em> anything else.
+/// A committed key with matching intent replays immediately from stored evidence; a committed
+/// key with different intent returns the canonical reuse error. Only when the key is new does
+/// the command evaluate mutable owner/member state, load the aggregate, enforce the declared
+/// If-Match contract, apply the slice mutation and stage Support-owned
+/// audit/outbox/idempotency evidence - all inside one SERIALIZABLE transaction matching the
+/// declared <c>SINGLE_SUPPORT_CASE_TRANSACTION</c> boundary.</para>
+///
+/// <para>Placing the precondition after the lookup is what makes a replay durable: a Workspace
+/// member who is deactivated after a command commits must not turn that command's replay into
+/// a validation failure. A stale version mutates nothing.</para>
 /// </summary>
 internal sealed class SupportMutationExecution(
     ISupportPersistence persistence,
@@ -26,22 +36,26 @@ internal sealed class SupportMutationExecution(
         Func<TrustedWorkspaceContext, CancellationToken, Task<SupportOperationError?>>? precondition,
         CancellationToken cancellationToken)
     {
-        if (precondition is not null)
-        {
-            var error = await precondition(trusted, cancellationToken);
-            if (error is not null)
-                return SupportOperationResult<SupportCaseMutationResponse>.Failure(error);
-        }
-
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = SupportCommandSupport.ScopeKey(trusted, operation, caseId, metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
+            // A committed key is answered from stored evidence alone. No mutable foreign state is
+            // consulted on this path, so a member deactivated after the original commit cannot
+            // retroactively invalidate the replay.
             var replayError = SupportCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
                 ? SupportOperationResult<SupportCaseMutationResponse>.Success(SupportCommandSupport.Replay(existing))
                 : SupportOperationResult<SupportCaseMutationResponse>.Failure(replayError);
+        }
+
+        // Only a genuinely new command evaluates current mutable owner/member state.
+        if (precondition is not null)
+        {
+            var error = await precondition(trusted, cancellationToken);
+            if (error is not null)
+                return SupportOperationResult<SupportCaseMutationResponse>.Failure(error);
         }
 
         var supportCase = await persistence.LoadCaseAsync(trusted.WorkspaceId, caseId, cancellationToken);

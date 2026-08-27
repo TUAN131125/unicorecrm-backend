@@ -76,15 +76,31 @@ public sealed record AddSupportCaseInternalNoteRequest(string? Body);
 /// <summary>
 /// The Support-owned read projection.
 ///
-/// <para><b>Fail-closed omissions.</b> The OpenAPI <c>SupportCaseReadModel</c> also declares
-/// <c>customerId</c> and <c>customerName</c> as required, plus optional <c>contactName</c>,
-/// <c>contactEmail</c>, <c>contactPhone</c>, <c>relatedOrderNumber</c>,
-/// <c>relatedProductName</c>, <c>ownerName</c>, <c>team</c>, <c>internalSummary</c>,
-/// <c>firstRespondedAt</c>, <c>activities</c> and <c>comments</c>. None of those is Support
-/// state and no admitted request field or foreign-owner reference contract supplies them, so
-/// Support omits them instead of fabricating CRM, Orders, Products or member-profile detail.
-/// The required <c>customerId</c>/<c>customerName</c> omission is recorded as an
-/// AUTHORITY_GAP in the backend implementation authority.</para>
+/// <para><b>Customer enrichment is optional by contract.</b> <c>relationshipRef</c> is the
+/// canonical relationship identity and stays required. <c>customerId</c> and
+/// <c>customerName</c> are declared optional in <c>SupportCaseReadModel</c>, because a Customer
+/// aggregate exists only once effective purchase evidence has been recorded: a Support Case
+/// raised against a pre-purchase Contact or Organization Account legitimately has neither.
+/// Support emits neither field today, since no admitted request carries them and no admitted
+/// Customers reference contract resolves them, and that omission is contract-conformant.</para>
+///
+/// <para>Mapping <c>customerId</c> to <c>relationshipRef.id</c> is specifically <em>not</em>
+/// done. Contact/Organization identity and Customer identity are distinct owners' identities;
+/// substituting one for the other, or presenting an identifier as a display name, would
+/// fabricate CRM data. See the Support customer identity reconciliation section of
+/// CURRENT_IMPLEMENTATION_AUTHORITY.md.</para>
+///
+/// <para><b>Other fail-closed omissions</b> (all optional in the schema, so these do not affect
+/// conformance): <c>contactName</c>, <c>contactEmail</c>, <c>contactPhone</c>,
+/// <c>relatedOrderNumber</c>, <c>relatedProductName</c>, <c>ownerName</c>, <c>team</c>,
+/// <c>internalSummary</c>, <c>firstRespondedAt</c>, <c>activities</c> and <c>comments</c>. None
+/// is Support state. <c>activities</c> and <c>comments</c> in particular require
+/// <c>actorName</c>/<c>authorName</c>, which are IdentityAuth-owned profile facts that its only
+/// narrow cross-owner contract deliberately withholds; replies and internal notes remain
+/// persisted so the projection can be enabled later without a data migration.</para>
+///
+/// <para>Both gaps are recorded in the Support Core section of
+/// CURRENT_IMPLEMENTATION_AUTHORITY.md.</para>
 /// </summary>
 public sealed record SupportCaseReadModel(
     string Id,

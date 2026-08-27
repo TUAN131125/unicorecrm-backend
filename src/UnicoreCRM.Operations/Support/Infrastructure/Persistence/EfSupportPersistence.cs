@@ -33,9 +33,11 @@ internal sealed class EfSupportPersistence(SupportDbContext dbContext) : ISuppor
         SupportCaseListSpecification specification,
         CancellationToken cancellationToken)
     {
-        // The projected SLA status is a fixed not_applicable while SLA authority is unresolved.
-        // Filtering on any other declared SLA value therefore matches nothing rather than
-        // silently returning cases whose SLA state Support cannot determine.
+        // SLA state is a recorded SUPPORT SLA AUTHORITY_GAP, so the projection reports only
+        // not_applicable. A filter for any other declared SLA value asks a question Support
+        // cannot answer; it matches nothing rather than returning cases whose SLA state Support
+        // has not determined. The value is still validated against the declared vocabulary, so
+        // an undeclared value is rejected rather than silently emptied.
         if (specification.SlaStatus is not null
             && specification.SlaStatus != SupportProjection.UnresolvedSlaStatus)
         {

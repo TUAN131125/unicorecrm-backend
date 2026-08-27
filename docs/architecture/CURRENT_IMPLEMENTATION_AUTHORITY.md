@@ -29,9 +29,9 @@ Implementation phase identifiers such as B00-B09 are planning and history metada
 
 For every operation it declares, `frontend/unicorecrm-web/docs/api/openapi.json` controls the exact current HTTP wire contract. Its currently generated SHA-256 is:
 
-`f3a0273e9d8847b5bcd8c673810e2a9e8d0e70031da12b4dc2a8dd338a2354b6`
+`fd079b2f6e189ffe391d555cee1d2acaa735cf532346cc74a02070862bd78792`
 
-This matches `frontend/unicorecrm-web/docs/api/openapi.sha256`. The verified file declares 270 operations: 236 contain a 2xx response contract and 34 contain no 2xx response contract. Operations without an admitted success contract remain fail-closed and must not be implemented as callable success paths.
+This matches `frontend/unicorecrm-web/docs/api/openapi.sha256`. It supersedes `f3a0273e9d8847b5bcd8c673810e2a9e8d0e70031da12b4dc2a8dd338a2354b6`, which was current until the Support customer-enrichment amendment recorded below. The amendment was applied through the repository generator pipeline (`npm run api:generate`), which rewrote the contract hash and every derived artifact, and the `quality.api-contract` gate passes on the result. The verified file declares 270 operations: 236 contain a 2xx response contract and 34 contain no 2xx response contract. Operations without an admitted success contract remain fail-closed and must not be implemented as callable success paths.
 
 Presence of a 2xx OpenAPI response contract does **not**, by itself, authorize backend implementation. OpenAPI controls the exact HTTP wire contract for declared operations; implementation readiness must still be reconciled with:
 
@@ -85,7 +85,8 @@ The following remain `AUTHORITY_GAP` and are not implemented or semantically def
 - Studio/configuration writes whose current OpenAPI operations remain blocked; a folder or historical design description does not admit them;
 - receivable collection activity ownership where no current canonical owner/command contract proves the mutation;
 - any provider/live-conformance behavior that requires external evidence not present in the repository;
-- Support `customerId`/`customerName` response identity, Support SLA deadline/at-risk/pause/first-response semantics, and the member display name that Support activity and comment documents require. See the Support Core section.
+- Support SLA semantics: deadline rules, first-response event, breach, at-risk, pause, terminal behavior and the meaning of `not_applicable`, none of which current authority proves;
+- the member display name that the optional Support activity and comment documents require. See the Support Core section for all three.
 
 These gaps do not block the independent B00 skeleton. They block only later implementation that depends on the missing semantics.
 
@@ -259,7 +260,30 @@ Product configuration mutations, import, export, demo-data reset, inventory, pur
 
 Support Core admits and implements the eight Support-owned operations `listSupportCases`, `getSupportCase`, `createSupportCase`, `replaceSupportCaseProfile`, `assignSupportCase`, `transitionSupportCase`, `addSupportCaseReply`, and `addSupportCaseInternalNote`. Support remains an independent canonical owner inside the Operations bounded context and stays inside `UnicoreCRM.Operations`; no separate `UnicoreCRM.Support` assembly is created. Every operation consumes IdentityAuth authentication, trusted Workspace authority, and AccessControl application-boundary authorization before Support-owned behavior. Canonical capabilities are `support.read`, `support.create`, `support.update`, and `support.assign`. `support.complete`, `support.delete`, and `support.export` exist in the canonical capability matrix but no admitted Support operation requires them, so Support references none of them.
 
-Support owns `SupportDbContext`, the `support` logical schema, server-assigned SupportCase aggregate identity, and the human-readable case number. Case numbers are allocated per trusted Workspace and per calendar year from a Support-owned durable sequence inside the SERIALIZABLE create transaction and are unique per Workspace. Neither the frontend nor any foreign module may fabricate a SupportCase identity or case number. Mutations use owner-local idempotency records, immutable command audits, and atomic owner-local outbox staging inside the declared `SINGLE_SUPPORT_CASE_TRANSACTION` boundary. Existing-aggregate mutations require quoted `If-Match`; a stale version returns canonical `412 VERSION_CONFLICT` and mutates nothing. `createSupportCase` requires `Idempotency-Key` and declares no concurrency contract, exactly as its operation row states.
+Support owns `SupportDbContext`, the `support` logical schema, server-assigned SupportCase aggregate identity, and the human-readable case number. Case numbers are allocated per trusted Workspace and per calendar year from a Support-owned durable sequence inside the SERIALIZABLE create transaction and are unique per Workspace. Neither the frontend nor any foreign module may fabricate a SupportCase identity or case number. Every mutation runs inside one SERIALIZABLE transaction matching the declared `SINGLE_SUPPORT_CASE_TRANSACTION` boundary and stages owner-local idempotency, immutable command audit and outbox evidence atomically with the Support state change.
+
+### Concurrency
+
+Five Support commands operate on an existing aggregate and require a quoted `If-Match` resource version: `replaceSupportCaseProfile`, `assignSupportCase`, `transitionSupportCase`, `addSupportCaseReply`, and `addSupportCaseInternalNote`. A stale version returns canonical `412 VERSION_CONFLICT` and mutates nothing; a missing or malformed `If-Match` is rejected before the use case is reached.
+
+`createSupportCase` is the sixth command and is deliberately exempt: it creates the aggregate, so there is no existing resource version to match. Its operation row declares `concurrencyPolicy: NOT_APPLICABLE`, and no existing-aggregate `If-Match` contract is added to it.
+
+### Idempotency
+
+All six Support commands declare `idempotencyPolicy: REQUIRED` and enforce a fixed semantic order:
+
+```text
+authenticate -> trusted Workspace -> authorize -> normalize request
+-> stable client-intent fingerprint -> idempotency lookup
+```
+
+A committed key whose stored fingerprint matches replays the committed result immediately from Support-owned evidence and reports `REPLAYED`. A committed key with a different stable intent returns canonical `IDEMPOTENCY_KEY_REUSED`. Only when the key is genuinely new does the command evaluate current mutable owner/member state, load the aggregate, enforce `If-Match`, mutate, and stage evidence.
+
+The lookup deliberately precedes every mutable-state check. Validating a Workspace member before the lookup would let a member suspended *after* a command committed turn that command's replay into a validation failure, which would break the replay guarantee for a client that is simply retrying a request it already succeeded with. Runtime evidence covers this directly: with the owner member suspended, the original committed request still replays, returns the same aggregate at the same version, and creates neither a second SupportCase nor a second outbox message, while a *new* command naming the same suspended owner is still correctly rejected.
+
+Fingerprints cover normalized stable client business intent only - the validated profile or command payload, the target case, and the client-declared expected version. They exclude generated Support identity, allocated case numbers, current time and current database state.
+
+### Lifecycle
 
 The implemented SupportCase lifecycle is transcribed verbatim from the canonical Support design baseline `design-authority/canonical-design/modules/support.md`: `new` to `in_progress`, `waiting_customer`, or `cancelled`; `in_progress` to `waiting_customer`, `waiting_internal`, `resolved`, or `cancelled`; `waiting_customer` and `waiting_internal` to `in_progress`, `resolved`, or `cancelled`; `resolved` to `closed` or `reopened`; `closed` to `reopened`; `cancelled` to `reopened`; `reopened` to `in_progress`, `waiting_customer`, or `resolved`. Same-state replay is admitted. Resolve and close stamp `resolvedAt` and `closedAt`; reopen stamps `reopenedAt` and clears both. Every pair absent from that table fails closed with the canonical Support-owned `SUPPORT_CASE_INVALID_TRANSITION` error, which the canonical error catalog assigns to `transitionSupportCase` at HTTP 409. No transition graph is inferred from generic ticketing software, and no admitted authority makes assignment change the lifecycle, so `assignSupportCase` records only the owner reference.
 
@@ -267,23 +291,193 @@ Creation is restricted to the seven `SupportCaseCreateCategory` values; replacem
 
 A reply and an internal note are immutable append-only Support conversation evidence; no admitted operation edits or deletes either. Both requests carry only a body, and every admitted Support command runs under an authenticated Workspace member holding `support.update`, so a reply is stored as an agent reply that is not internal and an internal note is stored as internal. The reserved customer-reply kind stays unreachable because no admitted operation ingests a customer reply. Support emits no customer-facing notification and exposes no customer-facing channel, so an internal note cannot leak outward. Appending either advances the case resource version so the declared `If-Match` contract stays meaningful for the next command.
 
-Support records `contactId`, `relatedOrderId`, `relatedProductId`, `relatedOwnedProductId`, and `relationshipRef` as unvalidated caller-declared scalar references and echoes them back. Support asserts nothing about the foreign record and reads no foreign persistence, because no admitted Contacts, Customers, Organizations, Orders, or Products reference contract exists. `ownerId` is the one exception: an owner is a Workspace member, so `createSupportCase`, `replaceSupportCaseProfile`, and `assignSupportCase` verify it through the existing narrow `IWorkspaceMemberReferenceValidator` contract and reject a non-member.
+Support records `contactId`, `relatedOrderId`, `relatedProductId`, `relatedOwnedProductId`, and `relationshipRef` as unvalidated caller-declared scalar references and echoes them back. Support asserts nothing about the foreign record and reads no foreign persistence, because no admitted Contacts, Customers, Organizations, Orders, or Products reference contract exists. `ownerId` is the one exception: an owner is a Workspace member, so `createSupportCase`, `replaceSupportCaseProfile`, and `assignSupportCase` verify it through the existing narrow `IWorkspaceMemberReferenceValidator` contract and reject a non-member on a new command.
 
-Three Support behaviors remain `AUTHORITY_GAP` and are fail-closed:
+### SUPPORT SLA AUTHORITY_GAP
 
-- **`SupportCaseReadModel.customerId` and `customerName`.** Both are declared required, `customerName` with `minLength` 1. Neither `CreateSupportCaseRequest` nor `ReplaceSupportCaseProfileRequest` declares either field, both request schemas set `additionalProperties: false`, and Customers, Contacts, and Organizations remain unimplemented stubs with no admitted reference or snapshot contract. The current contract therefore requires a response field that no admitted input or owner contract can supply. `customerId` is also not provably equal to `relationshipRef.id`: current frontend evidence derives `relationshipRef` from a distinct Customer record rather than reusing its identifier. Support omits both fields rather than fabricating CRM identity or presenting an identifier as a name. Resolution requires either an admitted Customers/Contacts/Organizations reference contract or a contract amendment.
-- **SLA projection.** Authority proves that the SLA deadline fields exist and that `SupportCaseSlaStatus` declares `on_track`, `at_risk`, `breached`, `paused`, and `not_applicable`. It does not define the deadline policy, the at-risk threshold, the pause conditions, or the event that satisfies a first response, and SLA configuration administration is outside the admitted scope. Support therefore stores `firstResponseDueAt` and `resolutionDueAt` exactly as the caller declared them, computes no deadline, never sets `firstRespondedAt`, and projects `slaStatus` as `not_applicable`. The declared `slaStatus` list filter is accepted and validated; any value other than `not_applicable` matches nothing rather than returning cases whose SLA state Support cannot determine.
-- **`activities` and `comments` read projections.** `SupportCaseActivityDocument` requires `actorName` and `SupportCaseCommentDocument` requires `authorName`. Both are member profile facts owned by IdentityAuth, whose only narrow cross-owner contract, `IAuthenticatedIdentityReferenceLookup`, deliberately exposes no profile state. Both arrays are optional in the read model, so Support omits them. Replies and internal notes are still persisted durably as Support-owned evidence, so the projection can be enabled without a data migration once a member-profile contract is admitted. Support creates no separate activity table: the Support-owned command audit already records the operation, actor, prior and new version, and occurred time that an activity document would restate.
+SLA projection is unresolved and fails closed. This is a reconciled finding, not a default. Each element the projection needs was searched for across current implementation authority, the verified OpenAPI, the operation/command/query/workflow registries, the Design Authority and read-only frontend evidence:
 
-The read model additionally omits `contactName`, `contactEmail`, `contactPhone`, `relatedOrderNumber`, `relatedProductName`, `ownerName`, `team`, `internalSummary`, and `firstRespondedAt`. All are optional, none is Support state, and no admitted contract supplies them.
+- **Deadline rules — not provable.** The canonical Support module doc names the `SUPPORT_CASE_SLA_RULES` and `calculateSupportCaseSla` symbols but states no durations, and no other Design Authority document supplies any. The only concrete durations exist in frontend source, which the frontend read-only evidence rule forbids from creating backend authority. That frontend deadline calculator is additionally dead code: nothing calls it, and the frontend create command passes caller-supplied due timestamps straight through.
+- **First-response semantics — not provable.** `firstRespondedAt` is declared in the read model and `first_response` is declared in the activity vocabulary, but no authority names the event that satisfies a first response.
+- **Breach rule — not provable.** Only frontend source compares the current time against a due timestamp, and its choice to prefer the resolution deadline over the first-response deadline appears in no authority.
+- **At-risk rule — not provable.** The sole evidence is a frontend heuristic, the greater of one hour or twenty percent of the resolution limit, described in its own comment as approximate.
+- **Pause rule — not provable.** `paused` appears in the declared enum and in no behavioral evidence anywhere in the repository.
+- **Terminal behavior — not provable.** Frontend source maps resolved, closed and cancelled to `not_applicable` but leaves `reopened` evaluated. No authority states whether a terminal or reopened case suspends its SLA clock.
+- **Meaning of `not_applicable` — not defined.** The single implementation that exists already overloads it for two different situations, a terminal case and a case with no deadlines.
+
+Because none of the seven is provable, Support computes no deadline, never sets `firstRespondedAt`, asserts no compliance state, and reports the one declared value that makes no compliance claim, `not_applicable`. Caller-declared `firstResponseDueAt` and `resolutionDueAt` are stored and returned verbatim, so no client-supplied fact is lost and the projection can be implemented later without a data migration. The declared `slaStatus` list filter is still validated against the declared vocabulary, so an undeclared value is rejected; a declared value other than `not_applicable` asks a question Support cannot answer and matches nothing rather than returning cases whose SLA state Support has not determined.
+
+### Support customer enrichment — RESOLVED by contract amendment
+
+`relationshipRef` is the canonical SupportCase relationship identity and is required. `customerId` and `customerName` are **optional** in `SupportCaseReadModel`.
+
+The amendment was made because the previous required-ness was unsatisfiable, not merely unimplemented: a Customer aggregate exists only once effective purchase evidence has been recorded, so a Support Case raised against a pre-purchase Contact or Organization Account has no Customer at all, and the admitted Support category and source vocabularies (`consultation`, `onboarding`, `request`, `complaint`, `web_form`, `chat`) make that an ordinary case rather than an exception. The full reconciliation is recorded in the Support customer identity reconciliation section.
+
+Support therefore omits both fields, and that omission is now **contract-conformant**. Support performs no Customer lookup, holds no Customer persistence, and does not map `customerId` to `relationshipRef.id`: Contact/Organization identity and Customer identity are distinct owners' identities, and substituting one for the other, or presenting an identifier as a display name, would fabricate CRM data.
+
+If a Customers reference contract is admitted later, both fields become a read-time projection, never a stored Support-owned copy, per the minimum contract shape already frozen below.
+
+### SUPPORT MEMBER DISPLAY NAME AUTHORITY_GAP
+
+`SupportCaseActivityDocument` requires `actorName` and `SupportCaseCommentDocument` requires `authorName`. Both are member profile facts owned by IdentityAuth, whose only narrow cross-owner contract, `IAuthenticatedIdentityReferenceLookup`, deliberately exposes no profile state. Both `activities` and `comments` are optional in the read model, so Support omits both projections rather than fabricating a name.
+
+Replies and internal notes remain persisted as Support-owned evidence with their Support-owned `AuthorId`, so the comment projection can be enabled without a data migration once a member display-name contract is admitted. Support creates no separate activity table: the Support-owned command audit already records the operation, actor, prior and new version and occurred time that an activity document would restate.
+
+The read model additionally omits `contactName`, `contactEmail`, `contactPhone`, `relatedOrderNumber`, `relatedProductName`, `ownerName`, `team`, `internalSummary`, and `firstRespondedAt`. All are optional, none is Support state, and no admitted contract supplies them, so these omissions do not affect contract conformance.
+
+### Ownership boundaries
 
 Support depends on Tasks in neither direction. It never touches `TasksDbContext`, a Tasks repository, a Tasks EF entity, Tasks Infrastructure, or a Tasks table, and it shares no table with Tasks. SupportCase status is not Task status: completing a Task does not resolve or close a SupportCase, and closing a SupportCase does not complete a foreign Task. Any future Support-originated Task creation, escalation, completion, reassignment, or cancellation is a multi-owner mutation that belongs to Workflows; no such workflow is currently admitted, so it remains `WORKFLOW REQUIRED`. Support introduces no email ingestion, support mailbox, webhook ingestion, notification engine, customer portal, knowledge base, checklist, attachment storage, SLA configuration administration, or event bus.
 
 Rejected Support commands write no Support audit record, because audit evidence is staged inside the mutation transaction that a rejection rolls back. This matches the current verified Leads, Deals, and Tasks behavior and is not a Support-specific divergence.
 
-Runtime verification on 2026-08-26 used the isolated `UnicoreCRM_SupportVerification` database on the configured SQL Server instance and proved all eight operations across sixty-seven checks with no failure: unauthenticated rejection, empty and filtered listing, invalid filter rejection, server-assigned identity, `CASE-2026-0001` and `CASE-2026-0002` sequence allocation, create replay returning `REPLAYED` with the same aggregate, changed-intent key rejection, quoted `If-Match` enforcement with a stale version leaving version and title unchanged, total profile replacement clearing an omitted optional field, legacy-category acceptance on replace and rejection on create, non-member owner rejection, assignment leaving the status unchanged, the full admitted transition path `new` to `in_progress` to `waiting_customer` to `resolved` to `closed` to `reopened` with correct timestamp stamping and clearing, rejection of `new` to `resolved` and `reopened` to `closed` with no mutation, same-state replay, reply and internal-note append with version advance, missing-`Idempotency-Key`, missing-`If-Match`, empty-body and unmapped-member rejection, cross-Workspace rejection, and unknown-identifier rejection. Persistence evidence confirms two Workspace-scoped cases, two comments with correct internal separation, twenty-one audit records split into committed command audits and read-access logs, and thirteen outbox messages carrying only the six declared Support event types. Twelve regression checks re-exercised IdentityAuth, Workspace, Tasks, Activities, Leads, Deals, and Products on the same host with no failure, and the full solution builds clean. Therefore `SUPPORT BACKEND RUNTIME: PASS`, `SUPPORT PERSISTENCE / MIGRATION: PASS`, `SUPPORT SECURITY / WORKSPACE ISOLATION: PASS`, and `SUPPORT REGRESSION: PASS`. `SUPPORT CONTRACT CONFORMANCE: PARTIAL` because the required `customerId` and `customerName` response fields remain fail-closed above. `SUPPORT AUTHORITY CONFORMANCE: PASS` for the implemented scope, with the three gaps recorded rather than resolved by invention. This is task-specific evidence, not independent release attestation or connected browser acceptance.
+### Verification
 
-Evidence is retained in `backend/artifacts/SupportCore_runtime_evidence.json`, `backend/artifacts/SupportCore_regression_evidence.json`, `backend/artifacts/SupportCore_persistence_evidence.csv`, and `backend/artifacts/SupportCore_idempotent.sql`.
+`backend/scripts/verify-support-core.ps1` is the reproducible Support verifier. It provisions an isolated database, starts ApiHost against it, exercises all eight operations, and drops the database afterwards. It is Windows PowerShell 5.1 compatible and defaults to `(localdb)\MSSQLLocalDB`.
+
+The run on 2026-08-26 reported `PASS=83 FAIL=0`, covering: unauthenticated rejection; empty, filtered and invalid-filter listing; server-assigned identity and `CASE-2026-0001` sequence allocation; committed replay while the owner member is suspended, with no duplicate SupportCase and no duplicate outbox message, alongside correct rejection of a *new* command naming that suspended owner; changed-intent key rejection; stale and missing `If-Match` rejection with version and title left unchanged; total profile replacement clearing an omitted optional field; legacy-category acceptance on replace and rejection on create; non-member owner rejection; assignment leaving the lifecycle unchanged; the full admitted transition path with correct timestamp stamping and clearing; rejection of `new` to `resolved` and `reopened` to `closed` with no mutation; same-state replay; reply and internal-note append with version advance and correct internal separation in persistence; cross-Workspace and unknown-identifier rejection; single-Workspace scoping of all Support state; command audit and read-access-log presence; no undeclared outbox event type and exactly one event per committed mutation; no shared table with Tasks; seven previously verified module reads plus a committed `createTask`; and no pending Support EF model changes.
+
+The idempotency ordering fix is backed by a differential run: against the pre-fix ordering, where the mutable owner/member precondition executed before the idempotency lookup, the same verifier reported `PASS=79 FAIL=4`, with the four failures all in the committed-replay-after-member-suspension scenario. Evidence is retained in `backend/artifacts/SupportCore_runtime_evidence.json` and `backend/artifacts/SupportCore_idempotent.sql`.
+
+**Connected acceptance.** The repository Playwright Chromium runtime drove the real frontend in connected mode against a real ApiHost and a real database (`backend/../frontend/unicorecrm-web/playwright.support-connected.config.ts` with `tests/e2e/support-connected.spec.ts`, run with `UNICORECRM_TEST_API_BASE_URL` pointing at the live host). Two seeded pre-purchase Support Cases - `relationshipRef` of type `CONTACT`, no Customer anywhere in the system - were listed, rendered and mutated. Proven in the browser: `GET /support/cases` returns 200 with `relationshipRef` present and `customerId`/`customerName` absent on every item; the list renders each case by its Support-owned case number and title; the customer column renders the neutral placeholder and the rendered page contains the relationship identifier nowhere, so no Contact identifier is substituted for a customer display name; selecting a lifecycle value on the list card issued `POST /support/cases/{caseId}/transition`, which returned 200 `COMMITTED` with `status` `in_progress`, `relationshipRef` preserved and both customer fields still absent; and the page raised no uncaught error. Backend state confirms the browser-driven mutation was durable: the case advanced from status `new` to `in_progress`, its resource version advanced from 0 to 1, exactly one `SUPPORT_CASE_STATUS_CHANGED` outbox message was staged, and one committed `transitionSupportCase` audit record was written.
+
+The Support **detail** and **form** routes could not be exercised in the browser. Both are wrapped in `EffectiveRecordAccessBoundary`, which calls `evaluateEffectiveRecordAccess` (`POST /access/records/evaluate`). That operation is `PRODUCTION_CONTRACT_READY` in OpenAPI but AccessControl maps only `GET /access/context`, so the call returns 404 and the routes render an access-verification error instead of the record. This is a pre-existing AccessControl implementation gap, unrelated to Support and unrelated to the customer-enrichment amendment; Support's own detail read, profile replacement, assignment, reply and internal note remain proven by `verify-support-core.ps1`. The acceptance suite pins the 404 explicitly, so the gate fails and forces the detail coverage to be written the moment AccessControl implements the operation.
+
+Therefore `SUPPORT CONNECTED ACCEPTANCE: PASS` for the Support list and lifecycle path actually exercised, and `NOT ATTEMPTABLE` for the detail and form routes while `evaluateEffectiveRecordAccess` is unimplemented. No claim is made about the routes that could not render.
+
+Gate status for the verified scope: `SUPPORT DOMAIN/LIFECYCLE: PASS`, `SUPPORT PERSISTENCE: PASS`, `SUPPORT SECURITY: PASS`, `SUPPORT CONCURRENCY: PASS`, `SUPPORT IDEMPOTENCY: PASS`, `SUPPORT AUDIT/OUTBOX: PASS`, `SUPPORT REGRESSION: PASS`, `SUPPORT BACKEND RUNTIME: PASS`, `SUPPORT SLA AUTHORITY: AUTHORITY_GAP`. `SUPPORT CONTRACT CONFORMANCE` is `PASS` following the customer-enrichment amendment recorded above: Support's projection now matches every required field of the amended `SupportCaseReadModel`. This is task-specific evidence, not independent release attestation, external-provider conformance, or browser acceptance.
+
+## Support customer identity reconciliation
+
+This section freezes the reconciliation of `Support.relationshipRef -> Customer identity -> customerId / customerName`. It is an authority decision only. It changes no Support implementation, builds no CRM persistence, and admits no new operation.
+
+Provenance is stated per finding. `PROVEN` means current authority establishes the semantic. `AUTHORITY_GAP` means it does not, and the item stays fail-closed.
+
+### 1. BuyerRef and RelationshipRef are the same value space — PROVEN
+
+The verified OpenAPI declares `BuyerRef` and `RelationshipRef` as structurally identical objects: a required `type` restricted to `CONTACT` or `ORGANIZATION_ACCOUNT`, plus a required `EntityId`. `BuyerType` and the inline `RelationshipRef.type` enum carry the same two members.
+
+The canonical Customer creation path closes the identification: `ensureCustomerFromPurchaseEvidence` takes the buyer reference from purchase evidence and stores it directly as the Customer's `relationshipRef`. `CustomerDocument.relationshipRef` is declared as `RelationshipRef`, and Commercial Evidence owns the `buyerRef` that becomes it.
+
+Support's `SupportCaseReadModel.relationshipRef` is declared as `BuyerRef`. It therefore addresses the same relationship value space that keys a Customer. This does **not** make `relationshipRef.id` equal to `customerId`; it makes `relationshipRef` a valid *lookup key* for a Customer.
+
+### 2. Resolution rule — PROVEN
+
+A Customer is keyed by the pair `(workspaceId, relationshipRef)`. The canonical relationship key is `customerRelationshipKey(workspaceId, relationshipRef)`, and the canonical reverse lookup is `findCustomerByRelationshipRef(workspaceId, relationshipRef)`. Both are Customers-owned semantics named in the canonical Customers module baseline.
+
+The frozen rule is therefore:
+
+```text
+(trustedWorkspaceId, relationshipRef)  ->  at most one Customer
+```
+
+At most one, never guaranteed one. See finding 6.
+
+No admitted HTTP operation performs this reverse lookup. The query registry classifies `findCustomerByRelationshipRef` as a composed read model with an empty `operationIds` list, and `resolveCustomerRelationshipContext` as frontend-local. Any backend resolution must therefore be an internal narrow owner contract, not a wire operation.
+
+### 3. `customerId` semantics — PROVEN: live canonical Customer reference, not a snapshot
+
+`customerId` is the Customers-owned `CustomerDocument.id` aggregate identifier. It is a live reference to a Customer record whose lifecycle Customers owns; Support must never own, assign, derive, or infer it.
+
+`customerId` is specifically **not** `relationshipRef.id`. `relationshipRef.id` identifies a Contact or an Organization Account, whose identity Customers explicitly does not own. A Customer is a separate aggregate that *links* one relationship to a care lifecycle. Current frontend evidence resolves in the forward direction only — customerId to Customer to relationshipRef — and never treats the two identifiers as interchangeable.
+
+Current frontend source additionally documents `relationshipRef` as "canonical relationship identity" and states that `customerId` "is retained only for route/display compatibility." That is read-only consumer evidence and does not by itself demote the field, but it is consistent with every higher-precedence source: the verified wire contract already requires `relationshipRef` on the Support read model, and the canonical Customers baseline keys the Customer on the relationship rather than the reverse.
+
+### 4. `customerName` semantics — PROVEN: composed live projection; any stored copy is a historical Support-owned fallback
+
+`CustomerDocument` declares **no name field of any kind**. A customer display name is not Customer-owned scalar state.
+
+The canonical display name is `Customer360Identity.displayName`, required with `minLength` 1, returned by the `getCustomer360` operation and described in the contract as a "backend-composed, permission-filtered" projection. Its composition, per current frontend evidence, is:
+
+```text
+relationshipRef.type = CONTACT              -> Contact full name, else Customer.customerCode
+relationshipRef.type = ORGANIZATION_ACCOUNT -> Organization display name, else Customer.customerCode
+```
+
+The `customerCode` fallback is what guarantees the non-empty contract.
+
+Current consumer evidence treats a Support-stored `customerName` as a **historical fallback snapshot, not a live value**: the Support presentation resolver looks the live Customer up by `customerId` and returns the freshly composed display name, falling back to the stored `customerName` only when the live Customer cannot be resolved, and to the raw `customerId` after that.
+
+The frozen semantic is therefore: `customerName` is a live composed projection at read time where the Customer is resolvable, and a Support-owned historical snapshot only as a fallback. Support does not own the name and must never treat a stored copy as authoritative.
+
+### 5. Permission model — PROVEN by precedent: producer capability required
+
+The established cross-owner narrow read contracts in this repository - `ILeadSummaryReader`, `IDealSummaryReader` and `ITaskSummaryReader` - all follow one pattern. Each requires a resolved trusted Workspace, evaluates the **producer owner's** read capability against the calling principal through `IAccessAuthorizer`, applies record and field scope, and collapses foreign or invisible records into a not-found result that leaks no existence. The cross-owner contract map records their authorization behavior as requiring `leads.read`, `deals.read` and `tasks.read` respectively.
+
+Support therefore may **not** consume Customer identity under `support.read` alone. The caller must additionally hold the producer owner's read capability. The canonical capability is `customers.view`; there is no `customers.read` in the capability matrix and none is invented here. Where the display name is composed from a relationship, `contacts.read` or `organizations.read` applies to that leg for the same reason.
+
+No counter-precedent exists. No current authority admits an unauthenticated, capability-free or Support-scoped-only owner-fact contract.
+
+### 6. Customer existence is conditional — PROVEN, and this is the blocking finding
+
+The canonical Customers baseline states that "Customer creation from purchase evidence requires an existing canonical relationship." `CustomerDocument` requires both `firstPurchaseAt` and `lastPurchaseAt`, and carries `createdFromEvidenceId`. The sole creation path, `ensureCustomerFromPurchaseEvidence`, admits only effective purchase evidence - completed order, confirmed external purchase, or imported historical purchase - and returns nothing otherwise.
+
+Every Customer mutation operation in the current registry is `BLOCKED`: `onboardExistingCustomer`, `completeCustomerOnboarding` and `updateCustomerLifecycle`. No admitted operation creates a Customer.
+
+Therefore **a Contact or Organization Account that has not purchased has no Customer, and no contract can resolve one for it.** This is not an implementation limitation; it is the canonical business meaning of Customer.
+
+Support cases are legitimately raised against pre-purchase relationships: the admitted `SupportCaseCreateCategory` vocabulary includes `consultation`, `onboarding`, `request` and `complaint`, none of which implies a completed purchase, and the admitted `SupportCaseSource` vocabulary includes `web_form` and `chat`. A Support case referencing a relationship with no Customer is ordinary, not exceptional.
+
+### 7. Frozen consequence for the Support contract — AUTHORITY_GAP, closable only by contract amendment
+
+`SupportCaseReadModel` declares `customerId` and `customerName` as **required**. Finding 6 proves that requirement is unsatisfiable in general: for a pre-purchase relationship there is no Customer, so there is no `customerId` and no composed `customerName`, and neither can be produced without inventing a Customer that canonical authority says must not exist.
+
+No cross-owner contract, however well specified, can close this. The residual gap is a **contract defect**, not a missing implementation:
+
+- Making the two fields optional in `SupportCaseReadModel` closes it immediately and makes the current fail-closed Support implementation conformant without any CRM work.
+- Forcing Support to reject a case whose relationship has no Customer would invent a Support business rule that contradicts the admitted category and source vocabularies, and is not admitted.
+- Fabricating a placeholder identifier or echoing `relationshipRef.id` as `customerId` is prohibited by findings 1 and 3.
+
+**This amendment has been executed.** `SupportCaseReadModel` no longer lists `customerId` or `customerName` as required; both remain declared optional properties and `relationshipRef` remains required. The change was applied through the repository generator pipeline, which rewrote the contract hash to `fd079b2f6e189ffe391d555cee1d2acaa735cf532346cc74a02070862bd78792` and regenerated every derived artifact, and the `quality.api-contract` gate passes on the result. Support's existing fail-closed omission is therefore contract-conformant with no Support behavior change.
+
+### 8. Minimum narrow contract, if and when Customers is implemented
+
+Should a Customers reference slice be admitted later, the minimum contract shape that current authority supports is an internal Customers-owned reader, modelled exactly on `ILeadSummaryReader`:
+
+```text
+Input :  relationshipRef (type + id), request/correlation identifiers
+         trusted Workspace is taken from ICurrentWorkspace, never from the caller
+Output:  typed status + optional projection { canonicalCustomerId, customerDisplayName }
+```
+
+Frozen behaviors:
+
+- **Workspace isolation.** The trusted Workspace is resolved by Platform and never supplied by the consumer. Lookup is confined to `(trustedWorkspaceId, relationshipRef)`.
+- **Unknown reference.** Returns a not-found status. It is not an error, because finding 6 makes "no Customer" a normal outcome.
+- **Foreign workspace.** Indistinguishable from unknown. No existence, name, or count is leaked across a Workspace boundary.
+- **Permission.** Requires `customers.view` on the calling principal, plus `contacts.read` or `organizations.read` for the display-name leg, evaluated through `IAccessAuthorizer` at the producer boundary. Record and field scope apply; a masked field is omitted rather than substituted.
+- **Live vs snapshot.** `canonicalCustomerId` is a live reference. `customerDisplayName` is a live composed projection at call time. Support may retain a copy only as an explicitly historical fallback and must never present it as current.
+- **No persistence exposure.** The contract exposes no DbContext, repository, EF entity, table, or SQL surface, and creates no EF navigation across owners.
+
+This shape is recorded as the target. It is **not admitted for implementation** by this task.
+
+### 9. Existing SupportCase rows — frozen: no backfill
+
+Existing SupportCases carry `relationshipRef` and no customer identity. The frozen decision is that they are **left as they are**:
+
+- A deterministic backfill is impossible. Finding 6 means the correct value for a pre-purchase relationship is "no Customer," so a backfill would either write nothing or invent identity.
+- A live lookup on read is premature. It would require the Customers reference contract, and would still return nothing for pre-purchase relationships, so it cannot make a required field present.
+- The contract amendment in finding 7 makes backfill unnecessary: with the fields optional, existing rows are already conformant.
+
+If a Customers reference slice is later admitted, resolution is a **read-time projection**, never a stored Support-owned copy of `customerId`, because `customerId` is live Customers-owned state.
+
+### 10. Dependency classification
+
+| Owner | Classification | Basis |
+|---|---|---|
+| Customers | `REFERENCE_CONTRACT_REQUIRED` | Sole owner of `customerId`; owns the relationship-keyed lookup and the `customerCode` display fallback. |
+| Contacts | `REFERENCE_CONTRACT_REQUIRED` | Supplies the display name for a `CONTACT` relationship. Reads are already `PRODUCTION_CONTRACT_READY` under `contacts.read`. |
+| Organizations | `REFERENCE_CONTRACT_REQUIRED` | Supplies the display name for an `ORGANIZATION_ACCOUNT` relationship. Reads are already `PRODUCTION_CONTRACT_READY` under `organizations.read`. |
+| Commercial Evidence | `WORKFLOW_REQUIRED` | Not needed to *read* a Customer, but it is the only admitted path by which a Customer can *exist*. Without admitted purchase evidence the reference contract resolves nothing, so it is a prerequisite for any non-empty result rather than for the contract itself. |
+
+Contacts is not a prerequisite of Customers: the two are independent owners, and Customers is the only owner that can supply `customerId`. Equally, Customers cannot be usefully materialized on its own, because its creation path runs through Commercial Evidence and ultimately Orders.
+
+### 11. Residual AUTHORITY_GAPs
+
+- **Support customer identity — CLOSED.** The contract has been amended: `customerId`/`customerName` are optional and Support's omission is conformant. What remains is not a gap but a deferred capability: no admitted Customers reference contract exists, so the two fields stay absent until one is.
+- **Support SLA semantics.** Unchanged; see the Support Core section.
+- **Member display name.** Unchanged; see the Support Core section.
+- **Customer creation.** Every Customer mutation operation remains `BLOCKED`, and `ensureCustomerFromPurchaseEvidence` has no admitted operation, owner assignment, or workflow contract.
 
 ## B07 Inbound Lead Webhook implementation authority
 

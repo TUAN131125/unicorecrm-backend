@@ -24,26 +24,29 @@ internal sealed class Handler(
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.Validation(fields));
 
         var trusted = access.Value!;
-        // An owner is a Workspace member, which the admitted narrow Workspace contract can verify.
-        // The buyer relationship and the related order/product references are foreign-owner scalars
-        // with no admitted reference contract, so they are recorded unverified.
-        if (profile!.OwnerId is not null
-            && !await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile.OwnerId, cancellationToken))
-        {
-            return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.Validation(
-                new Dictionary<string, string[]> { ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."] }));
-        }
-
         var fingerprint = SupportCommandSupport.Fingerprint(profile);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = SupportCommandSupport.ScopeKey(trusted, "createSupportCase", "WORKSPACE", command.Metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
+            // Answered from stored evidence alone, so an owner deactivated after the original
+            // commit cannot retroactively invalidate the replay or create a second SupportCase.
             var replayError = SupportCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
                 ? SupportOperationResult<SupportCaseMutationResponse>.Success(SupportCommandSupport.Replay(existing))
                 : SupportOperationResult<SupportCaseMutationResponse>.Failure(replayError);
+        }
+
+        // Only a genuinely new command evaluates current mutable owner/member state. An owner is a
+        // Workspace member, which the admitted narrow Workspace contract can verify. The buyer
+        // relationship and the related order/product references are foreign-owner scalars with no
+        // admitted reference contract, so they are recorded unverified.
+        if (profile!.OwnerId is not null
+            && !await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile.OwnerId, cancellationToken))
+        {
+            return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.Validation(
+                new Dictionary<string, string[]> { ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."] }));
         }
 
         var now = timeProvider.GetUtcNow();
