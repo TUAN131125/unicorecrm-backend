@@ -28,8 +28,14 @@ internal static class LeadFieldSecurity
     ///
     /// <para>The wire schema declares further properties (<c>notes</c>, <c>relationshipRef</c>,
     /// <c>dealRef</c>, <c>qualifiedDealId</c>, <c>archivedAt</c> and the merge/consent family) that
-    /// Leads does not project at all. A policy naming one of them cannot be enforced and fails the
-    /// operation closed rather than being silently ignored.</para>
+    /// Leads does not project at all. A policy naming one of them fails closed as an unknown key.</para>
+    ///
+    /// <para>Two rules, frozen and distinct. A policy naming a key <b>outside</b> this vocabulary is
+    /// not readable and not writable - the key fails closed and the public evaluation reports it
+    /// HIDDEN - and does not by itself refuse the operation, because this owner never projects it.
+    /// A policy naming a key <b>inside</b> this vocabulary that the representation being returned
+    /// makes required cannot be honoured at all, and refuses the operation rather than returning a
+    /// value the policy forbids.</para>
     /// </summary>
     internal static IReadOnlyDictionary<string, bool> EnforceableFields { get; } =
         new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
@@ -142,17 +148,12 @@ internal static class LeadFieldSecurity
         };
 
     /// <summary>
-    /// The refusal a caller receives when a restrictive policy names a field this operation cannot
-    /// return absent. <paramref name="withholdableFieldKeys"/> names the fields the operation being
-    /// authorized can omit despite the full read model declaring them required.
+    /// The refusal a caller receives when a restrictive policy names a field the representation being
+    /// returned cannot omit. AccessControl decides that, against the representation the operation
+    /// declared; this owner only applies the answer.
     /// </summary>
-    internal static LeadOperationError? UnenforceablePolicy(
-        RecordAccessAuthorization access,
-        IReadOnlyCollection<string>? withholdableFieldKeys = null) =>
+    internal static LeadOperationError? UnenforceablePolicy(RecordAccessAuthorization access) =>
         access.UnenforceableFieldKeys.Count == 0
-        || access.UnenforceableFieldKeys.All(fieldKey =>
-            withholdableFieldKeys is not null
-            && withholdableFieldKeys.Contains(fieldKey, StringComparer.OrdinalIgnoreCase))
             ? null
             : new LeadOperationError(
                 "ACCESS_DENIED",
@@ -295,23 +296,23 @@ internal sealed class LeadAuthorization(IRecordAccessEvaluator evaluator)
 {
     internal const string ResourceKey = "leads";
 
-    /// <param name="withholdableFieldKeys">
-    /// Field keys this particular operation can return absent, even though the resource's full read
-    /// model makes them required. Required-ness is a property of the representation being returned,
-    /// not of the resource: the minimized summary contract declares every field optional, so a
-    /// withheld value has an admitted representation there and the operation must not fail closed.
-    /// Omitted, the resource's own declaration applies.
+    /// <param name="representation">
+    /// The representation the calling operation will return. It decides only whether a restrictive
+    /// policy on a field this resource declares required can be honoured by omitting the value; it
+    /// can never widen read or write access. Operations returning the full read model pass
+    /// <see cref="RecordAccessRepresentation.Full"/>, which is the default.
     /// </param>
     internal async Task<LeadOperationResult<LeadAccess>> AuthorizeAsync(
         AccessRequirement requirement,
         LeadRequestMetadata metadata,
         CancellationToken cancellationToken,
-        IReadOnlyCollection<string>? withholdableFieldKeys = null)
+        RecordAccessRepresentation? representation = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
             requirement.Capability,
             LeadFieldSecurity.FieldKeys,
+            representation ?? RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
 
@@ -324,7 +325,7 @@ internal sealed class LeadAuthorization(IRecordAccessEvaluator evaluator)
         if (!authorization.IsAllowed)
             return LeadOperationResult<LeadAccess>.Failure(LeadErrors.AccessDenied());
 
-        var unenforceable = LeadFieldSecurity.UnenforceablePolicy(authorization, withholdableFieldKeys);
+        var unenforceable = LeadFieldSecurity.UnenforceablePolicy(authorization);
         if (unenforceable is not null)
             return LeadOperationResult<LeadAccess>.Failure(unenforceable);
 
@@ -337,17 +338,12 @@ internal sealed class LeadAuthorization(IRecordAccessEvaluator evaluator)
     /// Workspace active-member contract; nothing else in the aggregate is a member owner, so nothing
     /// else is substituted for one. A lead outside scope is reported as not found.
     /// </summary>
-    /// <param name="writtenFieldKeys">
-    /// The wire fields the command would change. They are checked only after record scope allows the
-    /// record, so a hidden lead is reported as missing rather than leaking a field-policy refusal.
-    /// </param>
     internal async Task<LeadOperationError?> EnforceRecordAsync(
         LeadAccess access,
         Lead lead,
         string enforcementPoint,
         LeadRequestMetadata metadata,
-        CancellationToken cancellationToken,
-        params string[] writtenFieldKeys)
+        CancellationToken cancellationToken)
     {
         var decision = await evaluator.AuthorizeRecordAsync(
             access.Authorization,
@@ -356,10 +352,17 @@ internal sealed class LeadAuthorization(IRecordAccessEvaluator evaluator)
             enforcementPoint,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
-        if (!decision.IsAllowed)
-            return LeadErrors.NotFound();
-        return writtenFieldKeys.Length == 0
+        return decision.IsAllowed ? null : LeadErrors.NotFound();
+    }
+
+    /// <summary>
+    /// Authorizes the fields a command is about to write. It is deliberately separate from the
+    /// record guard and is applied only on the new-execution path: record scope is current
+    /// authorization and must gate a replay, whereas a replay performs no write at all and must not
+    /// be refused for lacking permission to write what was already written.
+    /// </summary>
+    internal static LeadOperationError? EnforceFieldWrite(LeadAccess access, params string[] writtenFieldKeys) =>
+        writtenFieldKeys.Length == 0
             ? null
             : LeadFieldSecurity.GuardFieldWrite(access.Authorization, writtenFieldKeys);
-    }
 }

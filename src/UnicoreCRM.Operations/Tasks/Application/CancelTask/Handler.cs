@@ -27,7 +27,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
             (task, now) => task.Cancel(reason, now),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "cancelTask", metadata, cancellationToken, "status", "cancelledAt", "cancellationReason"),
+                recordAccess, record, "cancelTask", metadata, cancellationToken),
+            recordAccess => TaskAuthorization.EnforceFieldWrite(recordAccess, "status", "cancelledAt", "cancellationReason"),
             cancellationToken);
     }
 }

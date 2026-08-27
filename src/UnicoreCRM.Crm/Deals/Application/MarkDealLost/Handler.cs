@@ -47,7 +47,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                 : DealErrors.LifecycleConflict(deal.DealId),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "markDealLost", metadata, cancellationToken, "stageCode", "stageCategory", "lostAt", "lostReason", "lostReasonNote", "actualCloseDate"),
+                recordAccess, record, "markDealLost", metadata, cancellationToken),
+            recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "stageCode", "stageCategory", "lostAt", "lostReason", "lostReasonNote", "actualCloseDate"),
             cancellationToken);
     }
 }

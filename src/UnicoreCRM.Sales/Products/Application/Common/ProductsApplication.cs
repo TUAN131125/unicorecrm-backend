@@ -32,14 +32,27 @@ internal sealed record ProductOperationResult<T>(T? Value, ProductOperationError
 internal interface IProductsPersistence
 {
     Task<IProductsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
-    Task<Product?> LoadProductAsync(string productId, CancellationToken cancellationToken);
-    Task<Product?> ReadProductAsync(string productId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Loads a Product for mutation. The trusted Workspace is a query predicate, not a check applied
+    /// after materialisation: a Product of another Workspace must never be loaded, because deciding
+    /// its Workspace afterwards is exactly what let an unknown identifier and a real foreign one
+    /// produce different answers.
+    /// </summary>
+    Task<Product?> LoadProductAsync(string workspaceId, string productId, CancellationToken cancellationToken);
+
+    /// <summary>Reads a Product for projection, scoped by trusted Workspace in the query itself.</summary>
+    Task<Product?> ReadProductAsync(string workspaceId, string productId, CancellationToken cancellationToken);
     /// <param name="scopeOwnerMemberId">
     /// The AccessControl-resolved record-scope owner. Product has no member-owner concept, so a
     /// non-null value can never match and the query correctly returns nothing.
     /// </param>
     Task<IReadOnlyList<Product>> ReadProductsAsync(string workspaceId, string? scopeOwnerMemberId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<Product>> LoadProductsAsync(IReadOnlyCollection<string> productIds, CancellationToken cancellationToken);
+    /// <summary>
+    /// Loads the explicitly named Products of one batch, scoped by trusted Workspace in the query.
+    /// A named Product belonging to another Workspace is simply not returned, so the batch cannot
+    /// report that it exists.
+    /// </summary>
+    Task<IReadOnlyList<Product>> LoadProductsAsync(string workspaceId, IReadOnlyCollection<string> productIds, CancellationToken cancellationToken);
     Task<bool> SkuExistsAsync(string workspaceId, string normalizedSku, string? exceptProductId, CancellationToken cancellationToken);
     Task<ProductIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddProduct(Product product);

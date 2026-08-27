@@ -13,10 +13,12 @@ internal sealed class InboundLeadIngress(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        if (!string.Equals(
-                command.TrustedWorkspace.MemberId,
-                command.Provenance.DelegatedSubjectId,
-                StringComparison.Ordinal))
+
+        // The delegated subject must be the resolved trusted member. The binding supplies both; the
+        // sender supplies neither.
+        var delegatedSubjectId = command.Provenance.DelegatedSubjectId;
+        if (delegatedSubjectId is null
+            || !string.Equals(command.TrustedWorkspace.MemberId, delegatedSubjectId, StringComparison.Ordinal))
         {
             return Failure("ACCESS_DENIED", 403, null);
         }
@@ -26,8 +28,15 @@ internal sealed class InboundLeadIngress(
             LeadCapabilities.Create,
             command.CorrelationId,
             cancellationToken);
-        if (!decision.IsAllowed)
-            return Failure(decision.Code, 403, null);
+
+        // The admission proof cannot be produced from a denied decision or a mismatched delegated
+        // subject, so there is no shape of this method that reaches the execution unauthorized.
+        var authorization = DelegatedLeadIngressAuthorization.FromAllowedDecision(
+            decision,
+            command.TrustedWorkspace,
+            delegatedSubjectId);
+        if (authorization is null)
+            return Failure(decision.IsAllowed ? "ACCESS_DENIED" : decision.Code, 403, null);
 
         var metadata = new LeadCommandMetadata(
             command.RequestId,
@@ -39,8 +48,7 @@ internal sealed class InboundLeadIngress(
             command.Provenance.DelegatedSubjectId,
             command.Provenance.SourceReference);
         var result = await execution.ExecuteAsync(
-            command.TrustedWorkspace,
-            null,
+            LeadCreateAdmission.DelegatedIngress(authorization),
             command.Request,
             metadata,
             cancellationToken);

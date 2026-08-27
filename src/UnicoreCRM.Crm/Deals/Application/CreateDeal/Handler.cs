@@ -46,13 +46,6 @@ internal sealed class Handler(
         if (progressive.Count != 0)
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.ProgressiveProfile(progressive));
 
-        // Creation is a resource-level question, so no record scope applies, but field security
-        // still does: a field the caller may not write must not be written on the way in either.
-        var createWriteError = DealFieldSecurity.GuardCreateWrite(
-            access.Value!.Authorization, profile!, nextActionAt, nextActionSummary, nextActionTaskId);
-        if (createWriteError is not null)
-            return DealOperationResult<DealMutationResponse>.Failure(createWriteError);
-
         var trusted = access.Value!.Trusted;
         var fingerprint = DealCommandSupport.Fingerprint(new
         {
@@ -75,6 +68,15 @@ internal sealed class Handler(
                 ? DealOperationResult<DealMutationResponse>.Success(Project(DealCommandSupport.Replay(existing), access.Value!))
                 : DealOperationResult<DealMutationResponse>.Failure(replayError);
         }
+
+        // Creation is a resource-level question, so no record scope applies, but field security
+        // still does: a field the caller may not write must not be written on the way in either. It
+        // follows the replay branch, so a committed creation stays replayable after a field turns
+        // READ_ONLY or HIDDEN - the replay writes nothing.
+        var createWriteError = DealFieldSecurity.GuardCreateWrite(
+            access.Value!.Authorization, profile!, nextActionAt, nextActionSummary, nextActionTaskId);
+        if (createWriteError is not null)
+            return DealOperationResult<DealMutationResponse>.Failure(createWriteError);
 
         // Only a genuinely new command evaluates current mutable owner/member state.
         if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, cancellationToken))

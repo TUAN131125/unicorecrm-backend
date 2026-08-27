@@ -2,6 +2,8 @@ using UnicoreCRM.Crm.Leads.Application.Common;
 using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Crm.Leads.Domain;
 
+using UnicoreCRM.Platform.AccessControl.Contracts;
+
 namespace UnicoreCRM.Crm.Leads.Application.ReadLeadSummary;
 
 /// <summary>
@@ -14,9 +16,15 @@ internal sealed class LeadSummaryReader(
     ILeadsPersistence persistence,
     TimeProvider timeProvider) : ILeadSummaryReader
 {
-    /// <summary>The fields this minimized contract exposes, all of which it declares optional.</summary>
-    private static readonly string[] SummaryFieldKeys =
-        ["displayName", "leadWorkState", "score", "priority", "nextFollowUpAt"];
+    /// <summary>
+    /// The representation this reader returns. Every property of <c>LeadSummaryProjection</c> except the identifier is
+    /// declared nullable by that contract, so each of these fields genuinely has an admitted absent
+    /// representation here even where the module's full read model makes it required. The set is a
+    /// fixed static declaration owned by this operation, never assembled per request, and it can
+    /// only turn a refusal into a withheld value - never a withheld value into a returned one.
+    /// </summary>
+    private static readonly RecordAccessRepresentation Representation =
+        RecordAccessRepresentation.Create("lead.summary", "displayName", "leadWorkState", "score", "priority", "nextFollowUpAt");
 
     public async Task<LeadSummaryReadResult> ReadAsync(
         string leadId,
@@ -29,7 +37,7 @@ internal sealed class LeadSummaryReader(
         // any of them absent. The full Lead read model makes some of them required, but that
         // declaration governs the full representation, not this one.
         var access = await authorization.AuthorizeAsync(
-            LeadCapabilities.Read, metadata, cancellationToken, SummaryFieldKeys);
+            LeadCapabilities.Read, metadata, cancellationToken, Representation);
         if (!access.IsSuccess)
         {
             return new(access.Error!.Code == "WORKSPACE_MISMATCH"

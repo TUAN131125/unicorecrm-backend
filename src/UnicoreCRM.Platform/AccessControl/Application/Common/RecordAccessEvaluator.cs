@@ -26,11 +26,13 @@ internal sealed class RecordAccessEvaluator(
         string resourceKey,
         string requiredCapability,
         IReadOnlyList<string>? requestedFields,
+        RecordAccessRepresentation representation,
         RecordAccessRequestContext requestContext,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(requiredCapability);
+        ArgumentNullException.ThrowIfNull(representation);
         ArgumentNullException.ThrowIfNull(requestContext);
 
         // Exactly one authoritative evaluation per request, of the actual business capability. The
@@ -80,7 +82,7 @@ internal sealed class RecordAccessEvaluator(
             var access = RecordAccessPolicy.ResolveFieldAccess(fieldSecurity, canonicalResourceKey, fieldKey);
             enforcement[fieldKey] = Enforcement(access);
             if (access is AccessFieldAccess.Hidden or AccessFieldAccess.Masked
-                && !CanWithhold(descriptor, fieldKey))
+                && !CanWithhold(descriptor, representation, fieldKey))
             {
                 unenforceable.Add(fieldKey);
             }
@@ -241,16 +243,24 @@ internal sealed class RecordAccessEvaluator(
         descriptor is not null && descriptor.EnforceableFields.ContainsKey(fieldKey);
 
     /// <summary>
-    /// Whether the owner can honour a withheld value for a field it declares. It cannot when the
-    /// wire contract makes the field required, because no admitted representation exists for a
-    /// required field whose value must not be exposed. A field the owner does not declare never
-    /// reaches this test: it is withheld by default and the owner never projects it, so there is
-    /// nothing for the owner to fail the operation closed over.
+    /// Whether the operation can honour a withheld value for a field the owner declares. It cannot
+    /// when the representation being returned makes the field required, because no admitted absent
+    /// or masked representation exists for a required field whose value must not be exposed.
+    ///
+    /// <para>The resource's own declaration is the default; a representation that genuinely declares
+    /// the field optional overrides it. That override is consulted only here, so the worst a
+    /// misdeclaration can do is withhold a value instead of refusing the operation - it can never
+    /// return a value the policy forbids. A field the owner does not declare never reaches this test:
+    /// it is withheld by default and the owner never projects it, so there is nothing to fail the
+    /// operation closed over.</para>
     /// </summary>
-    private static bool CanWithhold(RecordAccessResourceDescriptor? descriptor, string fieldKey) =>
+    private static bool CanWithhold(
+        RecordAccessResourceDescriptor? descriptor,
+        RecordAccessRepresentation representation,
+        string fieldKey) =>
         descriptor is not null
         && descriptor.EnforceableFields.TryGetValue(fieldKey, out var required)
-        && !required;
+        && (!required || representation.CanOmit(descriptor, fieldKey));
 
     private static RecordFieldEnforcement Enforcement(AccessFieldAccess access) => access switch
     {

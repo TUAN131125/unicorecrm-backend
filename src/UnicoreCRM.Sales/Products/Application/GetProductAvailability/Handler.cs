@@ -21,9 +21,8 @@ internal sealed class Handler(
         if (!ProductValidation.IsEntityId(query.ProductId))
             return ProductOperationResult<ProductAvailabilityReadModel>.Failure(ProductErrors.NotFound());
 
-        var ownership = ProductResource.ValidateOwned(
-            await persistence.ReadProductAsync(query.ProductId, cancellationToken),
-            access.Value!.Trusted);
+        var ownership = ProductResource.Resolve(
+            await persistence.ReadProductAsync(access.Value!.Trusted.WorkspaceId, query.ProductId, cancellationToken));
         if (!ownership.IsSuccess)
             return ProductOperationResult<ProductAvailabilityReadModel>.Failure(ownership.Error!);
 

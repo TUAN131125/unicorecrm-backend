@@ -29,7 +29,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
             (lead, now) => lead.Reopen(now) ? null : LeadErrors.ReopenNotAllowed(lead.LeadId),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "reopenDisqualifiedLead", metadata, cancellationToken, "leadWorkState", "qualificationOutcome"),
+                recordAccess, record, "reopenDisqualifiedLead", metadata, cancellationToken),
+            recordAccess => LeadAuthorization.EnforceFieldWrite(recordAccess, "leadWorkState", "qualificationOutcome"),
             cancellationToken);
     }
 }

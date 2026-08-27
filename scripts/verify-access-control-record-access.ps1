@@ -257,6 +257,7 @@ $hostProject = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/UnicoreCRM.ApiH
 $platformProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj'
 $operationsProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj'
 $crmProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj'
+$salesProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Sales/UnicoreCRM.Sales.csproj'
 $demoEmail = 'admin@unicorecrm.local'
 $demoPassword = 'Record-Access-Verify!2026'
 $hostProcess = $null
@@ -1778,6 +1779,321 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
             ([int](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions') - [int]$capabilityBefore)
     }
 
+    # --------------------- 24. FINAL HARDENING: ANTI-LEAK, REPLAY AND REPRESENTATION
+
+    # 24.1 PRODUCT FOREIGN-WORKSPACE DETAIL ANTI-LEAK
+    #
+    # Product lookups used to load by global identifier and then compare the Workspace, answering
+    # 404 for an unknown identifier and 403 WORKSPACE_MISMATCH for a real Product of another
+    # Workspace. That difference is an existence oracle. The lookup is now Workspace-scoped in SQL,
+    # so a foreign Product is never materialised and both answers collapse.
+
+    $leakProduct = Invoke-Support -Method 'POST' -Path '/products' -IdempotencyKey 'idem-leak-product-fixture' `
+        -Body (@{
+            sku            = 'LEAK-001'
+            name           = 'LEAK-PRODUCT-NAME'
+            type           = 'service'
+            status         = 'ACTIVE'
+            category       = 'Professional Services'
+            description    = 'LEAK-PRODUCT-DESCRIPTION'
+            unit           = 'hour'
+            unitPrice      = @{ amount = '10.00'; currency = 'USD' }
+            taxRate        = '10'
+            taxMode        = 'exclusive'
+            billingCycle   = 'one_time'
+            isSubscription = $false
+            isRenewable    = $false
+            tags           = @('leak')
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'leak: product fixture created' '201' $leakProduct.Status
+    $leakProductId = $leakProduct.Body.aggregateId
+
+    # The Product physically exists, but in the isolation Workspace the caller is not a member of.
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "UPDATE products.Products SET WorkspaceId = '$foreignWorkspaceId' WHERE ProductId = '$leakProductId'"
+
+    $unknownProductId = 'product_does_not_exist_00001'
+    $foreignDetail = Invoke-Support -Method 'GET' -Path "/products/$leakProductId"
+    $unknownDetail = Invoke-Support -Method 'GET' -Path "/products/$unknownProductId"
+    Add-Result 'leak: foreign-Workspace Product detail is not found' '404' $foreignDetail.Status
+    Add-Result 'leak: unknown Product detail is not found' '404' $unknownDetail.Status
+    Add-Result 'leak: foreign Product detail is indistinguishable from an unknown one' `
+        (Get-ComparablePayload -Raw $unknownDetail.Raw) (Get-ComparablePayload -Raw $foreignDetail.Raw)
+    Add-Result 'leak: foreign Product detail leaks no business value' 'True' `
+        (($foreignDetail.Raw -notmatch 'LEAK-PRODUCT-NAME') -and ($foreignDetail.Raw -notmatch 'LEAK-001')).ToString()
+
+    # The derived projections read through the same lookup and must collapse identically.
+    foreach ($projection in @('availability', 'price-projection?quantity=1')) {
+        $foreignProjection = Invoke-Support -Method 'GET' -Path ("/products/{0}/{1}" -f $leakProductId, $projection)
+        $unknownProjection = Invoke-Support -Method 'GET' -Path ("/products/{0}/{1}" -f $unknownProductId, $projection)
+        # These two validate their own query contract before any lookup, so the status is whatever
+        # that contract yields. The security property is that it does not differ between a real
+        # foreign Product and one that never existed.
+        Add-Result ("leak: foreign Product {0} status matches unknown" -f $projection) `
+            ([string]$unknownProjection.Status) ([string]$foreignProjection.Status)
+        Add-Result ("leak: foreign Product {0} leaks no business value" -f $projection) 'True' `
+            ($foreignProjection.Raw -notmatch 'LEAK-PRODUCT-NAME').ToString()
+        Add-Result ("leak: foreign Product {0} is indistinguishable from unknown" -f $projection) `
+            (Get-ComparablePayload -Raw $unknownProjection.Raw) (Get-ComparablePayload -Raw $foreignProjection.Raw)
+    }
+
+    # The public record-access evaluation reads the same Workspace-scoped fact provider.
+    $foreignEvaluation = Invoke-Evaluate -Request @{ resourceKey = 'products'; recordId = $leakProductId; requestedFields = @('name') }
+    $unknownEvaluation = Invoke-Evaluate -Request @{ resourceKey = 'products'; recordId = $unknownProductId; requestedFields = @('name') }
+    Add-Result 'leak: evaluation of a foreign Product denies' 'False' ($foreignEvaluation.Body.canRead).ToString()
+    Add-Result 'leak: evaluation of a foreign Product matches an unknown one' `
+        (Get-ComparablePayload -Raw ($unknownEvaluation.Raw -replace [regex]::Escape($unknownProductId), '<id>')) `
+        (Get-ComparablePayload -Raw ($foreignEvaluation.Raw -replace [regex]::Escape($leakProductId), '<id>'))
+
+    # 24.2 PRODUCT FOREIGN-WORKSPACE MUTATION ANTI-LEAK
+    $foreignVersionBefore = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT Version FROM products.Products WHERE ProductId = '$leakProductId'"
+    # Creating the fixture legitimately wrote its own audit and idempotency evidence, so the baseline
+    # is taken here: the property under test is that the refused foreign mutations add none.
+    $foreignAuditBefore = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) AS N FROM products.AuditRecords WHERE AggregateId = '$leakProductId'"
+    $foreignIdempotencyBefore = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) AS N FROM products.IdempotencyRecords WHERE IdempotencyKey LIKE 'idem-leak-%'"
+
+    $foreignArchive = Invoke-Support -Method 'POST' -Path "/products/$leakProductId/archive" `
+        -Body (@{ reason = 'Anti-leak probe' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-leak-archive-foreign' -IfMatchVersion '0'
+    $unknownArchive = Invoke-Support -Method 'POST' -Path "/products/$unknownProductId/archive" `
+        -Body (@{ reason = 'Anti-leak probe' } | ConvertTo-Json -Compress) `
+        -IdempotencyKey 'idem-leak-archive-unknown' -IfMatchVersion '0'
+    Add-Result 'leak: archiving a foreign Product is not found' '404' $foreignArchive.Status
+    Add-Result 'leak: foreign archive is indistinguishable from unknown' `
+        (Get-ComparablePayload -Raw $unknownArchive.Raw) (Get-ComparablePayload -Raw $foreignArchive.Raw)
+
+    $foreignReplace = Invoke-Support -Method 'PUT' -Path "/products/$leakProductId" -IfMatchVersion '0' `
+        -IdempotencyKey 'idem-leak-replace-foreign' `
+        -Body (@{
+            sku = 'LEAK-001'; name = 'Renamed'; type = 'service'; status = 'ACTIVE'
+            category = 'Professional Services'; unit = 'hour'
+            unitPrice = @{ amount = '11.00'; currency = 'USD' }
+            taxRate = '10'; taxMode = 'exclusive'; billingCycle = 'one_time'
+            isSubscription = $false; isRenewable = $false; tags = @()
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'leak: replacing a foreign Product is not found' '404' $foreignReplace.Status
+    Add-Result 'leak: no refused foreign mutation changed the record' $foreignVersionBefore `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM products.Products WHERE ProductId = '$leakProductId'")
+    Add-Result 'leak: no refused foreign mutation wrote audit evidence' $foreignAuditBefore `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM products.AuditRecords WHERE AggregateId = '$leakProductId'")
+    Add-Result 'leak: no refused foreign mutation wrote idempotency evidence' $foreignIdempotencyBefore `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM products.IdempotencyRecords WHERE IdempotencyKey LIKE 'idem-leak-%'")
+
+    # 24.3 PRODUCT BATCH FOREIGN-WORKSPACE ANTI-LEAK
+    foreach ($batchRoute in @('archive-batch', 'restore-batch')) {
+        $foreignBatch = Invoke-Support -Method 'POST' -Path ("/products/{0}" -f $batchRoute) `
+            -IdempotencyKey ("idem-leak-batch-foreign-{0}" -f $batchRoute) `
+            -Body (@{ reason = 'Anti-leak probe'; items = @(@{ productId = $leakProductId; expectedVersion = 0 }) } | ConvertTo-Json -Compress -Depth 6)
+        $unknownBatch = Invoke-Support -Method 'POST' -Path ("/products/{0}" -f $batchRoute) `
+            -IdempotencyKey ("idem-leak-batch-unknown-{0}" -f $batchRoute) `
+            -Body (@{ reason = 'Anti-leak probe'; items = @(@{ productId = $unknownProductId; expectedVersion = 0 }) } | ConvertTo-Json -Compress -Depth 6)
+        Add-Result ("leak: {0} naming a foreign Product is not found" -f $batchRoute) '404' $foreignBatch.Status
+        Add-Result ("leak: {0} foreign batch is indistinguishable from unknown" -f $batchRoute) `
+            (Get-ComparablePayload -Raw $unknownBatch.Raw) (Get-ComparablePayload -Raw $foreignBatch.Raw)
+        Add-Result ("leak: {0} foreign batch leaks no business value" -f $batchRoute) 'True' `
+            ($foreignBatch.Raw -notmatch 'LEAK-PRODUCT-NAME').ToString()
+    }
+
+    # A batch mixing a reachable Product with a foreign one must not reveal which one was the problem.
+    $mixedBatch = Invoke-Support -Method 'POST' -Path '/products/archive-batch' -IdempotencyKey 'idem-leak-batch-mixed' `
+        -Body (@{
+            reason = 'Anti-leak probe'
+            items  = @(@{ productId = $productOneId; expectedVersion = 0 }, @{ productId = $leakProductId; expectedVersion = 0 })
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'leak: a mixed batch naming a foreign Product is not found' '404' $mixedBatch.Status
+    Add-Result 'leak: the mixed batch archived nothing' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM products.Products WHERE ProductId = '$productOneId' AND ArchivedAt IS NOT NULL")
+
+    # Restore the fixture to the trusted Workspace so later sections see a consistent world.
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM products.Products WHERE ProductId = '$leakProductId'"
+
+    # 24.4 REPLAY AFTER RECORD-SCOPE LOSS, SINGLE RECORD
+    #
+    # 23.1 proves this for a batch. A single-record mutation must behave identically: current record
+    # scope is re-evaluated before the idempotency lookup, so losing access denies the replay.
+    $scopeTask = Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-final-scope-task' `
+        -Body (@{ title = 'Final scope task'; assigneeId = $otherOwnerId; dueAt = '2026-12-01T09:00:00.0000000Z' } | ConvertTo-Json -Compress)
+    Add-Result 'replay: scope fixture created' '201' $scopeTask.Status
+    $scopeTaskId = $scopeTask.Body.aggregateId
+    $scopeBody = @{ outcome = 'final scope' } | ConvertTo-Json -Compress
+    $scopeCommit = Invoke-Support -Method 'POST' -Path "/tasks/$scopeTaskId/complete" `
+        -Body $scopeBody -IdempotencyKey 'idem-final-scope-complete' -IfMatchVersion '0'
+    Add-Result 'replay: completion commits under WORKSPACE scope' '200' $scopeCommit.Status
+
+    Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+    $scopeReplayDenied = Invoke-Support -Method 'POST' -Path "/tasks/$scopeTaskId/complete" `
+        -Body $scopeBody -IdempotencyKey 'idem-final-scope-complete' -IfMatchVersion '0'
+    Add-Result 'replay: replay after record-scope loss is denied' '404' $scopeReplayDenied.Status
+    Add-Result 'replay: the denied replay returned no stored projection' 'True' `
+        ($scopeReplayDenied.Raw -notmatch 'Final scope task').ToString()
+    Clear-ModuleScope -Database $DatabaseName
+    Add-Result 'replay: the same key replays again once scope is restored' 'REPLAYED' `
+        (Invoke-Support -Method 'POST' -Path "/tasks/$scopeTaskId/complete" -Body $scopeBody `
+            -IdempotencyKey 'idem-final-scope-complete' -IfMatchVersion '0').Body.outcome
+
+    # 24.5 REPLAY AFTER CAPABILITY LOSS
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'tasks.complete'"
+    $capabilityReplay = Invoke-Support -Method 'POST' -Path "/tasks/$scopeTaskId/complete" `
+        -Body $scopeBody -IdempotencyKey 'idem-final-scope-complete' -IfMatchVersion '0'
+    Add-Result 'replay: replay after capability loss is denied' '403' $capabilityReplay.Status
+    Add-Result 'replay: capability denial code' 'ACCESS_DENIED' $capabilityReplay.Body.code
+    Add-Result 'replay: the denied replay returned no stored projection' 'True' `
+        ($capabilityReplay.Raw -notmatch 'Final scope task').ToString()
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'tasks.complete')"
+
+    # Losing the resource read capability denies the replay too, because a record-targeting command
+    # requires read, the command capability and record scope together.
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'tasks.read'"
+    Add-Result 'replay: replay after read-capability loss is denied' 'True' `
+        ((Invoke-Support -Method 'POST' -Path "/tasks/$scopeTaskId/complete" -Body $scopeBody `
+            -IdempotencyKey 'idem-final-scope-complete' -IfMatchVersion '0').Status -ne 200).ToString()
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'tasks.read')"
+
+    # 24.6 / 24.7 REPLAY AFTER A FIELD-WRITE POLICY TIGHTENS
+    #
+    # The frozen rule: current capability and current record scope gate a replay; the current
+    # field-READ policy is applied to the replayed projection; the current field-WRITE policy is
+    # required only for a new execution, because a replay writes nothing.
+    $policyDeal = Invoke-Support -Method 'POST' -Path '/deals' -IdempotencyKey 'idem-final-policy-deal' `
+        -Body (@{
+            name                 = 'Final policy deal'
+            buyerRef             = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_retro_001' }
+            stageCode            = 'DISCOVERY'
+            amount               = @{ amount = '900.00'; currency = 'USD' }
+            opportunityScore     = '10'
+            ownerId              = $callerMemberId
+            expectedCloseDate    = '2026-12-31'
+            interestedProductIds = @()
+            lineItems            = @()
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'replay: policy fixture created' '201' $policyDeal.Status
+    $policyDealId = $policyDeal.Body.aggregateId
+    $policyArchiveBody = @{ reason = 'FINAL-POLICY-ARCHIVE-REASON' } | ConvertTo-Json -Compress
+    $policyCommit = Invoke-Support -Method 'POST' -Path "/deals/$policyDealId/archive" `
+        -Body $policyArchiveBody -IdempotencyKey 'idem-final-policy-archive' -IfMatchVersion '0'
+    Add-Result 'replay: archive commits while the field is writable' '200' $policyCommit.Status
+    Add-Result 'replay: the committed response carries the written value' 'True' `
+        ($policyCommit.Raw -match 'FINAL-POLICY-ARCHIVE-REASON').ToString()
+
+    # READ_WRITE -> READ_ONLY. The write already happened, so the replay must still succeed and the
+    # value stays readable because READ_ONLY does not withhold it.
+    Set-GateField -Resource 'deals' -Field 'archiveReason' -Access 'ReadOnly'
+    $readOnlyReplay = Invoke-Support -Method 'POST' -Path "/deals/$policyDealId/archive" `
+        -Body $policyArchiveBody -IdempotencyKey 'idem-final-policy-archive' -IfMatchVersion '0'
+    Add-Result 'replay: READ_ONLY after commit does not break the replay' '200' $readOnlyReplay.Status
+    Add-Result 'replay: the READ_ONLY replay reports REPLAYED' 'REPLAYED' $readOnlyReplay.Body.outcome
+    Add-Result 'replay: a READ_ONLY value is still readable on replay' 'True' `
+        ($readOnlyReplay.Raw -match 'FINAL-POLICY-ARCHIVE-REASON').ToString()
+
+    # A genuinely new execution under the same policy is refused before any mutation.
+    $newUnderReadOnly = Invoke-Support -Method 'POST' -Path "/deals/$dealOwnId/archive" `
+        -Body $policyArchiveBody -IdempotencyKey 'idem-final-policy-new-readonly' `
+        -IfMatchVersion (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM deals.Deals WHERE DealId = '$dealOwnId'")
+    Add-Result 'replay: a new execution under READ_ONLY is refused' '403' $newUnderReadOnly.Status
+    Add-Result 'replay: the refused new execution changed nothing' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM deals.Deals WHERE DealId = '$dealOwnId' AND ArchivedAt IS NOT NULL")
+
+    # READ_WRITE -> HIDDEN. The replay still succeeds, but the current read policy is applied to the
+    # stored projection, so the value cannot leak out of old idempotency evidence.
+    Set-GateField -Resource 'deals' -Field 'archiveReason' -Access 'Hidden'
+    $hiddenReplay = Invoke-Support -Method 'POST' -Path "/deals/$policyDealId/archive" `
+        -Body $policyArchiveBody -IdempotencyKey 'idem-final-policy-archive' -IfMatchVersion '0'
+    Add-Result 'replay: HIDDEN after commit does not break the replay' '200' $hiddenReplay.Status
+    Add-Result 'replay: the HIDDEN value is absent from the replayed projection' 'True' `
+        ($hiddenReplay.Raw -notmatch 'FINAL-POLICY-ARCHIVE-REASON').ToString()
+    Add-Result 'replay: the HIDDEN field key is absent from the replayed projection' 'True' `
+        ($hiddenReplay.Raw -notmatch '"archiveReason"').ToString()
+
+    # 24.8 NEW EXECUTION UNDER HIDDEN
+    $newUnderHidden = Invoke-Support -Method 'POST' -Path "/deals/$dealOwnId/archive" `
+        -Body $policyArchiveBody -IdempotencyKey 'idem-final-policy-new-hidden' `
+        -IfMatchVersion (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM deals.Deals WHERE DealId = '$dealOwnId'")
+    Add-Result 'replay: a new execution under HIDDEN is refused' '403' $newUnderHidden.Status
+    Clear-GateField
+
+    # 24.9 REPRESENTATION-SPECIFIC WITHHOLDING IS SCOPED TO ITS OWN REPRESENTATION
+    #
+    # The minimized summary contract declares every field optional, so a HIDDEN policy on a field the
+    # full read model makes required is honoured there by omitting the value. The same policy must
+    # still fail the full read closed - the override may only turn a refusal into a withheld value,
+    # never a withheld value into a returned one.
+    Set-GateField -Resource 'tasks' -Field 'title' -Access 'Hidden'
+    $summaryUnderHidden = Invoke-Support -Method 'POST' -Path '/ai/advisories' `
+        -Body (@{ question = 'What next?'; locale = 'en'; contextReferences = @{ taskId = $taskOwnId } } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'representation: the summary contract withholds a required-elsewhere field' '200' $summaryUnderHidden.Status
+    Add-Result 'representation: the withheld title never reaches the summary consumer' 'True' `
+        ($summaryUnderHidden.Raw -notmatch 'Retro task own').ToString()
+    $fullUnderHidden = Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId"
+    Add-Result 'representation: the full read model still fails closed under the same policy' '403' $fullUnderHidden.Status
+    Add-Result 'representation: the full read never emits the withheld value' 'True' `
+        ($fullUnderHidden.Raw -notmatch 'Retro task own').ToString()
+    Add-Result 'representation: the list projection also fails closed' '403' `
+        (Invoke-Support -Method 'GET' -Path '/tasks').Status
+    Clear-GateField
+
+    # 24.10 TASKACTIVITY: BOTH GAPS FAIL CLOSED
+    #
+    # 23.8 covers the record-scope gap. TaskActivity field security is a separate AUTHORITY_GAP: an
+    # Activity carries free text and a record label for any module, so it can quote a value some
+    # field policy withholds elsewhere, and no authority maps Activity fields to any policy. The
+    # gate therefore also fails closed the moment any restrictive `tasks` field policy applies.
+    Add-Result 'activity: unrestricted policy still lists activities' 'True' `
+        ((Invoke-Support -Method 'GET' -Path '/activities').Raw -match 'GATE-ACTIVITY-SUBJECT').ToString()
+
+    foreach ($restriction in @('Hidden', 'ReadOnly', 'Masked')) {
+        Set-GateField -Resource 'tasks' -Field 'description' -Access $restriction
+        $restrictedActivities = Invoke-Support -Method 'GET' -Path '/activities'
+        Add-Result ("activity: a {0} tasks field policy empties the activity list" -f $restriction.ToUpperInvariant()) '0' `
+            ([int]$restrictedActivities.Body.pageInfo.totalCount)
+        Add-Result ("activity: a {0} tasks field policy leaks no activity subject" -f $restriction.ToUpperInvariant()) 'True' `
+            ($restrictedActivities.Raw -notmatch 'GATE-ACTIVITY-SUBJECT').ToString()
+        Add-Result ("activity: a {0} tasks field policy refuses logActivity" -f $restriction.ToUpperInvariant()) '403' `
+            (Invoke-Support -Method 'POST' -Path '/activities' `
+                -Body (@{ type = 'NOTE'; subject = 'GATE-ACTIVITY-BLOCKED'; body = 'blocked' } | ConvertTo-Json -Compress -Depth 4) `
+                -IdempotencyKey ("idem-final-activity-{0}" -f $restriction)).Status
+    }
+    Clear-GateField
+    Add-Result 'activity: no refused logActivity was persisted' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM tasks.Activities WHERE Subject = 'GATE-ACTIVITY-BLOCKED'")
+    Add-Result 'activity: clearing the policy restores the activity list' 'True' `
+        ((Invoke-Support -Method 'GET' -Path '/activities').Raw -match 'GATE-ACTIVITY-SUBJECT').ToString()
+
+    # 24.11 DELEGATED LEAD INGRESS CANNOT BE ADMITTED WITHOUT AUTHORIZATION
+    #
+    # The nullable LeadAccess that used to mean "skip enforcement" is gone: creation now takes a
+    # closed LeadCreateAdmission, and the delegated case can only be built from an allowed delegated
+    # decision whose subject matches the trusted member. That is a compile-time property; what is
+    # observable here is that the interactive path still enforces its own field-write policy and that
+    # the delegated capability is genuinely evaluated server-side.
+    Set-GateField -Resource 'leads' -Field 'email' -Access 'Hidden'
+    Add-Result 'delegated: the interactive create path still enforces field-write policy' '403' `
+        (Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-final-lead-interactive' `
+            -Body (@{ displayName = 'Final interactive lead'; ownerId = $callerMemberId; source = 'manual'; email = 'x@example.test'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)).Status
+    Clear-GateField
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'leads.create'"
+    Add-Result 'delegated: leads.create is evaluated server-side, not assumed' '403' `
+        (Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-final-lead-nocap' `
+            -Body (@{ displayName = 'Final denied lead'; ownerId = $callerMemberId; source = 'manual'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)).Status
+    Add-Result 'delegated: the denied create persisted no Lead' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM leads.Leads WHERE ScopeOwnerId = '$callerMemberId' AND JSON_VALUE(Profile, '$.DisplayName') = 'Final denied lead'")
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'leads.create')"
+
+    # 24.12 NO DENIED OPERATION MUTATED OWNER STATE, AUDIT OR OUTBOX
+    Add-Result 'denial: no refused command left a COMMITTED Deals audit for the untouched fixture' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM deals.AuditRecords WHERE AggregateId = '$dealOwnId' AND Operation = 'archiveDealCommand'")
+    Add-Result 'denial: no refused command emitted a Deals outbox event for the untouched fixture' '0' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM deals.OutboxMessages WHERE AggregateId = '$dealOwnId' AND EventType = 'DEAL_ARCHIVED'")
+
     # ------------------------------------------------------------ 13. regressions
 
     $context = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
@@ -1815,7 +2131,8 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
                 @{ Name = 'AccessControl'; Project = $platformProject;   Context = 'AccessControlDbContext' },
                 @{ Name = 'Tasks';         Project = $operationsProject; Context = 'TasksDbContext' },
                 @{ Name = 'Leads';         Project = $crmProject;        Context = 'LeadsDbContext' },
-                @{ Name = 'Deals';         Project = $crmProject;        Context = 'DealsDbContext' })) {
+                @{ Name = 'Deals';         Project = $crmProject;        Context = 'DealsDbContext' },
+                @{ Name = 'Products';      Project = $salesProject;      Context = 'ProductsDbContext' })) {
             $pending = & dotnet ef migrations has-pending-model-changes --project $context.Project --context $context.Context 2>&1
             $pendingText = ($pending | Out-String)
             Add-Result ("migration: no pending {0} model changes" -f $context.Name) 'True' `

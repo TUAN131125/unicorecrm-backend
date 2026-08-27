@@ -43,7 +43,8 @@ internal sealed class Handler(
                 ? null
                 : DealErrors.OwnerNotAssignable(),
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "assignDealOwner", metadata, cancellationToken, "ownerId"),
+                recordAccess, record, "assignDealOwner", metadata, cancellationToken),
+            recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "ownerId"),
             cancellationToken);
     }
 }

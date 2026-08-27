@@ -52,6 +52,9 @@ internal sealed class Handler(
                 }),
             (recordAccess, record) => authorization.EnforceRecordAsync(
                 recordAccess, record, "replaceLeadProfile", metadata, cancellationToken),
+            // Field-write authorization is applied inside the mutation callback, which runs only
+            // on the new-execution path, so no separate guard is needed here.
+            null,
             cancellationToken);
     }
 }

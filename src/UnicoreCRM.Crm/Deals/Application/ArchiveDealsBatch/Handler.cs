@@ -63,8 +63,7 @@ internal sealed class Handler(
         foreach (var item in normalizedItems)
         {
             var denied = await authorization.EnforceRecordAsync(
-                access.Value!, byId[item.DealId], "archiveDealsBatch", metadata, cancellationToken,
-                "archivedAt", "archiveReason");
+                access.Value!, byId[item.DealId], "archiveDealsBatch", metadata, cancellationToken);
             if (denied is not null)
                 return DealOperationResult<DealBatchMutationResponse>.Failure(denied);
         }
@@ -79,6 +78,12 @@ internal sealed class Handler(
                     Project(DealCommandSupport.ReplayBatch(existing), access.Value!))
                 : DealOperationResult<DealBatchMutationResponse>.Failure(replayError);
         }
+
+        // From here the batch is a genuinely new execution. Field-write authorization is applied for
+        // the fields it will actually change, never on the replay path above, which writes nothing.
+        var fieldWriteError = DealAuthorization.EnforceFieldWrite(access.Value!, "archivedAt", "archiveReason");
+        if (fieldWriteError is not null)
+            return DealOperationResult<DealBatchMutationResponse>.Failure(fieldWriteError);
 
         // Mutable business preconditions stay after the lookup: only a genuinely new execution
         // evaluates the current version and lifecycle state.

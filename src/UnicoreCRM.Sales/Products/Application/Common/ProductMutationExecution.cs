@@ -16,15 +16,15 @@ internal sealed class ProductMutationExecution(
         string fingerprint,
         Func<Domain.Product, DateTimeOffset, ProductOperationError?> mutate,
         Func<ProductAccess, Domain.Product, Task<ProductOperationError?>> recordGuard,
+        Func<ProductAccess, ProductOperationError?>? fieldWriteGuard,
         CancellationToken cancellationToken)
     {
         var trusted = access.Trusted;
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
 
         // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
-        var guardedOwnership = ProductResource.ValidateOwned(
-            await persistence.ReadProductAsync(productId, cancellationToken),
-            trusted);
+        var guardedOwnership = ProductResource.Resolve(
+            await persistence.ReadProductAsync(trusted.WorkspaceId, productId, cancellationToken));
         if (!guardedOwnership.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(guardedOwnership.Error!);
         var guardError = await recordGuard(access, guardedOwnership.Value!);
@@ -41,9 +41,18 @@ internal sealed class ProductMutationExecution(
                 : ProductOperationResult<ProductMutationResponse>.Failure(replayError);
         }
 
-        var ownership = ProductResource.ValidateOwned(
-            await persistence.LoadProductAsync(productId, cancellationToken),
-            trusted);
+        // From here the command is a genuinely new execution. Field-write authorization is applied
+        // for the fields this execution will actually change - never on the replay path above, which
+        // writes nothing and must stay replayable after a field turns READ_ONLY or HIDDEN.
+        if (fieldWriteGuard is not null)
+        {
+            var fieldWriteError = fieldWriteGuard(access);
+            if (fieldWriteError is not null)
+                return ProductOperationResult<ProductMutationResponse>.Failure(fieldWriteError);
+        }
+
+        var ownership = ProductResource.Resolve(
+            await persistence.LoadProductAsync(trusted.WorkspaceId, productId, cancellationToken));
         if (!ownership.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(ownership.Error!);
 

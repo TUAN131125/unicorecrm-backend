@@ -45,7 +45,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                 : DealErrors.WonTransitionBlocked(deal.DealId),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "markDealWon", metadata, cancellationToken, "stageCode", "stageCategory", "wonAt", "winEvidence", "actualCloseDate"),
+                recordAccess, record, "markDealWon", metadata, cancellationToken),
+            recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "stageCode", "stageCategory", "wonAt", "winEvidence", "actualCloseDate"),
             cancellationToken);
     }
 }

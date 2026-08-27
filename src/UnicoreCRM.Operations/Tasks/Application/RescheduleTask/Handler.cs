@@ -27,7 +27,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
             (task, now) => task.Reschedule(dueAt.Value, now),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "rescheduleTask", metadata, cancellationToken, "dueAt"),
+                recordAccess, record, "rescheduleTask", metadata, cancellationToken),
+            recordAccess => TaskAuthorization.EnforceFieldWrite(recordAccess, "dueAt"),
             cancellationToken);
     }
 }

@@ -92,6 +92,7 @@ The following remain `AUTHORITY_GAP` and are not implemented or semantically def
 - administrative writes for AccessControl data-scope and field-security policy: the policies are read and enforced, but no admitted operation creates or changes one, and no policy revision or version is admitted either;
 - `TaskActivity` record-access semantics: no authority settles whether an Activity belongs to the `tasks` record scope or is an independent Workspace-scoped record with its own resource descriptor, so `listActivities` and `logActivity` fail closed outside `WORKSPACE` scope;
 - `MASKED` field representation: the policy value exists and is enforced by withholding the value, but no authority defines a masked representation, so none is produced;
+- delegated inbound-Lead field security: current authority admits only the delegated `leads.create` capability evaluation for that path and defines no field-security concern for it, so interactive field policy is neither applied nor declared inapplicable;
 - a masked representation: `MASKED` is a declared field-access value with no admitted rendering, so it is enforced by withholding the value and reported as `HIDDEN` rather than being invented;
 - the mapping between the frontend field vocabulary (`subject`, `assigneeId`, `queueId`, `slaPolicyId`) and the Support wire field names. A field-security policy written against the frontend spelling cannot be enforced and fails the operation closed;
 - an authoritative member-owner concept for Product. The aggregate carries no member reference of any kind, so `OWN` scope denies every Product record rather than ownership being invented for it.
@@ -330,7 +331,9 @@ Batch operations (`archiveDealsBatch`, `archiveProductsBatch`, `restoreProductsB
 resource once and then authorize each record the caller explicitly named. That is one decision per
 named record, which is inherent to a batch, not an N+1 over a list. Until the hardening below they
 performed that authorization **after** the idempotency lookup, so a committed batch could be
-replayed after the caller lost access to a named record; see *BATCH ENFORCEMENT*.
+replayed after the caller lost access to a named record; see *BATCH ENFORCEMENT*. The Products batch
+additionally loaded every named Product before testing its Workspace - see *A. PRODUCT WORKSPACE
+ISOLATION* under *AccessControl final hardening*.
 
 **Recorded, pre-existing and unchanged:** `listDeals` and `getDealForecastSummary` still perform
 their search, ordering and paging in memory after loading the Workspace's deals. The security
@@ -484,6 +487,10 @@ read=no/command=no all deny, with report and enforcement asserted equal.
 
 ### FIELD READ ENFORCEMENT — `IMPLEMENTED`, `VERIFIED`
 
+> The representation override introduced here was an ad hoc runtime collection. It is now a closed
+> declared type owned by the operation - see *E. REPRESENTATION-SPECIFIC FIELD WITHHOLDING* under
+> *AccessControl final hardening*.
+
 Unchanged in rule. One correction to which representation the required-field rule governs:
 
 **Required-ness is a property of the representation being returned, not of the resource.** The
@@ -499,7 +506,9 @@ a field its own representation makes required still fails closed with `ACCESS_DE
 Two gaps are closed.
 
 **Creation.** Creation has no prior record and therefore no record scope, but field policy still
-governs writes. `createTask`, `createLead`, `createDealCommand` and `createProduct` now refuse a
+governs writes. The ordering stated here was corrected afterwards: the create-time field-write guard
+now runs on the new-execution path only - see *B. IDEMPOTENT REPLAY* under *AccessControl final
+hardening*. `createTask`, `createLead`, `createDealCommand` and `createProduct` now refuse a
 request that supplies a field the caller may not write — `HIDDEN`, `MASKED` or `READ_ONLY` alike —
 rather than silently dropping the value, because silently dropping it would return a record that does
 not match the request the caller believes it made. A field the create contract makes mandatory always
@@ -565,6 +574,9 @@ so the durability is confined to replay.
 
 ### UNKNOWN-FIELD FAIL-CLOSED — `IMPLEMENTED`, `VERIFIED`
 
+> See also *F. FIELD VOCABULARY* under *AccessControl final hardening*, which states the unknown-key
+> rule and the required-field rule strictly apart after stale comments conflated them.
+
 `RecordAccessAuthorization` resolved a field key with no enforcement entry to `READ_WRITE`. On an
 internal security decision that meant a typo widened access: `assigneId` was writable because it was
 unrecognised.
@@ -585,6 +597,10 @@ while `assigneeId`, `ASSIGNEEID`, `AsSiGnEeId` and `assigneeid` all resolve to t
 a policy row stored as `AsSiGnEeId` still restricts it.
 
 ### ACTIVITY ENFORCEMENT — `AUTHORITY_GAP`, fails closed
+
+> **Superseded and split.** This section reported one gap. There are two - record scope and field
+> security - and both are reported apart, with the reachability gate widened accordingly, in
+> *C. TASKACTIVITY* under *AccessControl final hardening*.
 
 `listActivities` and `logActivity` authorize `tasks.read` and `tasks.update` and operated
 Workspace-wide regardless of the caller's effective `tasks` record scope, while a `TaskActivity`
@@ -649,8 +665,9 @@ Migrations `TaskOwnScopeIndex`, `LeadOwnScopeIndex` and `DealOwnScopeIndex` add 
 
 ### RUNTIME VERIFICATION
 
-`backend/scripts/verify-access-control-record-access.ps1` reports **`PASS=309 FAIL=0`** against an
-isolated LocalDB database and a real ApiHost. It keeps every module-specific assertion it already
+`backend/scripts/verify-access-control-record-access.ps1` reported **`PASS=309 FAIL=0`** against an
+isolated LocalDB database and a real ApiHost when this section was written, and reports
+**`PASS=380 FAIL=0`** after the final hardening below. It keeps every module-specific assertion it already
 carried and adds the batch-replay, batch-projection, create-write, profile-write, replay-durability,
 read-versus-command matrix, capability-audit, Activity fail-closed and unknown-field cases described
 above, plus a repeat of the no-N+1 and single-authorization assertions for all four modules and for
@@ -694,6 +711,267 @@ policy behind and the next run fails on that residue rather than on a real defec
 - No claim of `ACCESSCONTROL FULL MODULE: PASS` is made. The claim supported by this evidence is
   narrower: **AccessControl system-wide enforcement for the currently implemented business modules —
   AccessControl, Tasks, Leads, Deals, Products and Support — is `PASS`.**
+
+
+## AccessControl final hardening
+
+A source review of the hardening above found five further defects, two of which were security defects
+rather than inconsistencies. All five are closed here. This section is the authority for the five
+semantics it names, and it supersedes any earlier statement that conflicts with them.
+
+Status vocabulary used below, kept strictly apart: **PROVEN** means current authority settles the
+business semantic; **IMPLEMENTED** means the backend enforces it; **VERIFIED** means runtime evidence
+exists; **AUTHORITY_GAP** means no authority settles it and the system fails closed; **DEFERRED**
+means admitted but deliberately not built. A semantic can be IMPLEMENTED and VERIFIED while the
+question it answers is still an AUTHORITY_GAP - that combination means "we fail closed, provably".
+
+### A. PRODUCT WORKSPACE ISOLATION — `IMPLEMENTED`, `VERIFIED`
+
+**The defect.** Products loaded by global identifier and decided Workspace ownership afterwards:
+`ReadProductAsync(productId)`, `LoadProductAsync(productId)`, `LoadProductsAsync(productIds)`, then
+`ProductResource.ValidateOwned` answered `404 RESOURCE_NOT_FOUND` for an unknown identifier and
+`403 WORKSPACE_MISMATCH` for a real Product of another Workspace. That difference is an existence
+oracle: a caller who could guess an identifier could tell a real foreign Product from one that never
+existed. The batch path had the same shape and leaked it for a whole batch at once.
+
+**The fix is at the persistence query boundary, not after materialisation.** All three lookups now
+take the trusted Workspace and constrain it in SQL - `WHERE WorkspaceId = @trusted AND ProductId = @id`,
+and `AND ProductId IN (...)` for the batch. A foreign Product is never loaded, so nothing downstream
+can inspect it, and `ProductResource.ValidateOwned` was replaced by `ProductResource.Resolve`, which
+only turns "no row" into not found. `ProductErrors.WorkspaceMismatch` survives for exactly one
+purpose that is not a record question: the AccessControl trusted-Workspace resolution failure.
+
+Unknown, foreign-Workspace and scope-hidden Products are now externally indistinguishable across the
+detail read, both derived projections, every mutation, both batch operations and the public record
+evaluation.
+
+Verified by direct HTTP with byte comparison of normalised payloads, and by asserting that a refused
+foreign mutation changes no version, writes no audit record and writes no idempotency evidence. A
+batch mixing a reachable Product with a foreign one is refused without revealing which was the
+problem and archives nothing. The Products verifier assertion that previously pinned
+`403 WORKSPACE_MISMATCH` was **replaced by the stronger anti-leak assertion**, not relaxed.
+
+**Index coverage.** No index was added. The Products primary key is `ProductId`, so a
+Workspace-scoped point lookup is a key seek plus a single-row predicate, and the batch is the same
+seek repeated. Adding a `(WorkspaceId, ProductId)` index would duplicate the key without changing the
+plan shape, so it would be speculative.
+
+### B. IDEMPOTENT REPLAY — `IMPLEMENTED`, `VERIFIED`
+
+**The defect.** Field-write authorization ran *before* the idempotency lookup in most modules,
+because it was bundled into the record guard. A committed command therefore stopped replaying once a
+field it had already written turned `READ_ONLY` or `HIDDEN` - even though a replay writes nothing.
+Support's profile and transition paths checked inside the mutation callback and so were already
+correct, which is exactly the inconsistency the review found.
+
+**One frozen order now applies to every mutation path in every module:**
+
+| Step | Applies to |
+|---|---|
+| 1. authenticate, resolve trusted Workspace | all |
+| 2. authorize the current business capability | all |
+| 3. begin transaction | all |
+| 4. load the target record **inside the trusted Workspace** | existing-record mutations |
+| 5. current record-access guard | existing-record mutations |
+| 6. idempotency lookup | all |
+| 7a. committed matching key → fingerprint check, project stored result through **current field-read** policy, return | replay |
+| 7b. new key → **field-write** authorization for the fields this execution will change | new execution |
+| 8. mutable business preconditions (active assignee, active owner) | new execution |
+| 9. expected version and lifecycle | new execution |
+| 10. mutate, stage audit/outbox/idempotency, commit, project through current field-read policy | new execution |
+
+The rule in one sentence: **current capability and current record scope gate a replay; the current
+field-read policy is applied to what a replay returns; the current field-write policy is required
+only for a new execution, because a replay performs no write.**
+
+Structurally, `EnforceRecordAsync` is now record scope only in all four retrofitted modules, and
+field-write authorization moved to a separate `EnforceFieldWrite` applied after the replay branch.
+Support's create path moved its create-write guard and its `support.assign` owner-privilege check to
+the new-execution path for the same reason - both authorize a write that a replay does not perform.
+
+Verified end to end: replay denied after record-scope loss and after capability loss (including the
+resource read capability), replay still succeeding after `READ_WRITE → READ_ONLY` with the value
+still readable, replay still succeeding after `READ_WRITE → HIDDEN` with the value and its key absent
+from the projection, a new execution refused under either restriction while changing nothing, and a
+committed replay surviving a suspended assignee or owner.
+
+### C. TASKACTIVITY — two distinct gaps, both failing closed
+
+The previous section reported one gap here. There are two, and they are reported apart.
+
+| | Status |
+|---|---|
+| TASK ACTIVITY RECORD-SCOPE SEMANTICS | `AUTHORITY_GAP` |
+| TASK ACTIVITY SAFE RECORD-SCOPE ENFORCEMENT | `IMPLEMENTED`, `VERIFIED` |
+| TASK ACTIVITY FIELD-SECURITY SEMANTICS | `AUTHORITY_GAP` |
+| TASK ACTIVITY FIELD READ ENFORCEMENT | `NOT IMPLEMENTED`; fails closed |
+| TASK ACTIVITY FIELD WRITE ENFORCEMENT | `NOT IMPLEMENTED`; fails closed |
+
+**Record scope is unprovable.** A `TaskActivity` carries no task reference, so no Activity can be
+attributed to a Task. Its `actorId` is the actor, not one of the four admitted ownership attributes
+(`ownerId`, `assigneeId`, `createdBy`, `assignedTo`), so there is no owner an `OWN`, `TEAM` or
+`CUSTOM` scope could be evaluated against. The operation registry gives both Activity operations
+`resourceScope: WORKSPACE`, but gives `listTasks` the same value while `listTasks` is OWN-filterable,
+so the field does not distinguish them.
+
+**Field security is separately unprovable.** No authority anywhere defines field security for
+Activities - the capability matrix carries no field-security section for any resource, and Activities
+declare no resource descriptor, no capability of their own and no field vocabulary. Nothing is
+inherited from Tasks: an Activity does not have the `TaskReadModel` vocabulary, and Task field policy
+is not Activity field policy.
+
+**What is implemented is a reachability gate, and it is not field security.** `TaskActivitySecurity`
+makes Activities reachable only when both hold:
+
+1. the caller's effective `tasks` data scope is `WORKSPACE`; and
+2. **no** restrictive field policy applies to `tasks` at all.
+
+Condition 2 exists because an Activity carries `subject`, `body`, `recordLabel` and source evidence -
+free text plus a label for a referenced record of *any* module - so an Activity can quote a value some
+field policy withholds elsewhere, and no authority says which policy governs it. Refusing under any
+restriction is conservative, not enforcement: it does not prove which Activity field a policy governs,
+only that the caller is under some restriction that Activity content cannot be shown to respect.
+
+`listActivities` returns an empty page and `logActivity` returns `403 ACCESS_DENIED` when either
+condition fails. Verified for `OWN`, `TEAM`, `CUSTOM` and for `HIDDEN`, `READ_ONLY` and `MASKED`
+policies, including that no refused `logActivity` was persisted.
+
+Freezing real semantics needs a business decision that does not exist: either an authoritative
+Activity ownership/scope fact, or an explicit `activities` resource descriptor with its own capability
+and field vocabulary.
+
+### D. DELEGATED LEAD INGRESS — authority `AUTHORITY_GAP`; API boundary `IMPLEMENTED`, `VERIFIED`
+
+**The authority question, answered honestly.** The inbound-webhook extension states that
+"AccessControl evaluates the member's actual server-side `leads.create` capability through a delegated
+internal authorization contract". That admits exactly one authorization concern for this path - the
+capability - and says nothing about field security. The payload is a closed extension shape that
+cannot carry a Workspace, member, owner or capability, and the owner comes from the binding rather
+than the sender. Whether the delegated subject's field-security policy should additionally govern this
+path is therefore an **`AUTHORITY_GAP`**. It is deliberately not answered: applying interactive field
+policy would silently change admitted integration behaviour, and declaring the path exempt would be an
+equally unproven claim. Current behaviour is preserved.
+
+**The API defect, which is separate and is fixed.** The shared create execution took
+`LeadAccess? access`, where `null` meant "skip interactive field-security enforcement". A nullable
+parameter that doubles as a security switch makes forgetting to pass a decision indistinguishable from
+deliberately skipping enforcement, and any future internal caller could have disabled enforcement by
+omission.
+
+That is replaced by a closed `LeadCreateAdmission` with exactly two sealed, private-constructed cases:
+
+- `Interactive(LeadAccess)` - the full interactive model: the AccessControl decision governs which
+  fields may be written and projects the response.
+- `DelegatedIngress(DelegatedLeadIngressAuthorization)` - the admitted integration model.
+
+`DelegatedLeadIngressAuthorization` has a private constructor and one factory,
+`FromAllowedDecision`, which returns null unless the delegated decision actually allowed and the
+delegated subject equals the trusted member. There is no null case, no boolean and no optional
+argument: **the type system now forces every caller to state which admitted model applies**, and the
+delegated case cannot be constructed without proof of authorization. Delegated provenance and its
+separate audit trail are unchanged.
+
+Verified: the interactive path still refuses a forbidden create field; `leads.create` is genuinely
+evaluated server-side and a denied create persists no Lead; and `verify-inbound-lead-webhook.ps1`
+passes all 30 checks, including delegated authorization denial and invalid delegated member.
+
+### E. REPRESENTATION-SPECIFIC FIELD WITHHOLDING — `IMPLEMENTED`, `VERIFIED`
+
+**The concern.** The previous section let an operation pass an arbitrary runtime collection of field
+keys it could return absent. The concept is right - required-ness belongs to the representation, not
+the resource - but an ad hoc collection is a shape in which an operation could casually declare a
+required field optional.
+
+**The structural property that makes this safe, and why it was always narrow.** A representation is
+consulted at exactly one place: whether a field belongs in `UnenforceableFieldKeys`. It never reaches
+`CanRead`, `CanWrite` or the wire projection. The strongest thing a false declaration can achieve is
+to turn "refuse the whole operation" into "withhold this value". **It can never turn a withheld value
+into a returned one**, so it cannot disclose anything.
+
+**The hardening makes that structural rather than incidental.** The ad hoc collection is replaced by
+`RecordAccessRepresentation`, a closed public type built through a validating factory, declared as a
+`static readonly` field on the operation that owns the representation, and passed through
+`IRecordAccessEvaluator.AuthorizeResourceAsync` so AccessControl - not the module - decides.
+A key the owner does not declare in its enforceable vocabulary is ignored, so an operation cannot
+relax a policy on a field the owner never admitted. Every operation returning a full read model passes
+`RecordAccessRepresentation.Full`, which overrides nothing; only the three minimized summary readers
+declare one, and every property of `TaskSummaryProjection`, `LeadSummaryProjection` and
+`DealSummaryProjection` except the identifier is nullable in the contract, so each declared field is
+genuinely optional there.
+
+Verified as a pair: under a `HIDDEN` policy on `tasks.title`, the summary contract succeeds with the
+title absent, while `GET /tasks/{id}` and `GET /tasks` under the *same* policy still fail closed with
+`403` and never emit the value.
+
+### F. FIELD VOCABULARY — two rules, stated apart
+
+Earlier comments said an unknown field key "fails the whole operation closed", which contradicted the
+implemented behaviour. The two rules are distinct and both are now stated that way in every owner:
+
+- **A key outside the owner's declared vocabulary** is not readable and not writable, and the public
+  evaluation reports it `HIDDEN`. It does **not** by itself refuse the operation, because the owner
+  never projects it and so has nothing to withhold.
+- **A key inside the vocabulary that the representation being returned makes required**, carrying a
+  restrictive policy, cannot be honoured at all and refuses the operation.
+
+Confirmed per resource - `support`, `tasks`, `leads`, `deals`, `products` - for canonical resource
+key, read capability, command capability mapping, enforceable field vocabulary, required/optional
+status, write vocabulary, `OrdinalIgnoreCase` canonicalization and unknown-field behaviour. The
+frontend form vocabulary (`subject`, `assigneeId`, `queueId`, `slaPolicyId`) is **not** accepted:
+no authoritative mapping exists, so it remains an `AUTHORITY_GAP` and those keys fail closed.
+
+### RUNTIME VERIFICATION
+
+| Harness | Result |
+|---|---|
+| `verify-access-control-record-access.ps1` | RUN, **PASS=380 FAIL=0** |
+| `verify-support-core.ps1` | RUN, **PASS=83 FAIL=0** |
+| `verify-products-core.ps1` | RUN, **PASS**, 71 checks |
+| `verify-ai-assistant.ps1` | RUN, **PASS**, 35 checks |
+| `verify-inbound-lead-webhook.ps1` | RUN, **PASS**, 30 checks |
+| `verify-initial-workspace-provisioning.ps1` | RUN, **PASS**, 109 checks |
+| `verify-initial-workspace-provisioning-upgrade.ps1` | RUN, **PASS**, 111 checks |
+
+`verify-inbound-lead-webhook.ps1` was repaired the same way the other two were - it attached a body to
+`GET`, never loaded `System.Net.Http`, and used `[Convert]::ToHexString` and `SHA256.HashData`, both
+.NET 5+ APIs absent from the .NET Framework runtime behind Windows PowerShell 5.1. The replacements
+are exact equivalents. No assertion, input or expected value was relaxed in any harness; the one
+Products assertion that changed was **strengthened** from pinning the leak to asserting its absence.
+
+`dotnet ef migrations has-pending-model-changes` reports no pending change for `TasksDbContext`,
+`SupportDbContext`, `LeadsDbContext`, `DealsDbContext`, `ProductsDbContext` or
+`AccessControlDbContext`. No migration was added by this work. The backend builds with zero errors and
+zero warnings under `-warnaserror`.
+
+### G. REMAINING AUTHORITY GAPS AND DEFERRALS
+
+| Gap | Status |
+|---|---|
+| `TEAM` data scope | `AUTHORITY_GAP` - denied everywhere |
+| `CUSTOM` data scope | `AUTHORITY_GAP` - denied everywhere |
+| `MASKED` representation | `AUTHORITY_GAP` - enforced by withholding, reported as `HIDDEN`; **not** implemented masking |
+| Product member ownership | `AUTHORITY_GAP` - no member reference in the aggregate; `OWN` denies every Product |
+| TaskActivity record-scope semantics | `AUTHORITY_GAP` - fails closed |
+| TaskActivity field-security semantics | `AUTHORITY_GAP` - field enforcement `NOT IMPLEMENTED`, fails closed |
+| Delegated Lead ingress field security | `AUTHORITY_GAP` - capability-only admission preserved, now typed |
+| Frontend/backend field-vocabulary mapping | `AUTHORITY_GAP` - unmapped keys fail closed |
+| AccessControl policy administration | `DEFERRED` - policies are read and enforced; no admitted operation creates or changes one |
+
+### H. WHAT MAY AND MAY NOT BE CLAIMED
+
+**May be claimed:** *AccessControl system-wide enforcement for the current implemented core record
+resources - Support, Tasks, Leads, Deals and Products - is `PASS`.* No Product foreign-Workspace
+existence leak remains; replay semantics are consistent across all five modules; current capability
+and current record scope cannot be replay-bypassed; a replay cannot leak a currently hidden field;
+field-write policy cannot be bypassed on a new execution; unknown fields cannot widen access; no
+nullable authorization context acts as a generic bypass; direct-HTTP negative controls pass; and all
+five modules share the one canonical evaluator.
+
+**May not be claimed:** *ACCESSCONTROL FULL MODULE: PASS.* The gaps and the deferral in section G
+remain. *ACCESSCONTROL SYSTEM-WIDE FIELD SECURITY: PASS* may not be claimed either, because TaskActivity
+is an implemented record type with no authoritative field-security semantics. The honest pair is
+*field security for the current implemented core record resources: `PASS`* and *TaskActivity field
+security: `AUTHORITY_GAP`*.
 
 
 ## B04 Tasks implementation authority

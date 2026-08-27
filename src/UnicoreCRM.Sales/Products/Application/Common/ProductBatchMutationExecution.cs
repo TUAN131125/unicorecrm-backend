@@ -66,11 +66,13 @@ internal sealed class ProductBatchMutationExecution(
         // a caller who could reach these products when the batch committed but cannot reach them now
         // must not be able to replay the committed batch and read its stored projection back.
         var productIds = normalizedItems.Select(item => item.ProductId).ToArray();
-        var products = await persistence.LoadProductsAsync(productIds, cancellationToken);
+        // The load is constrained to the trusted Workspace, so a named Product of another
+        // Workspace is simply absent from the result and the batch answers exactly as it would for
+        // an identifier that does not exist. Loading every named Product and then testing its
+        // Workspace afterwards was an existence oracle for the whole batch.
+        var products = await persistence.LoadProductsAsync(trusted.WorkspaceId, productIds, cancellationToken);
         if (products.Count != normalizedItems.Count)
             return ProductOperationResult<ProductBatchMutationResponse>.Failure(ProductErrors.NotFound());
-        if (products.Any(product => !string.Equals(product.WorkspaceId, trusted.WorkspaceId, StringComparison.Ordinal)))
-            return ProductOperationResult<ProductBatchMutationResponse>.Failure(ProductErrors.WorkspaceMismatch());
 
         var byId = products.ToDictionary(product => product.ProductId, StringComparer.Ordinal);
 
@@ -80,8 +82,7 @@ internal sealed class ProductBatchMutationExecution(
         foreach (var item in normalizedItems)
         {
             var denied = await authorization.EnforceRecordAsync(
-                access.Value!, byId[item.ProductId], specification.Operation, requestMetadata, cancellationToken,
-                "status", "archivedAt", "archiveReason");
+                access.Value!, byId[item.ProductId], specification.Operation, requestMetadata, cancellationToken);
             if (denied is not null)
                 return ProductOperationResult<ProductBatchMutationResponse>.Failure(denied);
         }
@@ -96,6 +97,13 @@ internal sealed class ProductBatchMutationExecution(
                     Project(ProductCommandSupport.ReplayBatch(existing), access.Value!))
                 : ProductOperationResult<ProductBatchMutationResponse>.Failure(replayError);
         }
+
+        // From here the batch is a genuinely new execution. Field-write authorization is applied for
+        // the fields it will actually change, never on the replay path above, which writes nothing.
+        var fieldWriteError = ProductAuthorization.EnforceFieldWrite(
+            access.Value!, "status", "archivedAt", "archiveReason");
+        if (fieldWriteError is not null)
+            return ProductOperationResult<ProductBatchMutationResponse>.Failure(fieldWriteError);
 
         // Mutable business preconditions stay after the lookup: only a genuinely new execution
         // evaluates the current version and archive state.

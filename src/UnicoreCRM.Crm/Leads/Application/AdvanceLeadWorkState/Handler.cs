@@ -38,7 +38,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
             },
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "advanceLeadWorkState", metadata, cancellationToken, "leadWorkState"),
+                recordAccess, record, "advanceLeadWorkState", metadata, cancellationToken),
+            recordAccess => LeadAuthorization.EnforceFieldWrite(recordAccess, "leadWorkState"),
             cancellationToken);
     }
 }

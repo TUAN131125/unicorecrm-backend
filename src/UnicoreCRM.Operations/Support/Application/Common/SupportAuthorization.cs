@@ -34,6 +34,9 @@ internal sealed class SupportAuthorization(IRecordAccessEvaluator evaluator)
             ResourceKey,
             requirement.Capability,
             SupportFieldSecurity.FieldKeys,
+            // Every Support operation returns the full SupportCase read model, so the resource's own
+            // required-ness governs and nothing is declared optional.
+            RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
 

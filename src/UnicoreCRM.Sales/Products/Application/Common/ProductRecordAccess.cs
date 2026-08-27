@@ -25,8 +25,14 @@ internal static class ProductFieldSecurity
     /// <summary>
     /// The field keys Products can enforce a policy on, mapped to whether the wire contract makes
     /// the field required. These are the <c>ProductDocument</c> property names, taken from that record so the
-    /// vocabulary cannot drift from what Products actually projects. A policy naming any other key
-    /// cannot be enforced and fails the operation closed rather than being silently ignored.
+    /// vocabulary cannot drift from what Products actually projects.
+    ///
+    /// <para>Two rules, frozen and distinct. A policy naming a key <b>outside</b> this vocabulary is
+    /// not readable and not writable - the key fails closed and the public evaluation reports it
+    /// HIDDEN - and does not by itself refuse the operation, because this owner never projects it.
+    /// A policy naming a key <b>inside</b> this vocabulary that the representation being returned
+    /// makes required cannot be honoured at all, and refuses the operation rather than returning a
+    /// value the policy forbids.</para>
     /// </summary>
     internal static IReadOnlyDictionary<string, bool> EnforceableFields { get; } =
         new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
@@ -191,6 +197,9 @@ internal sealed class ProductAuthorization(IRecordAccessEvaluator evaluator)
             ResourceKey,
             requirement.Capability,
             ProductFieldSecurity.FieldKeys,
+            // Every Products operation returns the full ProductDocument, so the resource's own
+            // required-ness governs and nothing is declared optional.
+            RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
 
@@ -215,17 +224,12 @@ internal sealed class ProductAuthorization(IRecordAccessEvaluator evaluator)
     /// Product carries no member-owner concept at all, so OWN scope denies every Product record.
     /// A record outside scope is reported as not found.
     /// </summary>
-    /// <param name="writtenFieldKeys">
-    /// The wire fields the command would change. They are checked only after record scope allows the
-    /// record, so a hidden record is reported as missing rather than leaking a field-policy refusal.
-    /// </param>
     internal async Task<ProductOperationError?> EnforceRecordAsync(
         ProductAccess access,
         Product record,
         string enforcementPoint,
         ProductRequestMetadata metadata,
-        CancellationToken cancellationToken,
-        params string[] writtenFieldKeys)
+        CancellationToken cancellationToken)
     {
         var decision = await evaluator.AuthorizeRecordAsync(
             access.Authorization,
@@ -234,12 +238,19 @@ internal sealed class ProductAuthorization(IRecordAccessEvaluator evaluator)
             enforcementPoint,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
-        if (!decision.IsAllowed)
-            return ProductErrors.NotFound();
-        return writtenFieldKeys.Length == 0
+        return decision.IsAllowed ? null : ProductErrors.NotFound();
+    }
+
+    /// <summary>
+    /// Authorizes the fields a command is about to write. It is deliberately separate from the
+    /// record guard and is applied only on the new-execution path: record scope is current
+    /// authorization and must gate a replay, whereas a replay performs no write at all and must not
+    /// be refused for lacking permission to write what was already written.
+    /// </summary>
+    internal static ProductOperationError? EnforceFieldWrite(ProductAccess access, params string[] writtenFieldKeys) =>
+        writtenFieldKeys.Length == 0
             ? null
             : ProductFieldSecurity.GuardFieldWrite(access.Authorization, writtenFieldKeys);
-    }
 
     internal static RecordAccessFacts Facts(Product record)
     {

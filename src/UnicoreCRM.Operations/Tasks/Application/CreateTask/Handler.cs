@@ -22,14 +22,8 @@ internal sealed class Handler(
         if (!CreateTaskValidation.TryCreate(command.Request, out var input, out var fields))
             return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.Validation(fields));
 
-        // Creation is a resource-level question, so no record scope applies, but field security
-        // still does: a field the caller may not write must not be written on the way in either.
-        var createWriteError = TaskFieldSecurity.GuardCreateWrite(access.Value!.Authorization, input!.Description, input.References);
-        if (createWriteError is not null)
-            return TaskOperationResult<TaskMutationResponse>.Failure(createWriteError);
-
         var trusted = access.Value!.Trusted;
-        var fingerprint = TaskCommandSupport.Fingerprint(input);
+        var fingerprint = TaskCommandSupport.Fingerprint(input!);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "createTask", "WORKSPACE", command.Metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
@@ -42,6 +36,14 @@ internal sealed class Handler(
                 ? TaskOperationResult<TaskMutationResponse>.Success(Project(TaskCommandSupport.ReplayTask(existing), access.Value!))
                 : TaskOperationResult<TaskMutationResponse>.Failure(replayError);
         }
+
+        // Creation is a resource-level question, so no record scope applies, but field security
+        // still does: a field the caller may not write must not be written on the way in either. It
+        // follows the replay branch, so a committed creation stays replayable after a field turns
+        // READ_ONLY or HIDDEN - the replay writes nothing.
+        var createWriteError = TaskFieldSecurity.GuardCreateWrite(access.Value!.Authorization, input!.Description, input.References);
+        if (createWriteError is not null)
+            return TaskOperationResult<TaskMutationResponse>.Failure(createWriteError);
 
         // Only a genuinely new command evaluates current mutable member state.
         if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, input.AssigneeId, cancellationToken))

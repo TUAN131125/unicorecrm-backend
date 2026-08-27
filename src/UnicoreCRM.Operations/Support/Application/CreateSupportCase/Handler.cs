@@ -24,16 +24,6 @@ internal sealed class Handler(
         if (!CreateSupportCaseValidation.TryProfile(command.Request, out var profile, out var fields))
             return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.Validation(fields));
 
-        // Creation is a resource-level question, so no record scope applies, but field security
-        // still does: a field the caller may not write must not be written on the way in either.
-        // Assignment authority is separate from creation authority, so naming an owner at creation
-        // requires support.assign exactly as a later assignment does.
-        var createWriteError = SupportFieldSecurity.GuardCreateWrite(access.Value!.Authorization, profile!);
-        if (createWriteError is not null)
-            return SupportOperationResult<SupportCaseMutationResponse>.Failure(createWriteError);
-        if (profile!.OwnerId is not null && !access.Value!.Authorization.Holds(SupportCapabilities.Assign.Capability))
-            return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.OwnerAssignmentDenied());
-
         var trusted = access.Value!.Trusted;
         var fingerprint = SupportCommandSupport.Fingerprint(profile);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
@@ -48,6 +38,20 @@ internal sealed class Handler(
                 ? SupportOperationResult<SupportCaseMutationResponse>.Success(Project(SupportCommandSupport.Replay(existing), access.Value!))
                 : SupportOperationResult<SupportCaseMutationResponse>.Failure(replayError);
         }
+
+        // Creation is a resource-level question, so no record scope applies, but field security
+        // still does: a field the caller may not write must not be written on the way in either.
+        // Assignment authority is separate from creation authority, so naming an owner at creation
+        // requires support.assign exactly as a later assignment does.
+        //
+        // Both checks authorize a write, so both belong to the new-execution path. A committed
+        // creation writes nothing on replay and must stay replayable after a field turns READ_ONLY
+        // or HIDDEN, or after the caller loses support.assign.
+        var createWriteError = SupportFieldSecurity.GuardCreateWrite(access.Value!.Authorization, profile!);
+        if (createWriteError is not null)
+            return SupportOperationResult<SupportCaseMutationResponse>.Failure(createWriteError);
+        if (profile!.OwnerId is not null && !access.Value!.Authorization.Holds(SupportCapabilities.Assign.Capability))
+            return SupportOperationResult<SupportCaseMutationResponse>.Failure(SupportErrors.OwnerAssignmentDenied());
 
         // Only a genuinely new command evaluates current mutable owner/member state. An owner is a
         // Workspace member, which the admitted narrow Workspace contract can verify. The buyer

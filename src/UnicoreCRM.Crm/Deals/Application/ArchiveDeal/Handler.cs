@@ -33,7 +33,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             (deal, now) => deal.Archive(reason!, now) ? null : DealErrors.LifecycleConflict(deal.DealId),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "archiveDeal", metadata, cancellationToken, "archivedAt", "archiveReason"),
+                recordAccess, record, "archiveDeal", metadata, cancellationToken),
+            recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "archivedAt", "archiveReason"),
             cancellationToken);
     }
 }

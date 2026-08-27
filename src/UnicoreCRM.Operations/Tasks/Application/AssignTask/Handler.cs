@@ -36,7 +36,8 @@ internal sealed class Handler(
                     ["assigneeId"] = ["assigneeId must reference an active member of the trusted workspace."]
                 }),
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "assignTask", metadata, cancellationToken, "assigneeId"),
+                recordAccess, record, "assignTask", metadata, cancellationToken),
+            recordAccess => TaskAuthorization.EnforceFieldWrite(recordAccess, "assigneeId"),
             cancellationToken);
     }
 }

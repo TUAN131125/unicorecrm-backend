@@ -45,9 +45,9 @@ internal sealed class ProductRecordAccessFactProvider(IProductsPersistence persi
         if (!ProductValidation.IsEntityId(recordId))
             return RecordAccessFacts.NotFound;
 
-        var ownership = ProductResource.ValidateOwned(
-            await persistence.ReadProductAsync(recordId, cancellationToken),
-            trustedWorkspace);
-        return ownership.IsSuccess ? ProductAuthorization.Facts(ownership.Value!) : RecordAccessFacts.NotFound;
+        // The lookup is already constrained to the trusted Workspace, so a Product of another
+        // Workspace is reported as not found rather than being read and then rejected.
+        var product = await persistence.ReadProductAsync(trustedWorkspace.WorkspaceId, recordId, cancellationToken);
+        return product is null ? RecordAccessFacts.NotFound : ProductAuthorization.Facts(product);
     }
 }

@@ -2,6 +2,8 @@ using UnicoreCRM.Operations.Tasks.Application.Common;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Operations.Tasks.Domain;
 
+using UnicoreCRM.Platform.AccessControl.Contracts;
+
 namespace UnicoreCRM.Operations.Tasks.Application.ReadTaskSummary;
 
 /// <summary>
@@ -15,8 +17,15 @@ internal sealed class TaskSummaryReader(
     ITasksPersistence persistence,
     TimeProvider timeProvider) : ITaskSummaryReader
 {
-    /// <summary>The fields this minimized contract exposes, all of which it declares optional.</summary>
-    private static readonly string[] SummaryFieldKeys = ["title", "status", "priority", "dueAt"];
+    /// <summary>
+    /// The representation this reader returns. Every property of <c>TaskSummaryProjection</c> except the identifier is
+    /// declared nullable by that contract, so each of these fields genuinely has an admitted absent
+    /// representation here even where the module's full read model makes it required. The set is a
+    /// fixed static declaration owned by this operation, never assembled per request, and it can
+    /// only turn a refusal into a withheld value - never a withheld value into a returned one.
+    /// </summary>
+    private static readonly RecordAccessRepresentation Representation =
+        RecordAccessRepresentation.Create("task.summary", "title", "status", "priority", "dueAt");
 
     public async Task<TaskSummaryReadResult> ReadAsync(
         string taskId,
@@ -29,7 +38,7 @@ internal sealed class TaskSummaryReader(
         // any of them absent. The full Task read model makes some of them required, but that
         // declaration governs the full representation, not this one.
         var access = await authorization.AuthorizeAsync(
-            TaskCapabilities.Read, metadata, cancellationToken, SummaryFieldKeys);
+            TaskCapabilities.Read, metadata, cancellationToken, Representation);
         if (!access.IsSuccess)
         {
             return new(access.Error!.Code == "WORKSPACE_MISMATCH"

@@ -30,8 +30,15 @@ internal static class SupportFieldSecurity
 {
     /// <summary>
     /// The field keys Support can enforce a policy on, mapped to whether the wire contract makes the
-    /// field required. Support declares this to AccessControl so a policy naming a field Support
-    /// does not project, or one Support cannot omit, is refused instead of silently ignored.
+    /// field required. Support declares this to AccessControl so the two frozen rules below can be
+    /// applied without Support deciding either of them.
+    ///
+    /// <para>Two rules, frozen and distinct. A policy naming a key <b>outside</b> this vocabulary is
+    /// not readable and not writable - the key fails closed and the public evaluation reports it
+    /// HIDDEN - and does not by itself refuse the operation, because this owner never projects it.
+    /// A policy naming a key <b>inside</b> this vocabulary that the representation being returned
+    /// makes required cannot be honoured at all, and refuses the operation rather than returning a
+    /// value the policy forbids.</para>
     /// </summary>
     internal static IReadOnlyDictionary<string, bool> EnforceableFields { get; } =
         new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)

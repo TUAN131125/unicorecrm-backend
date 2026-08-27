@@ -37,7 +37,8 @@ internal sealed class Handler(ProductAuthorization authorization, ProductMutatio
             fingerprint,
             (product, now) => product.Restore(now) ? null : ProductErrors.RestoreBlocked(product.ProductId),
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "restoreProduct", metadata, cancellationToken, "status", "archivedAt", "archiveReason"),
+                recordAccess, record, "restoreProduct", metadata, cancellationToken),
+            recordAccess => ProductAuthorization.EnforceFieldWrite(recordAccess, "status", "archivedAt", "archiveReason"),
             cancellationToken);
     }
 }

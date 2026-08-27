@@ -45,24 +45,14 @@ internal sealed class Handler(
         // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
         // This slice owns its own transaction rather than using ProductMutationExecution, so the
         // guard is applied here explicitly rather than being inherited.
-        var guardedOwnership = ProductResource.ValidateOwned(
-            await persistence.ReadProductAsync(command.ProductId, cancellationToken),
-            trusted);
+        var guardedOwnership = ProductResource.Resolve(
+            await persistence.ReadProductAsync(trusted.WorkspaceId, command.ProductId, cancellationToken));
         if (!guardedOwnership.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(guardedOwnership.Error!);
         var guardError = await authorization.EnforceRecordAsync(
             access.Value!, guardedOwnership.Value!, "replaceProduct", metadata, cancellationToken);
         if (guardError is not null)
             return ProductOperationResult<ProductMutationResponse>.Failure(guardError);
-
-        // The requested profile is compared against the stored one, so only a field the replacement
-        // actually changes is treated as a write. Repeating a READ_ONLY value unchanged is not a
-        // write and is not refused. The comparison follows the record guard, so a product the caller
-        // may not reach is reported as missing rather than leaking a field-policy refusal.
-        var writeError = ProductFieldSecurity.GuardProfileWrite(
-            access.Value!.Authorization, guardedOwnership.Value!.Profile, profile!);
-        if (writeError is not null)
-            return ProductOperationResult<ProductMutationResponse>.Failure(writeError);
 
         var scopeKey = ProductCommandSupport.ScopeKey(trusted, "replaceProduct", command.ProductId, command.Metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
@@ -74,6 +64,17 @@ internal sealed class Handler(
                 : ProductOperationResult<ProductMutationResponse>.Failure(replayError);
         }
 
+        // From here the command is a genuinely new execution. The requested profile is compared
+        // against the stored one, so only a field the replacement actually changes is treated as a
+        // write; repeating a READ_ONLY value unchanged is not a write and is not refused. It follows
+        // the record guard, so a Product the caller may not reach is reported as missing rather than
+        // leaking a field-policy refusal, and it follows the replay branch, so a committed
+        // replacement stays replayable after a field turns READ_ONLY or HIDDEN.
+        var writeError = ProductFieldSecurity.GuardProfileWrite(
+            access.Value!.Authorization, guardedOwnership.Value!.Profile, profile!);
+        if (writeError is not null)
+            return ProductOperationResult<ProductMutationResponse>.Failure(writeError);
+
         var currency = await currencyReader.FindAsync(trusted.WorkspaceId, cancellationToken);
         if (currency is null)
         {
@@ -84,9 +85,8 @@ internal sealed class Handler(
         if (currencyFields.Count != 0)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(currencyFields));
 
-        var ownership = ProductResource.ValidateOwned(
-            await persistence.LoadProductAsync(command.ProductId, cancellationToken),
-            trusted);
+        var ownership = ProductResource.Resolve(
+            await persistence.LoadProductAsync(trusted.WorkspaceId, command.ProductId, cancellationToken));
         if (!ownership.IsSuccess)
             return ProductOperationResult<ProductMutationResponse>.Failure(ownership.Error!);
 

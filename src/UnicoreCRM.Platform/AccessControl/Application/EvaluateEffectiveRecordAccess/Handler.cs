@@ -56,10 +56,13 @@ internal sealed class Handler(
         // The read capability is the owner's own declaration. With no registered owner there is no
         // capability vocabulary and no authoritative fact, so the evaluation denies by default.
         var readCapability = descriptor?.ReadCapability ?? UnresolvableCapability;
+        // This operation returns a decision, not a record, so it never has to withhold a value and
+        // never overrides the resource's own required-ness. It reports what the owner would do.
         var authorization = await evaluator.AuthorizeResourceAsync(
             request.ResourceKey,
             readCapability,
             request.RequestedFields,
+            RecordAccessRepresentation.Full,
             context,
             cancellationToken);
 

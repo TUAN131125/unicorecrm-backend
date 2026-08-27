@@ -18,6 +18,7 @@ internal sealed class TaskMutationExecution(
         Func<TaskItem, DateTimeOffset, bool> mutate,
         Func<TrustedWorkspaceContext, CancellationToken, Task<TaskOperationError?>>? precondition,
         Func<TaskAccess, TaskItem, Task<TaskOperationError?>> recordGuard,
+        Func<TaskAccess, TaskOperationError?>? fieldWriteGuard,
         CancellationToken cancellationToken)
     {
         var trusted = access.Trusted;
@@ -41,6 +42,16 @@ internal sealed class TaskMutationExecution(
             return replayError is null
                 ? TaskOperationResult<TaskMutationResponse>.Success(Project(TaskCommandSupport.ReplayTask(existing), access))
                 : TaskOperationResult<TaskMutationResponse>.Failure(replayError);
+        }
+
+        // From here the command is a genuinely new execution. Field-write authorization is applied
+        // for the fields this execution will actually change - never on the replay path above, which
+        // writes nothing and must stay replayable after a field turns READ_ONLY or HIDDEN.
+        if (fieldWriteGuard is not null)
+        {
+            var fieldWriteError = fieldWriteGuard(access);
+            if (fieldWriteError is not null)
+                return TaskOperationResult<TaskMutationResponse>.Failure(fieldWriteError);
         }
 
         // Only a genuinely new command evaluates current mutable owner/member state. A committed

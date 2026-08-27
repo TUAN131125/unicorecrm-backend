@@ -12,11 +12,16 @@ internal sealed class EfProductsPersistence(ProductsDbContext dbContext) : IProd
     public async Task<IProductsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new ProductsTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
 
-    public Task<Product?> LoadProductAsync(string productId, CancellationToken cancellationToken) =>
-        dbContext.Products.SingleOrDefaultAsync(item => item.ProductId == productId, cancellationToken);
+    // Both point lookups constrain WorkspaceId in SQL. A foreign-Workspace Product is never
+    // materialised, so no caller can inspect it and no caller can turn its existence into a
+    // different status code, error body or version.
+    public Task<Product?> LoadProductAsync(string workspaceId, string productId, CancellationToken cancellationToken) =>
+        dbContext.Products.SingleOrDefaultAsync(
+            item => item.WorkspaceId == workspaceId && item.ProductId == productId, cancellationToken);
 
-    public Task<Product?> ReadProductAsync(string productId, CancellationToken cancellationToken) =>
-        dbContext.Products.AsNoTracking().SingleOrDefaultAsync(item => item.ProductId == productId, cancellationToken);
+    public Task<Product?> ReadProductAsync(string workspaceId, string productId, CancellationToken cancellationToken) =>
+        dbContext.Products.AsNoTracking().SingleOrDefaultAsync(
+            item => item.WorkspaceId == workspaceId && item.ProductId == productId, cancellationToken);
 
     public async Task<IReadOnlyList<Product>> ReadProductsAsync(
         string workspaceId,
@@ -37,9 +42,12 @@ internal sealed class EfProductsPersistence(ProductsDbContext dbContext) : IProd
     }
 
     public async Task<IReadOnlyList<Product>> LoadProductsAsync(
+        string workspaceId,
         IReadOnlyCollection<string> productIds,
         CancellationToken cancellationToken) =>
-        await dbContext.Products.Where(item => productIds.Contains(item.ProductId)).ToArrayAsync(cancellationToken);
+        await dbContext.Products
+            .Where(item => item.WorkspaceId == workspaceId && productIds.Contains(item.ProductId))
+            .ToArrayAsync(cancellationToken);
 
     public Task<bool> SkuExistsAsync(
         string workspaceId,

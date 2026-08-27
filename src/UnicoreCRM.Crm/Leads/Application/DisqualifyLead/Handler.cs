@@ -34,7 +34,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
                 : LeadErrors.InvalidTransition(lead.LeadId),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "disqualifyLead", metadata, cancellationToken, "leadWorkState", "qualificationOutcome", "disqualifiedAt", "disqualifiedBy", "disqualificationReason", "disqualificationNote"),
+                recordAccess, record, "disqualifyLead", metadata, cancellationToken),
+            recordAccess => LeadAuthorization.EnforceFieldWrite(recordAccess, "leadWorkState", "qualificationOutcome", "disqualifiedAt", "disqualifiedBy", "disqualificationReason", "disqualificationNote"),
             cancellationToken);
     }
 }

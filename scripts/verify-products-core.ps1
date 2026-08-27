@@ -384,11 +384,22 @@ try {
     $restoreBatchBody = @{ items = @(@{ productId = $secondId; expectedVersion = 1 }, @{ productId = $thirdId; expectedVersion = 1 }); reason = 'Restore batch' } | ConvertTo-Json -Compress -Depth 5
     Assert-Status (Send-Json 'POST' '/products/restore-batch' $restoreBatchBody (New-Headers $token $workspaceId 'idem-product-batch-restore')) 200 'restoreProductsBatch'
 
+    # A real Product moved into another Workspace must be indistinguishable from one that never
+    # existed. The previous assertions pinned the opposite - 403 WORKSPACE_MISMATCH for a real
+    # foreign Product against 404 for an unknown one - which was an existence oracle: a caller who
+    # could guess an identifier could tell a real foreign Product from a non-existent one. The
+    # lookup is now Workspace-scoped in SQL, so both collapse. This is a stronger assertion, not a
+    # relaxed one.
     $foreignWorkspaceId = Invoke-SqlScalar "SELECT WorkspaceId FROM workspace.Workspaces WHERE [Key]='$foreignWorkspaceKey';"
     Invoke-Sql "UPDATE products.Products SET WorkspaceId='$foreignWorkspaceId' WHERE ProductId='$thirdId';"
     $crossWorkspace = Send-Json 'GET' "/products/$thirdId" $null (New-Headers $token $workspaceId)
-    Assert-Status $crossWorkspace 403 'Cross-Workspace Product access'
-    Assert-True (($crossWorkspace.Body | ConvertFrom-Json).code -eq 'WORKSPACE_MISMATCH') 'Cross-Workspace stable error'
+    $unknownProduct = Send-Json 'GET' '/products/product_does_not_exist_0001' $null (New-Headers $token $workspaceId)
+    Assert-Status $crossWorkspace 404 'Cross-Workspace Product access collapses to not found'
+    Assert-Status $unknownProduct 404 'Unknown Product access'
+    $foreignNormalised = ($crossWorkspace.Body -replace '"correlationId":"[^"]*"', '"correlationId":"<c>"')
+    $unknownNormalised = ($unknownProduct.Body -replace '"correlationId":"[^"]*"', '"correlationId":"<c>"')
+    Assert-True ($foreignNormalised -eq $unknownNormalised) 'Foreign Product is byte-indistinguishable from an unknown Product'
+    Assert-True ($crossWorkspace.Body -notmatch 'SKU-CORE-003') 'Foreign Product leaks no business value'
 
     $auditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='COMMITTED';")
     $readAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ';")

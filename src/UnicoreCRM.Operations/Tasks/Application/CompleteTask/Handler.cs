@@ -27,7 +27,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
             (task, now) => task.Complete(outcome, now),
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "completeTask", metadata, cancellationToken, "status", "completedAt", "outcome"),
+                recordAccess, record, "completeTask", metadata, cancellationToken),
+            recordAccess => TaskAuthorization.EnforceFieldWrite(recordAccess, "status", "completedAt", "outcome"),
             cancellationToken);
     }
 }

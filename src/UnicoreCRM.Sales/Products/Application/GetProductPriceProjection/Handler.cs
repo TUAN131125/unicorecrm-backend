@@ -29,9 +29,8 @@ internal sealed class Handler(
         }
 
         var trusted = access.Value!.Trusted;
-        var ownership = ProductResource.ValidateOwned(
-            await persistence.ReadProductAsync(query.ProductId, cancellationToken),
-            trusted);
+        var ownership = ProductResource.Resolve(
+            await persistence.ReadProductAsync(trusted.WorkspaceId, query.ProductId, cancellationToken));
         if (!ownership.IsSuccess)
             return ProductOperationResult<ProductPriceProjectionReadModel>.Failure(ownership.Error!);
 

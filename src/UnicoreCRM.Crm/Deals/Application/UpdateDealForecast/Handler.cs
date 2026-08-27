@@ -46,7 +46,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             },
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "updateDealForecast", metadata, cancellationToken, "forecastCategory", "forecastHistory"),
+                recordAccess, record, "updateDealForecast", metadata, cancellationToken),
+            recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "forecastCategory", "forecastHistory"),
             cancellationToken);
     }
 }

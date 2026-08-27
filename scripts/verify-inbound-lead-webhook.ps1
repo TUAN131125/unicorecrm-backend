@@ -1,9 +1,11 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string] $DatabaseName
 )
 
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 does not load System.Net.Http on demand.
+Add-Type -AssemblyName System.Net.Http
 $server = '(localdb)\MSSQLLocalDB'
 $connection = "Server=$server;Database=$DatabaseName;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
 $baseUrl = 'http://127.0.0.1:5087'
@@ -116,9 +118,26 @@ function Invoke-Sql([string] $query) {
     if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed: $query" }
 }
 
+# Windows PowerShell 5.1 runs on .NET Framework, which has neither [Convert]::ToHexString nor the
+# static SHA256.HashData added in .NET 5. Both helpers below are exact equivalents: BitConverter
+# emits the same uppercase hex, only dash-separated. Harness compatibility only - no assertion,
+# input or expected value changes.
+function ConvertTo-HexString([byte[]] $bytes) {
+    return ([BitConverter]::ToString($bytes) -replace '-', '')
+}
+
+function Get-Sha256Hash([byte[]] $bytes) {
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try { return $algorithm.ComputeHash($bytes) }
+    finally { $algorithm.Dispose() }
+}
+
 function Send-Json([string] $method, [string] $path, [string] $body, [hashtable] $headers) {
     $message = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new($method), "$baseUrl$path")
-    if ($null -ne $body) {
+    # An unbound [string] parameter arrives as an empty string, not $null, so this attached an empty
+    # JSON body to every GET, which the .NET Framework HttpClient in Windows PowerShell 5.1 refuses.
+    # Harness defect only: no API semantics are changed to accommodate it.
+    if (-not [string]::IsNullOrEmpty($body)) {
         $message.Content = [System.Net.Http.StringContent]::new($body, [Text.Encoding]::UTF8, 'application/json')
     }
     foreach ($entry in $headers.GetEnumerator()) {
@@ -144,7 +163,7 @@ function New-Signature([string] $timestamp, [string] $deliveryId, [string] $body
     [Array]::Copy($prefixBytes, 0, $material, 0, $prefixBytes.Length)
     [Array]::Copy($bodyBytes, 0, $material, $prefixBytes.Length, $bodyBytes.Length)
     $hmac = [Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($signingSecret))
-    try { return 'sha256=' + ([Convert]::ToHexString($hmac.ComputeHash($material))).ToLowerInvariant() }
+    try { return 'sha256=' + (ConvertTo-HexString $hmac.ComputeHash($material)).ToLowerInvariant() }
     finally { $hmac.Dispose() }
 }
 
@@ -290,7 +309,7 @@ try {
     $inboxEvidence = Invoke-SqlScalar "SELECT COUNT(*) FROM ops.InboxMessages WHERE IntegrationId='int_inbound_lead_webhook' AND DeliveryId='delivery-positive-1' AND Status='Processed' AND ResultLeadId='$leadId';"
     $auditEvidence = Invoke-SqlScalar "SELECT COUNT(*) FROM leads.AuditRecords WHERE AggregateId='$leadId' AND ActorType='Integration' AND ActorId='int_inbound_lead_webhook' AND DelegatedSubjectId='$memberId' AND SourceReference='delivery-positive-1';"
     $idempotencyBytes = [Text.Encoding]::UTF8.GetBytes('PROJECT_EXTENSION_INBOUND_LEAD_WEBHOOK' + [char] 10 + 'int_inbound_lead_webhook' + [char] 10 + 'delivery-positive-1')
-    $idempotencyKey = 'inbound-lead-webhook_' + [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($idempotencyBytes))
+    $idempotencyKey = 'inbound-lead-webhook_' + (ConvertTo-HexString (Get-Sha256Hash $idempotencyBytes))
     if ($inboxEvidence -ne '1' -or $auditEvidence -ne '1' -or $leadId -eq $idempotencyKey) { throw 'Persistence, audit, or identity evidence failed.' }
     $checks.Add('Inbound webhook Inbox persistence=PASS')
     $checks.Add('Inbound webhook integration actor audit=PASS')

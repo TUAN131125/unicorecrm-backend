@@ -156,10 +156,17 @@ public sealed record RecordAccessRecordDecision(bool IsAllowed, string Evaluated
 /// </summary>
 public interface IRecordAccessEvaluator
 {
+    /// <param name="representation">
+    /// The representation the calling operation will return. It decides only whether a restrictive
+    /// policy on a field the resource declares required can be honoured by omitting the value, and
+    /// can never widen read or write access. Pass <see cref="RecordAccessRepresentation.Full"/> when
+    /// the operation returns the resource's full read model.
+    /// </param>
     Task<RecordAccessAuthorization> AuthorizeResourceAsync(
         string resourceKey,
         string requiredCapability,
         IReadOnlyList<string>? requestedFields,
+        RecordAccessRepresentation representation,
         RecordAccessRequestContext requestContext,
         CancellationToken cancellationToken);
 

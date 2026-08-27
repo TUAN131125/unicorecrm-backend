@@ -27,7 +27,8 @@ internal sealed class Handler(TaskAuthorization authorization, TaskMutationExecu
             (task, now) => { task.Archive(reason, now); return true; },
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "archiveTask", metadata, cancellationToken, "archivedAt", "archiveReason"),
+                recordAccess, record, "archiveTask", metadata, cancellationToken),
+            recordAccess => TaskAuthorization.EnforceFieldWrite(recordAccess, "archivedAt", "archiveReason"),
             cancellationToken);
     }
 }

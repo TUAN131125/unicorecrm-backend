@@ -32,12 +32,6 @@ internal sealed class Handler(
         if (pricingFields.Count != 0)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(pricingFields));
 
-        // Creation is a resource-level question, so no record scope applies, but field security
-        // still does: a field the caller may not write must not be written on the way in either.
-        var createWriteError = ProductFieldSecurity.GuardCreateWrite(access.Value!.Authorization, profile!);
-        if (createWriteError is not null)
-            return ProductOperationResult<ProductMutationResponse>.Failure(createWriteError);
-
         var trusted = access.Value!.Trusted;
         var fingerprint = ProductCommandSupport.Fingerprint(new { Profile = profile });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
@@ -52,6 +46,14 @@ internal sealed class Handler(
                 ? ProductOperationResult<ProductMutationResponse>.Success(Project(ProductCommandSupport.Replay(existing), access.Value!))
                 : ProductOperationResult<ProductMutationResponse>.Failure(replayError);
         }
+
+        // Creation is a resource-level question, so no record scope applies, but field security
+        // still does: a field the caller may not write must not be written on the way in either. It
+        // follows the replay branch, so a committed creation stays replayable after a field turns
+        // READ_ONLY or HIDDEN - the replay writes nothing.
+        var createWriteError = ProductFieldSecurity.GuardCreateWrite(access.Value!.Authorization, profile!);
+        if (createWriteError is not null)
+            return ProductOperationResult<ProductMutationResponse>.Failure(createWriteError);
 
         var currency = await currencyReader.FindAsync(trusted.WorkspaceId, cancellationToken);
         if (currency is null)

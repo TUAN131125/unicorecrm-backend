@@ -52,7 +52,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             },
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(
-                recordAccess, record, "changeDealStage", metadata, cancellationToken, "stageCode", "stageCategory", "stageEnteredAt"),
+                recordAccess, record, "changeDealStage", metadata, cancellationToken),
+            recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "stageCode", "stageCategory", "stageEnteredAt"),
             cancellationToken);
     }
 }

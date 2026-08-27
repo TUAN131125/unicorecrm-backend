@@ -2,6 +2,8 @@ using UnicoreCRM.Crm.Deals.Application.Common;
 using UnicoreCRM.Crm.Deals.Contracts;
 using UnicoreCRM.Crm.Deals.Domain;
 
+using UnicoreCRM.Platform.AccessControl.Contracts;
+
 namespace UnicoreCRM.Crm.Deals.Application.ReadDealSummary;
 
 /// <summary>
@@ -15,9 +17,15 @@ internal sealed class DealSummaryReader(
     IDealsPersistence persistence,
     TimeProvider timeProvider) : IDealSummaryReader
 {
-    /// <summary>The fields this minimized contract exposes, all of which it declares optional.</summary>
-    private static readonly string[] SummaryFieldKeys =
-        ["name", "stageCode", "stageCategory", "opportunityScore", "expectedCloseDate", "nextActionAt", "nextActionSummary"];
+    /// <summary>
+    /// The representation this reader returns. Every property of <c>DealSummaryProjection</c> except the identifier is
+    /// declared nullable by that contract, so each of these fields genuinely has an admitted absent
+    /// representation here even where the module's full read model makes it required. The set is a
+    /// fixed static declaration owned by this operation, never assembled per request, and it can
+    /// only turn a refusal into a withheld value - never a withheld value into a returned one.
+    /// </summary>
+    private static readonly RecordAccessRepresentation Representation =
+        RecordAccessRepresentation.Create("deal.summary", "name", "stageCode", "stageCategory", "opportunityScore", "expectedCloseDate", "nextActionAt", "nextActionSummary");
 
     public async Task<DealSummaryReadResult> ReadAsync(
         string dealId,
@@ -30,7 +38,7 @@ internal sealed class DealSummaryReader(
         // any of them absent. The full Deal read model makes some of them required, but that
         // declaration governs the full representation, not this one.
         var access = await authorization.AuthorizeAsync(
-            DealCapabilities.Read, metadata, cancellationToken, SummaryFieldKeys);
+            DealCapabilities.Read, metadata, cancellationToken, Representation);
         if (!access.IsSuccess)
         {
             return new(access.Error!.Code == "WORKSPACE_MISMATCH"
