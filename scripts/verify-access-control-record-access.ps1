@@ -2069,10 +2069,48 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
     # 24.11 DELEGATED LEAD INGRESS CANNOT BE ADMITTED WITHOUT AUTHORIZATION
     #
     # The nullable LeadAccess that used to mean "skip enforcement" is gone: creation now takes a
-    # closed LeadCreateAdmission, and the delegated case can only be built from an allowed delegated
-    # decision whose subject matches the trusted member. That is a compile-time property; what is
-    # observable here is that the interactive path still enforces its own field-write policy and that
-    # the delegated capability is genuinely evaluated server-side.
+    # closed LeadCreateAdmission. A dedicated Lead-specific authorizer hard-codes leads.create and
+    # owns the only call to the proof's private constructor; generic decisions and arbitrary
+    # requirements are absent from the proof boundary. These source guards complement the inbound
+    # runtime harness, which exercises allowed/denied delegated evaluations and their audit evidence.
+    $delegatedAuthorizerSource = Get-Content -Raw -LiteralPath `
+        (Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/Leads/Application/CreateLead/DelegatedLeadCreateAuthorizer.cs')
+    $delegatedIngressSource = Get-Content -Raw -LiteralPath `
+        (Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/Leads/Application/CreateLead/InboundLeadIngress.cs')
+    $leadAdmissionSource = Get-Content -Raw -LiteralPath `
+        (Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/Leads/Application/CreateLead/LeadCreateAdmission.cs')
+    $leadExecutionSource = Get-Content -Raw -LiteralPath `
+        (Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/Leads/Application/CreateLead/LeadCreateExecution.cs')
+    Add-Result 'delegated proof: constructor remains private' 'True' `
+        ($delegatedAuthorizerSource -match 'private DelegatedLeadIngressAuthorization\s*\(').ToString()
+    Add-Result 'delegated proof: exactly one issuer construction exists' '1' `
+        ([regex]::Matches($delegatedAuthorizerSource, 'new DelegatedLeadIngressAuthorization\s*\(').Count.ToString())
+    Add-Result 'delegated proof: generic decision factory is absent' 'True' `
+        (($delegatedAuthorizerSource + $leadAdmissionSource + $delegatedIngressSource) -notmatch `
+            'FromAllowedDecision|AccessAuthorizationDecision').ToString()
+    Add-Result 'delegated proof: authorizer exposes no arbitrary AccessRequirement' 'True' `
+        ($delegatedAuthorizerSource -notmatch 'AccessRequirement').ToString()
+    Add-Result 'delegated proof: dedicated issuer hard-codes leads.create' '1' `
+        ([regex]::Matches($delegatedAuthorizerSource, 'LeadCapabilities\.Create').Count.ToString())
+    Add-Result 'delegated proof: Workspace account member and membership are all bound' 'True' `
+        ($delegatedAuthorizerSource -match 'context\.WorkspaceId' `
+            -and $delegatedAuthorizerSource -match 'context\.AccountId' `
+            -and $delegatedAuthorizerSource -match 'context\.MemberId' `
+            -and $delegatedAuthorizerSource -match 'context\.MembershipId').ToString()
+    Add-Result 'delegated proof: subject must equal the trusted member' 'True' `
+        ($delegatedAuthorizerSource -match 'trustedWorkspace\.MemberId' `
+            -and $delegatedAuthorizerSource -match 'delegatedSubjectId').ToString()
+    Add-Result 'delegated proof: ingress depends only on dedicated Lead authorizer' 'True' `
+        ($delegatedIngressSource -match 'IDelegatedLeadCreateAuthorizer' `
+            -and $delegatedIngressSource -notmatch 'IDelegatedAccessAuthorizer|LeadCapabilities').ToString()
+    Add-Result 'delegated proof: Workspace member provenance and owner cannot be rebound' 'True' `
+        ($leadAdmissionSource -match 'profile\.OwnerId, authorization\.DelegatedSubjectId' `
+            -and $leadAdmissionSource -match 'metadata\.DelegatedSubjectId' `
+            -and $leadAdmissionSource -match 'LeadCreateAdmission\(authorization\.Trusted\)').ToString()
+    Add-Result 'delegated proof: Lead execution has no nullable or skip authorization path' 'True' `
+        ($leadExecutionSource -match 'LeadCreateAdmission admission' `
+            -and $leadExecutionSource -match 'admission\.GuardExecutionBinding' `
+            -and $leadExecutionSource -notmatch 'LeadAccess\?\s+\w+|skipAuthorization|skipAccessControl').ToString()
     Set-GateField -Resource 'leads' -Field 'email' -Access 'Hidden'
     Add-Result 'delegated: the interactive create path still enforces field-write policy' '403' `
         (Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-final-lead-interactive' `
@@ -2080,10 +2118,10 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
     Clear-GateField
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'leads.create'"
-    Add-Result 'delegated: leads.create is evaluated server-side, not assumed' '403' `
+    Add-Result 'regression: interactive leads.create is still evaluated server-side' '403' `
         (Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-final-lead-nocap' `
             -Body (@{ displayName = 'Final denied lead'; ownerId = $callerMemberId; source = 'manual'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)).Status
-    Add-Result 'delegated: the denied create persisted no Lead' '0' `
+    Add-Result 'regression: the denied interactive create persisted no Lead' '0' `
         (Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM leads.Leads WHERE ScopeOwnerId = '$callerMemberId' AND JSON_VALUE(Profile, '$.DisplayName') = 'Final denied lead'")
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'leads.create')"

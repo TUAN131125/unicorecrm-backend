@@ -21,6 +21,8 @@ internal static class LeadsModule
             (provider, cancellationToken) => provider.GetRequiredService<LeadsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<LeadAuthorization>();
         services.AddScoped<Application.CreateLead.LeadCreateExecution>();
+        services.AddScoped<Application.CreateLead.IDelegatedLeadCreateAuthorizer,
+            Application.CreateLead.DelegatedLeadIngressAuthorization.Authorizer>();
         services.AddScoped<Contracts.IInboundLeadIngress, Application.CreateLead.InboundLeadIngress>();
         services.AddScoped<Contracts.ILeadSummaryReader, Application.ReadLeadSummary.LeadSummaryReader>();
         services.AddScoped<LeadMutationExecution>();

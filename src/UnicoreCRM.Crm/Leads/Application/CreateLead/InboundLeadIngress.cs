@@ -1,11 +1,10 @@
 using UnicoreCRM.Crm.Leads.Application.Common;
 using UnicoreCRM.Crm.Leads.Contracts;
-using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Crm.Leads.Application.CreateLead;
 
 internal sealed class InboundLeadIngress(
-    IDelegatedAccessAuthorizer accessAuthorizer,
+    IDelegatedLeadCreateAuthorizer authorization,
     LeadCreateExecution execution) : IInboundLeadIngress
 {
     public async Task<InboundLeadCreateResult> CreateAsync(
@@ -14,29 +13,17 @@ internal sealed class InboundLeadIngress(
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // The delegated subject must be the resolved trusted member. The binding supplies both; the
-        // sender supplies neither.
         var delegatedSubjectId = command.Provenance.DelegatedSubjectId;
-        if (delegatedSubjectId is null
-            || !string.Equals(command.TrustedWorkspace.MemberId, delegatedSubjectId, StringComparison.Ordinal))
-        {
+        if (delegatedSubjectId is null)
             return Failure("ACCESS_DENIED", 403, null);
-        }
 
-        var decision = await accessAuthorizer.AuthorizeAsync(
+        var authorizationResult = await authorization.AuthorizeAsync(
             command.TrustedWorkspace,
-            LeadCapabilities.Create,
+            delegatedSubjectId,
             command.CorrelationId,
             cancellationToken);
-
-        // The admission proof cannot be produced from a denied decision or a mismatched delegated
-        // subject, so there is no shape of this method that reaches the execution unauthorized.
-        var authorization = DelegatedLeadIngressAuthorization.FromAllowedDecision(
-            decision,
-            command.TrustedWorkspace,
-            delegatedSubjectId);
-        if (authorization is null)
-            return Failure(decision.IsAllowed ? "ACCESS_DENIED" : decision.Code, 403, null);
+        if (authorizationResult.Authorization is null)
+            return Failure(authorizationResult.Code, 403, null);
 
         var metadata = new LeadCommandMetadata(
             command.RequestId,
@@ -48,7 +35,7 @@ internal sealed class InboundLeadIngress(
             command.Provenance.DelegatedSubjectId,
             command.Provenance.SourceReference);
         var result = await execution.ExecuteAsync(
-            LeadCreateAdmission.DelegatedIngress(authorization),
+            LeadCreateAdmission.DelegatedIngress(authorizationResult.Authorization),
             command.Request,
             metadata,
             cancellationToken);

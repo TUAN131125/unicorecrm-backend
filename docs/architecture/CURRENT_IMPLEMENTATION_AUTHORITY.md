@@ -840,7 +840,7 @@ Freezing real semantics needs a business decision that does not exist: either an
 Activity ownership/scope fact, or an explicit `activities` resource descriptor with its own capability
 and field vocabulary.
 
-### D. DELEGATED LEAD INGRESS — authority `AUTHORITY_GAP`; API boundary `IMPLEMENTED`, `VERIFIED`
+### D. DELEGATED LEAD INGRESS — capability/proof `IMPLEMENTED`, `VERIFIED`; field security `AUTHORITY_GAP`
 
 **The authority question, answered honestly.** The inbound-webhook extension states that
 "AccessControl evaluates the member's actual server-side `leads.create` capability through a delegated
@@ -852,7 +852,20 @@ path is therefore an **`AUTHORITY_GAP`**. It is deliberately not answered: apply
 policy would silently change admitted integration behaviour, and declaring the path exempt would be an
 equally unproven claim. Current behaviour is preserved.
 
-**The API defect, which is separate and is fixed.** The shared create execution took
+**DELEGATED LEAD CAPABILITY AUTHORIZATION: PROVEN / IMPLEMENTED / VERIFIED.** AccessControl performs
+one canonical delegated evaluation for exactly `leads.create`, using the `TrustedWorkspaceContext`
+resolved from the Integration binding's server-owned Workspace and delegated-member values. The
+allowed and denied evaluations retain the canonical AccessControl decision audit with Workspace,
+membership, capability, correlation and allow/deny evidence.
+
+**DELEGATED SUBJECT SOURCE: server-resolved binding, not sender authority.** The signed provider
+payload has no Workspace, owner, member, membership, capability, authorization-decision or admission-
+proof field. Unknown payload fields are refused. `InboundIntegrationBinding.WorkspaceId` and
+`DelegatedMemberId` are persisted server authority; Workspace resolves that pair to the active
+`TrustedWorkspaceContext`, and the delegated subject must equal its `MemberId`. Sender headers do not
+participate in that resolution.
+
+**The first API defect, which is separate and is fixed.** The shared create execution took
 `LeadAccess? access`, where `null` meant "skip interactive field-security enforcement". A nullable
 parameter that doubles as a security switch makes forgetting to pass a decision indistinguishable from
 deliberately skipping enforcement, and any future internal caller could have disabled enforcement by
@@ -864,16 +877,38 @@ That is replaced by a closed `LeadCreateAdmission` with exactly two sealed, priv
   fields may be written and projects the response.
 - `DelegatedIngress(DelegatedLeadIngressAuthorization)` - the admitted integration model.
 
-`DelegatedLeadIngressAuthorization` has a private constructor and one factory,
-`FromAllowedDecision`, which returns null unless the delegated decision actually allowed and the
-delegated subject equals the trusted member. There is no null case, no boolean and no optional
-argument: **the type system now forces every caller to state which admitted model applies**, and the
-delegated case cannot be constructed without proof of authorization. Delegated provenance and its
-separate audit trail are unchanged.
+**DELEGATED LEAD PROOF BOUNDARY: IMPLEMENTED / VERIFIED.** The later source review found that the
+private proof constructor was not sufficient while `FromAllowedDecision` accepted the public,
+caller-constructible `AccessAuthorizationDecision`. That generic decision does not bind its evaluated
+capability and therefore could not prove `leads.create`; the factory also compared only `MemberId`, not
+the exact Workspace and membership. `FromAllowedDecision` is removed. `InboundLeadIngress` now depends
+on `IDelegatedLeadCreateAuthorizer`, whose contract exposes no `AccessRequirement` and whose sole
+implementation hard-codes `LeadCapabilities.Create`. The implementation validates delegated subject
+equality and the allowed decision context's exact `WorkspaceId`, `AccountId`, `MemberId` and
+`MembershipId`. It is nested inside `DelegatedLeadIngressAuthorization` and owns the only invocation of
+that proof's private constructor. Consequently an arbitrary generic decision, a decision for another
+capability, or authority for another Workspace/member/membership cannot be converted to delegated Lead
+admission.
 
-Verified: the interactive path still refuses a forbidden create field; `leads.create` is genuinely
-evaluated server-side and a denied create persists no Lead; and `verify-inbound-lead-webhook.ps1`
-passes all 30 checks, including delegated authorization denial and invalid delegated member.
+The proof is an internal immutable application object with no HTTP or serialization contract. It is
+created immediately after the one AccessControl evaluation, consumed by the same scoped ingress call,
+and is not persisted, emitted to an outbox, or placed in a business payload. `LeadCreateAdmission`
+remains closed to exactly `Interactive(LeadAccess)` and
+`DelegatedIngress(DelegatedLeadIngressAuthorization)`; `LeadCreateExecution` has no nullable or boolean
+authorization path. Before a new write, delegated admission additionally verifies that both the Lead
+owner and execution provenance's delegated subject equal the member bound into the proof; the exact
+trusted context carried by the proof supplies the execution Workspace. Delegated provenance and Lead
+audit behavior are unchanged.
+
+Verified: the interactive path still refuses a forbidden create field; allowed and denied delegated
+`leads.create` evaluations are audited exactly once; a denied evaluation mutates no Lead, Lead audit,
+Lead outbox or Lead idempotency state; invalid/mismatched binding authority fails closed; sender payload
+and headers cannot choose Workspace or delegated subject; and the existing replay, changed-fingerprint,
+owner assignment, recovery and concurrent-delivery behavior remains covered by the inbound harness.
+
+**DELEGATED LEAD FIELD SECURITY: `AUTHORITY_GAP`.** Nothing in this proof hardening applies
+interactive `LeadFieldSecurity` to delegated ingress or declares the Integration path exempt. The
+existing admitted behavior remains unchanged until explicit authority resolves that separate question.
 
 ### E. REPRESENTATION-SPECIFIC FIELD WITHHOLDING — `IMPLEMENTED`, `VERIFIED`
 
@@ -1315,7 +1350,7 @@ B07 introduced one backend-local `PROJECT_EXTENSION_INBOUND_LEAD_WEBHOOK` contra
 
 The extension admits only `POST /integrations/inbound/leads/{integrationId}` for the neutral `generic-signed-json` provider. It verifies HMAC-SHA256 over the timestamp, delivery identifier, and exact raw JSON bytes; enforces a five-minute UTC replay window and a 65,536-byte body limit; resolves secrets only through opaque external configuration references; and accepts no caller-supplied Workspace, member, permission, owner, or Lead identity authority.
 
-Integrations owns `IntegrationsDbContext` and `integration.InboundBindings`. A server-owned `IntegrationId` binds the provider to one Workspace, one delegated member, one secret reference, and an enabled state. Workspace resolves that pair to an active membership, and AccessControl performs server-side `leads.create` evaluation for the resolved membership through a narrow delegated authorization contract. The current model is a Delegated Integration Principal, not a first-class `ServicePrincipal`: the actual actor remains the Integration and authorization is delegated through the active member. Lead audit evidence records generic execution provenance with `ActorType = Integration`, `ActorId = IntegrationId`, `DelegatedSubjectId = delegated member`, and `SourceReference = delivery ID`. No JWT impersonation or request-scoped human identity is fabricated.
+Integrations owns `IntegrationsDbContext` and `integration.InboundBindings`. A server-owned `IntegrationId` binds the provider to one Workspace, one delegated member, one secret reference, and an enabled state. Workspace resolves that pair to an active membership, and the Leads-owned dedicated delegated-create authorizer performs server-side `leads.create` evaluation for the resolved membership through AccessControl. Its API accepts no arbitrary capability, and its issued proof is bound to the exact trusted Workspace, account, member and membership. The current model is a Delegated Integration Principal, not a first-class `ServicePrincipal`: the actual actor remains the Integration and authorization is delegated through the active member. Lead audit evidence records generic execution provenance with `ActorType = Integration`, `ActorId = IntegrationId`, `DelegatedSubjectId = delegated member`, and `SourceReference = delivery ID`. No JWT impersonation or request-scoped human identity is fabricated.
 
 PlatformOperations owns `InboxDbContext` and `ops.InboxMessages`. Durable uniqueness is `(IntegrationId, DeliveryId)` and the Inbox retains a SHA-256 raw-payload hash plus original binding authority evidence. Identical retries replay/resume safely; a changed payload or changed binding authority under the same delivery identity fails closed. Raw payloads and credentials are not persisted.
 

@@ -156,6 +156,11 @@ function Assert-Status($response, [int] $expected, [string] $name) {
     $checks.Add("$name=$expected")
 }
 
+function Assert-SourceGuard([bool] $condition, [string] $name) {
+    if (-not $condition) { throw "Source guard failed: $name" }
+    $checks.Add("$name=PASS")
+}
+
 function New-Signature([string] $timestamp, [string] $deliveryId, [string] $body) {
     $prefixBytes = [Text.Encoding]::UTF8.GetBytes($timestamp + [char] 10 + $deliveryId + [char] 10)
     $bodyBytes = [Text.Encoding]::UTF8.GetBytes($body)
@@ -167,16 +172,67 @@ function New-Signature([string] $timestamp, [string] $deliveryId, [string] $body
     finally { $hmac.Dispose() }
 }
 
-function Send-Webhook([string] $integrationId, [string] $deliveryId, [string] $body, [long] $timestamp, [string] $signature = '') {
+function Send-Webhook(
+    [string] $integrationId,
+    [string] $deliveryId,
+    [string] $body,
+    [long] $timestamp,
+    [string] $signature = '',
+    [hashtable] $additionalHeaders = @{}) {
     $timestampText = $timestamp.ToString([Globalization.CultureInfo]::InvariantCulture)
     if ($signature.Length -eq 0) { $signature = New-Signature $timestampText $deliveryId $body }
-    return Send-Json 'POST' "/integrations/inbound/leads/$integrationId" $body @{
+    $headers = @{
         'X-Unicore-Delivery-Id' = $deliveryId
         'X-Unicore-Timestamp' = $timestampText
         'X-Unicore-Signature' = $signature
         'X-Correlation-Id' = 'corr-' + [Guid]::NewGuid().ToString('N')
     }
+    foreach ($entry in $additionalHeaders.GetEnumerator()) {
+        $headers[[string] $entry.Key] = [string] $entry.Value
+    }
+    return Send-Json 'POST' "/integrations/inbound/leads/$integrationId" $body $headers
 }
+
+$createAuthorizerSource = Get-Content -Raw -LiteralPath "$PSScriptRoot/../src/UnicoreCRM.Crm/Leads/Application/CreateLead/DelegatedLeadCreateAuthorizer.cs"
+$ingressSource = Get-Content -Raw -LiteralPath "$PSScriptRoot/../src/UnicoreCRM.Crm/Leads/Application/CreateLead/InboundLeadIngress.cs"
+$admissionSource = Get-Content -Raw -LiteralPath "$PSScriptRoot/../src/UnicoreCRM.Crm/Leads/Application/CreateLead/LeadCreateAdmission.cs"
+$executionSource = Get-Content -Raw -LiteralPath "$PSScriptRoot/../src/UnicoreCRM.Crm/Leads/Application/CreateLead/LeadCreateExecution.cs"
+$coordinatorSource = Get-Content -Raw -LiteralPath "$PSScriptRoot/../src/UnicoreCRM.Integrations/Webhooks/Inbound/Application/InboundLeadWebhookCoordinator.cs"
+$payloadSource = Get-Content -Raw -LiteralPath "$PSScriptRoot/../src/UnicoreCRM.Integrations/Webhooks/Inbound/Application/GenericLeadWebhookPayload.cs"
+
+Assert-SourceGuard ($createAuthorizerSource -match 'private DelegatedLeadIngressAuthorization\s*\(') `
+    'Proof source guard private constructor'
+Assert-SourceGuard (([regex]::Matches($createAuthorizerSource, 'new DelegatedLeadIngressAuthorization\s*\(')).Count -eq 1) `
+    'Proof source guard single issuer construction'
+Assert-SourceGuard ($createAuthorizerSource -notmatch 'AccessRequirement|FromAllowedDecision') `
+    'Proof source guard no generic requirement or decision factory'
+Assert-SourceGuard (([regex]::Matches($createAuthorizerSource, 'LeadCapabilities\.Create')).Count -eq 1) `
+    'Proof source guard hard-coded leads.create'
+Assert-SourceGuard ($createAuthorizerSource -match 'context\.WorkspaceId' `
+        -and $createAuthorizerSource -match 'context\.AccountId' `
+        -and $createAuthorizerSource -match 'context\.MemberId' `
+        -and $createAuthorizerSource -match 'context\.MembershipId') `
+    'Proof source guard exact trusted context binding'
+Assert-SourceGuard ($createAuthorizerSource -match 'trustedWorkspace\.MemberId' `
+        -and $createAuthorizerSource -match 'delegatedSubjectId') `
+    'Proof source guard delegated subject matches trusted member'
+Assert-SourceGuard ($ingressSource -match 'IDelegatedLeadCreateAuthorizer' `
+        -and $ingressSource -notmatch 'IDelegatedAccessAuthorizer|AccessAuthorizationDecision|LeadCapabilities') `
+    'Ingress source guard dedicated authorizer only'
+Assert-SourceGuard ($admissionSource -notmatch 'FromAllowedDecision|AccessAuthorizationDecision|LeadAccess\?\s+\w+') `
+    'Admission source guard generic decision and nullable access blocked'
+Assert-SourceGuard ($admissionSource -match 'profile\.OwnerId, authorization\.DelegatedSubjectId' `
+        -and $admissionSource -match 'metadata\.DelegatedSubjectId' `
+        -and $admissionSource -match 'LeadCreateAdmission\(authorization\.Trusted\)') `
+    'Admission source guard proof cannot rebind Workspace member or owner'
+Assert-SourceGuard ($executionSource -match 'LeadCreateAdmission admission' `
+        -and $executionSource -match 'admission\.GuardExecutionBinding' `
+        -and $executionSource -notmatch 'LeadAccess\?\s+\w+|skipAuthorization|skipAccessControl') `
+    'Execution source guard closed non-nullable admission'
+Assert-SourceGuard ($coordinatorSource -match 'binding\.WorkspaceId' `
+        -and $coordinatorSource -match 'binding\.DelegatedMemberId' `
+        -and $payloadSource -match 'JsonUnmappedMemberHandling\.Disallow') `
+    'Sender authority source guard server binding and closed payload'
 
 $hostProcess = $null
 try {
@@ -189,6 +245,7 @@ try {
     if ($authorityParts.Count -ne 3) { throw "Workspace authority was not resolved: $authority" }
     $workspaceId = $authorityParts[0]
     $memberId = $authorityParts[1]
+    $membershipId = $authorityParts[2]
     $foreignWorkspaceId = Invoke-SqlScalar "SELECT WorkspaceId FROM workspace.Workspaces WHERE [Key]='inbound-webhook-foreign';"
     $hostProcess = Start-ApiHost $true $workspaceId $memberId
 
@@ -240,6 +297,9 @@ try {
     $afterPositive = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE WorkspaceId='$workspaceId';")
     if ($afterPositive -ne $baselineLeadCount + 1) { throw 'Positive webhook did not create exactly one Lead.' }
     $checks.Add('Inbound webhook server-assigned Lead identity=PASS')
+    $capabilityAudit = Invoke-SqlScalar "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$workspaceId' AND MembershipId='$membershipId' AND RequiredCapability='leads.create' AND Allowed=1 AND CorrelationId='$($positiveReceipt.correlationId)';"
+    if ($capabilityAudit -ne '1') { throw 'Positive webhook did not record exactly one canonical delegated leads.create decision.' }
+    $checks.Add('Inbound webhook one canonical leads.create authorization decision=PASS')
 
     $missingSignature = Send-Json 'POST' '/integrations/inbound/leads/int_inbound_lead_webhook' $body @{
         'X-Unicore-Delivery-Id' = 'delivery-missing-signature'; 'X-Unicore-Timestamp' = $now; 'X-Correlation-Id' = 'corr-inbound-webhook-missing-signature'
@@ -265,8 +325,22 @@ try {
     Assert-Status (Send-Webhook 'int_inbound_lead_webhook' 'delivery-product-gap' $productBody ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())) 400 'Leads interested Products gap'
 
     Invoke-Sql "INSERT INTO workspace.Memberships (MembershipId,WorkspaceId,AccountId,MemberId,Status,CreatedAt) VALUES ('wsm_inbound_webhook_denied','$workspaceId','acct_inbound_webhook_denied','member_inbound_webhook_denied','Active',SYSUTCDATETIME()); UPDATE integration.InboundBindings SET DelegatedMemberId='member_inbound_webhook_denied',UpdatedAt=SYSUTCDATETIME() WHERE IntegrationId='int_inbound_lead_webhook';"
+    $deniedLeadCount = Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.Leads;'
+    $deniedAuditCount = Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.AuditRecords;'
+    $deniedOutboxCount = Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.OutboxMessages;'
+    $deniedIdempotencyCount = Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.IdempotencyRecords;'
     Assert-Status (Send-Webhook 'int_inbound_lead_webhook' 'delivery-auth-denied' $body ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())) 403 'Inbound webhook authorization denial'
     if ([int] (Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE WorkspaceId='$workspaceId';") -ne $afterPositive) { throw 'Authorization denial created a Lead.' }
+    if ((Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.Leads;') -ne $deniedLeadCount `
+        -or (Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.AuditRecords;') -ne $deniedAuditCount `
+        -or (Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.OutboxMessages;') -ne $deniedOutboxCount `
+        -or (Invoke-SqlScalar 'SELECT COUNT(*) FROM leads.IdempotencyRecords;') -ne $deniedIdempotencyCount) {
+        throw 'Denied delegated authorization mutated Lead business state, audit, outbox, or idempotency.'
+    }
+    $checks.Add('Inbound webhook authorization denial no Lead business mutation=PASS')
+    $deniedCapabilityAudit = Invoke-SqlScalar "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$workspaceId' AND MembershipId='wsm_inbound_webhook_denied' AND RequiredCapability='leads.create' AND Allowed=0;"
+    if ($deniedCapabilityAudit -ne '1') { throw 'Denied webhook did not record exactly one canonical delegated leads.create decision.' }
+    $checks.Add('Inbound webhook denied canonical leads.create authorization decision=PASS')
     Invoke-Sql "UPDATE integration.InboundBindings SET DelegatedMemberId='member_inbound_webhook_missing',UpdatedAt=SYSUTCDATETIME() WHERE IntegrationId='int_inbound_lead_webhook';"
     Assert-Status (Send-Webhook 'int_inbound_lead_webhook' 'delivery-invalid-member' $body ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())) 403 'Inbound webhook invalid delegated member'
     Invoke-Sql "UPDATE integration.InboundBindings SET DelegatedMemberId='$memberId',IsEnabled=0,UpdatedAt=SYSUTCDATETIME() WHERE IntegrationId='int_inbound_lead_webhook';"
@@ -305,6 +379,18 @@ try {
     if ($statusOne -ne 200 -or $statusTwo -ne 200) { throw "Concurrent duplicate statuses were $statusOne/$statusTwo." }
     if ([int] (Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE JSON_VALUE(Profile,'$.displayName')='Concurrent Lead';") -ne 1) { throw 'Concurrent delivery did not create exactly one Lead.' }
     $checks.Add('Inbound webhook concurrent duplicate=200/200, one Lead')
+
+    $headerSpoof = Send-Webhook 'int_inbound_lead_webhook' 'delivery-header-spoof' $body.Replace('Webhook Lead', 'Header Spoof Lead') `
+        ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()) '' @{
+            'X-Workspace-Id' = $foreignWorkspaceId
+            'X-Delegated-Subject-Id' = 'member_sender_chosen'
+        }
+    Assert-Status $headerSpoof 200 'Inbound webhook sender authority headers ignored'
+    $headerSpoofLeadId = ($headerSpoof.Body | ConvertFrom-Json).leadId
+    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$headerSpoofLeadId' AND WorkspaceId='$workspaceId' AND ScopeOwnerId='$memberId';") -ne '1') {
+        throw 'Sender authority headers changed trusted Workspace or delegated owner.'
+    }
+    $checks.Add('Inbound webhook sender cannot choose Workspace or delegated subject=PASS')
 
     $inboxEvidence = Invoke-SqlScalar "SELECT COUNT(*) FROM ops.InboxMessages WHERE IntegrationId='int_inbound_lead_webhook' AND DeliveryId='delivery-positive-1' AND Status='Processed' AND ResultLeadId='$leadId';"
     $auditEvidence = Invoke-SqlScalar "SELECT COUNT(*) FROM leads.AuditRecords WHERE AggregateId='$leadId' AND ActorType='Integration' AND ActorId='int_inbound_lead_webhook' AND DelegatedSubjectId='$memberId' AND SourceReference='delivery-positive-1';"

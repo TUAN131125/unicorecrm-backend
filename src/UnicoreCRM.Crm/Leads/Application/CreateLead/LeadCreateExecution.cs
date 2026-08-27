@@ -45,6 +45,13 @@ internal sealed class LeadCreateExecution(
                 : LeadOperationResult<LeadMutationResponse>.Failure(replayError);
         }
 
+        // A committed replay writes nothing and is answered from its original authority evidence.
+        // New delegated execution must still bind both owner assignment and audit provenance to the
+        // member carried by the server-issued admission proof.
+        var bindingError = admission.GuardExecutionBinding(profile!, metadata);
+        if (bindingError is not null)
+            return LeadOperationResult<LeadMutationResponse>.Failure(bindingError);
+
         // Creation is a resource-level question, so no record scope applies, but the admitted model's
         // field-write policy still does: a field the caller may not write must not be written on the
         // way in either. It follows the replay branch, so a committed creation stays replayable after
