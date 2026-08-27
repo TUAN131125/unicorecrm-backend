@@ -18,6 +18,6 @@ internal sealed class Handler(
         if (!access.IsSuccess)
             return LeadOperationResult<LeadMutationResponse>.Failure(access.Error!);
         var trusted = access.Value!.Trusted;
-        return await execution.ExecuteAsync(trusted, command.Request, command.Metadata, cancellationToken);
+        return await execution.ExecuteAsync(trusted, access.Value!, command.Request, command.Metadata, cancellationToken);
     }
 }

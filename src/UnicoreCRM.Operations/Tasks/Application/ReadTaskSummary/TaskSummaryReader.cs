@@ -15,6 +15,9 @@ internal sealed class TaskSummaryReader(
     ITasksPersistence persistence,
     TimeProvider timeProvider) : ITaskSummaryReader
 {
+    /// <summary>The fields this minimized contract exposes, all of which it declares optional.</summary>
+    private static readonly string[] SummaryFieldKeys = ["title", "status", "priority", "dueAt"];
+
     public async Task<TaskSummaryReadResult> ReadAsync(
         string taskId,
         string requestId,
@@ -22,7 +25,11 @@ internal sealed class TaskSummaryReader(
         CancellationToken cancellationToken)
     {
         var metadata = new TaskRequestMetadata(requestId, correlationId);
-        var access = await authorization.AuthorizeAsync(TaskCapabilities.Read, metadata, cancellationToken);
+        // Every field of the minimized summary contract is optional, so this operation can return
+        // any of them absent. The full Task read model makes some of them required, but that
+        // declaration governs the full representation, not this one.
+        var access = await authorization.AuthorizeAsync(
+            TaskCapabilities.Read, metadata, cancellationToken, SummaryFieldKeys);
         if (!access.IsSuccess)
         {
             return new(access.Error!.Code == "WORKSPACE_MISMATCH"

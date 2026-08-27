@@ -8,7 +8,7 @@ internal sealed class AccessAuthorizer(
     ICurrentWorkspace currentWorkspace,
     IAccessControlPersistence persistence,
     IResolvedAuthorizationContextSetter contextSetter,
-    TimeProvider timeProvider) : IAccessAuthorizer, IDelegatedAccessAuthorizer
+    TimeProvider timeProvider) : IAccessAuthorizer, IDelegatedAccessAuthorizer, IAccessContextAuthorizer
 {
     public async Task<AccessAuthorizationDecision> AuthorizeAsync(
         AccessRequirement requirement,
@@ -16,17 +16,42 @@ internal sealed class AccessAuthorizer(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(requirement);
-        if (!currentWorkspace.IsResolved)
-            return new AccessAuthorizationDecision(false, AccessErrors.WorkspaceMismatch().Code, null);
-
-        var trusted = currentWorkspace.Require();
-        var decision = await EvaluateAsync(trusted, requirement, correlationId, cancellationToken);
-        if (decision.IsAllowed)
-            contextSetter.Set(decision.Context!);
-        return decision;
+        var evaluation = await AuthorizeWithContextAsync(requirement, correlationId, cancellationToken);
+        return new AccessAuthorizationDecision(
+            evaluation.IsAllowed,
+            evaluation.Code,
+            evaluation.IsAllowed ? evaluation.Context : null);
     }
 
-    public Task<AccessAuthorizationDecision> AuthorizeAsync(
+    /// <summary>
+    /// The single authoritative evaluation of one capability. The effective policy is loaded once,
+    /// the supplied business capability is the capability that is evaluated and the capability that
+    /// the <see cref="AuthorizationDecisionRecord"/> audit evidence records, and the effective
+    /// context produced by that same evaluation is returned to the caller.
+    ///
+    /// <para>The context is returned on a denial too. A denied caller is still a resolved
+    /// membership of the trusted Workspace, and the record-access projection has to be able to
+    /// answer "denied for this Workspace" without a second policy load that could observe different
+    /// state. Only an allowed decision publishes the context as the request's resolved authorization
+    /// context.</para>
+    /// </summary>
+    public async Task<AccessContextAuthorization> AuthorizeWithContextAsync(
+        AccessRequirement requirement,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(requirement);
+        if (!currentWorkspace.IsResolved)
+            return new AccessContextAuthorization(false, AccessErrors.WorkspaceMismatch().Code, null);
+
+        var trusted = currentWorkspace.Require();
+        var evaluation = await EvaluateAsync(trusted, requirement, correlationId, cancellationToken);
+        if (evaluation.IsAllowed)
+            contextSetter.Set(evaluation.Context!);
+        return evaluation;
+    }
+
+    public async Task<AccessAuthorizationDecision> AuthorizeAsync(
         TrustedWorkspaceContext trustedWorkspace,
         AccessRequirement requirement,
         string correlationId,
@@ -34,10 +59,14 @@ internal sealed class AccessAuthorizer(
     {
         ArgumentNullException.ThrowIfNull(trustedWorkspace);
         ArgumentNullException.ThrowIfNull(requirement);
-        return EvaluateAsync(trustedWorkspace, requirement, correlationId, cancellationToken);
+        var evaluation = await EvaluateAsync(trustedWorkspace, requirement, correlationId, cancellationToken);
+        return new AccessAuthorizationDecision(
+            evaluation.IsAllowed,
+            evaluation.Code,
+            evaluation.IsAllowed ? evaluation.Context : null);
     }
 
-    private async Task<AccessAuthorizationDecision> EvaluateAsync(
+    private async Task<AccessContextAuthorization> EvaluateAsync(
         TrustedWorkspaceContext trusted,
         AccessRequirement requirement,
         string correlationId,
@@ -57,9 +86,9 @@ internal sealed class AccessAuthorizer(
             now));
         await persistence.SaveChangesAsync(cancellationToken);
 
-        if (!allowed)
-            return new AccessAuthorizationDecision(false, AccessErrors.AccessDenied().Code, null);
-
-        return new AccessAuthorizationDecision(true, "AUTHORIZED", context);
+        return new AccessContextAuthorization(
+            allowed,
+            allowed ? "AUTHORIZED" : AccessErrors.AccessDenied().Code,
+            context);
     }
 }

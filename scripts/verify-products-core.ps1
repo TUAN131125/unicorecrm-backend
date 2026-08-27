@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string] $DatabaseName,
 
@@ -135,7 +135,11 @@ function Stop-ApiHost($process) {
 
 function Send-Json([string] $method, [string] $path, [string] $body, [hashtable] $headers) {
     $message = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new($method), "$baseUrl$path")
-    if ($null -ne $body) {
+    # An unbound [string] parameter arrives as an empty string, not $null, so `$null -ne $body` was
+    # true for every GET and attached an empty JSON body to it. Windows PowerShell 5.1 ships an
+    # HttpClient that refuses content on GET, which failed the request before it reached the API.
+    # This is a harness defect only: no API semantics are changed to accommodate it.
+    if (-not [string]::IsNullOrEmpty($body)) {
         $message.Content = [System.Net.Http.StringContent]::new($body, [Text.Encoding]::UTF8, 'application/json')
     }
     foreach ($entry in $headers.GetEnumerator()) {

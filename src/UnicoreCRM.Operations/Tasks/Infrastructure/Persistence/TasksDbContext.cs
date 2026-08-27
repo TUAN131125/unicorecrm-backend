@@ -39,6 +39,11 @@ internal sealed class TasksDbContext(DbContextOptions<TasksDbContext> options) :
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.TaskId });
             entity.HasIndex(item => new { item.WorkspaceId, item.DueAt, item.TaskId });
+            // The enforced OWN-scope predicate. ListTasks narrows by WorkspaceId and the
+            // AccessControl scope assignee before counting and paging, and its default order is
+            // UpdatedAt then TaskId, so this covers the security predicate, the count and the
+            // ordered page in one seek instead of scanning the Workspace.
+            entity.HasIndex(item => new { item.WorkspaceId, item.AssigneeId, item.UpdatedAt, item.TaskId });
         });
 
         modelBuilder.Entity<TaskActivity>(entity =>

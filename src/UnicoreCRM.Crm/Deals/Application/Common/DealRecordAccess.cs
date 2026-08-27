@@ -1,3 +1,4 @@
+using System.Globalization;
 using UnicoreCRM.Crm.Deals.Contracts;
 using UnicoreCRM.Crm.Deals.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
@@ -93,8 +94,18 @@ internal static class DealFieldSecurity
             RevisitAt = access.CanRead("revisitAt") ? model.RevisitAt : null
         };
 
-    internal static DealOperationError? UnenforceablePolicy(RecordAccessAuthorization access) =>
+    /// <summary>
+    /// The refusal a caller receives when a restrictive policy names a field this operation cannot
+    /// return absent. <paramref name="withholdableFieldKeys"/> names the fields the operation being
+    /// authorized can omit despite the full read model declaring them required.
+    /// </summary>
+    internal static DealOperationError? UnenforceablePolicy(
+        RecordAccessAuthorization access,
+        IReadOnlyCollection<string>? withholdableFieldKeys = null) =>
         access.UnenforceableFieldKeys.Count == 0
+        || access.UnenforceableFieldKeys.All(fieldKey =>
+            withholdableFieldKeys is not null
+            && withholdableFieldKeys.Contains(fieldKey, StringComparer.OrdinalIgnoreCase))
             ? null
             : new DealOperationError(
                 "ACCESS_DENIED",
@@ -102,17 +113,98 @@ internal static class DealFieldSecurity
                 "Access denied",
                 "A field-security policy applies to a field this resource cannot withhold, so the request is refused rather than returning a value the policy forbids.");
 
-    internal static DealOperationError? GuardFieldWrite(RecordAccessAuthorization access, params string[] fieldKeys)
+    internal static DealOperationError? GuardFieldWrite(RecordAccessAuthorization access, params string[] fieldKeys) =>
+        Refusal(fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).ToList());
+
+    /// <summary>
+    /// Refuses a profile replacement that would change a field the caller may not write. The check
+    /// compares the requested profile against the stored aggregate, so replacing a field with the
+    /// value it already holds is not a write and is not refused. Without this comparison a full
+    /// profile replacement would either send every profile field through the write check - refusing
+    /// unchanged READ_ONLY values - or send none, which is what let a READ_ONLY field be replaced.
+    /// </summary>
+    internal static DealOperationError? GuardProfileWrite(
+        RecordAccessAuthorization access,
+        DealProfile current,
+        DealProfile requested)
     {
-        var blocked = fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).Order(StringComparer.Ordinal).ToArray();
-        return blocked.Length == 0
+        var currentValues = Values(current);
+        var blocked = new List<string>();
+        foreach (var pair in Values(requested))
+        {
+            if (!access.CanWrite(pair.Key) && !string.Equals(currentValues[pair.Key], pair.Value, StringComparison.Ordinal))
+                blocked.Add(pair.Key);
+        }
+        return Refusal(blocked);
+    }
+
+    /// <summary>
+    /// Refuses a creation that populates a field the caller may not write. Creation has no stored
+    /// value to compare against, so every field the request actually sets counts as a write, and the
+    /// fields the create contract makes mandatory always count.
+    /// </summary>
+    internal static DealOperationError? GuardCreateWrite(
+        RecordAccessAuthorization access,
+        DealProfile profile,
+        DateTimeOffset? nextActionAt,
+        string? nextActionSummary,
+        string? nextActionTaskId)
+    {
+        var blocked = new List<string>();
+        foreach (var pair in Values(profile))
+        {
+            var written = RequiredCreateFields.Contains(pair.Key, StringComparer.Ordinal) || pair.Value.Length != 0;
+            if (written && !access.CanWrite(pair.Key))
+                blocked.Add(pair.Key);
+        }
+
+        // A create always sets the opening stage and a forecast category, and optionally a next
+        // action.
+        if (!access.CanWrite("stageCode")) blocked.Add("stageCode");
+        if (!access.CanWrite("stageCategory")) blocked.Add("stageCategory");
+        if (!access.CanWrite("forecastCategory")) blocked.Add("forecastCategory");
+        if (nextActionAt is not null && !access.CanWrite("nextActionAt")) blocked.Add("nextActionAt");
+        if (nextActionSummary is not null && !access.CanWrite("nextActionSummary")) blocked.Add("nextActionSummary");
+        if (nextActionTaskId is not null && !access.CanWrite("nextActionRef")) blocked.Add("nextActionRef");
+        return Refusal(blocked);
+    }
+
+    /// <summary>
+    /// The create-contract fields a Deal always carries a value for. A non-writable required create
+    /// field fails the creation closed: there is no admitted representation of a Deal created
+    /// without a name, buyer, amount, score, owner or expected close date.
+    /// </summary>
+    private static readonly string[] RequiredCreateFields =
+        ["name", "buyerRef", "amount", "opportunityScore", "ownerId", "expectedCloseDate", "interestedProductIds"];
+
+    /// <summary>
+    /// The profile as its wire field vocabulary, each value reduced to a canonical string so a change
+    /// is decided by value and not by object identity. An empty string means the profile carries no
+    /// value for that field.
+    /// </summary>
+    private static Dictionary<string, string> Values(DealProfile profile) =>
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["name"] = profile.Name,
+            ["buyerRef"] = $"{profile.BuyerRef.Type}|{profile.BuyerRef.Id}",
+            ["amount"] = $"{profile.Amount.Amount}|{profile.Amount.Currency}",
+            ["opportunityScore"] = profile.OpportunityScore,
+            ["ownerId"] = profile.OwnerId,
+            ["expectedCloseDate"] = profile.ExpectedCloseDate.ToString("O", CultureInfo.InvariantCulture),
+            ["contactId"] = profile.ContactId ?? string.Empty,
+            ["sourceLeadId"] = profile.SourceLeadId ?? string.Empty,
+            ["interestedProductIds"] = string.Join(",", profile.InterestedProductIds),
+            ["notes"] = profile.Notes ?? string.Empty
+        };
+
+    private static DealOperationError? Refusal(List<string> blocked) =>
+        blocked.Count == 0
             ? null
             : new DealOperationError(
                 "ACCESS_DENIED",
                 403,
                 "Access denied",
-                $"Field security does not permit writing: {string.Join(", ", blocked)}.");
-    }
+                $"Field security does not permit writing: {string.Join(", ", blocked.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}.");
 }
 
 /// <summary>
@@ -127,10 +219,18 @@ internal sealed class DealAuthorization(IRecordAccessEvaluator evaluator)
 {
     internal const string ResourceKey = "deals";
 
+    /// <param name="withholdableFieldKeys">
+    /// Field keys this particular operation can return absent, even though the resource's full read
+    /// model makes them required. Required-ness is a property of the representation being returned,
+    /// not of the resource: the minimized summary contract declares every field optional, so a
+    /// withheld value has an admitted representation there and the operation must not fail closed.
+    /// Omitted, the resource's own declaration applies.
+    /// </param>
     internal async Task<DealOperationResult<DealAccess>> AuthorizeAsync(
         AccessRequirement requirement,
         DealRequestMetadata metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<string>? withholdableFieldKeys = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
@@ -148,7 +248,7 @@ internal sealed class DealAuthorization(IRecordAccessEvaluator evaluator)
         if (!authorization.IsAllowed)
             return DealOperationResult<DealAccess>.Failure(DealErrors.AccessDenied());
 
-        var unenforceable = DealFieldSecurity.UnenforceablePolicy(authorization);
+        var unenforceable = DealFieldSecurity.UnenforceablePolicy(authorization, withholdableFieldKeys);
         if (unenforceable is not null)
             return DealOperationResult<DealAccess>.Failure(unenforceable);
 

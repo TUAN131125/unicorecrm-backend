@@ -69,8 +69,18 @@ internal static class TaskFieldSecurity
             ArchiveReason = access.CanRead("archiveReason") ? model.ArchiveReason : null
         };
 
-    internal static TaskOperationError? UnenforceablePolicy(RecordAccessAuthorization access) =>
+    /// <summary>
+    /// The refusal a caller receives when a restrictive policy names a field this operation cannot
+    /// return absent. <paramref name="withholdableFieldKeys"/> names the fields the operation being
+    /// authorized can omit despite the full read model declaring them required.
+    /// </summary>
+    internal static TaskOperationError? UnenforceablePolicy(
+        RecordAccessAuthorization access,
+        IReadOnlyCollection<string>? withholdableFieldKeys = null) =>
         access.UnenforceableFieldKeys.Count == 0
+        || access.UnenforceableFieldKeys.All(fieldKey =>
+            withholdableFieldKeys is not null
+            && withholdableFieldKeys.Contains(fieldKey, StringComparer.OrdinalIgnoreCase))
             ? null
             : new TaskOperationError(
                 "ACCESS_DENIED",
@@ -78,17 +88,43 @@ internal static class TaskFieldSecurity
                 "Access denied",
                 "A field-security policy applies to a field this resource cannot withhold, so the request is refused rather than returning a value the policy forbids.");
 
+    /// <summary>
+    /// Refuses a creation that populates a field the caller may not write. Creation has no prior
+    /// record and therefore no record scope, but field-write policy still governs what may be
+    /// written: a HIDDEN, MASKED or READ_ONLY field supplied on the way in is refused rather than
+    /// silently dropped, because silently dropping it would return a record that does not match the
+    /// request the caller believes it made. There is no stored value to compare against, so every
+    /// field the request actually sets counts as a write.
+    /// </summary>
+    internal static TaskOperationError? GuardCreateWrite(
+        RecordAccessAuthorization access,
+        string? description,
+        TaskReferenceData references)
+    {
+        // title, priority, assigneeId and dueAt are required by the create contract and are always
+        // written. A non-writable required create field therefore fails the creation closed: there
+        // is no admitted representation of a create that omits them.
+        var written = new List<string> { "title", "priority", "assigneeId", "dueAt" };
+        if (description is not null) written.Add("description");
+        if (references.RelationshipType is not null || references.RelationshipId is not null) written.Add("relationshipRef");
+        if (references.RecordModuleKey is not null || references.RecordId is not null || references.RecordLabel is not null) written.Add("recordRef");
+        if (references.SourceType is not null || references.SourceId is not null || references.SourceEvidence is not null) written.Add("sourceRef");
+        return Refusal(written.Where(fieldKey => !access.CanWrite(fieldKey)).ToList());
+    }
+
     internal static TaskOperationError? GuardFieldWrite(RecordAccessAuthorization access, params string[] fieldKeys)
     {
-        var blocked = fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).Order(StringComparer.Ordinal).ToArray();
-        return blocked.Length == 0
+        return Refusal(fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).ToList());
+    }
+
+    private static TaskOperationError? Refusal(List<string> blocked) =>
+        blocked.Count == 0
             ? null
             : new TaskOperationError(
                 "ACCESS_DENIED",
                 403,
                 "Access denied",
-                $"Field security does not permit writing: {string.Join(", ", blocked)}.");
-    }
+                $"Field security does not permit writing: {string.Join(", ", blocked.Order(StringComparer.Ordinal))}.");
 }
 
 /// <summary>
@@ -103,10 +139,18 @@ internal sealed class TaskAuthorization(IRecordAccessEvaluator evaluator)
 {
     internal const string ResourceKey = "tasks";
 
+    /// <param name="withholdableFieldKeys">
+    /// Field keys this particular operation can return absent, even though the resource's full read
+    /// model makes them required. Required-ness is a property of the representation being returned,
+    /// not of the resource: the minimized summary contract declares every field optional, so a
+    /// withheld value has an admitted representation there and the operation must not fail closed.
+    /// Omitted, the resource's own declaration applies.
+    /// </param>
     internal async Task<TaskOperationResult<TaskAccess>> AuthorizeAsync(
         AccessRequirement requirement,
         TaskRequestMetadata metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<string>? withholdableFieldKeys = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
@@ -124,7 +168,7 @@ internal sealed class TaskAuthorization(IRecordAccessEvaluator evaluator)
         if (!authorization.IsAllowed)
             return TaskOperationResult<TaskAccess>.Failure(TaskErrors.AccessDenied());
 
-        var unenforceable = TaskFieldSecurity.UnenforceablePolicy(authorization);
+        var unenforceable = TaskFieldSecurity.UnenforceablePolicy(authorization, withholdableFieldKeys);
         if (unenforceable is not null)
             return TaskOperationResult<TaskAccess>.Failure(unenforceable);
 

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Reproducible AccessControl Record Access Core runtime verification.
 
@@ -255,11 +255,17 @@ function Get-ComparablePayload {
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $hostProject = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj'
 $platformProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj'
+$operationsProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj'
+$crmProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj'
 $demoEmail = 'admin@unicorecrm.local'
 $demoPassword = 'Record-Access-Verify!2026'
 $hostProcess = $null
 $logPath = Join-Path ([IO.Path]::GetTempPath()) ("unicore-record-access-verify-$([Guid]::NewGuid().ToString('N')).log")
-$supportProfileFields = @('subject', 'description', 'priority', 'status', 'assigneeId', 'queueId', 'slaPolicyId')
+# Support's own declared field vocabulary. The frontend form names (`subject`, `assigneeId`,
+# `queueId`, `slaPolicyId`) are deliberately not used here: a key the owner does not declare is
+# not enforceable and now fails closed, which section 23.9 tests on purpose rather than by
+# accident.
+$supportProfileFields = @('title', 'description', 'priority', 'status', 'ownerId', 'channel', 'tags')
 $supportProfileCommands = @('support.create', 'support.update', 'support.assign', 'support.resolve', 'support.close', 'support.reopen', 'support.cancel')
 
 try {
@@ -470,7 +476,7 @@ DROP TABLE #foreign_case;
     Add-Result 'capability: read survives losing support.update' 'True' ($withoutUpdate.Body.canRead).ToString()
     Add-Result 'capability: canUpdate follows the capability' 'False' ($withoutUpdate.Body.canUpdate).ToString()
     Add-Result 'capability: update commands withdrawn' '2' ([int]$withoutUpdate.Body.allowedCommands.Count)
-    Add-Result 'field: READ_WRITE demoted to READ_ONLY without update' 'READ_ONLY' $withoutUpdate.Body.fieldAccess.subject
+    Add-Result 'field: READ_WRITE demoted to READ_ONLY without update' 'READ_ONLY' $withoutUpdate.Body.fieldAccess.title
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'support.update')"
 
@@ -482,7 +488,7 @@ DROP TABLE #foreign_case;
     Add-Result 'capability: denial reason is capability denial' 'CAPABILITY_DENIED' `
         (($withoutRead.Body.decisionReasons | Where-Object { $_.effect -eq 'DENY' }).code)
     Add-Result 'capability: no command granted without read' '0' ([int]$withoutRead.Body.allowedCommands.Count)
-    Add-Result 'capability: fields hidden without read' 'HIDDEN' $withoutRead.Body.fieldAccess.subject
+    Add-Result 'capability: fields hidden without read' 'HIDDEN' $withoutRead.Body.fieldAccess.title
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'support.read')"
 
@@ -527,7 +533,7 @@ VALUES ('scope_record_access_verify_support', '$roleId', 'support', 'Own', '[]')
     $ownDenied = Invoke-Evaluate -Request @{ resourceKey = 'support'; recordId = $otherCaseId; requestedCommands = $supportProfileCommands; requestedFields = $supportProfileFields; includeExport = $true }
     Add-Result 'scope OWN: owner differs from caller is denied' 'False' ($ownDenied.Body.canRead).ToString()
     Add-Result 'scope OWN: denied record grants no command' '0' ([int]$ownDenied.Body.allowedCommands.Count)
-    Add-Result 'scope OWN: denied record hides every field' 'HIDDEN' $ownDenied.Body.fieldAccess.subject
+    Add-Result 'scope OWN: denied record hides every field' 'HIDDEN' $ownDenied.Body.fieldAccess.title
 
     $ownDeniedNormalised = (Get-ComparablePayload -Raw $ownDenied.Raw) -replace '"recordId":"[^"]*"', '"recordId":"<id>"'
     Add-Result 'leakage: scope-hidden record indistinguishable from unknown record' $unknownNormalised $ownDeniedNormalised
@@ -559,13 +565,13 @@ VALUES ('scope_record_access_verify_support', '$roleId', 'support', 'Own', '[]')
     # ------------------------------------------------------------ 9. field security
 
     $defaultField = Invoke-Evaluate -Request $baseRequest
-    Add-Result 'field: unrestricted field is READ_WRITE' 'READ_WRITE' $defaultField.Body.fieldAccess.subject
+    Add-Result 'field: unrestricted field is READ_WRITE' 'READ_WRITE' $defaultField.Body.fieldAccess.title
     Add-Result 'field: only requested fields are projected' '7' ([int]($defaultField.Body.fieldAccess.PSObject.Properties | Measure-Object).Count)
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
 ('field_record_access_verify_desc', '$roleId', 'support', 'description', 'Masked'),
-('field_record_access_verify_sla', '$roleId', 'support', 'slaPolicyId', 'Hidden'),
+('field_record_access_verify_sla', '$roleId', 'support', 'channel', 'Hidden'),
 ('field_record_access_verify_status', '$roleId', 'support', 'status', 'ReadOnly');
 "@
 
@@ -574,9 +580,9 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
     # the value and is reported as HIDDEN - which is exactly what the caller will observe. Reporting
     # MASKED would promise a masked value that never arrives.
     Add-Result 'field: policy MASKED is enforced as withheld' 'HIDDEN' $restrictedFields.Body.fieldAccess.description
-    Add-Result 'field: policy HIDDEN is honoured' 'HIDDEN' $restrictedFields.Body.fieldAccess.slaPolicyId
+    Add-Result 'field: policy HIDDEN is honoured' 'HIDDEN' $restrictedFields.Body.fieldAccess.channel
     Add-Result 'field: policy READ_ONLY is honoured' 'READ_ONLY' $restrictedFields.Body.fieldAccess.status
-    Add-Result 'field: unlisted field remains READ_WRITE' 'READ_WRITE' $restrictedFields.Body.fieldAccess.subject
+    Add-Result 'field: a declared field with no policy stays READ_WRITE' 'READ_WRITE' $restrictedFields.Body.fieldAccess.title
     # @() is required: a single object returned by Where-Object carries no Count in Windows
     # PowerShell 5.1, so an unwrapped .Count silently reads as $null.
     Add-Result 'field: restriction reported as a LIMIT reason' 'True' `
@@ -1227,8 +1233,8 @@ SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$res
 
     # The Tasks, Leads and Deals summary readers each carried their own copy of the record-scope and
     # field-visibility rules and were rewritten onto the canonical boundary. `verify-ai-assistant.ps1`
-    # is the harness that normally covers them, but it cannot run on Windows PowerShell 5.1, so their
-    # only consumer is exercised here instead of being left unproven.
+    # covers them end to end again now that its Windows PowerShell 5.1 harness defects are fixed;
+    # this block keeps their record-scope behaviour proven inside the AccessControl harness too.
 
     $advisoryBody = @{
         question          = 'What should I focus on next?'
@@ -1258,6 +1264,519 @@ SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$res
     $advisoryOwn = Invoke-Support -Method 'POST' -Path '/ai/advisories' -Body $advisoryBody
     Add-Result 'ai: the caller own records remain summarisable under OWN' '200' $advisoryOwn.Status
     Clear-ModuleScope -Database $DatabaseName
+
+    # ------------------------------ 23. SYSTEM-WIDE ENFORCEMENT HARDENING
+
+    # Everything in this section covers a defect class that was reachable through the business API
+    # itself: batch replay outrunning current record scope, batch and create responses escaping field
+    # security, full-profile replacement writing fields the caller may not write, committed replays
+    # being invalidated by later mutable state, the public evaluation disagreeing with direct
+    # enforcement, and an unknown field key widening access.
+
+    function Set-GateField {
+        param([string] $Resource, [string] $Field, [string] $Access)
+        Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_gate_%';
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_gate_01', '$roleId', '$Resource', '$Field', '$Access');
+"@
+    }
+
+    function Clear-GateField {
+        Invoke-SqlNonQuery -Database $DatabaseName `
+            -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_gate_%'"
+    }
+
+    function Set-MembershipStatus {
+        param([string] $MemberId, [string] $Status)
+        Invoke-SqlNonQuery -Database $DatabaseName `
+            -Query "UPDATE workspace.Memberships SET Status = '$Status' WHERE MemberId = '$MemberId'"
+    }
+
+    Clear-ModuleScope -Database $DatabaseName
+    Clear-GateField
+
+    # ---- 23.1 batch mutation authorization order: replay cannot outrun current record scope ----
+
+    # A deal owned by the other member, archived in a batch while the caller's scope is WORKSPACE.
+    $batchDeal = Invoke-Support -Method 'POST' -Path '/deals' -IdempotencyKey 'idem-gate-deal-batch-fixture' `
+        -Body (@{
+            name                 = 'Gate batch deal'
+            buyerRef             = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_retro_001' }
+            stageCode            = 'DISCOVERY'
+            amount               = @{ amount = '4200.00'; currency = 'USD' }
+            opportunityScore     = '10'
+            ownerId              = $otherOwnerId
+            expectedCloseDate    = '2026-12-31'
+            interestedProductIds = @()
+            lineItems            = @()
+            notes                = 'GATE-DEAL-NOTES-SECRET'
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'batch: deal fixture created' '201' $batchDeal.Status
+    $batchDealId = $batchDeal.Body.aggregateId
+
+    $batchDealBody = @{
+        reason = 'Gate batch archive'
+        items  = @(@{ dealId = $batchDealId; expectedVersion = 0 })
+    } | ConvertTo-Json -Compress -Depth 6
+    $dealBatchCommit = Invoke-Support -Method 'POST' -Path '/deals/archive-batch' `
+        -Body $batchDealBody -IdempotencyKey 'idem-gate-deal-batch'
+    Add-Result 'batch: deal batch commits under WORKSPACE scope' '200' $dealBatchCommit.Status
+    Add-Result 'batch: deal batch response is projected, not raw' 'True' `
+        ($dealBatchCommit.Raw -match 'GATE-DEAL-NOTES-SECRET').ToString()
+
+    # Scope narrows to OWN. The batch named a deal owned by another member, so the caller no longer
+    # reaches it and the committed key must not replay.
+    Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+    $dealBatchReplayDenied = Invoke-Support -Method 'POST' -Path '/deals/archive-batch' `
+        -Body $batchDealBody -IdempotencyKey 'idem-gate-deal-batch'
+    Add-Result 'batch: deal batch replay after scope loss is denied' '404' $dealBatchReplayDenied.Status
+    Add-Result 'batch: denied deal batch replay leaks no stored projection' 'True' `
+        ($dealBatchReplayDenied.Raw -notmatch 'GATE-DEAL-NOTES-SECRET').ToString()
+    Clear-ModuleScope -Database $DatabaseName
+
+    # Same key, access still valid: the replay is answered from stored evidence.
+    $dealBatchReplayAllowed = Invoke-Support -Method 'POST' -Path '/deals/archive-batch' `
+        -Body $batchDealBody -IdempotencyKey 'idem-gate-deal-batch'
+    Add-Result 'batch: deal batch replay still succeeds while access holds' '200' $dealBatchReplayAllowed.Status
+    Add-Result 'batch: deal batch replay reports REPLAYED' 'REPLAYED' $dealBatchReplayAllowed.Body.outcome
+
+    # ---- 23.2 batch responses obey current field policy, replay included ----
+    Set-GateField -Resource 'deals' -Field 'notes' -Access 'Hidden'
+    $dealBatchHidden = Invoke-Support -Method 'POST' -Path '/deals/archive-batch' `
+        -Body $batchDealBody -IdempotencyKey 'idem-gate-deal-batch'
+    Add-Result 'batch: replay under a newly restrictive policy still replays' '200' $dealBatchHidden.Status
+    Add-Result 'batch: HIDDEN field is absent from the replayed batch response' 'True' `
+        ($dealBatchHidden.Raw -notmatch 'GATE-DEAL-NOTES-SECRET').ToString()
+    Add-Result 'batch: HIDDEN field key is absent from the replayed batch response' 'True' `
+        ($dealBatchHidden.Raw -notmatch '"notes"').ToString()
+    Clear-GateField
+
+    # Products carry no member owner, so OWN denies every Product and the batch replay must fail.
+    $batchProduct = Invoke-Support -Method 'POST' -Path '/products' -IdempotencyKey 'idem-gate-product-batch-fixture' `
+        -Body (@{
+            sku            = 'GATE-BATCH-001'
+            name           = 'Gate batch product'
+            type           = 'service'
+            status         = 'ACTIVE'
+            category       = 'Professional Services'
+            description    = 'GATE-PRODUCT-DESC-SECRET'
+            unit           = 'hour'
+            unitPrice      = @{ amount = '10.00'; currency = 'USD' }
+            taxRate        = '10'
+            taxMode        = 'exclusive'
+            billingCycle   = 'one_time'
+            isSubscription = $false
+            isRenewable    = $false
+            tags           = @('gate')
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'batch: product fixture created' '201' $batchProduct.Status
+    $batchProductId = $batchProduct.Body.aggregateId
+
+    $batchProductBody = @{
+        reason = 'Gate batch archive'
+        items  = @(@{ productId = $batchProductId; expectedVersion = 0 })
+    } | ConvertTo-Json -Compress -Depth 6
+    $productBatchCommit = Invoke-Support -Method 'POST' -Path '/products/archive-batch' `
+        -Body $batchProductBody -IdempotencyKey 'idem-gate-product-batch'
+    Add-Result 'batch: product batch commits under WORKSPACE scope' '200' $productBatchCommit.Status
+    Add-Result 'batch: product batch response is projected, not raw' 'True' `
+        ($productBatchCommit.Raw -match 'GATE-PRODUCT-DESC-SECRET').ToString()
+
+    Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+    $productBatchReplayDenied = Invoke-Support -Method 'POST' -Path '/products/archive-batch' `
+        -Body $batchProductBody -IdempotencyKey 'idem-gate-product-batch'
+    Add-Result 'batch: product batch replay after scope loss is denied' '404' $productBatchReplayDenied.Status
+    Add-Result 'batch: denied product batch replay leaks no stored projection' 'True' `
+        ($productBatchReplayDenied.Raw -notmatch 'GATE-PRODUCT-DESC-SECRET').ToString()
+    Clear-ModuleScope -Database $DatabaseName
+
+    Set-GateField -Resource 'products' -Field 'description' -Access 'Hidden'
+    $productBatchHidden = Invoke-Support -Method 'POST' -Path '/products/archive-batch' `
+        -Body $batchProductBody -IdempotencyKey 'idem-gate-product-batch'
+    Add-Result 'batch: product batch replay under a restrictive policy still replays' '200' $productBatchHidden.Status
+    Add-Result 'batch: product HIDDEN field is absent from the replayed batch response' 'True' `
+        ($productBatchHidden.Raw -notmatch 'GATE-PRODUCT-DESC-SECRET').ToString()
+    Clear-GateField
+
+    # A restore batch proves the same ordering on the second Products batch operation.
+    $restoreBody = @{
+        reason = 'Gate batch restore'
+        items  = @(@{ productId = $batchProductId; expectedVersion = 1 })
+    } | ConvertTo-Json -Compress -Depth 6
+    $restoreCommit = Invoke-Support -Method 'POST' -Path '/products/restore-batch' `
+        -Body $restoreBody -IdempotencyKey 'idem-gate-product-restore'
+    Add-Result 'batch: product restore batch commits' '200' $restoreCommit.Status
+    Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
+    Add-Result 'batch: product restore replay after scope loss is denied' '404' `
+        (Invoke-Support -Method 'POST' -Path '/products/restore-batch' -Body $restoreBody -IdempotencyKey 'idem-gate-product-restore').Status
+    Clear-ModuleScope -Database $DatabaseName
+
+    # ---- 23.3 create-time field-write enforcement, per module ----
+
+    $auditBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM tasks.AuditRecords'
+    $outboxBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM tasks.OutboxMessages'
+    $idemBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM tasks.IdempotencyRecords'
+
+    Set-GateField -Resource 'tasks' -Field 'description' -Access 'Hidden'
+    $taskCreateDenied = Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-gate-task-create-denied' `
+        -Body (@{ title = 'Gate task'; assigneeId = $callerMemberId; dueAt = '2026-12-01T09:00:00.0000000Z'; description = 'forbidden' } | ConvertTo-Json -Compress)
+    Add-Result 'create: task HIDDEN field supplied is refused' '403' $taskCreateDenied.Status
+    Add-Result 'create: task refusal is an access denial' 'ACCESS_DENIED' $taskCreateDenied.Body.code
+    Add-Result 'create: refused task create wrote no audit' $auditBefore `
+        (Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM tasks.AuditRecords')
+    Add-Result 'create: refused task create wrote no outbox event' $outboxBefore `
+        (Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM tasks.OutboxMessages')
+    Add-Result 'create: refused task create wrote no idempotency evidence' $idemBefore `
+        (Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM tasks.IdempotencyRecords')
+
+    # The same request without the forbidden field still creates.
+    $taskCreateAllowed = Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-gate-task-create-allowed' `
+        -Body (@{ title = 'Gate task'; assigneeId = $callerMemberId; dueAt = '2026-12-01T09:00:00.0000000Z' } | ConvertTo-Json -Compress)
+    Add-Result 'create: task without the forbidden field still creates' '201' $taskCreateAllowed.Status
+    $gateTaskId = $taskCreateAllowed.Body.aggregateId
+    Clear-GateField
+
+    Set-GateField -Resource 'tasks' -Field 'description' -Access 'ReadOnly'
+    Add-Result 'create: task READ_ONLY field supplied is refused' '403' `
+        (Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-gate-task-create-readonly' `
+            -Body (@{ title = 'Gate task ro'; assigneeId = $callerMemberId; dueAt = '2026-12-01T09:00:00.0000000Z'; description = 'forbidden' } | ConvertTo-Json -Compress)).Status
+    Clear-GateField
+
+    Set-GateField -Resource 'leads' -Field 'email' -Access 'Hidden'
+    $leadCreateDenied = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-gate-lead-create-denied' `
+        -Body (@{ displayName = 'Gate lead'; ownerId = $callerMemberId; source = 'manual'; email = 'gate@example.test'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'create: lead HIDDEN field supplied is refused' '403' $leadCreateDenied.Status
+    Add-Result 'create: lead without the forbidden field still creates' '201' `
+        (Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-gate-lead-create-allowed' `
+            -Body (@{ displayName = 'Gate lead'; ownerId = $callerMemberId; source = 'manual'; phone = '0900000001'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)).Status
+    Clear-GateField
+
+    Set-GateField -Resource 'deals' -Field 'notes' -Access 'ReadOnly'
+    Add-Result 'create: deal READ_ONLY field supplied is refused' '403' `
+        (Invoke-Support -Method 'POST' -Path '/deals' -IdempotencyKey 'idem-gate-deal-create-denied' `
+            -Body (@{
+                name                 = 'Gate deal'
+                buyerRef             = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_retro_001' }
+                stageCode            = 'DISCOVERY'
+                amount               = @{ amount = '10.00'; currency = 'USD' }
+                opportunityScore     = '10'
+                ownerId              = $callerMemberId
+                expectedCloseDate    = '2026-12-31'
+                interestedProductIds = @()
+                lineItems            = @()
+                notes                = 'forbidden'
+            } | ConvertTo-Json -Compress -Depth 6)).Status
+    Clear-GateField
+
+    Set-GateField -Resource 'products' -Field 'description' -Access 'Hidden'
+    Add-Result 'create: product HIDDEN field supplied is refused' '403' `
+        (Invoke-Support -Method 'POST' -Path '/products' -IdempotencyKey 'idem-gate-product-create-denied' `
+            -Body (@{
+                sku            = 'GATE-CREATE-001'
+                name           = 'Gate create product'
+                type           = 'service'
+                status         = 'ACTIVE'
+                category       = 'Professional Services'
+                description    = 'forbidden'
+                unit           = 'hour'
+                unitPrice      = @{ amount = '10.00'; currency = 'USD' }
+                taxRate        = '10'
+                taxMode        = 'exclusive'
+                billingCycle   = 'one_time'
+                isSubscription = $false
+                isRenewable    = $false
+                tags           = @()
+            } | ConvertTo-Json -Compress -Depth 6)).Status
+    Clear-GateField
+
+    # ---- 23.4 full-profile replacement: only changed fields count as writes ----
+
+    $gateLead = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-gate-lead-profile' `
+        -Body (@{ displayName = 'Gate profile lead'; ownerId = $callerMemberId; source = 'manual'; title = 'Original title'; phone = '0900000002'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'replace: lead fixture created' '201' $gateLead.Status
+    $gateLeadId = $gateLead.Body.aggregateId
+    $gateLeadVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM leads.Leads WHERE LeadId = '$gateLeadId'"
+
+    Set-GateField -Resource 'leads' -Field 'title' -Access 'ReadOnly'
+    $leadReplaceDenied = Invoke-Support -Method 'PUT' -Path "/leads/$gateLeadId" -IdempotencyKey 'idem-gate-lead-replace-denied' `
+        -IfMatchVersion $gateLeadVersion `
+        -Body (@{ displayName = 'Gate profile lead'; ownerId = $callerMemberId; source = 'manual'; title = 'Changed title'; phone = '0900000002'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'replace: lead READ_ONLY field change is refused' '403' $leadReplaceDenied.Status
+    Add-Result 'replace: refused lead replacement did not bump the version' $gateLeadVersion `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM leads.Leads WHERE LeadId = '$gateLeadId'")
+
+    # The identical value repeated is not a write and must not be refused for field security.
+    $leadReplaceUnchanged = Invoke-Support -Method 'PUT' -Path "/leads/$gateLeadId" -IdempotencyKey 'idem-gate-lead-replace-unchanged' `
+        -IfMatchVersion $gateLeadVersion `
+        -Body (@{ displayName = 'Gate profile lead renamed'; ownerId = $callerMemberId; source = 'manual'; title = 'Original title'; phone = '0900000002'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'replace: unchanged READ_ONLY value is not refused' '200' $leadReplaceUnchanged.Status
+    Clear-GateField
+
+    $gateDealVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM deals.Deals WHERE DealId = '$dealOwnId'"
+    Set-GateField -Resource 'deals' -Field 'notes' -Access 'ReadOnly'
+    $dealReplaceDenied = Invoke-Support -Method 'POST' -Path "/deals/$dealOwnId/update" -IdempotencyKey 'idem-gate-deal-replace-denied' `
+        -IfMatchVersion $gateDealVersion `
+        -Body (@{
+            name                 = 'Retro deal own'
+            buyerRef             = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_retro_001' }
+            amount               = @{ amount = '1000.00'; currency = 'USD' }
+            interestedProductIds = @()
+            lineItems            = @()
+            notes                = 'Changed notes'
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'replace: deal READ_ONLY field change is refused' '403' $dealReplaceDenied.Status
+    Add-Result 'replace: refused deal replacement did not bump the version' $gateDealVersion `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM deals.Deals WHERE DealId = '$dealOwnId'")
+    $dealReplaceUnchanged = Invoke-Support -Method 'POST' -Path "/deals/$dealOwnId/update" -IdempotencyKey 'idem-gate-deal-replace-unchanged' `
+        -IfMatchVersion $gateDealVersion `
+        -Body (@{
+            name                 = 'Retro deal own renamed'
+            buyerRef             = @{ type = 'ORGANIZATION_ACCOUNT'; id = 'org_retro_001' }
+            amount               = @{ amount = '1000.00'; currency = 'USD' }
+            interestedProductIds = @()
+            lineItems            = @()
+        } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'replace: unchanged deal READ_ONLY value is not refused' '200' $dealReplaceUnchanged.Status
+    Clear-GateField
+
+    $gateProductVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM products.Products WHERE ProductId = '$productOneId'"
+    Set-GateField -Resource 'products' -Field 'description' -Access 'ReadOnly'
+    $productReplaceBody = @{
+        sku            = 'RETRO-001'
+        name           = 'Retro product'
+        type           = 'service'
+        status         = 'ACTIVE'
+        category       = 'Professional Services'
+        description    = 'Changed description'
+        unit           = 'hour'
+        unitPrice      = @{ amount = '10.125'; currency = 'USD' }
+        costPrice      = @{ amount = '4.25'; currency = 'USD' }
+        taxRate        = '10'
+        taxMode        = 'exclusive'
+        billingCycle   = 'one_time'
+        isSubscription = $false
+        isRenewable    = $false
+        tags           = @('verified', 'core')
+    } | ConvertTo-Json -Compress -Depth 6
+    $productReplaceDenied = Invoke-Support -Method 'PUT' -Path "/products/$productOneId" -IdempotencyKey 'idem-gate-product-replace-denied' `
+        -IfMatchVersion $gateProductVersion -Body $productReplaceBody
+    Add-Result 'replace: product READ_ONLY field change is refused' '403' $productReplaceDenied.Status
+    Add-Result 'replace: refused product replacement did not bump the version' $gateProductVersion `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM products.Products WHERE ProductId = '$productOneId'")
+    $productReplaceUnchanged = Invoke-Support -Method 'PUT' -Path "/products/$productOneId" -IdempotencyKey 'idem-gate-product-replace-unchanged' `
+        -IfMatchVersion $gateProductVersion `
+        -Body ($productReplaceBody.Replace('Changed description', 'Record-access retrofit fixture').Replace('Retro product', 'Retro product renamed'))
+    Add-Result 'replace: unchanged product READ_ONLY value is not refused' '200' $productReplaceUnchanged.Status
+    Clear-GateField
+
+    # ---- 23.5 committed replay survives later mutable member state ----
+
+    $assignBody = @{ assigneeId = $otherOwnerId } | ConvertTo-Json -Compress
+    $gateTaskVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM tasks.Tasks WHERE TaskId = '$gateTaskId'"
+    $assignCommit = Invoke-Support -Method 'POST' -Path "/tasks/$gateTaskId/assign" -IdempotencyKey 'idem-gate-task-assign' `
+        -IfMatchVersion $gateTaskVersion -Body $assignBody
+    Add-Result 'replay: task assignment commits' '200' $assignCommit.Status
+    Set-MembershipStatus -MemberId $otherOwnerId -Status 'Suspended'
+    $assignReplay = Invoke-Support -Method 'POST' -Path "/tasks/$gateTaskId/assign" -IdempotencyKey 'idem-gate-task-assign' `
+        -IfMatchVersion $gateTaskVersion -Body $assignBody
+    Add-Result 'replay: task assignment replay survives a suspended assignee' '200' $assignReplay.Status
+    Add-Result 'replay: task assignment replay reports REPLAYED' 'REPLAYED' $assignReplay.Body.outcome
+
+    # A new command naming the suspended member is still refused - only the replay is durable.
+    $assignNew = Invoke-Support -Method 'POST' -Path "/tasks/$gateTaskId/assign" -IdempotencyKey 'idem-gate-task-assign-new' `
+        -IfMatchVersion (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM tasks.Tasks WHERE TaskId = '$gateTaskId'") `
+        -Body $assignBody
+    Add-Result 'replay: a new command still rejects the suspended member' 'True' `
+        (($assignNew.Status -ne 200)).ToString()
+
+    # Leads: the owner precondition on a profile replacement behaves the same way.
+    $leadOwnerBody = @{ displayName = 'Gate profile lead renamed'; ownerId = $otherOwnerId; source = 'manual'; title = 'Original title'; phone = '0900000002'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6
+    Set-MembershipStatus -MemberId $otherOwnerId -Status 'Active'
+    $leadOwnerVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM leads.Leads WHERE LeadId = '$gateLeadId'"
+    $leadOwnerCommit = Invoke-Support -Method 'PUT' -Path "/leads/$gateLeadId" -IdempotencyKey 'idem-gate-lead-owner' `
+        -IfMatchVersion $leadOwnerVersion -Body $leadOwnerBody
+    Add-Result 'replay: lead owner replacement commits' '200' $leadOwnerCommit.Status
+    Set-MembershipStatus -MemberId $otherOwnerId -Status 'Suspended'
+    $leadOwnerReplay = Invoke-Support -Method 'PUT' -Path "/leads/$gateLeadId" -IdempotencyKey 'idem-gate-lead-owner' `
+        -IfMatchVersion $leadOwnerVersion -Body $leadOwnerBody
+    Add-Result 'replay: lead owner replay survives a suspended owner' '200' $leadOwnerReplay.Status
+    Set-MembershipStatus -MemberId $otherOwnerId -Status 'Active'
+
+    # Deals: the owner assignment precondition behaves the same way.
+    $dealAssignBody = @{ ownerId = $otherOwnerId; reason = 'Gate owner assignment' } | ConvertTo-Json -Compress
+    $dealAssignVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM deals.Deals WHERE DealId = '$dealOwnId'"
+    $dealAssignCommit = Invoke-Support -Method 'POST' -Path "/deals/$dealOwnId/assign" -IdempotencyKey 'idem-gate-deal-assign' `
+        -IfMatchVersion $dealAssignVersion -Body $dealAssignBody
+    Add-Result 'replay: deal owner assignment commits' '200' $dealAssignCommit.Status
+    Set-MembershipStatus -MemberId $otherOwnerId -Status 'Suspended'
+    $dealAssignReplay = Invoke-Support -Method 'POST' -Path "/deals/$dealOwnId/assign" -IdempotencyKey 'idem-gate-deal-assign' `
+        -IfMatchVersion $dealAssignVersion -Body $dealAssignBody
+    Add-Result 'replay: deal owner assignment replay survives a suspended owner' '200' $dealAssignReplay.Status
+    Set-MembershipStatus -MemberId $otherOwnerId -Status 'Active'
+
+    # ---- 23.6 the public evaluation and direct enforcement share one rule ----
+
+    # The frozen rule is additive: a record-targeting command requires the resource read capability,
+    # the command capability and record scope. Every cell of the matrix is checked twice - once as
+    # the evaluation reports it, once as the business API enforces it.
+    $matrixTaskVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM tasks.Tasks WHERE TaskId = '$taskOwnId'"
+    foreach ($cell in @(
+            @{ Read = $true;  Command = $true;  Allowed = $true },
+            @{ Read = $false; Command = $true;  Allowed = $false },
+            @{ Read = $true;  Command = $false; Allowed = $false },
+            @{ Read = $false; Command = $false; Allowed = $false })) {
+        Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability IN ('tasks.read', 'tasks.complete');
+"@
+        if ($cell.Read) {
+            Invoke-SqlNonQuery -Database $DatabaseName `
+                -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'tasks.read')"
+        }
+        if ($cell.Command) {
+            Invoke-SqlNonQuery -Database $DatabaseName `
+                -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'tasks.complete')"
+        }
+
+        $label = ('read={0}/command={1}' -f $cell.Read, $cell.Command)
+        $evaluation = Invoke-Evaluate -Request @{
+            resourceKey       = 'tasks'
+            recordId          = $taskOwnId
+            requestedCommands = @('task.complete')
+            requestedFields   = @('title')
+        }
+        $reported = ($evaluation.Body.allowedCommands -contains 'task.complete')
+        Add-Result ("semantics: evaluation reports task.complete for {0}" -f $label) `
+            ($cell.Allowed).ToString() $reported.ToString()
+
+        $direct = Invoke-Support -Method 'POST' -Path "/tasks/$taskOwnId/complete" `
+            -Body (@{ outcome = 'gate matrix' } | ConvertTo-Json -Compress) `
+            -IdempotencyKey ("idem-gate-matrix-{0}-{1}" -f $cell.Read, $cell.Command) `
+            -IfMatchVersion $matrixTaskVersion
+        $enforced = ($direct.Status -eq 200)
+        Add-Result ("semantics: direct completeTask enforces the same for {0}" -f $label) `
+            ($cell.Allowed).ToString() $enforced.ToString()
+        Add-Result ("semantics: report and enforcement agree for {0}" -f $label) `
+            $reported.ToString() $enforced.ToString()
+
+        if ($enforced) {
+            $matrixTaskVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM tasks.Tasks WHERE TaskId = '$taskOwnId'"
+        }
+    }
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability IN ('tasks.read', 'tasks.complete');
+INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'tasks.read'), ('$roleId', 'tasks.complete');
+"@
+
+    # ---- 23.7 the audited capability is the capability the operation required ----
+
+    $gateAuditTask = Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-gate-audit-task' `
+        -Body (@{ title = 'Gate audit task'; assigneeId = $callerMemberId; dueAt = '2026-12-01T09:00:00.0000000Z' } | ConvertTo-Json -Compress)
+    $gateAuditTaskId = $gateAuditTask.Body.aggregateId
+
+    foreach ($probe in @(
+            @{ Name = 'completeTask'; Capability = 'tasks.complete' },
+            @{ Name = 'getLead';      Capability = 'leads.read' },
+            @{ Name = 'archiveProduct'; Capability = 'products.delete' })) {
+        $before = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability = '$($probe.Capability)'
+"@
+        $totalBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        if ($probe.Name -eq 'completeTask') {
+            [void](Invoke-Support -Method 'POST' -Path "/tasks/$gateAuditTaskId/complete" `
+                -Body (@{ outcome = 'gate audit' } | ConvertTo-Json -Compress) `
+                -IdempotencyKey 'idem-gate-audit-complete' -IfMatchVersion '0')
+        }
+        elseif ($probe.Name -eq 'getLead') {
+            [void](Invoke-Support -Method 'GET' -Path "/leads/$leadOwnId")
+        }
+        else {
+            [void](Invoke-Support -Method 'POST' -Path "/products/$batchProductId/archive" `
+                -Body (@{ reason = 'Gate audit archive' } | ConvertTo-Json -Compress) `
+                -IdempotencyKey 'idem-gate-audit-archive' `
+                -IfMatchVersion (Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM products.Products WHERE ProductId = '$batchProductId'"))
+        }
+        $after = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability = '$($probe.Capability)'
+"@
+        $totalAfter = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        Add-Result ("audit: {0} records its own capability" -f $probe.Name) '1' ([int]$after - [int]$before)
+        Add-Result ("audit: {0} authorizes exactly once" -f $probe.Name) '1' ([int]$totalAfter - [int]$totalBefore)
+    }
+
+    # ---- 23.8 TaskActivity fails closed outside WORKSPACE scope ----
+
+    $activityBody = @{ type = 'NOTE'; subject = 'GATE-ACTIVITY-SUBJECT'; body = 'Gate activity body' } | ConvertTo-Json -Compress -Depth 4
+    $activityCommit = Invoke-Support -Method 'POST' -Path '/activities' -Body $activityBody -IdempotencyKey 'idem-gate-activity'
+    Add-Result 'activity: WORKSPACE scope logs an activity' '201' $activityCommit.Status
+    Add-Result 'activity: WORKSPACE scope lists activities' 'True' `
+        ((Invoke-Support -Method 'GET' -Path '/activities').Raw -match 'GATE-ACTIVITY-SUBJECT').ToString()
+
+    foreach ($restricted in @('Own', 'Team', 'Custom')) {
+        Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope $restricted
+        $restrictedList = Invoke-Support -Method 'GET' -Path '/activities'
+        Add-Result ("activity: {0} scope returns no activity" -f $restricted.ToUpperInvariant()) '0' `
+            ([int]$restrictedList.Body.pageInfo.totalCount)
+        Add-Result ("activity: {0} scope leaks no activity subject" -f $restricted.ToUpperInvariant()) 'True' `
+            ($restrictedList.Raw -notmatch 'GATE-ACTIVITY-SUBJECT').ToString()
+        Add-Result ("activity: {0} scope refuses logActivity" -f $restricted.ToUpperInvariant()) '403' `
+            (Invoke-Support -Method 'POST' -Path '/activities' -Body $activityBody `
+                -IdempotencyKey ("idem-gate-activity-{0}" -f $restricted)).Status
+    }
+    Clear-ModuleScope -Database $DatabaseName
+
+    # ---- 23.9 an unknown field key fails closed, a known key stays case-insensitive ----
+
+    # Windows PowerShell 5.1 cannot ConvertFrom-Json an object whose keys differ only by case, so
+    # each casing is asked for in its own evaluation rather than in one combined request.
+    $fieldProbe = Invoke-Evaluate -Request @{
+        resourceKey     = 'tasks'
+        recordId        = $taskOwnId
+        requestedFields = @('assigneId', 'subject', 'assigneeId')
+    }
+    Add-Result 'fields: a typo in a field key is not writable' 'HIDDEN' $fieldProbe.Body.fieldAccess.assigneId
+    Add-Result 'fields: a key the owner does not declare is not readable' 'HIDDEN' $fieldProbe.Body.fieldAccess.subject
+    Add-Result 'fields: a declared key is enforced normally' 'READ_WRITE' $fieldProbe.Body.fieldAccess.assigneeId
+
+    foreach ($casing in @('ASSIGNEEID', 'AsSiGnEeId', 'assigneeid')) {
+        $casingProbe = Invoke-Evaluate -Request @{
+            resourceKey     = 'tasks'
+            recordId        = $taskOwnId
+            requestedFields = @($casing)
+        }
+        Add-Result ("fields: the declared key still resolves spelled {0}" -f $casing) 'READ_WRITE' `
+            $casingProbe.Body.fieldAccess.$casing
+    }
+
+    # The same fail-closed answer must hold under a restrictive policy stored for a real key: the
+    # unknown key is not widened by the presence of any policy at all.
+    Set-GateField -Resource 'tasks' -Field 'AsSiGnEeId' -Access 'ReadOnly'
+    $fieldProbeRestricted = Invoke-Evaluate -Request @{
+        resourceKey     = 'tasks'
+        recordId        = $taskOwnId
+        requestedFields = @('assigneId', 'assigneeId')
+    }
+    Add-Result 'fields: a mixed-case policy key still restricts the declared field' 'READ_ONLY' `
+        $fieldProbeRestricted.Body.fieldAccess.assigneeId
+    Add-Result 'fields: the unknown key stays closed under a live policy' 'HIDDEN' `
+        $fieldProbeRestricted.Body.fieldAccess.assigneId
+    Clear-GateField
+
+    # ---- 23.10 no list authorization regression after the hardening ----
+    foreach ($module in @(
+            @{ Name = 'tasks'; Path = '/tasks' },
+            @{ Name = 'leads'; Path = '/leads' },
+            @{ Name = 'deals'; Path = '/deals' },
+            @{ Name = 'products'; Path = '/products' },
+            @{ Name = 'activities'; Path = '/activities' })) {
+        $before = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
+        $capabilityBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        [void](Invoke-Support -Method 'GET' -Path $module.Path)
+        Add-Result ("cost: {0} list still evaluates no per-row record decision" -f $module.Name) '0' `
+            ([int](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions') - [int]$before)
+        Add-Result ("authority: {0} list still authorizes exactly once" -f $module.Name) '1' `
+            ([int](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions') - [int]$capabilityBefore)
+    }
 
     # ------------------------------------------------------------ 13. regressions
 
@@ -1292,10 +1811,16 @@ SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$res
 
     Push-Location $repositoryRoot
     try {
-        $pending = & dotnet ef migrations has-pending-model-changes --project $platformProject --context AccessControlDbContext 2>&1
-        $pendingText = ($pending | Out-String)
-        Add-Result 'migration: no pending AccessControl model changes' 'True' `
-            ($pendingText -match 'No changes have been made to the model').ToString()
+        foreach ($context in @(
+                @{ Name = 'AccessControl'; Project = $platformProject;   Context = 'AccessControlDbContext' },
+                @{ Name = 'Tasks';         Project = $operationsProject; Context = 'TasksDbContext' },
+                @{ Name = 'Leads';         Project = $crmProject;        Context = 'LeadsDbContext' },
+                @{ Name = 'Deals';         Project = $crmProject;        Context = 'DealsDbContext' })) {
+            $pending = & dotnet ef migrations has-pending-model-changes --project $context.Project --context $context.Context 2>&1
+            $pendingText = ($pending | Out-String)
+            Add-Result ("migration: no pending {0} model changes" -f $context.Name) 'True' `
+                ($pendingText -match 'No changes have been made to the model').ToString()
+        }
     }
     finally {
         Pop-Location

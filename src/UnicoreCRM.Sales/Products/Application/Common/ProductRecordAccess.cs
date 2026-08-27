@@ -1,3 +1,4 @@
+using System.Globalization;
 using UnicoreCRM.Sales.Products.Contracts;
 using UnicoreCRM.Sales.Products.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
@@ -79,17 +80,94 @@ internal static class ProductFieldSecurity
                 "Access denied",
                 "A field-security policy applies to a field this resource cannot withhold, so the request is refused rather than returning a value the policy forbids.");
 
-    internal static ProductOperationError? GuardFieldWrite(RecordAccessAuthorization access, params string[] fieldKeys)
+    internal static ProductOperationError? GuardFieldWrite(RecordAccessAuthorization access, params string[] fieldKeys) =>
+        Refusal(fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).ToList());
+
+    /// <summary>
+    /// Refuses a product replacement that would change a field the caller may not write. The check
+    /// compares the requested profile against the stored aggregate, so replacing a field with the
+    /// value it already holds is not a write and is not refused. Without this comparison a full
+    /// replacement would either send every field through the write check - refusing unchanged
+    /// READ_ONLY values - or send none, which is what let a READ_ONLY field be replaced.
+    /// </summary>
+    internal static ProductOperationError? GuardProfileWrite(
+        RecordAccessAuthorization access,
+        ProductProfile current,
+        ProductProfile requested)
     {
-        var blocked = fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).Order(StringComparer.Ordinal).ToArray();
-        return blocked.Length == 0
+        var currentValues = Values(current);
+        var blocked = new List<string>();
+        foreach (var pair in Values(requested))
+        {
+            if (!access.CanWrite(pair.Key) && !string.Equals(currentValues[pair.Key], pair.Value, StringComparison.Ordinal))
+                blocked.Add(pair.Key);
+        }
+        return Refusal(blocked);
+    }
+
+    /// <summary>
+    /// Refuses a creation that populates a field the caller may not write. Creation has no stored
+    /// value to compare against, so every field the request actually sets counts as a write, and the
+    /// fields the create contract makes mandatory always count.
+    /// </summary>
+    internal static ProductOperationError? GuardCreateWrite(RecordAccessAuthorization access, ProductProfile profile)
+    {
+        var blocked = new List<string>();
+        foreach (var pair in Values(profile))
+        {
+            var written = RequiredCreateFields.Contains(pair.Key, StringComparer.Ordinal) || pair.Value.Length != 0;
+            if (written && !access.CanWrite(pair.Key))
+                blocked.Add(pair.Key);
+        }
+        return Refusal(blocked);
+    }
+
+    /// <summary>
+    /// The create-contract fields a Product always carries a value for. A non-writable required
+    /// create field fails the creation closed: there is no admitted representation of a Product
+    /// created without a SKU, name, type, status, category, unit, price or tax terms.
+    /// </summary>
+    private static readonly string[] RequiredCreateFields =
+        ["sku", "name", "type", "status", "category", "unit", "unitPrice", "taxRate", "taxMode", "billingCycle", "isSubscription", "isRenewable"];
+
+    /// <summary>
+    /// The profile as its wire field vocabulary, each value reduced to a canonical string so a change
+    /// is decided by value and not by object identity. An empty string means the profile carries no
+    /// value for that field.
+    /// </summary>
+    private static Dictionary<string, string> Values(ProductProfile profile) =>
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["sku"] = profile.Sku,
+            ["name"] = profile.Name,
+            ["type"] = profile.Type,
+            ["status"] = profile.Status,
+            ["category"] = profile.Category,
+            ["description"] = profile.Description ?? string.Empty,
+            ["unit"] = profile.Unit,
+            ["unitPrice"] = Money(profile.UnitPrice),
+            ["costPrice"] = Money(profile.CostPrice),
+            ["taxRate"] = profile.TaxRate,
+            ["taxMode"] = profile.TaxMode,
+            ["billingCycle"] = profile.BillingCycle,
+            ["isSubscription"] = profile.IsSubscription ? "true" : "false",
+            ["isRenewable"] = profile.IsRenewable ? "true" : "false",
+            ["warrantyMonths"] = Number(profile.WarrantyMonths),
+            ["defaultContractMonths"] = Number(profile.DefaultContractMonths),
+            ["tags"] = string.Join(",", profile.Tags)
+        };
+
+    private static string Money(ProductMoneyValue? value) => value is null ? string.Empty : $"{value.Amount}|{value.Currency}";
+    private static string Number(int? value) => value is null ? string.Empty : value.Value.ToString(CultureInfo.InvariantCulture);
+
+    private static ProductOperationError? Refusal(List<string> blocked) =>
+        blocked.Count == 0
             ? null
             : new ProductOperationError(
                 "ACCESS_DENIED",
                 403,
                 "Access denied",
-                $"Field security does not permit writing: {string.Join(", ", blocked)}.");
-    }
+                $"Field security does not permit writing: {string.Join(", ", blocked.Order(StringComparer.Ordinal))}.");
 }
 
 /// <summary>

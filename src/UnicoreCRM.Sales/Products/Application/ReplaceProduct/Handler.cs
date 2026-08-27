@@ -55,6 +55,15 @@ internal sealed class Handler(
         if (guardError is not null)
             return ProductOperationResult<ProductMutationResponse>.Failure(guardError);
 
+        // The requested profile is compared against the stored one, so only a field the replacement
+        // actually changes is treated as a write. Repeating a READ_ONLY value unchanged is not a
+        // write and is not refused. The comparison follows the record guard, so a product the caller
+        // may not reach is reported as missing rather than leaking a field-policy refusal.
+        var writeError = ProductFieldSecurity.GuardProfileWrite(
+            access.Value!.Authorization, guardedOwnership.Value!.Profile, profile!);
+        if (writeError is not null)
+            return ProductOperationResult<ProductMutationResponse>.Failure(writeError);
+
         var scopeKey = ProductCommandSupport.ScopeKey(trusted, "replaceProduct", command.ProductId, command.Metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)

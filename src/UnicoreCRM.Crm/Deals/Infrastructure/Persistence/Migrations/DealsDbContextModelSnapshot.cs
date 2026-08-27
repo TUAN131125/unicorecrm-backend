@@ -141,6 +141,8 @@ namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "UpdatedAt", "DealId");
 
+                    b.HasIndex("WorkspaceId", "ScopeOwnerId", "UpdatedAt", "DealId");
+
                     b.ToTable("Deals", "deals");
                 });
 

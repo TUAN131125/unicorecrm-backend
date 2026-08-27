@@ -56,7 +56,8 @@ public sealed class RecordAccessAuthorization
         IReadOnlyList<string> capabilities,
         string policyFingerprint,
         string resourceKey,
-        string requiredCapability)
+        string requiredCapability,
+        bool holdsResourceRead)
     {
         IsAllowed = isAllowed;
         Code = code;
@@ -70,6 +71,7 @@ public sealed class RecordAccessAuthorization
         PolicyFingerprint = policyFingerprint;
         ResourceKey = resourceKey;
         RequiredCapability = requiredCapability;
+        HoldsResourceRead = holdsResourceRead;
     }
 
     /// <summary>Whether the membership holds the required capability. Record scope is additional to this and can never restore it.</summary>
@@ -92,10 +94,11 @@ public sealed class RecordAccessAuthorization
     public IReadOnlyDictionary<string, RecordFieldEnforcement> FieldEnforcement { get; }
 
     /// <summary>
-    /// Field keys carrying a restrictive policy the owner cannot honour - either the owner does not
-    /// declare the field at all, or the field is required by the wire contract and has no admitted
-    /// withheld or masked representation. A non-empty list means the operation must fail closed
-    /// rather than return a representation the policy forbids.
+    /// Field keys the owner declares as required by its wire contract and that carry a restrictive
+    /// policy. There is no admitted withheld or masked representation for a required field, so a
+    /// non-empty list means the operation must fail closed rather than return a representation the
+    /// policy forbids. A field the owner does not declare at all is not listed here: it is withheld
+    /// by default and the owner never projects it, so nothing has to fail closed for it.
     /// </summary>
     public IReadOnlyList<string> UnenforceableFieldKeys { get; }
 
@@ -109,6 +112,14 @@ public sealed class RecordAccessAuthorization
 
     public string RequiredCapability { get; }
 
+    /// <summary>
+    /// Whether the membership holds the owner-declared read capability for this resource. A
+    /// record-targeting decision requires it in addition to the operation capability and record
+    /// scope, which is the one canonical rule the public evaluation reports and every owner
+    /// enforces.
+    /// </summary>
+    public bool HoldsResourceRead { get; }
+
     public bool Holds(string capability) =>
         capability.Length != 0 && Capabilities.Contains(capability, StringComparer.Ordinal);
 
@@ -118,8 +129,14 @@ public sealed class RecordAccessAuthorization
     /// <summary>Whether the caller may change this field's value.</summary>
     public bool CanWrite(string fieldKey) => Enforcement(fieldKey) == RecordFieldEnforcement.ReadWrite;
 
+    /// <summary>
+    /// A field key with no enforcement entry is withheld, never widened. The entry set is built from
+    /// the fields the caller asked about, restricted to the vocabulary the owner declares, so a key
+    /// absent from it is either undeclared or never asked about - and neither is a reason to grant
+    /// read or write on an internal security decision.
+    /// </summary>
     private RecordFieldEnforcement Enforcement(string fieldKey) =>
-        FieldEnforcement.TryGetValue(fieldKey, out var value) ? value : RecordFieldEnforcement.ReadWrite;
+        FieldEnforcement.TryGetValue(fieldKey, out var value) ? value : RecordFieldEnforcement.Withheld;
 }
 
 /// <summary>The record-level half of the decision, taken against authoritative owner facts.</summary>

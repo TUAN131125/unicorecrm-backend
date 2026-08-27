@@ -15,6 +15,10 @@ internal sealed class DealSummaryReader(
     IDealsPersistence persistence,
     TimeProvider timeProvider) : IDealSummaryReader
 {
+    /// <summary>The fields this minimized contract exposes, all of which it declares optional.</summary>
+    private static readonly string[] SummaryFieldKeys =
+        ["name", "stageCode", "stageCategory", "opportunityScore", "expectedCloseDate", "nextActionAt", "nextActionSummary"];
+
     public async Task<DealSummaryReadResult> ReadAsync(
         string dealId,
         string requestId,
@@ -22,7 +26,11 @@ internal sealed class DealSummaryReader(
         CancellationToken cancellationToken)
     {
         var metadata = new DealRequestMetadata(requestId, correlationId);
-        var access = await authorization.AuthorizeAsync(DealCapabilities.Read, metadata, cancellationToken);
+        // Every field of the minimized summary contract is optional, so this operation can return
+        // any of them absent. The full Deal read model makes some of them required, but that
+        // declaration governs the full representation, not this one.
+        var access = await authorization.AuthorizeAsync(
+            DealCapabilities.Read, metadata, cancellationToken, SummaryFieldKeys);
         if (!access.IsSuccess)
         {
             return new(access.Error!.Code == "WORKSPACE_MISMATCH"

@@ -32,6 +32,12 @@ internal sealed class Handler(
         if (pricingFields.Count != 0)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(pricingFields));
 
+        // Creation is a resource-level question, so no record scope applies, but field security
+        // still does: a field the caller may not write must not be written on the way in either.
+        var createWriteError = ProductFieldSecurity.GuardCreateWrite(access.Value!.Authorization, profile!);
+        if (createWriteError is not null)
+            return ProductOperationResult<ProductMutationResponse>.Failure(createWriteError);
+
         var trusted = access.Value!.Trusted;
         var fingerprint = ProductCommandSupport.Fingerprint(new { Profile = profile });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
@@ -39,9 +45,11 @@ internal sealed class Handler(
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
+            // Answered from stored evidence alone, and projected through the caller's current field
+            // policy, so stored evidence cannot leak a value the policy now withholds.
             var replayError = ProductCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? ProductOperationResult<ProductMutationResponse>.Success(ProductCommandSupport.Replay(existing))
+                ? ProductOperationResult<ProductMutationResponse>.Success(Project(ProductCommandSupport.Replay(existing), access.Value!))
                 : ProductOperationResult<ProductMutationResponse>.Failure(replayError);
         }
 
@@ -82,6 +90,12 @@ internal sealed class Handler(
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.SkuConflict());
         }
         await transaction.CommitAsync(cancellationToken);
-        return ProductOperationResult<ProductMutationResponse>.Success(response);
+        return ProductOperationResult<ProductMutationResponse>.Success(Project(response, access.Value!));
     }
+
+    private static ProductMutationResponse Project(ProductMutationResponse response, ProductAccess access) =>
+        response with
+        {
+            Result = new ProductMutationResult(ProductFieldSecurity.Project(response.Result.Product, access.Authorization))
+        };
 }

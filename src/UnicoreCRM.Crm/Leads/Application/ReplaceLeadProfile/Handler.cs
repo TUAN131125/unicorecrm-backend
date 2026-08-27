@@ -34,6 +34,13 @@ internal sealed class Handler(
             fingerprint,
             (lead, now) =>
             {
+                // The requested profile is compared against the stored one, so only a field the
+                // replacement actually changes is treated as a write. Repeating a READ_ONLY value
+                // unchanged is not a write and is not refused.
+                var fieldError = LeadFieldSecurity.GuardProfileWrite(access.Value!.Authorization, lead.Profile, profile!);
+                if (fieldError is not null)
+                    return fieldError;
+
                 lead.ReplaceProfile(profile!, now);
                 return null;
             },

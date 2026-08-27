@@ -29,6 +29,10 @@ internal sealed class LeadsDbContext(DbContextOptions<LeadsDbContext> options) :
             entity.Property(item => item.DisqualificationEvidence).HasMaxLength(4000);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.LeadId });
+            // The enforced OWN-scope predicate. ListLeads narrows by WorkspaceId and the
+            // AccessControl scope owner and orders by UpdatedAt then LeadId, so this covers the
+            // security predicate and the ordering in one seek instead of scanning the Workspace.
+            entity.HasIndex(item => new { item.WorkspaceId, item.ScopeOwnerId, item.UpdatedAt, item.LeadId });
         });
 
         modelBuilder.Entity<LeadIdempotencyRecord>(entity =>

@@ -40,6 +40,7 @@ internal sealed class InboundLeadIngress(
             command.Provenance.SourceReference);
         var result = await execution.ExecuteAsync(
             command.TrustedWorkspace,
+            null,
             command.Request,
             metadata,
             cancellationToken);

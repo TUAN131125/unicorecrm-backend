@@ -24,6 +24,31 @@ internal interface IAccessControlPersistence
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The result of the one authoritative capability evaluation a request performs. The context is the
+/// effective policy projection produced by that same evaluation, so no consumer has to load policy a
+/// second time to learn who the caller is. It is present whenever the trusted Workspace resolved,
+/// including on a denial.
+/// </summary>
+internal sealed record AccessContextAuthorization(
+    bool IsAllowed,
+    string Code,
+    AuthorizationContextDocument? Context);
+
+/// <summary>
+/// Evaluates one capability and returns the effective context from that same evaluation. This is the
+/// only admitted way to obtain an authorization context alongside a business-capability decision:
+/// authorizing a context capability first and then testing the business capability against the
+/// returned capability set would audit the wrong capability and load policy twice.
+/// </summary>
+internal interface IAccessContextAuthorizer
+{
+    Task<AccessContextAuthorization> AuthorizeWithContextAsync(
+        AccessRequirement requirement,
+        string correlationId,
+        CancellationToken cancellationToken);
+}
+
 internal interface IResolvedAuthorizationContextSetter
 {
     void Set(AuthorizationContextDocument context);

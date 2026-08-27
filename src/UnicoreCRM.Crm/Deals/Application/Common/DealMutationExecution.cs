@@ -21,13 +21,6 @@ internal sealed class DealMutationExecution(
         CancellationToken cancellationToken)
     {
         var trusted = access.Trusted;
-        if (precondition is not null)
-        {
-            var error = await precondition(trusted, cancellationToken);
-            if (error is not null)
-                return DealOperationResult<DealMutationResponse>.Failure(error);
-        }
-
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
 
         // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
@@ -48,6 +41,16 @@ internal sealed class DealMutationExecution(
             return replayError is null
                 ? DealOperationResult<DealMutationResponse>.Success(Project(DealCommandSupport.Replay(existing), access))
                 : DealOperationResult<DealMutationResponse>.Failure(replayError);
+        }
+
+        // Only a genuinely new command evaluates current mutable owner/member state. A committed
+        // replay is answered from stored evidence alone, so a member deactivated after the original
+        // commit cannot retroactively turn that command's replay into a validation failure.
+        if (precondition is not null)
+        {
+            var preconditionError = await precondition(trusted, cancellationToken);
+            if (preconditionError is not null)
+                return DealOperationResult<DealMutationResponse>.Failure(preconditionError);
         }
 
         var deal = await persistence.LoadDealAsync(trusted.WorkspaceId, dealId, cancellationToken);

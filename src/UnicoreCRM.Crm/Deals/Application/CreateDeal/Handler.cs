@@ -46,10 +46,14 @@ internal sealed class Handler(
         if (progressive.Count != 0)
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.ProgressiveProfile(progressive));
 
-        var trusted = access.Value!.Trusted;
-        if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, cancellationToken))
-            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.OwnerNotAssignable());
+        // Creation is a resource-level question, so no record scope applies, but field security
+        // still does: a field the caller may not write must not be written on the way in either.
+        var createWriteError = DealFieldSecurity.GuardCreateWrite(
+            access.Value!.Authorization, profile!, nextActionAt, nextActionSummary, nextActionTaskId);
+        if (createWriteError is not null)
+            return DealOperationResult<DealMutationResponse>.Failure(createWriteError);
 
+        var trusted = access.Value!.Trusted;
         var fingerprint = DealCommandSupport.Fingerprint(new
         {
             profile,
@@ -64,11 +68,17 @@ internal sealed class Handler(
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
+            // Answered from stored evidence alone, so an owner deactivated after the original commit
+            // cannot retroactively invalidate the replay or create a second Deal.
             var replayError = DealCommandSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? DealOperationResult<DealMutationResponse>.Success(DealCommandSupport.Replay(existing))
+                ? DealOperationResult<DealMutationResponse>.Success(Project(DealCommandSupport.Replay(existing), access.Value!))
                 : DealOperationResult<DealMutationResponse>.Failure(replayError);
         }
+
+        // Only a genuinely new command evaluates current mutable owner/member state.
+        if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, cancellationToken))
+            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.OwnerNotAssignable());
 
         var now = timeProvider.GetUtcNow();
         var deal = new Deal(trusted.WorkspaceId, profile, stage.Code, stage.Category, forecastCategory, now);
@@ -88,6 +98,12 @@ internal sealed class Handler(
             now);
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return DealOperationResult<DealMutationResponse>.Success(response);
+        return DealOperationResult<DealMutationResponse>.Success(Project(response, access.Value!));
     }
+
+    private static DealMutationResponse Project(DealMutationResponse response, DealAccess access) =>
+        response with
+        {
+            Result = new DealMutationResult(DealFieldSecurity.Project(response.Result.Deal, access.Authorization))
+        };
 }

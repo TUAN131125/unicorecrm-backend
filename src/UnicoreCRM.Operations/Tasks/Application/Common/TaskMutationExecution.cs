@@ -21,13 +21,6 @@ internal sealed class TaskMutationExecution(
         CancellationToken cancellationToken)
     {
         var trusted = access.Trusted;
-        if (precondition is not null)
-        {
-            var error = await precondition(trusted, cancellationToken);
-            if (error is not null)
-                return TaskOperationResult<TaskMutationResponse>.Failure(error);
-        }
-
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
 
         // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
@@ -48,6 +41,16 @@ internal sealed class TaskMutationExecution(
             return replayError is null
                 ? TaskOperationResult<TaskMutationResponse>.Success(Project(TaskCommandSupport.ReplayTask(existing), access))
                 : TaskOperationResult<TaskMutationResponse>.Failure(replayError);
+        }
+
+        // Only a genuinely new command evaluates current mutable owner/member state. A committed
+        // replay is answered from stored evidence alone, so a member deactivated after the original
+        // commit cannot retroactively turn that command's replay into a validation failure.
+        if (precondition is not null)
+        {
+            var preconditionError = await precondition(trusted, cancellationToken);
+            if (preconditionError is not null)
+                return TaskOperationResult<TaskMutationResponse>.Failure(preconditionError);
         }
 
         var task = await persistence.LoadTaskAsync(trusted.WorkspaceId, taskId, cancellationToken);

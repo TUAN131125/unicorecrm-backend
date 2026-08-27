@@ -90,6 +90,8 @@ The following remain `AUTHORITY_GAP` and are not implemented or semantically def
 - team ownership and team membership: no owner records a team for a record and no module records a member's teams, so the `TEAM` data scope has no semantics and fails closed wherever it is evaluated;
 - `CUSTOM` data-scope semantics: `RoleDataScopePolicy.AllowedOwnerIdsJson` exists in the AccessControl model but no authority defines how an allowed-owner list is written or interpreted, so the scope fails closed;
 - administrative writes for AccessControl data-scope and field-security policy: the policies are read and enforced, but no admitted operation creates or changes one, and no policy revision or version is admitted either;
+- `TaskActivity` record-access semantics: no authority settles whether an Activity belongs to the `tasks` record scope or is an independent Workspace-scoped record with its own resource descriptor, so `listActivities` and `logActivity` fail closed outside `WORKSPACE` scope;
+- `MASKED` field representation: the policy value exists and is enforced by withholding the value, but no authority defines a masked representation, so none is produced;
 - a masked representation: `MASKED` is a declared field-access value with no admitted rendering, so it is enforced by withholding the value and reported as `HIDDEN` rather than being invented;
 - the mapping between the frontend field vocabulary (`subject`, `assigneeId`, `queueId`, `slaPolicyId`) and the Support wire field names. A field-security policy written against the frontend spelling cannot be enforced and fails the operation closed;
 - an authoritative member-owner concept for Product. The aggregate carries no member reference of any kind, so `OWN` scope denies every Product record rather than ownership being invented for it.
@@ -239,7 +241,8 @@ The frontend consumes the evaluation to decide what to draw. That is a usability
 
 ### RUNTIME VERIFICATION
 
-`backend/scripts/verify-access-control-record-access.ps1` provisions an isolated LocalDB database, starts a real ApiHost against it and reports `PASS=141 FAIL=0`. Beyond the evaluation checks it proves, by calling the business API directly: a hidden record is refused by `GET /support/cases/{caseId}` and is byte-indistinguishable from an unknown one; profile replacement, assignment, transition, reply and internal note against a hidden record all fail closed and mutate nothing; an `OWN` list returns only the caller's records and neither `totalCount` nor pagination counts hidden rows; `WORKSPACE` restores the other-owner record through the same path; `TEAM` and `CUSTOM` refuse the read and empty the list; a `HIDDEN` field is absent from the raw backend JSON on both the detail and the list; a `READ_ONLY` field reads but cannot be written, including when the policy row is spelled in different casing; a restrictive policy on a required field fails the read closed without ever emitting the value; `support.update` alone can neither reassign nor clear an owner while `support.assign` still assigns through the admitted path; mixed-case resource keys collapse to one effective entry; `support.create` survives losing `support.read` while record-level commands do not; owner enforcement writes its own decision evidence; a list request writes no per-row decision; and an enforced read authorizes exactly once. `dotnet ef migrations has-pending-model-changes` reports no pending AccessControl model change.
+`backend/scripts/verify-access-control-record-access.ps1` provisions an isolated LocalDB database, starts a real ApiHost against it and reports `PASS=309 FAIL=0` at the time of writing (`141` when
+this section was written; the suite has grown twice since). Beyond the evaluation checks it proves, by calling the business API directly: a hidden record is refused by `GET /support/cases/{caseId}` and is byte-indistinguishable from an unknown one; profile replacement, assignment, transition, reply and internal note against a hidden record all fail closed and mutate nothing; an `OWN` list returns only the caller's records and neither `totalCount` nor pagination counts hidden rows; `WORKSPACE` restores the other-owner record through the same path; `TEAM` and `CUSTOM` refuse the read and empty the list; a `HIDDEN` field is absent from the raw backend JSON on both the detail and the list; a `READ_ONLY` field reads but cannot be written, including when the policy row is spelled in different casing; a restrictive policy on a required field fails the read closed without ever emitting the value; `support.update` alone can neither reassign nor clear an owner while `support.assign` still assigns through the admitted path; mixed-case resource keys collapse to one effective entry; `support.create` survives losing `support.read` while record-level commands do not; owner enforcement writes its own decision evidence; a list request writes no per-row decision; and an enforced read authorizes exactly once. `dotnet ef migrations has-pending-model-changes` reports no pending AccessControl model change.
 
 `verify-support-core.ps1` re-run unchanged reports `PASS=83 FAIL=0`, so Support's own domain, persistence, concurrency, idempotency, audit and outbox invariants are unaffected.
 
@@ -325,7 +328,9 @@ outside the caller's record scope reaches neither the list nor the forecast tota
 
 Batch operations (`archiveDealsBatch`, `archiveProductsBatch`, `restoreProductsBatch`) authorize the
 resource once and then authorize each record the caller explicitly named. That is one decision per
-named record, which is inherent to a batch, not an N+1 over a list.
+named record, which is inherent to a batch, not an N+1 over a list. Until the hardening below they
+performed that authorization **after** the idempotency lookup, so a committed batch could be
+replayed after the caller lost access to a named record; see *BATCH ENFORCEMENT*.
 
 **Recorded, pre-existing and unchanged:** `listDeals` and `getDealForecastSummary` still perform
 their search, ordering and paging in memory after loading the Workspace's deals. The security
@@ -342,7 +347,9 @@ existing owner-local idempotency guarantee is otherwise untouched: mutable busin
 still run only on the new-execution path, so a member deactivated after a commit still cannot
 invalidate that command's replay.
 
-Creation is unguarded by design in every module: there is no prior record to authorize.
+Creation is unguarded by **record scope** in every module: there is no prior record to
+authorize. It is **not** unguarded by field-write policy - see *FIELD WRITE ENFORCEMENT* under
+*AccessControl system-wide enforcement hardening*, which supersedes the earlier wording here.
 
 ### Field enforcement and vocabulary
 
@@ -356,8 +363,10 @@ vocabulary cannot drift from what the module projects:
 - Deals — the 34 `DealReadModel` properties.
 - Products — the 24 `ProductDocument` properties.
 
-A policy naming a key outside a module's vocabulary, or naming a field the wire contract makes
-required, cannot be honoured and **fails the operation closed** rather than being silently ignored.
+A policy naming a field the returned representation makes required cannot be honoured and **fails
+the operation closed** rather than being silently ignored. A key outside a module's vocabulary is
+**not readable and not writable** - see *UNKNOWN-FIELD FAIL-CLOSED* below, which supersedes the
+earlier statement that an undeclared key failed the whole operation closed.
 `MASKED` is enforced by withholding the value and reported as `HIDDEN`, because no masking
 representation is admitted anywhere. `READ_ONLY` is readable and refuses writes before any business
 state changes. These are the rules already frozen for Support, applied unchanged.
@@ -374,8 +383,9 @@ lowercase resource keys the modules declare.
 
 ### Runtime verification
 
-`backend/scripts/verify-access-control-record-access.ps1` reports **`PASS=211 FAIL=0`** against an
-isolated database and a real ApiHost. Beyond the Support coverage it already carried, it proves for
+`backend/scripts/verify-access-control-record-access.ps1` reported **`PASS=211 FAIL=0`** against an
+isolated database and a real ApiHost when this section was written, and reports **`PASS=309 FAIL=0`**
+after the hardening below. Beyond the Support coverage it already carried, it proves for
 the retrofitted modules, by calling the business API directly with no browser involved: an OWN-scoped
 caller reads its own Task, Lead and Deal and receives `404` for another member's; the hidden record
 leaks no title, display name or deal name; direct `complete`, `disqualify` and `archive` calls against
@@ -390,9 +400,8 @@ evidence is written for every module.
 
 It also covers the three rewritten summary readers through their only consumer, `POST /ai/advisories`:
 all three references resolve, a record hidden by OWN scope is not summarised for AI, and the caller's
-own records remain summarisable. That coverage lives here because `verify-ai-assistant.ps1` cannot run
-on this machine (Windows PowerShell 5.1 only), and the readers were rewritten in this work, so leaving
-them unproven was not acceptable.
+own records remain summarisable. That coverage was added because `verify-ai-assistant.ps1` could not
+run at the time; it runs again now, and both harnesses cover the readers.
 
 `verify-support-core.ps1` re-run unchanged reports **`PASS=83 FAIL=0`**.
 
@@ -407,11 +416,285 @@ to recognise. Both lists were realigned with the policy they exist to mirror. No
 
 ### Environment-blocked, not failed
 
-`verify-products-core.ps1` cannot run on this machine for the same reason already recorded for
-`verify-ai-assistant.ps1` and `verify-inbound-lead-webhook.ps1`: it sends a request body on `GET`,
-which the .NET Framework `HttpClient` in Windows PowerShell 5.1 rejects outright. Products is instead
-covered by the record-access verifier above, which does run. No claim is made from an unexecuted
-harness.
+**Superseded.** `verify-products-core.ps1` and `verify-ai-assistant.ps1` were blocked by a harness
+defect, not an environment one, and both now run and pass - see *Two blocked verifiers repaired and
+run* under *AccessControl system-wide enforcement hardening*. `verify-inbound-lead-webhook.ps1`
+was not in scope of that repair and its status is unchanged.
+
+## AccessControl system-wide enforcement hardening
+
+The retrofit above put Tasks, Leads, Deals and Products on the canonical evaluator. A source review
+of that result found six enforcement defects that were still reachable through the business API
+itself, plus two unsafe defaults inside AccessControl. All eight are closed here. This section is the
+authority for **which enforcement layer does what**, because the earlier sections stated some of it
+in aggregate and, in three places, overstated it.
+
+The layers are deliberately reported apart. A `PASS` on one is not a `PASS` on another.
+
+### CAPABILITY EVALUATION — `IMPLEMENTED`, `VERIFIED`
+
+One authoritative evaluation per record-access request, of the **actual business capability**.
+
+`RecordAccessEvaluator.AuthorizeResourceAsync` previously authorized `workspace.context.resolve` to
+obtain a context and then tested `requiredCapability` against the returned capability set. The
+decision was correct, but the `access.AuthorizationDecisions` evidence recorded the context
+capability rather than the capability the operation actually required, and the policy was loaded for
+a question nobody asked. `IAccessContextAuthorizer.AuthorizeWithContextAsync` now loads the effective
+policy once, evaluates the supplied business capability, audits *that* capability, and returns the
+effective context from the same evaluation. The context is returned on a denial too, because a denied
+caller is still a resolved membership of the trusted Workspace and the projection has to be able to
+answer "denied, for this Workspace" without a second policy load that could observe different state.
+
+`POST /access/records/evaluate` keeps its own registry-declared operation capability,
+`workspace.context.resolve`, and authorizes it explicitly. That is a second decision for that one
+endpoint, and it is deliberate: being told what one *may* do with a record is a context question,
+while whether that record may actually be read is a resource question, and the two are audited under
+the capability each really evaluated. Every business owner operation performs **exactly one**
+authorization, of its own capability.
+
+Verified: `completeTask` writes one decision naming `tasks.complete`; `getLead` one naming
+`leads.read`; `archiveProduct` one naming `products.delete`.
+
+### RECORD ENFORCEMENT — `IMPLEMENTED`, `VERIFIED`
+
+Unchanged from the retrofit except for the read rule below: `WORKSPACE` and `OWN` are enforced,
+`TEAM` and `CUSTOM` fail closed, and a record outside scope is reported as not found.
+
+#### The read-versus-command rule is now frozen, and identical on both sides
+
+**Rule A is canonical: a record-targeting mutation requires the resource read capability, the
+operation capability and record scope.** It is taken from the canonical design baseline, which states
+that a record read requires workspace match, the resource read capability and an allowed
+ownership/data-scope decision, and that *mutating a permitted field still requires the command
+capability* — the command capability is additional to readability, not a substitute for it.
+
+Before this work the public evaluation applied Rule A while direct backend enforcement did not: a
+caller holding `tasks.assign` but not `tasks.read` was refused by the evaluation and accepted by the
+endpoint. `AuthorizeRecordAsync` now requires the owner-declared read capability alongside the
+operation capability and record scope, so both sides are produced by the same code path. A record
+decision denied for a missing read capability is audited as `RECORD_READ_CAPABILITY_DENIED` and is
+reported to the caller exactly as any other record denial, so the code discloses nothing.
+
+Resource-level semantics are unchanged: with no record identifier a command is still granted from its
+own capability alone, so `support.create` and `tasks.create` do not require a read capability.
+
+Verified as a matrix, per cell, twice — once as the evaluation reports it, once as the business API
+enforces it: read=yes/command=yes allows, and read=no/command=yes, read=yes/command=no and
+read=no/command=no all deny, with report and enforcement asserted equal.
+
+### FIELD READ ENFORCEMENT — `IMPLEMENTED`, `VERIFIED`
+
+Unchanged in rule. One correction to which representation the required-field rule governs:
+
+**Required-ness is a property of the representation being returned, not of the resource.** The
+minimized summary contracts behind `ITaskSummaryReader`, `ILeadSummaryReader` and
+`IDealSummaryReader` declare every field optional, so a withheld value has an admitted representation
+there even where the module's full read model makes the same field required. Those three operations
+now declare the fields they can return absent, and a restrictive policy on one of them withholds the
+value instead of failing the read closed. Every other operation is unchanged: a restrictive policy on
+a field its own representation makes required still fails closed with `ACCESS_DENIED`.
+
+### FIELD WRITE ENFORCEMENT — `IMPLEMENTED`, `VERIFIED`
+
+Two gaps are closed.
+
+**Creation.** Creation has no prior record and therefore no record scope, but field policy still
+governs writes. `createTask`, `createLead`, `createDealCommand` and `createProduct` now refuse a
+request that supplies a field the caller may not write — `HIDDEN`, `MASKED` or `READ_ONLY` alike —
+rather than silently dropping the value, because silently dropping it would return a record that does
+not match the request the caller believes it made. A field the create contract makes mandatory always
+counts as written, so a non-writable required create field fails the creation closed. Create responses
+and their replays are projected through current field security. This is the rule already frozen for
+`createSupportCase`, applied unchanged.
+
+The retrofit section's statement that *"creation is unguarded by design in every module"* was
+correct only about record scope and is superseded here: creation is unguarded by **record scope**,
+and is governed by **field-write policy**.
+
+**Full-profile replacement.** `replaceLeadProfile`, the Deals `updateDealCommand` profile replacement
+and `replaceProduct` ran the record guard without declaring which fields the replacement would
+actually change, so a `READ_ONLY` field could be rewritten through a whole-profile PUT. All three now
+compare the requested profile against the stored aggregate and check `CanWrite` only for the fields
+whose value actually changes. Repeating a value unchanged is not a write and is not refused. This is
+Support's `GuardProfileWrite` pattern, applied unchanged. Slice mutations already declared their
+written fields and are untouched.
+
+Verified per module: a forbidden field supplied at creation is refused with `403 ACCESS_DENIED` and
+writes no audit record, no outbox message and no idempotency evidence; the same request without that
+field still creates; a `READ_ONLY` field changed through a profile replacement is refused with `403`
+and leaves the resource version unchanged; and the same `READ_ONLY` value repeated is accepted.
+
+### BATCH ENFORCEMENT — `IMPLEMENTED`, `VERIFIED`
+
+`archiveDealsBatch`, `archiveProductsBatch` and `restoreProductsBatch` authorized the resource, opened
+the transaction and then performed the idempotency lookup **before** loading and authorizing the named
+records. A caller who had access when a batch committed could therefore replay it after losing that
+access and read the stored projection back.
+
+The frozen order is now: resource capability authorization → transaction → load every explicitly named
+record in the trusted Workspace → current record-access guard for every named record → idempotency
+lookup → replay or conflict → business preconditions and version checks → mutation. Record scope is
+current authorization and gates the replay; mutable business preconditions stay **after** the lookup,
+so a committed batch still replays when access holds.
+
+Batch responses now pass through `DealFieldSecurity.Project` and `ProductFieldSecurity.Project` on
+both the committed and the replayed path, so a newly `HIDDEN` field cannot leak through old
+idempotency evidence.
+
+Verified: a batch committed under `WORKSPACE` scope is denied on replay once the caller's scope
+narrows to `OWN` and a named record falls outside it, and the denial returns none of the stored
+projection; the same key still replays while access holds and reports `REPLAYED`; a `HIDDEN` field is
+absent from both the committed and the replayed batch response, value and key alike.
+
+### IDEMPOTENCY AUTHORIZATION ORDER — `IMPLEMENTED`, `VERIFIED`
+
+One order, everywhere: current authorization → record guard → idempotency lookup → replay or conflict
+→ mutable business preconditions, for a new execution only → version check and mutation → commit. For
+creation: capability and field-write authorization → idempotency lookup → replay → mutable external
+and member validation, for a new execution only → create.
+
+Tasks, Leads and Deals evaluated the active-assignee and active-owner preconditions *before* the
+idempotency lookup in their shared mutation execution and in their create paths, so a member
+deactivated after a command committed turned that command's replay into a validation failure. The
+preconditions moved after the lookup, matching Support.
+
+Verified: `assignTask` commits, the assignee is then suspended, and the same `Idempotency-Key` still
+replays; the equivalent owner-validation replays for `replaceLeadProfile` and `assignDealOwner` also
+survive a suspended owner; and a genuinely new command naming the suspended member is still refused,
+so the durability is confined to replay.
+
+### UNKNOWN-FIELD FAIL-CLOSED — `IMPLEMENTED`, `VERIFIED`
+
+`RecordAccessAuthorization` resolved a field key with no enforcement entry to `READ_WRITE`. On an
+internal security decision that meant a typo widened access: `assigneId` was writable because it was
+unrecognised.
+
+A field key the owner does not declare is now **neither readable nor writable**: `CanRead` and
+`CanWrite` are both false, and the public projection reports `HIDDEN`. Owners must declare every field
+they want enforced, which they already do from their own wire records. This matches the canonical
+design baseline, which states that the connected projection is intentionally fail-closed and must not
+copy the demo `READ_WRITE` default.
+
+An undeclared key is **not** reported as an unenforceable policy: the owner never projects it, so
+there is nothing for the operation to fail closed over. `UnenforceableFieldKeys` is now exactly the
+fields the owner declares as required by the representation it is returning and which carry a
+restrictive policy — the case where refusal is the only admitted answer.
+
+Case-insensitivity is unaffected. Verified: `assigneId` and `subject` resolve `HIDDEN` for `tasks`
+while `assigneeId`, `ASSIGNEEID`, `AsSiGnEeId` and `assigneeid` all resolve to the declared field, and
+a policy row stored as `AsSiGnEeId` still restricts it.
+
+### ACTIVITY ENFORCEMENT — `AUTHORITY_GAP`, fails closed
+
+`listActivities` and `logActivity` authorize `tasks.read` and `tasks.update` and operated
+Workspace-wide regardless of the caller's effective `tasks` record scope, while a `TaskActivity`
+carries `subject`, `body`, `actorId`, a relationship reference, a record reference for **any** module,
+a record label and source evidence.
+
+Neither admitted resolution can be proven from current authority:
+
+- **Activities are inside the Tasks record scope** — not provable. A `TaskActivity` carries no task
+  reference at all, so no Activity can be attributed to a Task. Its `actorId` is the actor, not one of
+  the four admitted ownership attributes (`ownerId`, `assigneeId`, `createdBy`, `assignedTo`), so
+  there is no owner an `OWN`, `TEAM` or `CUSTOM` scope could be evaluated against.
+- **Activities are independent Workspace-scoped records** — not provable either. The operation
+  registry gives both operations `resourceScope: WORKSPACE`, but it gives `listTasks` the same value
+  while `listTasks` is `OWN`-filterable, so the field does not distinguish them. The module document's
+  "activities are append-only evidence scoped to a workspace and record/customer reference" describes
+  tenancy, which is true of every record in the system, not record-access scope. And both operations
+  piggyback on the `tasks` capability and `tasks` resource key while declaring no resource descriptor
+  or field vocabulary of their own.
+
+**Resolution: `AUTHORITY_GAP`, failing closed rather than leaking.** Activities are reachable only
+when the caller's effective `tasks` data scope is `WORKSPACE`. Under `OWN`, `TEAM` or `CUSTOM`,
+`listActivities` returns an empty page and `logActivity` is refused with `403 ACCESS_DENIED`. No
+ownership attribute, scope fact, resource key or field vocabulary was invented for Activities.
+
+Freezing this requires a business decision that does not exist yet: either an authoritative Activity
+ownership/scope fact, or an explicit `activities` resource descriptor with its own capability and
+field vocabulary. Until then the restriction stands.
+
+Verified: `WORKSPACE` logs and lists an activity; `OWN`, `TEAM` and `CUSTOM` each return zero
+activities, leak no activity subject, and refuse `logActivity` with `403`.
+
+### AUDIT EVIDENCE — `IMPLEMENTED`, `VERIFIED`
+
+`access.AuthorizationDecisions` now names the capability the operation actually required, per the
+first section above. `access.RecordAccessDecisions` is unchanged in shape and gains one decision code,
+`RECORD_READ_CAPABILITY_DENIED`, distinguishing a record denied for want of the read capability from
+one denied by scope. The distinction exists only in the evidence; the caller sees one answer.
+
+The policy fingerprint remains a digest, **not** a policy version. Policy administration remains
+`DEFERRED`.
+
+### QUERY PERFORMANCE — `IMPLEMENTED`
+
+Three indexes back the enforced security predicate, each chosen from the query the module actually
+issues rather than added speculatively:
+
+- `tasks.Tasks (WorkspaceId, AssigneeId, UpdatedAt, TaskId)` — `listTasks` narrows by Workspace and
+  the AccessControl scope assignee before counting and paging, and its default order is `UpdatedAt`
+  then `TaskId`, so the index covers the predicate, the count and the ordered page.
+- `leads.Leads (WorkspaceId, ScopeOwnerId, UpdatedAt, LeadId)` — `listLeads` narrows by Workspace and
+  scope owner and orders by `UpdatedAt` then `LeadId`.
+- `deals.Deals (WorkspaceId, ScopeOwnerId, UpdatedAt, DealId)` — `readDealsAsync` narrows by Workspace
+  and scope owner; Deals then orders and pages **in memory**, so here `UpdatedAt` and `DealId` are
+  carried for covering only and the leading two columns are what turns the security predicate from a
+  Workspace scan into a seek. The pre-existing in-memory ordering of `listDeals` and
+  `getDealForecastSummary` is recorded above and was again not refactored.
+
+Migrations `TaskOwnScopeIndex`, `LeadOwnScopeIndex` and `DealOwnScopeIndex` add them.
+`dotnet ef migrations has-pending-model-changes` reports no pending change for `TasksDbContext`,
+`LeadsDbContext`, `DealsDbContext` or `AccessControlDbContext`.
+
+### RUNTIME VERIFICATION
+
+`backend/scripts/verify-access-control-record-access.ps1` reports **`PASS=309 FAIL=0`** against an
+isolated LocalDB database and a real ApiHost. It keeps every module-specific assertion it already
+carried and adds the batch-replay, batch-projection, create-write, profile-write, replay-durability,
+read-versus-command matrix, capability-audit, Activity fail-closed and unknown-field cases described
+above, plus a repeat of the no-N+1 and single-authorization assertions for all four modules and for
+`/activities`.
+
+`verify-support-core.ps1` re-run unchanged reports **`PASS=83 FAIL=0`**.
+
+### Two blocked verifiers repaired and run
+
+Both were blocked by harness defects in Windows PowerShell 5.1, not by API semantics. No API behavior
+was changed to accommodate either.
+
+- `Send-Json` in `verify-products-core.ps1` and `verify-ai-assistant.ps1` tested `$null -ne $body`. An
+  unbound `[string]` parameter arrives as an empty string, so every `GET` attached an empty JSON body,
+  which the .NET Framework `HttpClient` refuses. The test is now
+  `-not [string]::IsNullOrEmpty($body)`, matching the record-access harness.
+- `verify-ai-assistant.ps1` additionally never loaded `System.Net.Http`, which Windows PowerShell 5.1
+  does not resolve on demand, so `[System.Net.Http.HttpClient]` did not exist. It now loads it, as
+  every other verifier in that directory already did.
+
+`verify-products-core.ps1` reports **`PASS`** with no failed check, including the batch-replay and
+capability-denial cases. `verify-ai-assistant.ps1` reports **`PASS`** across all 35 checks, including
+the field-level context filtering that the required-field correction above unblocked. The retrofit
+section's "Environment-blocked, not failed" note is superseded for both scripts.
+
+Recorded harness limitation, unchanged: `verify-ai-assistant.ps1` neither creates nor drops its
+database, so it must be given a freshly created one. A previous failed run leaves its seeded field
+policy behind and the next run fails on that residue rather than on a real defect.
+
+### What this section does NOT claim
+
+- `TEAM` remains `AUTHORITY_GAP`, denied everywhere.
+- `CUSTOM` remains `AUTHORITY_GAP`, denied everywhere.
+- `MASKED` remains `AUTHORITY_GAP` as a **representation**: it is enforced by withholding the value
+  and reported as `HIDDEN`. It is **not** implemented masking, and must not be described as such.
+- Product `OWN` scope remains `AUTHORITY_GAP`: the Product aggregate carries no member reference and
+  none was invented, so `OWN` denies every Product.
+- `TaskActivity` record-access semantics remain `AUTHORITY_GAP`, failing closed.
+- Policy administration remains `DEFERRED`: data-scope and field-security policies are read and
+  enforced, and no admitted operation creates or changes one.
+- No claim of `ACCESSCONTROL FULL MODULE: PASS` is made. The claim supported by this evidence is
+  narrower: **AccessControl system-wide enforcement for the currently implemented business modules —
+  AccessControl, Tasks, Leads, Deals, Products and Support — is `PASS`.**
+
 
 ## B04 Tasks implementation authority
 

@@ -60,16 +60,11 @@ internal sealed class ProductBatchMutationExecution(
         var trusted = access.Value!.Trusted;
         var fingerprint = ProductCommandSupport.Fingerprint(new { Items = normalizedItems, Reason = reason });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
-        var scopeKey = ProductCommandSupport.ScopeKey(trusted, specification.Operation, "WORKSPACE", metadata.IdempotencyKey);
-        var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
-        if (existing is not null)
-        {
-            var replayError = ProductCommandSupport.ReplayError(existing, fingerprint);
-            return replayError is null
-                ? ProductOperationResult<ProductBatchMutationResponse>.Success(ProductCommandSupport.ReplayBatch(existing))
-                : ProductOperationResult<ProductBatchMutationResponse>.Failure(replayError);
-        }
 
+        // The named records are loaded and authorized before the idempotency lookup, so a replay is
+        // gated by current record scope. Record scope is authorization, not a business precondition:
+        // a caller who could reach these products when the batch committed but cannot reach them now
+        // must not be able to replay the committed batch and read its stored projection back.
         var productIds = normalizedItems.Select(item => item.ProductId).ToArray();
         var products = await persistence.LoadProductsAsync(productIds, cancellationToken);
         if (products.Count != normalizedItems.Count)
@@ -91,6 +86,19 @@ internal sealed class ProductBatchMutationExecution(
                 return ProductOperationResult<ProductBatchMutationResponse>.Failure(denied);
         }
 
+        var scopeKey = ProductCommandSupport.ScopeKey(trusted, specification.Operation, "WORKSPACE", metadata.IdempotencyKey);
+        var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
+        if (existing is not null)
+        {
+            var replayError = ProductCommandSupport.ReplayError(existing, fingerprint);
+            return replayError is null
+                ? ProductOperationResult<ProductBatchMutationResponse>.Success(
+                    Project(ProductCommandSupport.ReplayBatch(existing), access.Value!))
+                : ProductOperationResult<ProductBatchMutationResponse>.Failure(replayError);
+        }
+
+        // Mutable business preconditions stay after the lookup: only a genuinely new execution
+        // evaluates the current version and archive state.
         foreach (var item in normalizedItems)
         {
             var product = byId[item.ProductId];
@@ -189,8 +197,21 @@ internal sealed class ProductBatchMutationExecution(
                 ProductErrors.VersionConflict(first.ProductId, first.ExpectedVersion, byId[first.ProductId].Version));
         }
         await transaction.CommitAsync(cancellationToken);
-        return ProductOperationResult<ProductBatchMutationResponse>.Success(response);
+        return ProductOperationResult<ProductBatchMutationResponse>.Success(Project(response, access.Value!));
     }
+
+    /// <summary>
+    /// Applies field security to every product in the outgoing batch response. It is applied at the
+    /// boundary because a replay returns a projection serialized under whatever policy was in force
+    /// when the batch committed; enforcing here makes stored idempotency evidence unable to leak a
+    /// value the caller's current policy withholds.
+    /// </summary>
+    private static ProductBatchMutationResponse Project(ProductBatchMutationResponse response, ProductAccess access) =>
+        response with
+        {
+            Result = new ProductBatchMutationResult(
+                response.Result.Products.Select(product => ProductFieldSecurity.Project(product, access.Authorization)).ToArray())
+        };
 
     private static BatchSpecification Specification(ProductBatchMutationKind kind) => kind switch
     {

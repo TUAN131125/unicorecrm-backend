@@ -16,7 +16,7 @@ namespace UnicoreCRM.Platform.AccessControl.Application.Common;
 /// authorizes through it does not also authorize separately and write a second decision row.</para>
 /// </summary>
 internal sealed class RecordAccessEvaluator(
-    IAccessAuthorizer authorizer,
+    IAccessContextAuthorizer authorizer,
     ICurrentWorkspace currentWorkspace,
     RecordAccessFactProviderRegistry providers,
     IAccessControlPersistence persistence,
@@ -33,18 +33,31 @@ internal sealed class RecordAccessEvaluator(
         ArgumentException.ThrowIfNullOrWhiteSpace(requiredCapability);
         ArgumentNullException.ThrowIfNull(requestContext);
 
-        var decision = await authorizer.AuthorizeAsync(
-            AccessCapabilities.WorkspaceContextResolve,
+        // Exactly one authoritative evaluation per request, of the actual business capability. The
+        // effective context comes back from that same evaluation, so the AuthorizationDecision
+        // evidence names the capability the operation really required and no second policy load can
+        // observe different state. A denial still carries the context, because a denied caller is
+        // still a resolved membership of the trusted Workspace.
+        var decision = await authorizer.AuthorizeWithContextAsync(
+            AccessRequirement.ForCanonicalCapability(requiredCapability),
             requestContext.CorrelationId,
             cancellationToken);
-        if (!decision.IsAllowed || decision.Context is not { } context)
+        if (decision.Context is not { } context)
             return Denied(decision.Code, resourceKey, requiredCapability);
 
         var trusted = currentWorkspace.Require();
         var descriptor = providers.Find(resourceKey)?.Descriptor;
         var canonicalResourceKey = descriptor?.ResourceKey ?? resourceKey;
         var capabilities = context.Capabilities;
-        var holdsCapability = capabilities.Contains(requiredCapability, StringComparer.Ordinal);
+        var holdsCapability = decision.IsAllowed;
+
+        // The frozen record rule is additive: a record-targeting decision requires the resource read
+        // capability, the operation capability and record scope. It is captured here, from the one
+        // evaluation, so the public evaluate operation and every owner enforcement point apply the
+        // same rule. With no registered owner there is no declared read capability, and the record
+        // decision consequently fails closed.
+        var holdsResourceRead = descriptor is not null
+            && capabilities.Contains(descriptor.ReadCapability, StringComparer.Ordinal);
 
         var dataScopes = ToScopePolicies(context.DataScopes);
         var scope = RecordAccessPolicy.ResolveScope(dataScopes, canonicalResourceKey);
@@ -55,6 +68,15 @@ internal sealed class RecordAccessEvaluator(
         var unenforceable = new List<string>();
         foreach (var fieldKey in requestedFields ?? [])
         {
+            // A field the owner does not declare is not enforceable in either direction, so it is
+            // neither readable nor writable. Declaring the enforceable vocabulary is the owner job;
+            // a key outside it - a typo included - must never widen access.
+            if (!IsDeclared(descriptor, fieldKey))
+            {
+                enforcement[fieldKey] = RecordFieldEnforcement.Withheld;
+                continue;
+            }
+
             var access = RecordAccessPolicy.ResolveFieldAccess(fieldSecurity, canonicalResourceKey, fieldKey);
             enforcement[fieldKey] = Enforcement(access);
             if (access is AccessFieldAccess.Hidden or AccessFieldAccess.Masked
@@ -76,7 +98,8 @@ internal sealed class RecordAccessEvaluator(
             capabilities,
             Fingerprint(context),
             canonicalResourceKey,
-            requiredCapability);
+            requiredCapability,
+            holdsResourceRead);
     }
 
     public async Task<RecordAccessRecordDecision> AuthorizeRecordAsync(
@@ -92,8 +115,11 @@ internal sealed class RecordAccessEvaluator(
         ArgumentException.ThrowIfNullOrWhiteSpace(recordId);
 
         // Record scope is additional to capability and can never restore one: a caller denied the
-        // capability is denied the record no matter who owns it.
-        var scopeDecision = authorization.IsAllowed && authorization.TrustedWorkspace is { } trusted
+        // capability is denied the record no matter who owns it. The resource read capability is
+        // additional in the same way - a record-targeting command reaches a record only when the
+        // caller may read that record - so tasks.assign without tasks.read targets nothing.
+        var capabilityAllowed = authorization.IsAllowed && authorization.HoldsResourceRead;
+        var scopeDecision = capabilityAllowed && authorization.TrustedWorkspace is { } trusted
             ? RecordAccessPolicy.EvaluateScope(
                 ParseScope(authorization.EvaluatedScope),
                 recordRequested: true,
@@ -102,12 +128,14 @@ internal sealed class RecordAccessEvaluator(
                 trusted.MemberId)
             : new RecordScopeDecision(RecordScopeOutcome.Denied, AccessDataScope.Custom, null);
 
-        var allowed = authorization.IsAllowed && scopeDecision.Outcome == RecordScopeOutcome.Allowed;
+        var allowed = capabilityAllowed && scopeDecision.Outcome == RecordScopeOutcome.Allowed;
         var code = !authorization.IsAllowed
             ? "CAPABILITY_DENIED"
-            : allowed
-                ? (scopeDecision.Scope == AccessDataScope.Own ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE")
-                : "RECORD_ACCESS_DENIED";
+            : !authorization.HoldsResourceRead
+                ? "RECORD_READ_CAPABILITY_DENIED"
+                : allowed
+                    ? (scopeDecision.Scope == AccessDataScope.Own ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE")
+                    : "RECORD_ACCESS_DENIED";
 
         if (authorization.TrustedWorkspace is { } workspace)
         {
@@ -208,10 +236,16 @@ internal sealed class RecordAccessEvaluator(
         return Convert.ToHexString(hash).ToLower(CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Whether the owner declares this field as one it can enforce a policy on.</summary>
+    private static bool IsDeclared(RecordAccessResourceDescriptor? descriptor, string fieldKey) =>
+        descriptor is not null && descriptor.EnforceableFields.ContainsKey(fieldKey);
+
     /// <summary>
-    /// Whether the owner can honour a withheld value for this field. It cannot when it does not
-    /// declare the field, and it cannot when the wire contract makes the field required, because no
-    /// admitted representation exists for a required field whose value must not be exposed.
+    /// Whether the owner can honour a withheld value for a field it declares. It cannot when the
+    /// wire contract makes the field required, because no admitted representation exists for a
+    /// required field whose value must not be exposed. A field the owner does not declare never
+    /// reaches this test: it is withheld by default and the owner never projects it, so there is
+    /// nothing for the owner to fail the operation closed over.
     /// </summary>
     private static bool CanWithhold(RecordAccessResourceDescriptor? descriptor, string fieldKey) =>
         descriptor is not null
@@ -255,7 +289,8 @@ internal sealed class RecordAccessEvaluator(
             [],
             string.Empty,
             resourceKey,
-            requiredCapability);
+            requiredCapability,
+            false);
 
     private static IReadOnlyList<EffectiveDataScopePolicy> ToScopePolicies(IReadOnlyList<AuthorizationDataScopeEntry> entries)
     {

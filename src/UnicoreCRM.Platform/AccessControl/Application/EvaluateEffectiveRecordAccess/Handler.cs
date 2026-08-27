@@ -18,6 +18,7 @@ namespace UnicoreCRM.Platform.AccessControl.Application.EvaluateEffectiveRecordA
 /// foreign or hidden existence.</para>
 /// </summary>
 internal sealed class Handler(
+    IAccessContextAuthorizer authorizer,
     IRecordAccessEvaluator evaluator,
     RecordAccessEvaluator decisionWriter,
     RecordAccessFactProviderRegistry providers,
@@ -34,6 +35,21 @@ internal sealed class Handler(
             return AccessOperationResult<EffectiveRecordAccessDocument>.Failure(AccessErrors.Validation(fieldErrors!));
 
         var context = new RecordAccessRequestContext(query.RequestId, query.CorrelationId);
+
+        // This operation has an operation capability of its own - `workspace.context.resolve` - and
+        // it is not the same question as the resource capability below. Asking to be told what one
+        // may do with a record is a context question; whether that record may actually be read is a
+        // resource question. Both are audited under the capability they really evaluated, and the
+        // resource half is the single evaluation every business owner enforces through, so what this
+        // operation reports and what the server enforces still come from one authority.
+        var operation = await authorizer.AuthorizeWithContextAsync(
+            AccessCapabilities.WorkspaceContextResolve, query.CorrelationId, cancellationToken);
+        if (!operation.IsAllowed)
+        {
+            return AccessOperationResult<EffectiveRecordAccessDocument>.Failure(
+                operation.Code == "WORKSPACE_MISMATCH" ? AccessErrors.WorkspaceMismatch() : AccessErrors.AccessDenied());
+        }
+
         var provider = providers.Find(request!.ResourceKey);
         var descriptor = provider?.Descriptor;
 
@@ -85,7 +101,8 @@ internal sealed class Handler(
         // record identifier the caller is asking what the resource permits, so a command is granted
         // from its own capability alone - `support.create` must not silently require `support.read`.
         // With a record identifier the commands target that record, so they additionally require it
-        // to be readable and in scope.
+        // to be readable and in scope. This is the same rule `AuthorizeRecordAsync` enforces for
+        // every owner, so what this operation reports and what the server enforces cannot drift.
         var commandGate = recordEvaluated ? canRead : true;
         var allowedCommands = new List<string>();
         if (commandGate)
@@ -109,9 +126,12 @@ internal sealed class Handler(
         var restricted = 0;
         foreach (var fieldKey in request.RequestedFields)
         {
+            // A field key the owner does not declare has no enforcement entry, and the answer for it
+            // is withheld rather than widened. Reporting READ_WRITE for an unrecognised key would
+            // let a typo in a consumer's field list read as a grant.
             var enforcement = authorization.FieldEnforcement.TryGetValue(fieldKey, out var value)
                 ? value
-                : RecordFieldEnforcement.ReadWrite;
+                : RecordFieldEnforcement.Withheld;
             var wire = Wire(enforcement, canRead, canUpdate);
             if (wire != "READ_WRITE")
                 restricted++;

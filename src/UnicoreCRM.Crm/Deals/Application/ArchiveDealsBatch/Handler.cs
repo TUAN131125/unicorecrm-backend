@@ -46,16 +46,11 @@ internal sealed class Handler(
         var trusted = access.Value!.Trusted;
         var fingerprint = DealCommandSupport.Fingerprint(new { Items = normalizedItems, Reason = reason });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
-        var scopeKey = DealCommandSupport.ScopeKey(trusted, "archiveDealsBatch", "WORKSPACE", command.Metadata.IdempotencyKey);
-        var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
-        if (existing is not null)
-        {
-            var replayError = DealCommandSupport.ReplayError(existing, fingerprint);
-            return replayError is null
-                ? DealOperationResult<DealBatchMutationResponse>.Success(DealCommandSupport.ReplayBatch(existing))
-                : DealOperationResult<DealBatchMutationResponse>.Failure(replayError);
-        }
 
+        // The named records are loaded and authorized before the idempotency lookup, so a replay is
+        // gated by current record scope. Record scope is authorization, not a business precondition:
+        // a caller who could reach these deals when the batch committed but cannot reach them now
+        // must not be able to replay the committed batch and read its stored projection back.
         var dealIds = normalizedItems.Select(item => item.DealId).ToArray();
         var deals = await persistence.LoadDealsAsync(trusted.WorkspaceId, dealIds, cancellationToken);
         if (deals.Count != normalizedItems.Count)
@@ -74,6 +69,19 @@ internal sealed class Handler(
                 return DealOperationResult<DealBatchMutationResponse>.Failure(denied);
         }
 
+        var scopeKey = DealCommandSupport.ScopeKey(trusted, "archiveDealsBatch", "WORKSPACE", command.Metadata.IdempotencyKey);
+        var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
+        if (existing is not null)
+        {
+            var replayError = DealCommandSupport.ReplayError(existing, fingerprint);
+            return replayError is null
+                ? DealOperationResult<DealBatchMutationResponse>.Success(
+                    Project(DealCommandSupport.ReplayBatch(existing), access.Value!))
+                : DealOperationResult<DealBatchMutationResponse>.Failure(replayError);
+        }
+
+        // Mutable business preconditions stay after the lookup: only a genuinely new execution
+        // evaluates the current version and lifecycle state.
         foreach (var item in normalizedItems)
         {
             var deal = byId[item.DealId];
@@ -158,6 +166,19 @@ internal sealed class Handler(
                 DealErrors.BatchVersionConflict(first.DealId, first.ExpectedVersion, byId[first.DealId].Version));
         }
         await transaction.CommitAsync(cancellationToken);
-        return DealOperationResult<DealBatchMutationResponse>.Success(response);
+        return DealOperationResult<DealBatchMutationResponse>.Success(Project(response, access.Value!));
     }
+
+    /// <summary>
+    /// Applies field security to every deal in the outgoing batch response. It is applied at the
+    /// boundary because a replay returns a projection serialized under whatever policy was in force
+    /// when the batch committed; enforcing here makes stored idempotency evidence unable to leak a
+    /// value the caller's current policy withholds.
+    /// </summary>
+    private static DealBatchMutationResponse Project(DealBatchMutationResponse response, DealAccess access) =>
+        response with
+        {
+            Result = new DealBatchMutationResult(
+                response.Result.Deals.Select(deal => DealFieldSecurity.Project(deal, access.Authorization)).ToArray())
+        };
 }

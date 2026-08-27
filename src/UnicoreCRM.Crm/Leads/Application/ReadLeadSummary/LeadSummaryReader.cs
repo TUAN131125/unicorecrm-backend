@@ -14,6 +14,10 @@ internal sealed class LeadSummaryReader(
     ILeadsPersistence persistence,
     TimeProvider timeProvider) : ILeadSummaryReader
 {
+    /// <summary>The fields this minimized contract exposes, all of which it declares optional.</summary>
+    private static readonly string[] SummaryFieldKeys =
+        ["displayName", "leadWorkState", "score", "priority", "nextFollowUpAt"];
+
     public async Task<LeadSummaryReadResult> ReadAsync(
         string leadId,
         string requestId,
@@ -21,7 +25,11 @@ internal sealed class LeadSummaryReader(
         CancellationToken cancellationToken)
     {
         var metadata = new LeadRequestMetadata(requestId, correlationId);
-        var access = await authorization.AuthorizeAsync(LeadCapabilities.Read, metadata, cancellationToken);
+        // Every field of the minimized summary contract is optional, so this operation can return
+        // any of them absent. The full Lead read model makes some of them required, but that
+        // declaration governs the full representation, not this one.
+        var access = await authorization.AuthorizeAsync(
+            LeadCapabilities.Read, metadata, cancellationToken, SummaryFieldKeys);
         if (!access.IsSuccess)
         {
             return new(access.Error!.Code == "WORKSPACE_MISMATCH"

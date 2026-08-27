@@ -46,6 +46,11 @@ internal sealed class DealsDbContext(DbContextOptions<DealsDbContext> options) :
             entity.Property(item => item.ArchiveReason).HasMaxLength(500);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.DealId });
+            // The enforced OWN-scope predicate. ReadDealsAsync narrows by WorkspaceId and the
+            // AccessControl scope owner; Deals then orders and pages in memory, so UpdatedAt and
+            // DealId are carried for covering rather than for ordering - the leading two columns
+            // are what makes the security predicate a seek instead of a Workspace scan.
+            entity.HasIndex(item => new { item.WorkspaceId, item.ScopeOwnerId, item.UpdatedAt, item.DealId });
             entity.HasIndex(item => new { item.WorkspaceId, item.StageCategory, item.StageCode });
         });
 

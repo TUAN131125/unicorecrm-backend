@@ -44,6 +44,14 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                 var progressive = DealValidation.ProgressiveProfileErrors(profile!, deal.StageCode, deal.ForecastCategory);
                 if (progressive.Count != 0)
                     return DealErrors.ProgressiveProfile(progressive);
+
+                // The requested profile is compared against the stored one, so only a field the
+                // replacement actually changes is treated as a write. Repeating a READ_ONLY value
+                // unchanged is not a write and is not refused.
+                var fieldError = DealFieldSecurity.GuardProfileWrite(access.Value!.Authorization, deal.Profile, profile!);
+                if (fieldError is not null)
+                    return fieldError;
+
                 return deal.ReplaceProfile(profile!, now) ? null : DealErrors.LifecycleConflict(deal.DealId);
             },
             null,

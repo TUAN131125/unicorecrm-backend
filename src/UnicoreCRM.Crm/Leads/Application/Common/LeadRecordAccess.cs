@@ -1,3 +1,4 @@
+using System.Globalization;
 using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Crm.Leads.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
@@ -140,8 +141,18 @@ internal static class LeadFieldSecurity
             DisqualificationNote = access.CanRead("disqualificationNote") ? model.DisqualificationNote : null
         };
 
-    internal static LeadOperationError? UnenforceablePolicy(RecordAccessAuthorization access) =>
+    /// <summary>
+    /// The refusal a caller receives when a restrictive policy names a field this operation cannot
+    /// return absent. <paramref name="withholdableFieldKeys"/> names the fields the operation being
+    /// authorized can omit despite the full read model declaring them required.
+    /// </summary>
+    internal static LeadOperationError? UnenforceablePolicy(
+        RecordAccessAuthorization access,
+        IReadOnlyCollection<string>? withholdableFieldKeys = null) =>
         access.UnenforceableFieldKeys.Count == 0
+        || access.UnenforceableFieldKeys.All(fieldKey =>
+            withholdableFieldKeys is not null
+            && withholdableFieldKeys.Contains(fieldKey, StringComparer.OrdinalIgnoreCase))
             ? null
             : new LeadOperationError(
                 "ACCESS_DENIED",
@@ -149,17 +160,127 @@ internal static class LeadFieldSecurity
                 "Access denied",
                 "A field-security policy applies to a field this resource cannot withhold, so the request is refused rather than returning a value the policy forbids.");
 
-    internal static LeadOperationError? GuardFieldWrite(RecordAccessAuthorization access, params string[] fieldKeys)
+    internal static LeadOperationError? GuardFieldWrite(RecordAccessAuthorization access, params string[] fieldKeys) =>
+        Refusal(fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).ToList());
+
+    /// <summary>
+    /// Refuses a profile replacement that would change a field the caller may not write. The check
+    /// compares the requested profile against the stored aggregate, so replacing a field with the
+    /// value it already holds is not a write and is not refused. Without this comparison a full
+    /// profile replacement would either send every profile field through the write check - refusing
+    /// unchanged READ_ONLY values - or send none, which is what let a READ_ONLY field be replaced.
+    /// </summary>
+    internal static LeadOperationError? GuardProfileWrite(
+        RecordAccessAuthorization access,
+        LeadProfile current,
+        LeadProfile requested)
     {
-        var blocked = fieldKeys.Where(fieldKey => !access.CanWrite(fieldKey)).Order(StringComparer.Ordinal).ToArray();
-        return blocked.Length == 0
+        var currentValues = Values(current);
+        var requestedValues = Values(requested);
+        var blocked = new List<string>();
+        foreach (var pair in requestedValues)
+        {
+            if (!access.CanWrite(pair.Key) && !string.Equals(currentValues[pair.Key], pair.Value, StringComparison.Ordinal))
+                blocked.Add(pair.Key);
+        }
+        return Refusal(blocked);
+    }
+
+    /// <summary>
+    /// Refuses a creation that populates a field the caller may not write. Creation has no stored
+    /// value to compare against, so every field the request actually sets counts as a write, and the
+    /// fields the create contract makes mandatory always count.
+    /// </summary>
+    internal static LeadOperationError? GuardCreateWrite(RecordAccessAuthorization access, LeadProfile profile)
+    {
+        var values = Values(profile);
+        var blocked = new List<string>();
+        foreach (var pair in values)
+        {
+            var written = RequiredCreateFields.Contains(pair.Key, StringComparer.Ordinal) || pair.Value.Length != 0;
+            if (written && !access.CanWrite(pair.Key))
+                blocked.Add(pair.Key);
+        }
+        return Refusal(blocked);
+    }
+
+    /// <summary>
+    /// The create-contract fields a Lead always carries a value for. A non-writable required create
+    /// field fails the creation closed: there is no admitted representation of a Lead created
+    /// without a display name, source, owner or estimated value.
+    /// </summary>
+    private static readonly string[] RequiredCreateFields =
+        ["displayName", "source", "ownerId", "estimatedValue"];
+
+    /// <summary>
+    /// The profile as its wire field vocabulary, each value reduced to a canonical string so a
+    /// change is decided by value and not by object identity. An empty string means the profile
+    /// carries no value for that field.
+    /// </summary>
+    private static Dictionary<string, string> Values(LeadProfile profile) =>
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["displayName"] = Text(profile.DisplayName),
+            ["salutation"] = Text(profile.Salutation),
+            ["title"] = Text(profile.Title),
+            ["department"] = Text(profile.Department),
+            ["phone"] = Text(profile.Phone),
+            ["workPhone"] = Text(profile.WorkPhone),
+            ["otherPhone"] = Text(profile.OtherPhone),
+            ["email"] = Text(profile.Email),
+            ["personalEmail"] = Text(profile.PersonalEmail),
+            ["zaloId"] = Text(profile.ZaloId),
+            ["facebook"] = Text(profile.Facebook),
+            ["preferredChannel"] = Text(profile.PreferredChannel),
+            ["doNotCall"] = Text(profile.DoNotCall),
+            ["doNotEmail"] = Text(profile.DoNotEmail),
+            ["companyName"] = Text(profile.CompanyName),
+            ["companySize"] = Text(profile.CompanySize),
+            ["industry"] = Text(profile.Industry),
+            ["businessType"] = Text(profile.BusinessType),
+            ["website"] = Text(profile.Website),
+            ["taxCode"] = Text(profile.TaxCode),
+            ["companyAddress"] = Text(profile.CompanyAddress),
+            ["country"] = Text(profile.Country),
+            ["province"] = Text(profile.Province),
+            ["district"] = Text(profile.District),
+            ["ward"] = Text(profile.Ward),
+            ["contactAddress"] = Text(profile.ContactAddress),
+            ["source"] = Text(profile.Source),
+            ["campaignId"] = Text(profile.CampaignId),
+            ["ownerId"] = Text(profile.OwnerId),
+            ["assignedTeam"] = Text(profile.AssignedTeam),
+            ["decisionRole"] = Text(profile.DecisionRole),
+            ["priority"] = Text(profile.Priority),
+            ["interestedProducts"] = string.Join("\u001f", profile.InterestedProducts.Select(item =>
+                string.Join("\u001e", item.ProductId, item.ProductNameSnapshot, item.InterestLevel, Text(item.EstimatedQuantity), Money(item.ExpectedBudget), Text(item.Note)))),
+            ["estimatedValue"] = Money(profile.EstimatedValue),
+            ["budgetRange"] = Text(profile.BudgetRange),
+            ["purchaseTimeline"] = Text(profile.PurchaseTimeline),
+            ["painPoint"] = Text(profile.PainPoint),
+            ["nextFollowUpAt"] = Text(profile.NextFollowUpAt),
+            ["followUpNote"] = Text(profile.FollowUpNote),
+            ["tags"] = string.Join("\u001f", profile.Tags),
+            ["description"] = Text(profile.Description),
+            ["internalNotes"] = Text(profile.InternalNotes),
+            ["customFields"] = string.Join("\u001f", profile.CustomFields.Select(item =>
+                string.Join("\u001e", item.FieldKey, item.ValueType, Text(item.StringValue), Text(item.DecimalValue), Text(item.BooleanValue), string.Join(",", item.StringArrayValue ?? []))))
+        };
+
+    private static string Text(string? value) => value ?? string.Empty;
+    private static string Text(bool? value) => value is null ? string.Empty : value.Value ? "true" : "false";
+    private static string Text(int? value) => value is null ? string.Empty : value.Value.ToString(CultureInfo.InvariantCulture);
+    private static string Text(DateTimeOffset? value) => value is null ? string.Empty : value.Value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
+    private static string Money(LeadMoney? value) => value is null ? string.Empty : $"{value.Amount}|{value.Currency}";
+
+    private static LeadOperationError? Refusal(List<string> blocked) =>
+        blocked.Count == 0
             ? null
             : new LeadOperationError(
                 "ACCESS_DENIED",
                 403,
                 "Access denied",
-                $"Field security does not permit writing: {string.Join(", ", blocked)}.");
-    }
+                $"Field security does not permit writing: {string.Join(", ", blocked.Order(StringComparer.Ordinal))}.");
 }
 
 /// <summary>
@@ -174,10 +295,18 @@ internal sealed class LeadAuthorization(IRecordAccessEvaluator evaluator)
 {
     internal const string ResourceKey = "leads";
 
+    /// <param name="withholdableFieldKeys">
+    /// Field keys this particular operation can return absent, even though the resource's full read
+    /// model makes them required. Required-ness is a property of the representation being returned,
+    /// not of the resource: the minimized summary contract declares every field optional, so a
+    /// withheld value has an admitted representation there and the operation must not fail closed.
+    /// Omitted, the resource's own declaration applies.
+    /// </param>
     internal async Task<LeadOperationResult<LeadAccess>> AuthorizeAsync(
         AccessRequirement requirement,
         LeadRequestMetadata metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<string>? withholdableFieldKeys = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
@@ -195,7 +324,7 @@ internal sealed class LeadAuthorization(IRecordAccessEvaluator evaluator)
         if (!authorization.IsAllowed)
             return LeadOperationResult<LeadAccess>.Failure(LeadErrors.AccessDenied());
 
-        var unenforceable = LeadFieldSecurity.UnenforceablePolicy(authorization);
+        var unenforceable = LeadFieldSecurity.UnenforceablePolicy(authorization, withholdableFieldKeys);
         if (unenforceable is not null)
             return LeadOperationResult<LeadAccess>.Failure(unenforceable);
 

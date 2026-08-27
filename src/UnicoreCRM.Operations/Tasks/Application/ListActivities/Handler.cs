@@ -1,6 +1,7 @@
 using UnicoreCRM.Operations.Tasks.Application.Common;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Operations.Tasks.Domain;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Operations.Tasks.Application.ListActivities;
 
@@ -59,6 +60,21 @@ internal sealed class Handler(
             fields["occurredFrom"] = ["occurredFrom must not be later than occurredTo."];
         if (fields.Count != 0)
             return TaskOperationResult<ActivityListResponse>.Failure(TaskErrors.Validation(fields));
+
+        // TaskActivity is an AUTHORITY_GAP for record access, so it fails closed outside WORKSPACE
+        // scope. No current authority settles whether an Activity is inside the `tasks` record
+        // scope: a TaskActivity carries no task reference, and its `actorId` is the actor, not one of
+        // the admitted ownership attributes (`ownerId`, `assigneeId`, `createdBy`, `assignedTo`), so
+        // it has no owner an OWN, TEAM or CUSTOM scope could be evaluated against. Activities are
+        // also Workspace-wide and carry subject, body, actor and record references for every module,
+        // so treating a restricted scope as unrestricted would leak Workspace-wide activity to a
+        // caller whose Task records are restricted. Until the scope fact is frozen, only a caller
+        // whose effective `tasks` scope is WORKSPACE reaches Activities at all.
+        if (access.Value!.Authorization.ScopeFilter != RecordAccessScopeFilter.Workspace)
+        {
+            return TaskOperationResult<ActivityListResponse>.Success(
+                new ActivityListResponse([], new PageInfo(false, null, 0)));
+        }
 
         var trusted = access.Value!.Trusted;
         var page = await persistence.ListActivitiesAsync(

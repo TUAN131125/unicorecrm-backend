@@ -21,13 +21,6 @@ internal sealed class LeadMutationExecution(
         CancellationToken cancellationToken)
     {
         var trusted = access.Trusted;
-        if (precondition is not null)
-        {
-            var error = await precondition(trusted, cancellationToken);
-            if (error is not null)
-                return LeadOperationResult<LeadMutationResponse>.Failure(error);
-        }
-
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
 
         // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
@@ -48,6 +41,16 @@ internal sealed class LeadMutationExecution(
             return replayError is null
                 ? LeadOperationResult<LeadMutationResponse>.Success(Project(LeadCommandSupport.Replay(existing), access))
                 : LeadOperationResult<LeadMutationResponse>.Failure(replayError);
+        }
+
+        // Only a genuinely new command evaluates current mutable owner/member state. A committed
+        // replay is answered from stored evidence alone, so a member deactivated after the original
+        // commit cannot retroactively turn that command's replay into a validation failure.
+        if (precondition is not null)
+        {
+            var preconditionError = await precondition(trusted, cancellationToken);
+            if (preconditionError is not null)
+                return LeadOperationResult<LeadMutationResponse>.Failure(preconditionError);
         }
 
         var lead = await persistence.LoadLeadAsync(trusted.WorkspaceId, leadId, cancellationToken);
