@@ -1202,7 +1202,7 @@ AUTHORITY_GAP`.
 
 Runtime verification on 2026-08-28 used the isolated
 `UnicoreCRM_OrganizationsReadCore_Composite_20260828` LocalDB database and a real ApiHost.
-`scripts/verify-organizations-read-core.ps1` reported `PASS=68 FAIL=0`, covering authentication,
+`scripts/verify-organizations-read-core.ps1` reported `PASS=71 FAIL=0`, covering authentication,
 capability denial, Workspace isolation, foreign/unknown/scope-hidden non-disclosure, fail-closed
 `OWN`/`TEAM`/`CUSTOM`, complete field-security behavior, spoof rejection, one list authorization,
 zero per-row decisions, owner-local read evidence, no business values in denial logs/audits, absent
@@ -1212,6 +1212,37 @@ pending Organizations model changes. Therefore `ORGANIZATIONS READ CORE: PASS`,
 `ORGANIZATIONS OWN/TEAM/CUSTOM/MASKED/INITIAL WORKSPACE ENABLEMENT: AUTHORITY_GAP`, and
 `ORGANIZATIONS FULL MODULE: NOT COMPLETE`. This is task-specific executable evidence, not release
 freeze or authority for the omitted composed/mutation surfaces.
+
+### Organizations access-integration authority gate
+
+The adopted OpenAPI permits `organizations` as one value in
+`WorkspaceRuntimeConfiguration.enabledModuleKeys`, and the capability matrix admits
+`organizations.read` for the Organization read operations. Neither fact defines the server-owned
+defaults for a newly provisioned Workspace or the capability set of its initial `Workspace Owner`.
+The canonical Workspace-flags inventory retains the literal uncertainty marker `organizations?`,
+and no approved decision, owner document, registry row, or provisioning extension independently
+promotes Organizations into the default new-Workspace set. Frontend route visibility is supporting
+consumer evidence only and creates no provisioning or authorization authority.
+
+Consequently the production defaults remain exactly `contacts`, `leads`, `deals`, and `tasks`, and
+the exact current initial role remains unchanged without `organizations.read`. The Organizations
+verifier's controlled SQL capability grant remains test-fixture setup after it first proves that
+initial provisioning grants no Organizations authority; it is not a hidden production default.
+Development likewise remains unchanged because it mirrors production policy rather than defining it.
+
+No new capability snapshot exists, so historical AccessControl convergence for
+`organizations.read` is not applicable. No Workspace configuration convergence is admitted:
+historical `WorkspaceBootstrapProjection.EnabledModuleKeysJson`, `ConfigurationVersion`, stored
+provisioning fingerprint, and stored effective intent remain untouched. Existing replay and
+fingerprint behavior is unchanged: current defaults govern a fresh request; the same idempotency key
+with changed effective defaults fails closed; and a different valid key replays the existing
+provisioning anchor with its stored Workspace and configuration unchanged. This preservation is not
+an Organizations configuration upgrade.
+
+Therefore `ORGANIZATIONS DEFAULT NEW-WORKSPACE MODULE: AUTHORITY_GAP`,
+`ORGANIZATIONS INITIAL OWNER CAPABILITY: AUTHORITY_GAP`,
+`ORGANIZATIONS HISTORICAL ACCESS CONVERGENCE: NOT APPLICABLE`, and
+`EXISTING WORKSPACE ORGANIZATIONS MODULE CONFIG UPGRADE: AUTHORITY_GAP / NOT IMPLEMENTED`.
 
 ## CONTACTS READ CORE INTEGRATION HARDENING
 
