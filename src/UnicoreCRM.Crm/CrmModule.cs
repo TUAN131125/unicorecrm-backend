@@ -16,7 +16,7 @@ public static class CrmModule
         services.AddDealsModule(configuration);
         services.AddContactsModule(configuration);
         services.AddCustomersModule();
-        services.AddOrganizationsModule();
+        services.AddOrganizationsModule(configuration);
 
         return services;
     }

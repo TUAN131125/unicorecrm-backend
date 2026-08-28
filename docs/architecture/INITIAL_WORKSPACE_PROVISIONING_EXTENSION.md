@@ -218,10 +218,13 @@ Workspace and assigned to the creator membership. Its capability set contains on
 capabilities that current implementation authority already admits for implemented operations:
 
 ```text
+contacts.read
+deals.assign, deals.bulk, deals.close, deals.create, deals.delete, deals.read, deals.update
+leads.create, leads.qualify, leads.read, leads.update
+products.create, products.delete, products.edit, products.read
+support.assign, support.create, support.read, support.update
+tasks.assign, tasks.complete, tasks.create, tasks.read, tasks.update
 workspace.context.resolve
-tasks.read, tasks.create, tasks.update, tasks.assign, tasks.complete
-leads.read, leads.create, leads.update, leads.qualify
-deals.read, deals.create, deals.update, deals.assign, deals.close, deals.delete, deals.bulk
 ```
 
 `access.read`, `access.configure`, `studio.*` and `audit.*` are deliberately excluded: their
@@ -232,8 +235,11 @@ AccessControl administrative surface. With no data-scope policy the implemented 
 already treat resource access as workspace-scoped, which is the pre-existing behavior and is not
 changed here.
 
-If the stored `Workspace Owner` role for a Workspace ever differs from this frozen capability set,
-provisioning fails closed instead of amending it.
+An exact current capability set is already converged. The one admitted historical exception is the
+exact immediately preceding server-owned pre-Contacts snapshot, and only when the creator
+assignment still anchors the role inside AccessControl; that snapshot may converge by adding
+`contacts.read`. An arbitrary partial set, any unexpected extra capability, or drift in the
+server-owned role identity fails closed instead of being amended.
 
 ### Initial configuration
 
@@ -280,7 +286,8 @@ Correctness comes from durable progress plus convergence, anchored on durable un
   (`AccessPending`) in one transaction under `READ COMMITTED`. A losing writer's whole transaction
   rolls back, so no orphan Workspace, membership or configuration row can survive.
 - Step two runs the AccessControl participant and then advances the anchor to `Completed`. Both are
-  convergent, so re-running them against an already-assigned Workspace changes nothing.
+  convergent. An exact current role and assignment are a no-op; the exact admitted pre-Contacts
+  snapshot may add only `contacts.read` before reaching that no-op state.
 - A losing or retrying caller re-reads the anchor and returns the winner's authoritative result.
 
 ### Partial-failure recovery
@@ -300,7 +307,10 @@ Recovery is server-driven and deterministic:
   start and then on a server-owned interval (default 30 seconds, configurable), so convergence does
   not depend on the client retrying, on a login event, or on any client state.
 - The request path converges too: a provisioning intent that finds an `AccessPending` anchor runs
-  step two before returning. A `Completed` anchor performs no further AccessControl write.
+  step two before returning. Replaying a request whose anchor is `Completed` performs no further
+  AccessControl write. Independently, server-owned startup convergence may scan provisioning-
+  anchored completed Workspaces and converge an admitted historical AccessControl role. That scan
+  never rewrites Workspace configuration or the stored effective-value fingerprint.
 - Recovery never creates a second Workspace, membership, configuration seed, role or assignment,
   and it never mutates membership status.
 
@@ -366,11 +376,13 @@ outstanding work, and every anchor left outstanding by migration 3 on a database
 run it:
 
 - if the assignment already exists, the AccessControl participant converges to the existing role and
-  assignment, creates nothing, and the anchor is marked `Completed`;
+  assignment without duplicating either; an exact admitted pre-Contacts role may receive only the
+  missing `contacts.read` capability, and the anchor is marked `Completed`;
 - if the assignment is missing, it is created exactly once and the anchor is marked `Completed`.
 
 Either way the account ends with exactly one Workspace, membership, configuration seed, role,
-assignment and anchor, and later resume passes change nothing.
+assignment and anchor. Once the exact current capability set is present, later passes change
+nothing.
 
 In the residual case where a genuine completion happened inside the same clock tick as provisioning
 and so matches the legacy signature, the correction is still safe rather than merely unlikely: the

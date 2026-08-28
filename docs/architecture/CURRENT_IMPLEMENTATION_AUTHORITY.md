@@ -1133,6 +1133,86 @@ Runtime verification on 2026-08-28 used isolated LocalDB databases and a real Ap
 
 Therefore `CONTACTS AUTHORITY RECONCILIATION: PASS`, `CONTACTS MODULE/PERSISTENCE: PASS`, `CONTACTS WORKSPACE/CROSS-WORKSPACE: PASS`, `CONTACTS LIST/DETAIL/CONTRACT: PASS`, `CONTACTS CAPABILITY/RECORD/FIELD ACCESS: PASS`, `CONTACTS OWN: PASS`, `CONTACTS SQL SCOPE PUSHDOWN/NO N+1/DIRECT BYPASS: PASS`, `CONTACTS EF MIGRATION/REGRESSION: PASS`, `CONTACTS TEAM/CUSTOM/MASKED: AUTHORITY_GAP`, and `CONTACTS MUTATIONS: BLOCKED / NOT IMPLEMENTED`. This is task-specific executable evidence, not a Control 1.2 independent-review attestation or release freeze.
 
+## Organizations Read Core implementation authority
+
+Organizations Read Core implements exactly the two owner-local canonical reads `listOrganizations`
+(`GET /organizations`) and `getOrganization` (`GET /organizations/{organizationId}`). Both are
+`PRODUCTION_CONTRACT_READY`, require an authenticated principal, trusted active Workspace context,
+and `organizations.read`, and carry `READ_ACCESS_LOG`. The separately admitted
+`getOrganizationOverview` operation is a composed cross-owner projection and is outside this
+owner-local read-core slice. No Organization create, update, link, archive, delete, merge,
+enrichment, overview, relationship-composition, or other mutation/read route is exposed.
+
+Organizations remains the canonical owner inside `UnicoreCRM.Crm`. It owns
+`OrganizationsDbContext`, the `organizations` logical schema, `organizations.Organizations` durable
+read state, and `organizations.ReadAuditRecords` read evidence. Organization identity is the
+Workspace-scoped pair `(WorkspaceId, OrganizationId)`, represented on the wire by the trusted
+`workspaceId` and Organization-owned `id`; the composite persistence key does not invent global
+cross-Workspace uniqueness. Required document scalars are stored as columns and the optional
+Organizations-owned profile is JSON. The only list index is
+`(WorkspaceId, CreatedAt, OrganizationId)`, matching the admitted Workspace list path; no owner
+index exists because Organization ownership is unresolved. Audit indexes support Workspace/time and
+Organization/time evidence queries.
+
+The unchanged adopted `OrganizationDocument` vocabulary is `id`, `workspaceId`, `displayName`,
+`legalName`, `taxCode`, `domain`, `website`, `industry`, `sizeBand`, `employeeCount`,
+`annualRevenue`, `email`, `phone`, `address`, `addressDetails`, `source`, `ownerId`,
+`primaryContactId`, `contactRefs`, `relationshipLevel`, `notes`, `status`, `externalRef`, `version`,
+`createdAt`, and `updatedAt`. Required fields are `id`, `workspaceId`, `displayName`, `status`,
+`version`, `createdAt`, and `updatedAt`; all others are optional. `READ_WRITE` and `READ_ONLY` are
+readable. Optional `HIDDEN` and `MASKED` values are withheld and omitted, because no rendered mask
+is admitted. A restrictive policy on a required field refuses the operation with `ACCESS_DENIED`.
+An unknown key is outside the Organizations vocabulary, so `CanRead` and `CanWrite` are false and
+public evaluation reports `HIDDEN`; it never widens or creates a projected value.
+
+The canonical AccessControl resource key is `organizations` and its sole declared operation
+capability is `organizations.read`. Organizations registers one `IRecordAccessFactProvider` and
+uses the existing `IRecordAccessEvaluator`; it reads no AccessControl persistence and implements no
+second algorithm. Organization `ownerId` is an admitted optional record value, but current authority
+does not establish it—or any account manager, creator, assignee, or relationship manager—as a
+Workspace-member AccessControl ownership fact. The provider therefore reports a found record with
+no owner fact. `WORKSPACE` is implemented normally. `OWN` is `AUTHORITY_GAP` and fails closed even
+when the stored `ownerId` happens to equal the caller. `TEAM` and `CUSTOM` remain
+`AUTHORITY_GAP` and fail closed.
+
+Each request performs resource/capability/scope/field authorization once at the Organizations
+application boundary. Detail validates the canonical `EntityId`, executes the SQL lookup with both
+trusted `WorkspaceId` and requested `OrganizationId`, then applies the canonical record decision and
+field projection. Unknown, foreign-Workspace, and same-Workspace scope-hidden identifiers all return
+the same `RESOURCE_NOT_FOUND` representation and disclose no Organization business value in the
+body, owner audit, AccessControl evidence, or host logs. List translates only `WORKSPACE` into an
+Organizations query; unresolved `OWN`, `TEAM`, `CUSTOM`, and denied scopes return no rows without
+querying or materializing Organization state. The Workspace predicate is applied in SQL before
+ordering/materialization. There is no per-row evaluator and no N+1 authorization path.
+
+`OrganizationList` is a plain array. The wire admits no filter, search, sort, page, cursor, count, or
+page metadata, so none is invented and pagination/count boundary behavior is not applicable. The
+query uses deterministic `createdAt` descending then `organizationId` ordering as an implementation
+choice only, not a wire promise. `ORGANIZATIONS LIST PAGINATION: NOT ADMITTED`; the resulting
+unbounded list is a known contract limitation, not authority to change the response shape.
+
+`primaryContactId` and `contactRefs` are persisted and projected only as declared scalar references.
+Organizations never opens `ContactsDbContext` or any other foreign persistence, performs no Contact
+validation/join/enrichment, creates no reference-reader contract, and does not equate Organization
+identity with Customer identity. The current initial Workspace defaults remain exactly
+`contacts`, `leads`, `deals`, and `tasks`, and the initial role does not gain
+`organizations.read`: the capability and module key are admitted generally, but no authority makes
+Organizations a default newly provisioned CRM module. `ORGANIZATIONS INITIAL WORKSPACE ENABLEMENT:
+AUTHORITY_GAP`.
+
+Runtime verification on 2026-08-28 used the isolated
+`UnicoreCRM_OrganizationsReadCore_Composite_20260828` LocalDB database and a real ApiHost.
+`scripts/verify-organizations-read-core.ps1` reported `PASS=68 FAIL=0`, covering authentication,
+capability denial, Workspace isolation, foreign/unknown/scope-hidden non-disclosure, fail-closed
+`OWN`/`TEAM`/`CUSTOM`, complete field-security behavior, spoof rejection, one list authorization,
+zero per-row decisions, owner-local read evidence, no business values in denial logs/audits, absent
+mutation and overview routes, migration/index discovery, preserved initial Workspace defaults, and no
+pending Organizations model changes. Therefore `ORGANIZATIONS READ CORE: PASS`,
+`ORGANIZATIONS WORKSPACE/LIST/DETAIL/FIELD SECURITY/SQL PUSHDOWN/NO N+1/EF MODEL: PASS`,
+`ORGANIZATIONS OWN/TEAM/CUSTOM/MASKED/INITIAL WORKSPACE ENABLEMENT: AUTHORITY_GAP`, and
+`ORGANIZATIONS FULL MODULE: NOT COMPLETE`. This is task-specific executable evidence, not release
+freeze or authority for the omitted composed/mutation surfaces.
+
 ## CONTACTS READ CORE INTEGRATION HARDENING
 
 The server-owned `InitialWorkspaceAccessPolicy` now includes exactly `contacts.read` for Contacts;
