@@ -221,7 +221,8 @@ INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, Allowed
 ('scope_retro_tasks', '$RoleId', 'tasks', '$Scope', '[]'),
 ('scope_retro_leads', '$RoleId', 'leads', '$Scope', '[]'),
 ('scope_retro_deals', '$RoleId', 'deals', '$Scope', '[]'),
-('scope_retro_products', '$RoleId', 'products', '$Scope', '[]');
+('scope_retro_products', '$RoleId', 'products', '$Scope', '[]'),
+('scope_retro_contacts', '$RoleId', 'contacts', '$Scope', '[]');
 "@
 }
 
@@ -610,13 +611,13 @@ VALUES ('field_record_access_verify_desc2', 'role_record_access_verify_second', 
 
     # ------------------------------------------------------------ 10. unowned resource keys
 
-    # `contacts` has no implemented owner at all, so it is the honest example of a resource key with
-    # no registered fact authority. `leads` is no longer one: it was retrofitted and now has a provider.
-    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'contacts'; recordId = 'contact_anything_0001'; requestedFields = @('fullName') }
+    # `customers` has no implemented owner at all, so it remains an honest example of a resource key
+    # with no registered fact authority. Contacts is no longer one: Read Core registers its provider.
+    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'customers'; recordId = 'customer_anything_0001'; requestedFields = @('displayName') }
     Add-Result 'authority: resource with no fact owner fails closed' 'False' ($unknownResource.Body.canRead).ToString()
     Add-Result 'authority: unowned resource reports the missing authority' 'RESOURCE_FACT_AUTHORITY_UNAVAILABLE' `
         (($unknownResource.Body.decisionReasons | Where-Object { $_.effect -eq 'DENY' }).code)
-    Add-Result 'authority: unowned resource hides requested fields' 'HIDDEN' $unknownResource.Body.fieldAccess.fullName
+    Add-Result 'authority: unowned resource hides requested fields' 'HIDDEN' $unknownResource.Body.fieldAccess.displayName
 
     # ------------------------------------------------------------ 11. no foreign mutation
 
@@ -996,11 +997,16 @@ SELECT COUNT(DISTINCT PolicyFingerprint) AS N FROM access.RecordAccessDecisions 
 
     # ------------------------------------------ 21. RETROFITTED MODULE ENFORCEMENT
 
-    # Tasks, Leads, Deals and Products were retrofitted onto the same canonical AccessControl
+    # Tasks, Leads, Deals, Products and Contacts use the same canonical AccessControl
     # boundary as Support. Each is proven the same way and without the browser: a record the caller's
     # record scope hides must be unreachable through the business API itself.
 
     $otherOwnerId = $otherMemberId
+
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+IF NOT EXISTS (SELECT 1 FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'contacts.read')
+INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'contacts.read');
+"@
 
     # ---- fixtures, one record owned by the caller and one owned by another member ----
     $taskOwn = Invoke-Support -Method 'POST' -Path '/tasks' -IdempotencyKey 'idem-retro-task-own' `
@@ -1070,6 +1076,20 @@ SELECT COUNT(DISTINCT PolicyFingerprint) AS N FROM access.RecordAccessDecisions 
     if ($productOne.Status -ne 201) { Write-Host ("  product fixture refused: {0}" -f $productOne.Raw) }
     $productOneId = $productOne.Body.aggregateId
 
+    # Contacts Read Core has no admitted mutation endpoint, so the owner-local regression fixture
+    # is inserted directly into the Contacts-owned table rather than opening a hidden write path.
+    $contactOwnId = 'contact_record_access_own'
+    $contactOtherId = 'contact_record_access_other'
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO contacts.Contacts
+(ContactId, WorkspaceId, OwnerId, FullName, Status, Version, CreatedAt, UpdatedAt, Profile)
+VALUES
+('$contactOwnId', '$($script:WorkspaceId)', '$callerMemberId', 'Retro contact own', 'active', 0,
+ DATEADD(minute, -2, SYSUTCDATETIME()), SYSUTCDATETIME(), N'{"workEmail":"contact-own@example.test"}'),
+('$contactOtherId', '$($script:WorkspaceId)', '$otherOwnerId', 'Retro contact other', 'active', 0,
+ DATEADD(minute, -1, SYSUTCDATETIME()), SYSUTCDATETIME(), N'{"workEmail":"contact-other@example.test"}');
+"@
+
     # ---- OWN scope: the caller's own record stays visible, another member's disappears ----
     Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Own'
 
@@ -1110,6 +1130,13 @@ SELECT COUNT(DISTINCT PolicyFingerprint) AS N FROM access.RecordAccessDecisions 
     Add-Result 'products: OWN empties the list rather than leaking it' '0' `
         ([int](Invoke-Support -Method 'GET' -Path '/products').Body.Count)
 
+    Add-Result 'contacts: OWN allows the caller own Contact' '200' `
+        (Invoke-Support -Method 'GET' -Path "/contacts/$contactOwnId").Status
+    $contactHidden = Invoke-Support -Method 'GET' -Path "/contacts/$contactOtherId"
+    Add-Result 'contacts: OWN hides another member Contact' '404' $contactHidden.Status
+    Add-Result 'contacts: hidden Contact leaks no full name' 'True' `
+        ($contactHidden.Raw -notmatch 'Retro contact other').ToString()
+
     # ---- direct mutation bypass ----
     $taskMutation = Invoke-Support -Method 'POST' -Path "/tasks/$taskOtherId/complete" `
         -Body (@{ outcome = 'bypass' } | ConvertTo-Json -Compress) `
@@ -1137,12 +1164,19 @@ SELECT COUNT(DISTINCT PolicyFingerprint) AS N FROM access.RecordAccessDecisions 
     Add-Result 'leads: OWN list excludes the hidden lead' 'False' ($leadList.Body.id -contains $leadOtherId).ToString()
     Add-Result 'leads: OWN list returns only the caller own lead' '1' ([int]$leadList.Body.Count)
 
+    $contactList = Invoke-Support -Method 'GET' -Path '/contacts'
+    Add-Result 'contacts: OWN list excludes the hidden Contact' 'False' `
+        ($contactList.Body.id -contains $contactOtherId).ToString()
+    Add-Result 'contacts: OWN list returns only caller-owned Contact' '1' ([int]$contactList.Body.Count)
+
     # ---- WORKSPACE restores every record through the same enforcement path ----
     Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Workspace'
     Add-Result 'tasks: WORKSPACE restores the other-member task' '200' (Invoke-Support -Method 'GET' -Path "/tasks/$taskOtherId").Status
     Add-Result 'leads: WORKSPACE restores the other-member lead' '200' (Invoke-Support -Method 'GET' -Path "/leads/$leadOtherId").Status
     Add-Result 'products: WORKSPACE restores the product' '200' (Invoke-Support -Method 'GET' -Path "/products/$productOneId").Status
     Add-Result 'deals: WORKSPACE restores the other-member deal' '200' (Invoke-Support -Method 'GET' -Path "/deals/$dealOtherId").Status
+    Add-Result 'contacts: WORKSPACE restores the other-member Contact' '200' `
+        (Invoke-Support -Method 'GET' -Path "/contacts/$contactOtherId").Status
     Add-Result 'tasks: WORKSPACE list counts both tasks' '2' ([int](Invoke-Support -Method 'GET' -Path '/tasks').Body.pageInfo.totalCount)
     Add-Result 'deals: WORKSPACE list counts both deals' '2' ([int](Invoke-Support -Method 'GET' -Path '/deals').Body.pageInfo.totalCount)
 
@@ -1157,6 +1191,8 @@ SELECT COUNT(DISTINCT PolicyFingerprint) AS N FROM access.RecordAccessDecisions 
             (Invoke-Support -Method 'GET' -Path "/deals/$dealOwnId").Status
         Add-Result ("products: {0} scope fails closed" -f $unsupported.ToUpperInvariant()) '404' `
             (Invoke-Support -Method 'GET' -Path "/products/$productOneId").Status
+        Add-Result ("contacts: {0} scope fails closed" -f $unsupported.ToUpperInvariant()) '404' `
+            (Invoke-Support -Method 'GET' -Path "/contacts/$contactOwnId").Status
         Add-Result ("tasks: {0} scope empties the list" -f $unsupported.ToUpperInvariant()) '0' `
             ([int](Invoke-Support -Method 'GET' -Path '/tasks').Body.pageInfo.totalCount)
     }
@@ -1168,7 +1204,8 @@ DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_retro_%';
 INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
 ('field_retro_task_desc', '$roleId', 'tasks', 'description', 'Hidden'),
 ('field_retro_lead_email', '$roleId', 'LEADS', 'email', 'Hidden'),
-('field_retro_product_cost', '$roleId', 'products', 'costPrice', 'Masked');
+('field_retro_product_cost', '$roleId', 'products', 'costPrice', 'Masked'),
+('field_retro_contact_email', '$roleId', 'contacts', 'workEmail', 'Hidden');
 "@
 
     $taskFields = Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId"
@@ -1185,6 +1222,10 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
     $productFields = Invoke-Support -Method 'GET' -Path "/products/$productOneId"
     Add-Result 'products: MASKED is enforced as withheld' 'True' `
         ($productFields.Raw -notmatch '"costPrice"').ToString()
+
+    $contactFields = Invoke-Support -Method 'GET' -Path "/contacts/$contactOwnId"
+    Add-Result 'contacts: HIDDEN field is absent from the raw backend JSON' 'True' `
+        ($contactFields.Raw -notmatch '"workEmail"|contact-own@example.test').ToString()
 
     # A restrictive policy on a required field cannot be represented, so the read fails closed.
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
@@ -1212,7 +1253,8 @@ VALUES ('field_retro_task_required', '$roleId', 'tasks', 'title', 'Hidden');
             @{ Name = 'tasks'; Path = '/tasks' },
             @{ Name = 'leads'; Path = '/leads' },
             @{ Name = 'deals'; Path = '/deals' },
-            @{ Name = 'products'; Path = '/products' })) {
+            @{ Name = 'products'; Path = '/products' },
+            @{ Name = 'contacts'; Path = '/contacts' })) {
         $before = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
         $capabilityBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
         [void](Invoke-Support -Method 'GET' -Path $module.Path)
@@ -1223,7 +1265,7 @@ VALUES ('field_retro_task_required', '$roleId', 'tasks', 'title', 'Hidden');
     }
 
     # ---- enforcement evidence exists for every retrofitted module ----
-    foreach ($resource in @('tasks', 'leads', 'deals', 'products')) {
+    foreach ($resource in @('tasks', 'leads', 'deals', 'products', 'contacts')) {
         $rows = Get-Scalar -Database $DatabaseName -Query @"
 SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$resource'
 "@
@@ -1769,6 +1811,7 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
             @{ Name = 'leads'; Path = '/leads' },
             @{ Name = 'deals'; Path = '/deals' },
             @{ Name = 'products'; Path = '/products' },
+            @{ Name = 'contacts'; Path = '/contacts' },
             @{ Name = 'activities'; Path = '/activities' })) {
         $before = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
         $capabilityBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
