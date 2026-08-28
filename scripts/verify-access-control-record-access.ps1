@@ -611,13 +611,14 @@ VALUES ('field_record_access_verify_desc2', 'role_record_access_verify_second', 
 
     # ------------------------------------------------------------ 10. unowned resource keys
 
-    # `customers` has no implemented owner at all, so it remains an honest example of a resource key
-    # with no registered fact authority. Contacts is no longer one: Read Core registers its provider.
-    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'customers'; recordId = 'customer_anything_0001'; requestedFields = @('displayName') }
+    # `quotes` has no implemented owner/fact provider, so it remains an honest example of a resource
+    # key with no registered fact authority. Contacts, Organizations and Customers now have Read Core
+    # providers and therefore cannot serve as this negative fixture.
+    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'quotes'; recordId = 'quote_anything_0001'; requestedFields = @('totalAmount') }
     Add-Result 'authority: resource with no fact owner fails closed' 'False' ($unknownResource.Body.canRead).ToString()
     Add-Result 'authority: unowned resource reports the missing authority' 'RESOURCE_FACT_AUTHORITY_UNAVAILABLE' `
         (($unknownResource.Body.decisionReasons | Where-Object { $_.effect -eq 'DENY' }).code)
-    Add-Result 'authority: unowned resource hides requested fields' 'HIDDEN' $unknownResource.Body.fieldAccess.displayName
+    Add-Result 'authority: unowned resource hides requested fields' 'HIDDEN' $unknownResource.Body.fieldAccess.totalAmount
 
     # ------------------------------------------------------------ 11. no foreign mutation
 

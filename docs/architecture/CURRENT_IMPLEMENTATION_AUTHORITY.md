@@ -1606,7 +1606,7 @@ not server authority.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Contact | Contacts | Contact-owned `contactId`; durable/read identity is `(workspaceId, contactId)` and wire identity is `ContactDocument.id` inside trusted Workspace scope. | Required trusted active Workspace; foreign Workspace is indistinguishable from unknown. | `createContact` is `BLOCKED`; the read core admits no creation path. | Contact mutations and the effective-dated Organization-relationship commands are `BLOCKED`. | `listContacts` and `getContact` are admitted and implemented; `getContactRelationshipSummary` has an admitted wire but is not composition-ready. | A Contact↔Organization ledger entry has its own Contacts-owned relationship `id` and an `organizationAccountId`; Customer lookup uses `{ type: CONTACT, id: contactId }`. | Contacts stores Organization identifiers as scalar references in `organizationRelationships`; it stores no authoritative `customerId`. | `active`, `needs_follow_up`, `in_consulting`, `has_open_opportunity`, `inactive`, `do_not_contact`, `archived`; no transition graph is admitted. | `contacts` | `contacts.read` admitted; `contacts.create` and `contacts.update` blocked; remaining Contacts capabilities have no operation authority. | Optional `ownerId` is a proven Workspace-member record-owner fact; unassigned is outside `OWN`. | `ADMITTED` for identity and implemented read core; mutations `BLOCKED`. |
 | Organization | Organizations | Organization-owned `organizationId`; durable/read identity is `(workspaceId, organizationId)` and wire identity is `OrganizationDocument.id`. `OrganizationAccount` is the canonical business term in the baseline; the current wire uses Organization. | Required trusted active Workspace; the read core is usable only when the Workspace is explicitly configured and the caller is independently authorized. | `createOrganization` is `BLOCKED`; the read core admits no creation path. | `updateOrganization` and `linkContactToOrganization` are `BLOCKED`; WF-02 is also blocked. | `listOrganizations` and `getOrganization` are admitted and implemented; `getOrganizationOverview` has an admitted wire but is not composition-ready. | The Organization aggregate key is `organizationId`. `primaryContactId` and `contactRefs` are Organizations-owned scalar references, not the authoritative effective-dated relationship ledger. Customer lookup uses `{ type: ORGANIZATION_ACCOUNT, id: organizationId }`. | Organizations stores Contact identifiers as unvalidated scalar references and stores no authoritative `customerId`. | `prospect`, `active`, `strategic`, `inactive`, `archived`; no transition graph is admitted. | `organizations` | `organizations.read` admitted; `organizations.create` and `organizations.update` blocked. | No AccessControl ownership fact is admitted. Stored `ownerId` is not established as record-owner authority, so `OWN`, `TEAM` and `CUSTOM` fail closed. | `ADMITTED` for identity and explicitly configured/authorized read core; mutations `BLOCKED`; normal new-Workspace product use `NOT READY`. |
-| Customer | Customers | Customers-owned `customerId`; aggregate access is `(workspaceId, customerId)`. It is independent from `Contact.id`, `Organization.id` and `relationshipRef.id`. | Required trusted active Workspace; all customer lookup and uniqueness rules include Workspace. | The business trigger is an existing canonical relationship plus unreversed effective purchase evidence. The admitted effective types are completed Order, confirmed external purchase and imported historical purchase. The operational creator/workflow, server identity assignment, transaction/idempotency/concurrency/outbox behavior and reversal consequences remain `AUTHORITY_GAP`; customer onboarding mutations are `BLOCKED`. | `updateCustomerLifecycle`, `completeCustomerOnboarding` and `onboardExistingCustomer` are `BLOCKED`; no other mutation is admitted. | `listCustomers` and `getCustomer` are admitted owner-local reads and are not implemented. `getCustomer360` is an admitted wire but its cross-owner composition is not ready. | The Customers-owned unique/reverse-lookup key is `(workspaceId, relationshipRef)`; the aggregate is still addressed by `customerId`. | Required `relationshipRef` points to exactly one Contact or Organization Account identity. Customers owns the link and lifecycle, not the referenced identity. | Customer: `NEW`, `ACTIVE`, `AT_RISK`, `INACTIVE`, `CHURNED`, `DO_NOT_CONTACT`, `ARCHIVED`; onboarding: `PENDING`, `COMPLETED`; no complete transition graph is admitted. | `customers` | `customers.view` admitted; `customers.edit` and `customers.onboard_existing` blocked; `customers.create_system`, `customers.assign` and `customers.archive` have no backend operation authority. | `careOwnerId` exists in the document but is not established as the AccessControl record-owner fact; `OWN`, `TEAM` and `CUSTOM` semantics remain `AUTHORITY_GAP`. | `ADMITTED` for independent identity and owner-local list/detail wire; persistence/runtime absent; creation workflow `AUTHORITY_GAP`; mutations `BLOCKED`. |
+| Customer | Customers | Customers-owned `customerId`; aggregate access is `(workspaceId, customerId)`. It is independent from `Contact.id`, `Organization.id` and `relationshipRef.id`. | Required trusted active Workspace; all customer lookup and uniqueness rules include Workspace. | The business trigger is an existing canonical relationship plus unreversed effective purchase evidence. The admitted effective types are completed Order, confirmed external purchase and imported historical purchase. The operational creator/workflow, server identity assignment, transaction/idempotency/concurrency/outbox behavior and reversal consequences remain `AUTHORITY_GAP`; customer onboarding mutations are `BLOCKED`. | `updateCustomerLifecycle`, `completeCustomerOnboarding` and `onboardExistingCustomer` are `BLOCKED`; no other mutation is admitted. | `listCustomers` and `getCustomer` are admitted and implemented owner-local reads. `getCustomer360` is an admitted wire but its cross-owner composition is not ready. | The Customers-owned unique/reverse-lookup key is `(workspaceId, relationshipRef)`; the aggregate is still addressed by `customerId`. | Required `relationshipRef` points to exactly one Contact or Organization Account identity. Customers owns the link and lifecycle, not the referenced identity. | Customer: `NEW`, `ACTIVE`, `AT_RISK`, `INACTIVE`, `CHURNED`, `DO_NOT_CONTACT`, `ARCHIVED`; onboarding: `PENDING`, `COMPLETED`; no complete transition graph is admitted. | `customers` | `customers.view` admitted and implemented for reads; `customers.edit` and `customers.onboard_existing` blocked; `customers.create_system`, `customers.assign` and `customers.archive` have no backend operation authority. | `careOwnerId` exists in the document but is not established as the AccessControl record-owner fact; `OWN`, `TEAM` and `CUSTOM` semantics remain `AUTHORITY_GAP`. | `ADMITTED` for independent identity and implemented owner-local list/detail Read Core; creation workflow `AUTHORITY_GAP`; mutations and Customer 360 composition remain incomplete. |
 
 ### Authoritative reference map
 
@@ -1696,7 +1696,7 @@ different values with different owners.
 |---|---|---|---|
 | `getContactRelationshipSummary` | `AUTHORITY_GAP` | Contacts stays coordinator; Customers would provide a Workspace-confined relationship-to-Customer lookup; each linked-record owner would provide only permission-filtered counts/references needed by the exact response. | Exact `customerIds` membership, producer set, count visibility, `linkedRecords`, `allowedActions`, projection version and owner-contract rows are absent. |
 | `getOrganizationOverview` | `AUTHORITY_GAP` | Organizations stays coordinator; Contacts would provide visible Organization-contact facts; Deals and Orders would provide only their admitted metrics; any other linked-record owner would provide minimized references. | Relationship precedence, metric/currency rules, producer set, visibility/count behavior, `linkedRecords`, `allowedActions`, projection version and owner-contract rows are absent. |
-| Customer owner-local read core: `listCustomers` + `getCustomer` | `READY` | None. Customers reads only Customers-owned state, treats `relationshipRef` as a scalar typed reference, performs no validation/enrichment, and applies trusted Workspace, `customers.view`, record/field scope and read audit at its own boundary. | Runtime/persistence is absent but is an implementation task, not missing business authority. `careOwnerId` must not be promoted into an ownership fact; unresolved `OWN`/`TEAM`/`CUSTOM` fail closed. |
+| Customer owner-local read core: `listCustomers` + `getCustomer` | `PASS` | None. Customers reads only Customers-owned state, treats `relationshipRef` as a scalar typed reference, performs no validation/enrichment, and applies trusted Workspace, `customers.view`, record/field scope and read audit at its own boundary. | Implemented and executable. `careOwnerId` is not promoted into an ownership fact; unresolved `OWN`/`TEAM`/`CUSTOM` fail closed. |
 
 The conceptual boundaries above are requirements, not interfaces. The current cross-owner contract map
 contains none of the Contacts/Organizations/Customers readers needed by the two compositions, and the
@@ -1721,22 +1721,123 @@ cross-owner contract and must not introduce one speculatively.
 
 Foundation gates: `CUSTOMER IDENTITY: PASS`,
 `CUSTOMER CREATION SEMANTICS: AUTHORITY_GAP`,
-`CONTACT ↔ ORGANIZATION RELATIONSHIP OWNERSHIP: AUTHORITY_GAP`,
+`CONTACT ↔ ORGANIZATION RELATIONSHIP OWNER: PASS — CONTACTS`,
+`CONTACT ↔ ORGANIZATION RELATIONSHIP MUTATION: AUTHORITY_GAP`,
+`CONTACT ↔ ORGANIZATION CROSS-OWNER SYNCHRONIZATION: AUTHORITY_GAP`,
+`WF-02: AUTHORITY_GAP / BLOCKED`,
 `RELATIONSHIP REFERENCE SEMANTICS: PASS`,
 `GET CONTACT RELATIONSHIP SUMMARY: AUTHORITY_GAP`,
 `GET ORGANIZATION OVERVIEW: AUTHORITY_GAP`,
-`CUSTOMER READ CORE: READY`,
+`CUSTOMER READ CORE: PASS`,
 `CROSS-OWNER CONTRACTS REQUIRED: AUTHORITY_GAP`, and
 `RELATIONSHIP / CUSTOMER IDENTITY FOUNDATION: AUTHORITY_GAP`.
 
-The exact safe next implementation slice is the Customers owner-local read core only:
-`listCustomers` plus `getCustomer`, using a Customers-owned `CustomersDbContext` and logical
-`customers` schema, immutable Customers read-audit evidence, no mutation or creation route, no
-foreign DbContext, no reference validation/enrichment, no Customer 360, no relationship composition,
-no generic reader, no provisioning/default-capability change, and controlled verifier fixtures only.
-The implementation must preserve the independent `customerId`, the unique
-`(workspaceId, relationshipRef)` lookup constraint, fail-closed unresolved ownership scopes, and the
-exact current OpenAPI wire.
+The previously identified safe implementation slice—Customers owner-local `listCustomers` plus
+`getCustomer`—is now implemented as recorded below. No next Customer mutation, Customer 360, Contact
+relationship summary, or Organization overview slice is independently admitted; the safe next
+implementation slice from this foundation is therefore `NONE` until its named authority gaps close.
+
+## Customers Read Core implementation authority
+
+### Reproducible wire evidence
+
+This task used the exact checked-out local frontend contract at
+`D:\Project_All\UnicoreCRM\frontend\unicorecrm-web\docs\api\openapi.json`. The checked-out frontend
+commit was `bfcabd0f44e93f7e9f15dacef9829d9d7666f546`; `origin/main` resolved to that same commit. The
+local OpenAPI SHA-256 was
+`fd079b2f6e189ffe391d555cee1d2acaa735cf532346cc74a02070862bd78792`, exactly matching the value in
+`docs/api/openapi.sha256`. Both local contract files differ from their committed forms at that
+frontend commit, so the wire is internally checksum-reproducible for this task but is not remotely
+reproducible from the named commit. `CUSTOMER WIRE REPRODUCIBILITY: LOCAL CONTRACT EVIDENCE ONLY /
+REMOTE NOT YET REPRODUCIBLE`. The frontend was not modified by this backend task.
+
+The pinned wire admits exactly `listCustomers` (`GET /customers`) and `getCustomer`
+(`GET /customers/{customerId}`) for this slice. Both are `PRODUCTION_CONTRACT_READY`, require trusted
+Workspace context and `customers.view`, and require `READ_ACCESS_LOG`. `CustomerList` is a plain,
+unpaginated array with no admitted query, filter, search, sort, page, cursor, count, or metadata.
+Internal `createdAt` descending then `customerId` ordering is deterministic implementation behavior,
+not a wire promise. `CUSTOMERS LIST PAGINATION: NOT ADMITTED`.
+
+The required `CustomerDocument` fields are `id`, `workspaceId`, `customerCode`, `type`,
+`relationshipRef`, `status`, `health`, `firstPurchaseAt`, `lastPurchaseAt`, `version`, `createdAt`,
+and `updatedAt`. Optional fields are `calculatedHealth`, `manualHealthOverride`, `onboardingStatus`,
+`onboardingCompletedAt`, `createdFromEvidenceId`, `conversionPolicyVersion`,
+`conversionCorrelationId`, `sourceSystem`, `externalCustomerRef`, `tier`, `serviceLevel`,
+`careCadenceDays`, `careOwnerId`, `segment`, `tags`, `nextCareAt`, and `lastCareAt`. `type` is `B2C`
+or `B2B`; `relationshipRef.type` is `CONTACT` or `ORGANIZATION_ACCOUNT`; status is `NEW`, `ACTIVE`,
+`AT_RISK`, `INACTIVE`, `CHURNED`, `DO_NOT_CONTACT`, or `ARCHIVED`; health is `GOOD`, `WATCH`, or
+`RISK`; onboarding status is `PENDING` or `COMPLETED`; tier is `STANDARD`, `SILVER`, `GOLD`,
+`PLATINUM`, or `STRATEGIC`; service level is `STANDARD`, `PRIORITY`, `PREMIUM`, or `ENTERPRISE`.
+Entity/Workspace identifiers use the canonical one-to-128-character EntityId form, resource version
+is a non-negative integer, and all timestamps are projected as UTC `Z` date-times.
+
+### Identity, persistence, access and read behavior
+
+Customers owns `CustomersDbContext`, the `customers` logical schema, `customers.Customers`, and
+`customers.ReadAuditRecords`. Durable identity is the composite `(WorkspaceId, CustomerId)` primary
+key. `customerId` is never inferred from `contactId`, `organizationId`, or `relationshipRef.id`.
+`RelationshipRef` remains a Customers-owned typed scalar. Persistence normalizes it into
+`RelationshipType` and `RelationshipId`, with a unique index on
+`(WorkspaceId, RelationshipType, RelationshipId)`. The same typed reference may occur in different
+Workspaces but never twice in one Workspace. No Contact or Organization existence validation,
+enrichment, join, synchronization, or foreign persistence read occurs.
+
+Required wire state is stored in explicit columns; optional current read state is stored in the
+Customers-owned profile JSON. The slice adds no lifecycle transition, onboarding command, creation
+workflow, purchase conversion, reversal behavior, identifier/code generator, or speculative domain
+mutation. Migration `20260828141857_CustomersReadCore` creates only the owner state and immutable
+successful-read evidence. Query-driven indexes are
+`(WorkspaceId, CreatedAt, CustomerId)`, `(WorkspaceId, OccurredAt)`, and
+`(WorkspaceId, CustomerId, OccurredAt)` in addition to the relationship reverse unique index.
+
+The one canonical AccessControl descriptor is resource `customers`, read capability
+`customers.view`, using `IRecordAccessEvaluator`. The provider returns a found record with no member
+owner fact: `careOwnerId`, Contact owner, Organization owner, relationship target, Deal owner, and
+creator are not inherited as Customer ownership. `WORKSPACE` reads are supported. `OWN`, `TEAM`, and
+`CUSTOM` remain `AUTHORITY_GAP` and fail closed before list row loading; detail returns the same 404
+as an unknown identifier. Field vocabulary is exactly the pinned top-level document vocabulary.
+`READ_WRITE` and `READ_ONLY` are readable; optional `HIDDEN` and `MASKED` values are withheld and
+omitted. No rendered mask is admitted. A forbidden required field refuses the representation with
+`ACCESS_DENIED`; an unknown field remains unreadable/unwritable without widening the operation.
+
+List performs authentication, trusted Workspace resolution, one `customers.view` resource decision,
+SQL Workspace pushdown, projection, and one Customers successful-read audit. It performs no per-row
+record decisions and no in-memory post-load security filtering. Detail validates the EntityId and
+queries with both `WorkspaceId` and `CustomerId`; it never loads globally then compares. Unknown,
+foreign-Workspace, malformed, and same-Workspace scope-hidden Customer identifiers disclose the same
+404 representation and no Customer value through response, Customers audit, AccessControl evidence,
+or host log. Successful audit identity is Workspace-scoped and includes actor, request, correlation,
+operation, version when applicable, and UTC occurrence time.
+
+Only the two GET routes are mapped. There is no Customer create/update/delete/onboarding/conversion
+route, no Customer 360, no relationship composition, no generic cross-owner reader, no internal HTTP
+authorization, no foreign DbContext, and no Customers business state in BuildingBlocks. The initial
+Workspace module defaults remain exactly `contacts`, `leads`, `deals`, and `tasks`; the initial owner
+role is unchanged without `customers.view`. No provisioning or convergence change is admitted.
+Therefore `CUSTOMERS DEFAULT NEW-WORKSPACE MODULE: AUTHORITY_GAP`,
+`CUSTOMERS INITIAL OWNER CAPABILITY: AUTHORITY_GAP`, and
+`CUSTOMERS END-TO-END NORMAL-WORKSPACE READ: NOT READY` even though an explicitly configured and
+authorized Workspace can use the owner-local read core.
+
+### Executable evidence and gates
+
+On 2026-08-28, `scripts/verify-customers-read-core.ps1` ran against an isolated LocalDB database and
+real ApiHost and reported `PASS=80 FAIL=0`. It proved both relationship variants, independent Customer
+identity, same-Workspace reverse uniqueness and cross-Workspace allowance, authentication,
+capability, Workspace isolation, anti-existence leakage, fail-closed `OWN`/`TEAM`/`CUSTOM`, complete
+field behavior, one list authorization, zero per-row decisions, SQL scoping, successful-read audit,
+absent mutation/360 routes, no foreign persistence/readers, and no pending Customers EF changes.
+Unchanged regressions reported AccessControl Record Access `PASS=404 FAIL=0`, Contacts Read Core
+`PASS=67 FAIL=0`, and Organizations Read Core `PASS=71 FAIL=0`.
+
+Therefore `CUSTOMER IDENTITY: PASS`, `CUSTOMER RELATIONSHIPREF: PASS`,
+`CUSTOMER REVERSE UNIQUENESS: PASS`, `CUSTOMERS MODULE BOUNDARY/PERSISTENCE/WORKSPACE ISOLATION/
+CROSS-WORKSPACE NON-LEAKAGE/LIST/DETAIL/READ CAPABILITY/RECORD ACCESS/WORKSPACE SCOPE/FIELD SECURITY/
+SQL SCOPE PUSHDOWN/NO N+1/READ AUDIT/EF MODEL: PASS`, `CUSTOMERS OWN/TEAM/CUSTOM: AUTHORITY_GAP`,
+`CUSTOMERS MASKED: AUTHORITY_GAP` for any rendered mask beyond safe withholding,
+`CUSTOMER CREATION SEMANTICS: AUTHORITY_GAP`, `CUSTOMER 360: AUTHORITY_GAP`,
+`CUSTOMERS READ CORE: PASS`, `CUSTOMERS END-TO-END NORMAL-WORKSPACE READ: NOT READY`, and
+`CUSTOMERS FULL MODULE: NOT COMPLETE`.
 
 ## B07 Inbound Lead Webhook implementation authority
 
