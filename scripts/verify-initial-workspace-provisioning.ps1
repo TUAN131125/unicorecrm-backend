@@ -39,6 +39,7 @@ $expectedInitialCapabilities = @(
     'tasks.assign', 'tasks.complete', 'tasks.create', 'tasks.read', 'tasks.update',
     'workspace.context.resolve'
 )
+$expectedEnabledModuleKeys = @('contacts', 'leads', 'deals', 'tasks')
 
 function Invoke-SqlScalar([string] $query) {
     $value = & sqlcmd -S $server -d $DatabaseName -h -1 -W -Q "SET NOCOUNT ON; $query"
@@ -270,7 +271,8 @@ try {
     $developmentSettings = Get-Content -Raw (Join-Path $solutionRoot 'src/UnicoreCRM.ApiHost/appsettings.Development.json') | ConvertFrom-Json
     $developmentCapabilities = @($developmentSettings.DevelopmentDemoBootstrap.Capabilities)
     Assert-True ((($developmentCapabilities | Sort-Object) -join ',') -eq (($expectedInitialCapabilities | Sort-Object) -join ',')) 'Static: Development demo capabilities mirror the canonical initial role'
-    Assert-True ($developmentSettings.DevelopmentDemoBootstrap.Workspace.EnabledModuleKeys -contains 'contacts') 'Static: Development demo enables the admitted Contacts module'
+    $developmentModuleKeys = @($developmentSettings.DevelopmentDemoBootstrap.Workspace.EnabledModuleKeys)
+    Assert-True (@($expectedEnabledModuleKeys | Where-Object { $developmentModuleKeys -notcontains $_ }).Count -eq 0) 'Static: Development demo includes every canonical initial Workspace module'
 
     # ---------------------------------------------------------------- Case A/B/C/E/G/I
     $hostProcess = Start-ApiHost $accountA
@@ -319,8 +321,11 @@ try {
     $bootstrapA = Assert-ProvisionedRuntime $tokenA $workspaceA 'C'
     Assert-True ($bootstrapA.configuration.locale -eq 'vi' -and $bootstrapA.configuration.timeZone -eq 'Asia/Saigon' -and $bootstrapA.configuration.baseCurrency -eq 'VND') 'C: supplied setup values were applied'
     Assert-True ((($bootstrapA.capabilities | Sort-Object) -join ',') -eq (($expectedInitialCapabilities | Sort-Object) -join ',')) 'C: AccessControl evaluates the initial capability set'
+    Assert-True ((($bootstrapA.configuration.enabledModuleKeys) -join ',') -eq ($expectedEnabledModuleKeys -join ',')) 'C: fresh Workspace bootstrap carries the exact canonical enabled modules'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections b WHERE WorkspaceId='$workspaceA' AND (SELECT COUNT(*) FROM OPENJSON(b.EnabledModuleKeysJson))=4 AND (SELECT STRING_AGG(CONVERT(nvarchar(max),j.value),',') WITHIN GROUP (ORDER BY CONVERT(int,j.[key])) FROM OPENJSON(b.EnabledModuleKeysJson) j)='contacts,leads,deals,tasks';") -eq 1) 'C: persisted enabled-module intent is exact'
 
     # E. Retry with the same provisioning intent and idempotency key.
+    $storedFingerprint = Invoke-SqlScalar "SELECT RequestFingerprint FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountAId';"
     $retry = Invoke-Provisioning $tokenA $finishKey $finishPayload
     Assert-Status $retry 200 'E: identical retry'
     Assert-True ((($retry.Body | ConvertFrom-Json).outcome) -eq 'REPLAYED') 'E: identical retry is REPLAYED'
@@ -336,6 +341,8 @@ try {
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountAId';") -eq 1) 'E/G: no duplicate membership'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate access assignment'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate configuration'
+    Assert-True ((Invoke-SqlScalar "SELECT RequestFingerprint FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountAId';") -eq $storedFingerprint) 'E/G: replay preserves the committed provisioning fingerprint'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections b WHERE WorkspaceId='$workspaceA' AND (SELECT COUNT(*) FROM OPENJSON(b.EnabledModuleKeysJson))=4 AND (SELECT STRING_AGG(CONVERT(nvarchar(max),j.value),',') WITHIN GROUP (ORDER BY CONVERT(int,j.[key])) FROM OPENJSON(b.EnabledModuleKeysJson) j)='contacts,leads,deals,tasks';") -eq 1) 'E/G: replay preserves the committed enabled-module intent'
 
     # Request contract strictness. An unknown member must be rejected, and it must still be
     # rejected when the body arrives chunked, which proves the body is read rather than assumed.
@@ -396,7 +403,7 @@ try {
     Assert-True ($skipBody.workspace.workspaceKey -like 'my-workspace-*') 'D: server-owned Workspace key derived'
     $bootstrapB = Assert-ProvisionedRuntime $tokenB $workspaceB 'D'
     Assert-True ($bootstrapB.configuration.locale -eq 'en' -and $bootstrapB.configuration.timeZone -eq 'UTC' -and $bootstrapB.configuration.baseCurrency -eq 'USD') 'D: server-owned configuration defaults applied'
-    Assert-True ((($bootstrapB.configuration.enabledModuleKeys | Sort-Object) -join ',') -eq 'deals,leads,tasks') 'D: server-owned enabled modules applied'
+    Assert-True ((($bootstrapB.configuration.enabledModuleKeys) -join ',') -eq ($expectedEnabledModuleKeys -join ',')) 'D: exact server-owned enabled modules applied'
     Assert-True ((($bootstrapB.configuration.availableProductSpaces) -join ',') -eq 'crm') 'D: server-owned product spaces applied'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountBId' AND Status='Active';") -eq 1) 'D: exactly one ACTIVE membership for the skip account'
     Stop-ApiHost $hostProcess
@@ -465,7 +472,8 @@ try {
     $tokenE = (Get-Session $accountE).accessToken
     $listE = Get-Workspaces $tokenE
     Assert-True ($listE.items.Count -eq 1 -and $listE.items[0].workspaceId -eq $workspaceE) 'J: listMyWorkspaces returns the recovered Workspace'
-    $null = Assert-ProvisionedRuntime $tokenE $workspaceE 'J'
+    $bootstrapE = Assert-ProvisionedRuntime $tokenE $workspaceE 'J'
+    Assert-True ((($bootstrapE.configuration.enabledModuleKeys) -join ',') -eq ($expectedEnabledModuleKeys -join ',')) 'J: recovered fresh provisioning retains the canonical enabled modules'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Workspaces WHERE WorkspaceId='$workspaceE';") -eq 1) 'J: exactly one Workspace remains'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountEId';") -eq 1) 'J: exactly one Membership remains'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections WHERE WorkspaceId='$workspaceE';") -eq 1) 'J: exactly one configuration seed remains'

@@ -1129,7 +1129,7 @@ The adopted list contract is a plain array and declares no query, filter, sort, 
 
 Contacts reads no Customer, Organization, Product, Support, or other owner's persistence and performs no foreign enrichment. `organizationRelationships` is persisted only as the declared Contacts-owned effective-dated relationship ledger containing scalar Organization references. No narrow `IContactReferenceReader` is added because no current consumer contract proves one. `getContactRelationshipSummary` is outside this read-core scope and remains deferred pending its admitted relationship-composition dependencies.
 
-Runtime verification on 2026-08-28 used isolated LocalDB databases and a real ApiHost. `scripts/verify-contacts-read-core.ps1` reported `PASS=65 FAIL=0`: real initial Workspace provisioning and provisioned `contacts.read` before the first positive Contacts request; authentication and capability denial; trusted Workspace isolation; list/detail shape; foreign/unknown/scope-denied non-disclosure; `WORKSPACE`, `OWN`, fail-closed `TEAM`/`CUSTOM`; hidden/required/unknown/masked/read-only/read-write field policy behavior; spoof-resistant owner facts; SQL scope pushdown; zero per-row and exactly one resource authorization; Contacts-owned read audits and separate access decisions; absence of mutation routes and mutation side effects; indexes; migration discovery; and no pending Contacts model change. The expanded canonical record-access suite reported `PASS=404 FAIL=0`. Unchanged Support (`83/0`), Products, AI Assistant, Inbound Lead Webhook, initial provisioning, provisioning upgrade, and email-verification OTP verifiers all passed. The solution build completed with zero warnings and zero errors.
+Runtime verification on 2026-08-28 used isolated LocalDB databases and a real ApiHost. `scripts/verify-contacts-read-core.ps1` reported `PASS=67 FAIL=0`: real initial Workspace provisioning, the exact Contacts-enabled module set and provisioned `contacts.read` before the first positive Contacts request; authentication and capability denial; trusted Workspace isolation; list/detail shape; foreign/unknown/scope-denied non-disclosure; `WORKSPACE`, `OWN`, fail-closed `TEAM`/`CUSTOM`; hidden/required/unknown/masked/read-only/read-write field policy behavior; spoof-resistant owner facts; SQL scope pushdown; zero per-row and exactly one resource authorization; Contacts-owned read audits and separate access decisions; absence of mutation routes and mutation side effects; indexes; migration discovery; and no pending Contacts model change. The expanded canonical record-access suite reported `PASS=404 FAIL=0`. Unchanged Support (`83/0`), Products, AI Assistant, Inbound Lead Webhook, initial provisioning, provisioning upgrade, and email-verification OTP verifiers all passed. The solution build completed with zero warnings and zero errors.
 
 Therefore `CONTACTS AUTHORITY RECONCILIATION: PASS`, `CONTACTS MODULE/PERSISTENCE: PASS`, `CONTACTS WORKSPACE/CROSS-WORKSPACE: PASS`, `CONTACTS LIST/DETAIL/CONTRACT: PASS`, `CONTACTS CAPABILITY/RECORD/FIELD ACCESS: PASS`, `CONTACTS OWN: PASS`, `CONTACTS SQL SCOPE PUSHDOWN/NO N+1/DIRECT BYPASS: PASS`, `CONTACTS EF MIGRATION/REGRESSION: PASS`, `CONTACTS TEAM/CUSTOM/MASKED: AUTHORITY_GAP`, and `CONTACTS MUTATIONS: BLOCKED / NOT IMPLEMENTED`. This is task-specific executable evidence, not a Control 1.2 independent-review attestation or release freeze.
 
@@ -1189,7 +1189,7 @@ exact-set convergence, idempotent and concurrent retry, unexpected-drift rejecti
 rejection, and custom-role isolation. Unknown-field verification remains separate from the required
 declared-field 403 case.
 
-Final task evidence on 2026-08-28 reported `PASS=65 FAIL=0` for Contacts and `PASS=404 FAIL=0`
+Final task evidence on 2026-08-28 reported `PASS=67 FAIL=0` for Contacts and `PASS=404 FAIL=0`
 for the canonical record-access suite. The new-provisioning and upgrade verifiers each returned
 `Status: PASS`; the upgrade run included a normally completed pre-Contacts anchor, a pending
 pre-Contacts anchor processed by two simultaneously launched hosts, three invalid drift controls and
@@ -1202,6 +1202,33 @@ with the scale limitation recorded above. Contact mutations, relationship-summar
 `TEAM`, `CUSTOM`, masked rendering, Organizations and generic AccessControl administration remain
 outside this hardening and keep their prior blocked or `AUTHORITY_GAP` status. It does not establish
 `CONTACTS FULL MODULE: PASS`.
+
+### Contacts Workspace module integration
+
+`contacts` is an admitted Workspace module key: it is a canonical CRM Workspace flag, its list and
+detail routes are adopted, and Contacts Read Core is implemented under `contacts.read`. The
+server-owned initial provisioning defaults therefore enable exactly
+`["contacts","leads","deals","tasks"]` for every newly provisioned Workspace. The caller still
+cannot supply or alter module keys. Development configuration contains the same admitted Contacts
+availability for its local fixture, but production authority remains `ProvisioningDefaults`.
+
+`EnabledModuleKeys` participates in the provisioning fingerprint. A new anchor stores the new exact
+effective intent. Replays continue to use the stored anchor as authority and never rewrite its
+fingerprint, Workspace, membership or bootstrap projection; account-scoped uniqueness still prevents
+a second Workspace. A historical same-key request is compared against the effective defaults of the
+current request and therefore fails closed as `IDEMPOTENCY_KEY_REUSED` if those effective values no
+longer match, while a different valid key still replays the stored Workspace and ignores supplied
+values. No compatibility rule silently treats changed server-owned intent as identical.
+
+No authority admits WorkspaceConfig mutation or configuration convergence for completed Workspaces.
+The AccessControl startup convergence pass may add the separately admitted `contacts.read` capability,
+but it does not rewrite `WorkspaceBootstrapProjection.EnabledModuleKeysJson`, its configuration
+version, or the stored provisioning fingerprint. Upgrade fixtures prove that pre-Contacts
+`["leads","deals","tasks"]` bootstraps and stored fingerprints remain unchanged while access
+capability convergence completes. Therefore
+`ACCESSCONTROL INITIAL ROLE CAPABILITY UPGRADE: PASS FOR ADMITTED PROVISIONING-ANCHORED HISTORICAL SNAPSHOT`,
+`NEW WORKSPACE CONTACTS MODULE ENABLEMENT: PASS`, and
+`EXISTING WORKSPACE CONTACTS MODULE CONFIGURATION UPGRADE: NOT IMPLEMENTED / AUTHORITY_GAP`.
 
 ## Support Core implementation authority
 
@@ -1474,7 +1501,7 @@ The adopted frontend OpenAPI declares no Workspace-creation operation and the De
 
 The mutation is multi-owner, so it is implemented in Workflows and calls approved owner contracts only; it holds no foreign DbContext, repository, Infrastructure type or EF entity. It writes through two owner-specific DbContexts and therefore cannot commit or roll back in one local transaction, so per `ARCHITECTURE_SKELETON.md` it is a `Durable` workflow and not an `Atomic` one. It is implemented in `UnicoreCRM.Workflows/Durable` and is the first implemented workflow in the system. IdentityAuth owns `IAuthenticatedIdentityReferenceLookup` and fails the workflow closed unless the authenticated account is currently active. Workspace owns `IInitialWorkspaceProvisioning` and assigns the Workspace identifier, the server-derived Workspace key, the ACTIVE creator membership identifier, the configuration seed and the account-scoped provisioning anchor. AccessControl owns `IInitialWorkspaceAccessProvisioning` and creates the one server-owned `Workspace Owner` role plus the creator assignment; the workflow can neither name the role nor choose a capability. The current admitted initial capability set contains only canonical capabilities already admitted for implemented operations - `workspace.context.resolve`, `contacts.read`, the five `tasks.*`, the four `leads.*`, the seven `deals.*`, the four `products.*` and the four `support.*`. `access.*`, `studio.*`, `audit.*` and every unsupported Contacts capability are excluded because their administrative or mutation operations remain fail-closed, and no data-scope or field-security policy is created. Exact pre-Contacts roles converge only under the narrow identity and snapshot rules recorded in *CONTACTS READ CORE INTEGRATION HARDENING*; all other drift still fails closed.
 
-The caller supplies optional `name`, `logoText`, `locale`, `timeZone` and `baseCurrency` values matching the shapes the current OpenAPI already declares for `WorkspaceMembershipSummary` and `WorkspaceRuntimeConfiguration`. The request body is read strictly by the endpoint's own serializer options rather than by ambient host configuration: unknown members are rejected, the body is read from the stream instead of being inferred from a declared `Content-Length` so a chunked body is validated identically, and bodies above 8192 bytes are rejected. An absent, empty, whitespace-only or JSON-`null` body is the Skip path. It cannot supply the creator account, creator member, membership status, Workspace aggregate ID, membership aggregate ID, Workspace key, role, capability, enabled module set or product-space set. Server-owned deterministic defaults are `My Workspace`, derived logo initials, `en`, `UTC`, `USD`, `["leads","deals","tasks"]` and `["crm"]`.
+The caller supplies optional `name`, `logoText`, `locale`, `timeZone` and `baseCurrency` values matching the shapes the current OpenAPI already declares for `WorkspaceMembershipSummary` and `WorkspaceRuntimeConfiguration`. The request body is read strictly by the endpoint's own serializer options rather than by ambient host configuration: unknown members are rejected, the body is read from the stream instead of being inferred from a declared `Content-Length` so a chunked body is validated identically, and bodies above 8192 bytes are rejected. An absent, empty, whitespace-only or JSON-`null` body is the Skip path. It cannot supply the creator account, creator member, membership status, Workspace aggregate ID, membership aggregate ID, Workspace key, role, capability, enabled module set or product-space set. Server-owned deterministic defaults are `My Workspace`, derived logo initials, `en`, `UTC`, `USD`, `["contacts","leads","deals","tasks"]` and `["crm"]`.
 
 WorkspaceConfig remains a `DEFERRED` Platform owner and `WorkspaceBootstrapProjection` is **not** promoted to configuration authority. The extension admits only the minimal `InitialWorkspaceConfigurationSeed` creation-time contract, written once inside the Workspace-owned transaction because the projection is Workspace-owned persistence that the Workspace-owned bootstrap read structurally requires. It has no endpoint and no mutation surface, existing values are never rewritten, and the legacy `CapabilitiesJson` column is seeded empty because B03 made the AccessControl application boundary the bootstrap capability authority. Configuration change after provisioning remains an authority gap until a WorkspaceConfig contract is admitted.
 

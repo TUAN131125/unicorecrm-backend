@@ -274,6 +274,12 @@ CREATE DATABASE [$DatabaseName];
     $provisionedContactsRead = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'contacts.read'"
     Add-Result 'initial Workspace provisioning grants contacts.read' '1' ([string]$provisionedContactsRead)
+    $provisionedBootstrap = Invoke-Api -Method 'GET' -Path "/workspaces/$($script:WorkspaceId)/bootstrap" `
+        -Token $script:Token -WorkspaceId $script:WorkspaceId
+    Add-Result 'provisioned Workspace bootstrap succeeds' '200' $provisionedBootstrap.Status
+    Add-Result 'initial Workspace provisioning enables exact Contacts module set' `
+        'contacts,leads,deals,tasks' `
+        ((@($provisionedBootstrap.Body.configuration.enabledModuleKeys)) -join ',')
 
     $contactsTable = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'contacts' AND TABLE_NAME = 'Contacts'"

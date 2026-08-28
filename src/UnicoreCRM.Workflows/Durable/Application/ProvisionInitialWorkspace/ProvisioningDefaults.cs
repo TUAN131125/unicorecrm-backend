@@ -20,8 +20,8 @@ internal static partial class ProvisioningDefaults
     internal const string BaseCurrency = "USD";
     internal const string FallbackLogoText = "W";
 
-    /// <summary>The implemented CRM owners. Module enablement is not caller-selectable.</summary>
-    internal static IReadOnlyList<string> EnabledModuleKeys { get; } = ["leads", "deals", "tasks"];
+    /// <summary>The server-owned module availability admitted for new CRM Workspaces.</summary>
+    internal static IReadOnlyList<string> EnabledModuleKeys { get; } = ["contacts", "leads", "deals", "tasks"];
 
     /// <summary>Studio and People remain deferred surfaces, so only the CRM product space is enabled.</summary>
     internal static IReadOnlyList<string> AvailableProductSpaces { get; } = ["crm"];

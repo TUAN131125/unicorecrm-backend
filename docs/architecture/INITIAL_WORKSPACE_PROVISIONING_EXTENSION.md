@@ -110,7 +110,7 @@ Defaults are deterministic and documented. Skip and any omitted field resolve to
 | `locale` | `en` |
 | `timeZone` | `UTC` |
 | `baseCurrency` | `USD` |
-| `enabledModuleKeys` | `["leads", "deals", "tasks"]`, the currently implemented CRM owners |
+| `enabledModuleKeys` | `["contacts", "leads", "deals", "tasks"]`, the canonical modules admitted for a newly provisioned CRM Workspace |
 | `availableProductSpaces` | `["crm"]`; Studio and People remain deferred surfaces |
 | `workspaceKey` | server-derived: a lowercase slug of the resolved name, truncated to 100 characters, plus a hyphen and eight hexadecimal characters from a server-generated value |
 
@@ -253,6 +253,10 @@ configuration contract this use case requires:
   because the projection is Workspace-owned persistence and structurally required by the
   Workspace-owned bootstrap read.
 - Existing values are never rewritten. Repeat provisioning converges and changes nothing.
+- Expanding the server-owned defaults affects newly created anchors only. Existing bootstrap module
+  JSON and the stored effective-value fingerprint are not configuration-upgrade surfaces; historical
+  same-key requests whose effective defaults no longer match fail closed under the existing
+  `IDEMPOTENCY_KEY_REUSED` rule, while a different valid key replays the stored Workspace unchanged.
 - The legacy `CapabilitiesJson` column is seeded as an empty array. Since B03 the bootstrap
   capability projection is read from the AccessControl application boundary, so that column is not
   authority and provisioning does not fabricate a value for it.
