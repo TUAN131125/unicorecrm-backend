@@ -12,9 +12,9 @@ internal interface IInitialWorkspaceAccessPersistence
     Task<MembershipRoleAssignment?> FindAssignmentAsync(string workspaceId, string membershipId, string roleId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Commits the optional role definition, its capabilities and the membership assignment in
-    /// one owner-local transaction. It returns <c>false</c> when a uniqueness constraint rejected
-    /// the write, which is the concurrent double-submit signal, and leaves no partial state.
+    /// Commits the optional role definition, capability additions and membership assignment in one
+    /// owner-local transaction. It returns <c>false</c> when a uniqueness constraint rejected the
+    /// write, which is the concurrent retry signal, and leaves no partial state.
     /// </summary>
     Task<bool> TryCommitAsync(
         AccessRole? role,

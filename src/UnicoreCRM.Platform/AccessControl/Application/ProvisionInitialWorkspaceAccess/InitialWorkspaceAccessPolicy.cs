@@ -1,4 +1,5 @@
 using UnicoreCRM.Platform.AccessControl.Contracts;
+using UnicoreCRM.Platform.AccessControl.Domain;
 
 namespace UnicoreCRM.Platform.AccessControl.Application.ProvisionInitialWorkspaceAccess;
 
@@ -15,7 +16,9 @@ internal static class InitialWorkspaceAccessPolicy
     internal const string RoleName = "Workspace Owner";
     internal const string RoleDescription = "Initial Workspace provisioning role for the account that created this Workspace.";
 
-    internal static IReadOnlyList<string> Capabilities { get; } =
+    // Frozen historical snapshot. Do not add future capabilities here: a stored role must match
+    // this exact previously server-owned set before the Contacts Read Core upgrade is admitted.
+    private static IReadOnlyList<string> PreContactsCapabilities { get; } =
     [
         "deals.assign",
         "deals.bulk",
@@ -44,17 +47,48 @@ internal static class InitialWorkspaceAccessPolicy
         "workspace.context.resolve"
     ];
 
+    internal static IReadOnlyList<string> Capabilities { get; } =
+    [
+        "contacts.read",
+        .. PreContactsCapabilities
+    ];
+
     /// <summary>Fails closed if the frozen set ever drifts from the canonical capability contract.</summary>
     internal static IReadOnlyList<string> Validated()
+        => Validate(Capabilities, "The initial Workspace access capability set is not canonical.");
+
+    /// <summary>
+    /// Admits only the exact server-owned snapshot immediately preceding Contacts Read Core.
+    /// Arbitrary subsets and sets containing unexpected capabilities remain drift and fail closed.
+    /// </summary>
+    internal static bool IsKnownPreviousCapabilitySet(IReadOnlyList<string> storedCapabilities)
     {
-        var validated = Capabilities
+        var previous = Validate(
+            PreContactsCapabilities,
+            "The previous initial Workspace access capability set is not canonical.");
+        return storedCapabilities.SequenceEqual(previous, StringComparer.Ordinal);
+    }
+
+    internal static bool HasCanonicalRoleIdentity(AccessRole role, string workspaceId) =>
+        string.Equals(role.WorkspaceId, workspaceId, StringComparison.Ordinal)
+        && string.Equals(role.Name, RoleName, StringComparison.Ordinal)
+        && string.Equals(role.Description, RoleDescription, StringComparison.Ordinal)
+        && role.SourceTemplateId is null
+        && role.IsActive
+        && role.Version == 0;
+
+    private static IReadOnlyList<string> Validate(
+        IReadOnlyList<string> capabilities,
+        string errorMessage)
+    {
+        var validated = capabilities
             .Select(AccessRequirement.ForCanonicalCapability)
             .Select(requirement => requirement.Capability)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        if (validated.Length != Capabilities.Count)
-            throw new InvalidOperationException("The initial Workspace access capability set is not canonical.");
+        if (validated.Length != capabilities.Count)
+            throw new InvalidOperationException(errorMessage);
         return validated;
     }
 }

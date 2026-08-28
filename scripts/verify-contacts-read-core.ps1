@@ -187,7 +187,7 @@ function Same-Problem {
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $hostProject = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj'
 $crmProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj'
-$demoEmail = 'admin@unicorecrm.local'
+$demoEmail = 'contacts.read.provisioned@example.test'
 $demoPassword = 'Contacts-Read-Core!2026'
 $hostProcess = $null
 $logPath = Join-Path ([IO.Path]::GetTempPath()) ("unicore-contacts-read-$([Guid]::NewGuid().ToString('N')).log")
@@ -216,8 +216,13 @@ CREATE DATABASE [$DatabaseName];
     $env:ConnectionStrings__UnicoreCRM = New-ConnectionString -Database $DatabaseName
     $env:Development__ApplyMigrations = 'true'
     $env:IdentityAuth__EmailVerification__Sender__Kind = 'DevelopmentLog'
-    $env:DevelopmentDemoBootstrap__Email = $demoEmail
-    $env:DevelopmentDemoBootstrap__Password = $demoPassword
+    $env:UNICORE_DEV_SEED_ENABLED = 'false'
+    $env:IdentityAuth__DevelopmentBootstrap__Enabled = 'true'
+    $env:IdentityAuth__DevelopmentBootstrap__Email = $demoEmail
+    $env:IdentityAuth__DevelopmentBootstrap__Password = $demoPassword
+    $env:IdentityAuth__DevelopmentBootstrap__DisplayName = 'Contacts Provisioning Fixture'
+    $env:Workspace__DevelopmentBootstrap__Enabled = 'false'
+    $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = 'false'
     $env:AI__Provider__Kind = 'DevelopmentDeterministic'
 
@@ -252,18 +257,23 @@ CREATE DATABASE [$DatabaseName];
 
     $session = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
     $callerMemberId = $session.Body.principal.memberId
-    $script:WorkspaceId = Get-Scalar -Database $DatabaseName `
-        -Query "SELECT WorkspaceId FROM workspace.Workspaces WHERE [Key] = 'unicore-demo'"
-    $foreignWorkspaceId = Get-Scalar -Database $DatabaseName `
-        -Query "SELECT WorkspaceId FROM workspace.Workspaces WHERE [Key] = 'unicore-demo-isolated'"
+    $provisioning = Invoke-Api -Method 'POST' -Path '/workspaces/initial-provisioning' `
+        -Token $script:Token -IdempotencyKey 'idem-contacts-read-provisioning-0001' `
+        -Body '{"name":"Contacts Read Workspace"}'
+    Add-Result 'initial Workspace provisioning succeeds' '201' $provisioning.Status
+    $script:WorkspaceId = $provisioning.Body.workspaceId
+    $foreignWorkspaceId = 'ws_contacts_read_foreign'
     $roleId = Get-Scalar -Database $DatabaseName `
-        -Query "SELECT TOP 1 RoleId FROM access.Roles WHERE WorkspaceId = '$($script:WorkspaceId)'"
+        -Query "SELECT RoleId FROM access.Roles WHERE WorkspaceId = '$($script:WorkspaceId)' AND Name = 'Workspace Owner'"
     if ([string]::IsNullOrWhiteSpace($script:WorkspaceId) `
         -or [string]::IsNullOrWhiteSpace($foreignWorkspaceId) `
         -or [string]::IsNullOrWhiteSpace($callerMemberId) `
         -or [string]::IsNullOrWhiteSpace($roleId)) {
         throw 'The Development identity/workspace/access fixture was not provisioned.'
     }
+    $provisionedContactsRead = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'contacts.read'"
+    Add-Result 'initial Workspace provisioning grants contacts.read' '1' ([string]$provisionedContactsRead)
 
     $contactsTable = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'contacts' AND TABLE_NAME = 'Contacts'"
@@ -281,8 +291,9 @@ WHERE s.name = 'contacts' AND t.name = 'Contacts' AND i.name IN
     Add-Result 'Contacts read-shape indexes applied' '2' ([string]$indexCount)
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-IF NOT EXISTS (SELECT 1 FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'contacts.read')
-INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'contacts.read');
+IF NOT EXISTS (SELECT 1 FROM workspace.Workspaces WHERE WorkspaceId = '$foreignWorkspaceId')
+INSERT INTO workspace.Workspaces (WorkspaceId, [Key], Name, LogoText, CreatedAt)
+VALUES ('$foreignWorkspaceId', 'contacts-read-foreign', 'Contacts Read Foreign Workspace', 'CF', SYSUTCDATETIME());
 IF NOT EXISTS (SELECT 1 FROM workspace.Memberships WHERE MemberId = 'mem-contacts-read-other')
 INSERT INTO workspace.Memberships (MembershipId, WorkspaceId, AccountId, MemberId, Status, CreatedAt)
 VALUES ('wsm-contacts-read-other', '$($script:WorkspaceId)', 'acc-contacts-read-other', 'mem-contacts-read-other', 'Active', SYSUTCDATETIME());
@@ -303,12 +314,18 @@ VALUES
 
     Set-ContactScope -RoleId $roleId -Scope 'Workspace'
 
+    $provisionedList = Invoke-Contact -Method 'GET' -Path '/contacts'
+    Add-Result 'provisioned contacts.read permits the first Contacts list' '200' $provisionedList.Status
+    Add-Result 'first Contacts success does not depend on a manual capability grant' '2' ([string]$provisionedList.Body.Count)
+
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'contacts.read'"
     Add-Result 'no Contacts read capability denies list' '403' (Invoke-Contact -Method 'GET' -Path '/contacts').Status
     Add-Result 'no Contacts read capability denies detail' '403' (Invoke-Contact -Method 'GET' -Path "/contacts/$contactA").Status
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'contacts.read')"
+    Add-Result 'negative capability test restores one canonical contacts.read' '1' `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'contacts.read'"))
 
     $workspaceList = Invoke-Contact -Method 'GET' -Path '/contacts'
     Add-Result 'WORKSPACE list succeeds' '200' $workspaceList.Status
@@ -377,6 +394,7 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
         -Body (@{ resourceKey = 'contacts'; recordId = $contactA; requestedFields = @('ghostField') } | ConvertTo-Json -Compress)
     Add-Result 'unknown field evaluation succeeds safely' '200' $unknownField.Status
     Add-Result 'unknown field cannot widen read access' 'HIDDEN' $unknownField.Body.fieldAccess.ghostField
+    Add-Result 'unknown field has no projected value' 'True' ($fieldDetail.Raw -notmatch 'ghostField').ToString()
 
     $spoofOwner = Invoke-Api -Method 'POST' -Path '/access/records/evaluate' `
         -Token $script:Token -WorkspaceId $script:WorkspaceId `

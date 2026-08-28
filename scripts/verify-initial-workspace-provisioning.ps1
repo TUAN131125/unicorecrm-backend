@@ -27,10 +27,11 @@ $client = [System.Net.Http.HttpClient]::new($clientHandler)
 $client.Timeout = [TimeSpan]::FromSeconds(30)
 $checks = [System.Collections.Generic.List[string]]::new()
 
-# Mirrors InitialWorkspaceAccessPolicy.Capabilities exactly. The four support.* entries were added
-# to that policy by the Support Core task and this list was not updated with it, so the harness had
-# drifted from the admitted policy and failed on a capability set that is correct.
+# Mirrors InitialWorkspaceAccessPolicy.Capabilities exactly and is intentionally compared with the
+# Development demo fixture below so that the local operator cannot silently lose an implemented
+# read capability while production provisioning remains correct.
 $expectedInitialCapabilities = @(
+    'contacts.read',
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'leads.create', 'leads.qualify', 'leads.read', 'leads.update',
     'products.create', 'products.delete', 'products.edit', 'products.read',
@@ -56,6 +57,7 @@ function Initialize-Database {
         @{ Project = 'src/UnicoreCRM.Operations'; Context = 'TasksDbContext' },
         @{ Project = 'src/UnicoreCRM.Crm'; Context = 'LeadsDbContext' },
         @{ Project = 'src/UnicoreCRM.Crm'; Context = 'DealsDbContext' },
+        @{ Project = 'src/UnicoreCRM.Crm'; Context = 'ContactsDbContext' },
         @{ Project = 'src/UnicoreCRM.Integrations'; Context = 'IntegrationsDbContext' },
         @{ Project = 'src/UnicoreCRM.PlatformOperations'; Context = 'InboxDbContext' }
     )
@@ -256,12 +258,19 @@ function Assert-ProvisionedRuntime([string] $token, [string] $workspaceId, [stri
     Assert-Status $leads 200 "$label workspace-required Leads read"
     $deals = Send-Json 'GET' '/deals' $null (New-Headers $token $workspaceId)
     Assert-Status $deals 200 "$label workspace-required Deals read"
+    $contacts = Send-Json 'GET' '/contacts' $null (New-Headers $token $workspaceId)
+    Assert-Status $contacts 200 "$label workspace-required Contacts read"
     return $document
 }
 
 $hostProcess = $null
 try {
     Initialize-Database
+
+    $developmentSettings = Get-Content -Raw (Join-Path $solutionRoot 'src/UnicoreCRM.ApiHost/appsettings.Development.json') | ConvertFrom-Json
+    $developmentCapabilities = @($developmentSettings.DevelopmentDemoBootstrap.Capabilities)
+    Assert-True ((($developmentCapabilities | Sort-Object) -join ',') -eq (($expectedInitialCapabilities | Sort-Object) -join ',')) 'Static: Development demo capabilities mirror the canonical initial role'
+    Assert-True ($developmentSettings.DevelopmentDemoBootstrap.Workspace.EnabledModuleKeys -contains 'contacts') 'Static: Development demo enables the admitted Contacts module'
 
     # ---------------------------------------------------------------- Case A/B/C/E/G/I
     $hostProcess = Start-ApiHost $accountA
@@ -302,6 +311,8 @@ try {
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$workspaceA';") -eq 1) 'C: exactly one initial access assignment exists'
     $roleCapabilityCount = [int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA';")
     Assert-True ($roleCapabilityCount -eq $expectedInitialCapabilities.Count) 'C: initial role carries the server-owned capability set'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='contacts.read';") -eq 1) 'C: initial Workspace provisioning grants contacts.read exactly once'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability LIKE 'contacts.%' AND c.Capability<>'contacts.read';") -eq 0) 'C: initial role grants no unsupported Contacts capability'
     $listAfterFinish = Get-Workspaces $tokenA
     Assert-True ($listAfterFinish.items.Count -eq 1 -and $listAfterFinish.items[0].workspaceId -eq $workspaceA) 'C: listMyWorkspaces returns the new Workspace'
     Assert-True ($listAfterFinish.items[0].workspaceKey -eq $finishBody.workspace.workspaceKey) 'C: response carries the authoritative Workspace key'

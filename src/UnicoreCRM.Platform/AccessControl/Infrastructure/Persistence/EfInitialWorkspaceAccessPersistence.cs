@@ -44,16 +44,15 @@ internal sealed class EfInitialWorkspaceAccessPersistence(AccessControlDbContext
         MembershipRoleAssignment? assignment,
         CancellationToken cancellationToken)
     {
-        if (role is null && assignment is null)
+        if (role is null && capabilities.Count == 0 && assignment is null)
             return true;
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.ReadCommitted,
             cancellationToken);
         if (role is not null)
-        {
             dbContext.Roles.Add(role);
+        if (capabilities.Count > 0)
             dbContext.RoleCapabilities.AddRange(capabilities);
-        }
         if (assignment is not null)
             dbContext.MembershipRoleAssignments.Add(assignment);
         try

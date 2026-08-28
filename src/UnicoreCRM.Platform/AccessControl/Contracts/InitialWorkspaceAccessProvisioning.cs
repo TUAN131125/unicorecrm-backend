@@ -16,7 +16,7 @@ public interface IInitialWorkspaceAccessProvisioning
 
 public enum InitialWorkspaceAccessStatus
 {
-    /// <summary>This call created the initial role and/or the creator assignment.</summary>
+    /// <summary>This call created or upgraded the initial role and/or created the creator assignment.</summary>
     Assigned,
 
     /// <summary>The initial assignment already existed and was left unchanged.</summary>

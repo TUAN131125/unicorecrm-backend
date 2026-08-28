@@ -419,7 +419,7 @@ DROP TABLE #foreign_case;
     Add-Result 'contract: workspaceId is the trusted Workspace' $script:WorkspaceId $allowed.Body.workspaceId
     Add-Result 'contract: resourceKey echoed canonically' 'support' $allowed.Body.resourceKey
     Add-Result 'contract: recordId echoed' $ownCaseId $allowed.Body.recordId
-    Add-Result 'contract: evaluatedAt is UTC Z' 'True' ($allowed.Body.evaluatedAt.EndsWith('Z')).ToString()
+    Add-Result 'contract: evaluatedAt is UTC Z' 'True' ($allowed.Raw -match '"evaluatedAt":"[^"]+Z"').ToString()
     $requiredProperties = @('workspaceId', 'resourceKey', 'canRead', 'canUpdate', 'canDelete', 'canExport', 'canApprove', 'allowedCommands', 'fieldAccess', 'decisionReasons', 'evaluatedAt', 'authority')
     $missing = 0
     foreach ($property in $requiredProperties) {

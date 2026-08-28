@@ -29,17 +29,46 @@ internal sealed class InitialWorkspaceAccessProvisioningService(
             var existingRole = await persistence.FindRoleAsync(workspaceId, InitialWorkspaceAccessPolicy.RoleName, cancellationToken);
             if (existingRole is not null)
             {
+                if (!InitialWorkspaceAccessPolicy.HasCanonicalRoleIdentity(existingRole, workspaceId))
+                    throw new InvalidOperationException("The existing initial Workspace role identity does not match the server-owned definition.");
+
                 var storedCapabilities = await persistence.ReadRoleCapabilitiesAsync(existingRole.RoleId, cancellationToken);
-                if (!storedCapabilities.SequenceEqual(capabilities, StringComparer.Ordinal))
-                    throw new InvalidOperationException("The existing initial Workspace role does not match the server-owned capability set.");
                 var existingAssignment = await persistence.FindAssignmentAsync(workspaceId, membershipId, existingRole.RoleId, cancellationToken);
-                if (existingAssignment is not null)
+                if (storedCapabilities.SequenceEqual(capabilities, StringComparer.Ordinal))
                 {
-                    return new InitialWorkspaceAccessResult(
-                        InitialWorkspaceAccessStatus.AlreadyAssigned,
-                        existingRole.RoleId,
-                        existingAssignment.AssignmentId,
-                        capabilities);
+                    if (existingAssignment is not null)
+                    {
+                        return new InitialWorkspaceAccessResult(
+                            InitialWorkspaceAccessStatus.AlreadyAssigned,
+                            existingRole.RoleId,
+                            existingAssignment.AssignmentId,
+                            capabilities);
+                    }
+                }
+                else
+                {
+                    // An upgrade requires the existing creator assignment as the provisioning
+                    // anchor inside AccessControl. A name match or arbitrary partial set is not
+                    // sufficient evidence that this is the server-owned initial role.
+                    if (existingAssignment is null
+                        || !InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(storedCapabilities))
+                    {
+                        throw new InvalidOperationException("The existing initial Workspace role does not match a server-owned capability set admitted for upgrade.");
+                    }
+
+                    var addedCapabilities = capabilities
+                        .Except(storedCapabilities, StringComparer.Ordinal)
+                        .Select(capability => new RoleCapability(existingRole.RoleId, capability))
+                        .ToArray();
+                    if (await persistence.TryCommitAsync(null, addedCapabilities, null, cancellationToken))
+                    {
+                        return new InitialWorkspaceAccessResult(
+                            InitialWorkspaceAccessStatus.Assigned,
+                            existingRole.RoleId,
+                            existingAssignment.AssignmentId,
+                            capabilities);
+                    }
+                    continue;
                 }
             }
 

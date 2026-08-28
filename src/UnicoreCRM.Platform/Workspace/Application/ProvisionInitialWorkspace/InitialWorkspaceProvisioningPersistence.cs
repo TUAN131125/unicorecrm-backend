@@ -17,6 +17,12 @@ internal interface IInitialWorkspaceProvisioningPersistence
     /// <summary>Reads outstanding anchors whose access assignment is not confirmed yet, oldest first.</summary>
     Task<IReadOnlyList<InitialWorkspaceProvisioningRecord>> ListAccessPendingAsync(int limit, CancellationToken cancellationToken);
 
+    /// <summary>Reads a stable, account-ordered page of initial provisioning anchors.</summary>
+    Task<IReadOnlyList<InitialWorkspaceProvisioningRecord>> ListAccessConvergenceAnchorsAsync(
+        int offset,
+        int limit,
+        CancellationToken cancellationToken);
+
     /// <summary>Advances the anchor to completed. Returns false when no anchor exists for the account.</summary>
     Task<bool> TryCompleteProvisioningAsync(string accountId, DateTimeOffset now, CancellationToken cancellationToken);
 

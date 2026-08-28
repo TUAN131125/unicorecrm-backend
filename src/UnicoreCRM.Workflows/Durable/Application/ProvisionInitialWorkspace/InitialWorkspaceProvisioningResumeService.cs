@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Workflows.Durable.Infrastructure;
 
@@ -33,6 +34,19 @@ internal sealed class InitialWorkspaceProvisioningResumeService(
         var interval = TimeSpan.FromSeconds(Math.Clamp(settings.ResumeIntervalSeconds, 1, 3600));
         var batchSize = Math.Clamp(settings.ResumeBatchSize, 1, 500);
 
+        try
+        {
+            await ConvergeExistingAccessDefinitionsAsync(batchSize, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Initial Workspace access policy convergence scan failed.");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -57,6 +71,45 @@ internal sealed class InitialWorkspaceProvisioningResumeService(
             {
                 return;
             }
+        }
+    }
+
+    private async Task ConvergeExistingAccessDefinitionsAsync(int batchSize, CancellationToken cancellationToken)
+    {
+        var offset = 0;
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var workspaces = scope.ServiceProvider.GetRequiredService<IInitialWorkspaceProvisioning>();
+            var anchors = await workspaces.ListAccessConvergenceAnchorsAsync(offset, batchSize, cancellationToken);
+            if (anchors.Count == 0)
+                return;
+
+            foreach (var anchor in anchors)
+            {
+                await using var itemScope = scopeFactory.CreateAsyncScope();
+                var access = itemScope.ServiceProvider.GetRequiredService<IInitialWorkspaceAccessProvisioning>();
+                try
+                {
+                    await access.EnsureInitialWorkspaceAccessAsync(
+                        anchor.WorkspaceId,
+                        anchor.MembershipId,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(
+                        exception,
+                        "Initial Workspace access policy could not converge workspace {WorkspaceId}; its role was left unchanged.",
+                        anchor.WorkspaceId);
+                }
+            }
+
+            offset += anchors.Count;
         }
     }
 

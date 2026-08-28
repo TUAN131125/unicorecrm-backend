@@ -67,8 +67,9 @@ internal sealed class Handler(
                 DurableWorkflowErrors.IdempotencyReused(command.Metadata.IdempotencyKey));
         }
 
-        // Outstanding work only. A completed anchor needs no further AccessControl write, and a
-        // replay never rewrites the stored provisioning values.
+        // Request-path recovery handles outstanding work only. The hosted startup convergence
+        // scan separately reconciles completed anchors when the server-owned access policy grows;
+        // a replay never rewrites the stored provisioning values.
         if (provisioning.AccessPending)
             await completion.CompleteAsync(identity.AccountId, workspace.WorkspaceId, workspace.MembershipId, cancellationToken);
 

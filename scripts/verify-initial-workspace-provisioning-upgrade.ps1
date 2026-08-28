@@ -39,13 +39,9 @@ $client.Timeout = [TimeSpan]::FromSeconds(30)
 $checks = [System.Collections.Generic.List[string]]::new()
 $activeDatabase = $DatabaseName
 
-# The frozen server-owned initial capability set. Seeded roles use exactly this set so the
-# convergent AccessControl participant recognises them instead of failing closed.
-# It mirrors InitialWorkspaceAccessPolicy.Capabilities exactly. The products.* and support.* entries
-# were added to that policy by the Products Core and Support Core tasks without this seed being
-# updated, so a legacy role seeded here no longer matched the policy and the convergent participant
-# refused to resume - a stale fixture, not a defect in the resume path.
-$initialCapabilities = @(
+# The exact frozen server-owned snapshots admitted by InitialWorkspaceAccessPolicy. Only the
+# pre-Contacts set may upgrade; arbitrary subsets and sets with unexpected extras must fail closed.
+$preContactsCapabilities = @(
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'leads.create', 'leads.qualify', 'leads.read', 'leads.update',
     'products.create', 'products.delete', 'products.edit', 'products.read',
@@ -53,6 +49,8 @@ $initialCapabilities = @(
     'tasks.assign', 'tasks.complete', 'tasks.create', 'tasks.read', 'tasks.update',
     'workspace.context.resolve'
 )
+$initialCapabilities = @('contacts.read') + $preContactsCapabilities
+$initialCapabilitiesSql = ($initialCapabilities | ForEach-Object { "'$_'" }) -join ','
 
 $ownerContexts = @(
     @{ Project = 'src/UnicoreCRM.Platform'; Context = 'IdentityAuthDbContext' },
@@ -60,6 +58,7 @@ $ownerContexts = @(
     @{ Project = 'src/UnicoreCRM.Operations'; Context = 'TasksDbContext' },
     @{ Project = 'src/UnicoreCRM.Crm'; Context = 'LeadsDbContext' },
     @{ Project = 'src/UnicoreCRM.Crm'; Context = 'DealsDbContext' },
+    @{ Project = 'src/UnicoreCRM.Crm'; Context = 'ContactsDbContext' },
     @{ Project = 'src/UnicoreCRM.Integrations'; Context = 'IntegrationsDbContext' },
     @{ Project = 'src/UnicoreCRM.PlatformOperations'; Context = 'InboxDbContext' }
 )
@@ -76,6 +75,9 @@ function Invoke-SqlScalar([string] $query) {
 
 function Invoke-Sql([string] $query) {
     # Routed through a script file so JSON literals containing double quotes survive intact.
+    if (-not (Test-Path -LiteralPath $temporaryDirectory)) {
+        $null = New-Item -ItemType Directory -Path $temporaryDirectory -Force
+    }
     $scriptPath = Join-Path $temporaryDirectory ('seed-' + [Guid]::NewGuid().ToString('N') + '.sql')
     Set-Content -LiteralPath $scriptPath -Value ("SET NOCOUNT ON;`r`n" + $query) -Encoding ascii
     & sqlcmd -S $server -d $activeDatabase -b -i $scriptPath | Out-Null
@@ -114,10 +116,10 @@ function Update-OwnerDatabases {
     foreach ($entry in $ownerContexts) { Update-Database $entry.Project $entry.Context }
 }
 
-function Set-HostEnvironment([string] $identityEmail, [bool] $resumeEnabled) {
+function Set-HostEnvironment([string] $identityEmail, [bool] $resumeEnabled, [string] $listenUrl = $baseUrl) {
     $env:ASPNETCORE_ENVIRONMENT = 'Development'
     $env:DOTNET_ENVIRONMENT = 'Development'
-    $env:ASPNETCORE_URLS = $baseUrl
+    $env:ASPNETCORE_URLS = $listenUrl
     $env:ConnectionStrings__UnicoreCRM = Get-ConnectionString $activeDatabase
     $env:IdentityAuth__Jwt__SigningKey = $jwtKey
     $env:IdentityAuth__RefreshTokenPepper = $pepper
@@ -137,23 +139,33 @@ function Set-HostEnvironment([string] $identityEmail, [bool] $resumeEnabled) {
     $env:Workflows__InitialWorkspaceProvisioning__DevelopmentFaultInjection__FailAccessAssignment = 'false'
 }
 
-function Start-ApiHost([string] $identityEmail, [bool] $resumeEnabled) {
-    Set-HostEnvironment $identityEmail $resumeEnabled
-    $standardOut = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.out.log')
-    $standardError = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.err.log')
-    $process = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput $standardOut -RedirectStandardError $standardError -PassThru
+function Wait-ApiHost($process, [string] $listenUrl) {
     for ($attempt = 0; $attempt -lt 120; $attempt++) {
-        if ($process.HasExited) {
-            throw "ApiHost exited during startup: $((Get-Content -LiteralPath $standardError -Raw)) $((Get-Content -LiteralPath $standardOut -Raw))"
-        }
+        if ($process.HasExited) { throw "ApiHost exited during startup." }
         try {
-            $probe = $client.GetAsync("$baseUrl/auth/session").GetAwaiter().GetResult()
-            if ([int] $probe.StatusCode -eq 401) { return $process }
+            $probe = $client.GetAsync("$listenUrl/auth/session").GetAwaiter().GetResult()
+            if ([int] $probe.StatusCode -eq 401) { return }
         }
         catch { }
         Start-Sleep -Milliseconds 250
     }
     throw 'ApiHost did not listen within the upgrade timeout.'
+}
+
+function Start-ApiHost(
+    [string] $identityEmail,
+    [bool] $resumeEnabled,
+    [string] $listenUrl = $baseUrl,
+    [bool] $waitForReady = $true) {
+    Set-HostEnvironment $identityEmail $resumeEnabled $listenUrl
+    if (-not (Test-Path -LiteralPath $temporaryDirectory)) {
+        $null = New-Item -ItemType Directory -Path $temporaryDirectory -Force
+    }
+    $standardOut = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.out.log')
+    $standardError = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.err.log')
+    $process = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput $standardOut -RedirectStandardError $standardError -PassThru
+    if ($waitForReady) { Wait-ApiHost $process $listenUrl }
+    return $process
 }
 
 function Stop-ApiHost($process) {
@@ -209,7 +221,13 @@ function New-Accounts([string[]] $emails) {
     }
 }
 
-function New-SeededAnchor([string] $email, [string] $keySuffix, [bool] $seedAccessAssignment, [int] $completionOffsetSeconds) {
+function New-SeededAnchor(
+    [string] $email,
+    [string] $keySuffix,
+    [bool] $seedAccessAssignment,
+    [int] $completionOffsetSeconds,
+    [string[]] $roleCapabilities = $initialCapabilities,
+    [string] $roleDescription = 'Initial Workspace provisioning role for the account that created this Workspace.') {
     # Realistic provisioned state: Workspace, ACTIVE creator membership, configuration seed and
     # anchor. A completion offset of zero reproduces the legacy fabricated signature exactly.
     $accountId = Invoke-SqlScalar "SELECT AccountId FROM iam.Accounts WHERE NormalizedEmail='$($email.ToUpperInvariant())';"
@@ -231,8 +249,8 @@ function New-SeededAnchor([string] $email, [string] $keySuffix, [bool] $seedAcce
     if ($seedAccessAssignment) {
         $roleId = "role_$suffix"
         $assignmentId = "assignment_$suffix"
-        Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$roleId','$workspaceId','Workspace Owner','Initial Workspace provisioning role for the account that created this Workspace.',NULL,1,0,'$provisionedAtText','$provisionedAtText');"
-        foreach ($capability in $initialCapabilities) {
+        Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$roleId','$workspaceId','Workspace Owner','$roleDescription',NULL,1,0,'$provisionedAtText','$provisionedAtText');"
+        foreach ($capability in $roleCapabilities) {
             Invoke-Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$roleId','$capability');"
         }
         Invoke-Sql "INSERT INTO access.MembershipRoleAssignments (AssignmentId,WorkspaceId,MembershipId,RoleId,AssignedAt) VALUES ('$assignmentId','$workspaceId','$membershipId','$roleId','$provisionedAtText');"
@@ -262,6 +280,15 @@ function Wait-AnchorState([string] $accountId, [string] $expectedState, [int] $t
     return $false
 }
 
+function Wait-RoleCapability([string] $roleId, [string] $capability, [int] $timeoutSeconds = 60) {
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='$capability';") -eq '1') { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
 function Assert-RuntimeUsable($state, [string] $label) {
     $token = Get-Token $state.Email
     $list = Send-Json 'GET' '/workspaces' $null (New-Headers $token)
@@ -273,20 +300,24 @@ function Assert-RuntimeUsable($state, [string] $label) {
     Assert-Status (Send-Json 'GET' '/tasks' $null (New-Headers $token $state.WorkspaceId)) 200 "$label workspace-required Tasks read"
     Assert-Status (Send-Json 'GET' '/leads' $null (New-Headers $token $state.WorkspaceId)) 200 "$label workspace-required Leads read"
     Assert-Status (Send-Json 'GET' '/deals' $null (New-Headers $token $state.WorkspaceId)) 200 "$label workspace-required Deals read"
+    Assert-Status (Send-Json 'GET' '/contacts' $null (New-Headers $token $state.WorkspaceId)) 200 "$label workspace-required Contacts read"
 }
 
 function Assert-SingleState($state, [string] $label) {
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Workspaces WHERE WorkspaceId='$($state.WorkspaceId)';") -eq 1) "$label exactly one Workspace"
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$($state.AccountId)';") -eq 1) "$label exactly one Membership"
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections WHERE WorkspaceId='$($state.WorkspaceId)';") -eq 1) "$label exactly one configuration seed"
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)';") -eq 1) "$label exactly one role"
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($state.WorkspaceId)';") -eq 1) "$label exactly one access assignment"
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)' AND Name='Workspace Owner';") -eq 1) "$label exactly one canonical role"
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments a JOIN access.Roles r ON r.RoleId=a.RoleId WHERE a.WorkspaceId='$($state.WorkspaceId)' AND r.Name='Workspace Owner';") -eq 1) "$label exactly one canonical access assignment"
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($state.AccountId)';") -eq 1) "$label exactly one provisioning anchor"
-    $capabilityCount = [int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$($state.WorkspaceId)';")
+    $capabilityCount = [int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$($state.WorkspaceId)' AND r.Name='Workspace Owner';")
     Assert-True ($capabilityCount -eq $initialCapabilities.Count) "$label role carries the server-owned capability set"
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId=(SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)' AND Name='Workspace Owner') AND Capability='contacts.read';") -eq 1) "$label contacts.read exists exactly once"
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId=(SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)' AND Name='Workspace Owner') AND Capability NOT IN ($initialCapabilitiesSql);") -eq 0) "$label no unexpected canonical-role capability was introduced"
 }
 
 $hostProcess = $null
+$hostProcessSecondary = $null
 try {
     # ---------------------------------------------------------------- D. fresh full chain
     New-Database $freshDatabase
@@ -309,11 +340,16 @@ try {
     $emailA = 'upgrade.legacy.assigned@example.test'
     $emailB = 'upgrade.legacy.unassigned@example.test'
     $emailC = 'upgrade.genuine.completed@example.test'
-    New-Accounts @($emailA, $emailB, $emailC)
+    $emailF = 'upgrade.unexpected.drift@example.test'
+    $emailG = 'upgrade.arbitrary.partial@example.test'
+    $emailH = 'upgrade.identity.drift@example.test'
+    $emailI = 'upgrade.concurrent.retry@example.test'
+    $emailJ = 'upgrade.completed.precontacts@example.test'
+    New-Accounts @($emailA, $emailB, $emailC, $emailF, $emailG, $emailH, $emailI, $emailJ)
     $checks.Add('Correction: previous-version accounts created=PASS')
 
     # A and B carry the legacy fabricated signature; C carries a real completion time.
-    $stateA = New-SeededAnchor $emailA 'legacy-assigned' $true 0
+    $stateA = New-SeededAnchor $emailA 'legacy-assigned' $true 0 $preContactsCapabilities
     $stateB = New-SeededAnchor $emailB 'legacy-unassigned' $false 0
     $stateC = New-SeededAnchor $emailC 'genuine-completed' $true 5
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateA.WorkspaceId)';") -eq 1) 'A: legacy anchor has an existing access assignment'
@@ -331,32 +367,82 @@ try {
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateC.AccountId)' AND CompletedAt IS NOT NULL;") -eq '1') 'C: genuine completion time was preserved'
     $completedAtC = Invoke-SqlScalar "SELECT CONVERT(varchar(33), CompletedAt, 126) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateC.AccountId)';"
 
+    # Runtime-negative controls use the current anchor schema directly. Each has a real creator
+    # assignment, but only A carries the one exact historical capability snapshot admitted for
+    # upgrade and the exact canonical role metadata.
+    $unexpectedCapabilities = @($preContactsCapabilities + 'contacts.create' | Sort-Object)
+    $stateF = New-SeededAnchor $emailF 'unexpected-drift' $true 5 $unexpectedCapabilities
+    $partialCapabilities = @($preContactsCapabilities | Where-Object { $_ -ne 'tasks.read' })
+    $stateG = New-SeededAnchor $emailG 'arbitrary-partial' $true 5 $partialCapabilities
+    $stateH = New-SeededAnchor $emailH 'identity-drift' $true 5 $preContactsCapabilities 'Custom role with a misleading canonical name.'
+    $stateJ = New-SeededAnchor $emailJ 'completed-precontacts' $true 5 $preContactsCapabilities
+    $completedAtJ = Invoke-SqlScalar "SELECT CONVERT(varchar(33), CompletedAt, 126) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateJ.AccountId)';"
+    $stateI = New-SeededAnchor $emailI 'concurrent-retry' $true 5 $preContactsCapabilities
+    Invoke-Sql "UPDATE workspace.InitialProvisioningRecords SET State='AccessPending',CompletedAt=NULL WHERE AccountId='$($stateI.AccountId)';"
+    foreach ($state in @($stateF, $stateG, $stateH)) {
+        Invoke-Sql "UPDATE workspace.InitialProvisioningRecords SET State='AccessPending',CompletedAt=NULL WHERE AccountId='$($state.AccountId)';"
+    }
+
+    $customRoleId = 'role_custom_' + [Guid]::NewGuid().ToString('N')
+    $customAssignmentId = 'assignment_custom_' + [Guid]::NewGuid().ToString('N')
+    Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$customRoleId','$($stateA.WorkspaceId)','Custom Observer','Verifier-owned unrelated custom role.',NULL,1,0,SYSUTCDATETIME(),SYSUTCDATETIME()); INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$customRoleId','contacts.create'); INSERT INTO access.MembershipRoleAssignments (AssignmentId,WorkspaceId,MembershipId,RoleId,AssignedAt) VALUES ('$customAssignmentId','$($stateA.WorkspaceId)','$($stateA.MembershipId)','$customRoleId',SYSUTCDATETIME());"
+
     # The current host with the durable resume path enabled must converge A and B without any
     # client action and must not touch C.
-    $hostProcess = Start-ApiHost $emailA $true
+    $hostProcess = Start-ApiHost $emailA $true $baseUrl $false
+    $hostProcessSecondary = Start-ApiHost $emailA $true 'http://127.0.0.1:5091' $false
+    Wait-ApiHost $hostProcess $baseUrl
+    Wait-ApiHost $hostProcessSecondary 'http://127.0.0.1:5091'
     Assert-True (Wait-AnchorState $stateA.AccountId 'Completed') 'A: durable resume completed the corrected anchor'
     Assert-True (Wait-AnchorState $stateB.AccountId 'Completed') 'B: durable resume completed the corrected anchor'
+    Assert-True (Wait-AnchorState $stateI.AccountId 'Completed') 'I: concurrent resume workers converged the pre-Contacts role'
+    Assert-True (Wait-RoleCapability $stateJ.RoleId 'contacts.read') 'J: startup convergence upgraded a normally completed pre-Contacts role'
     Assert-True ((Invoke-SqlScalar "SELECT CONVERT(varchar(33), CompletedAt, 126) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateC.AccountId)';") -eq $completedAtC) 'C: genuine anchor was never replayed'
+    Assert-True ((Get-AnchorState $stateJ.AccountId) -eq 'Completed') 'J: completed provisioning state remains completed'
+    Assert-True ((Invoke-SqlScalar "SELECT CONVERT(varchar(33), CompletedAt, 126) FROM workspace.InitialProvisioningRecords WHERE AccountId='$($stateJ.AccountId)';") -eq $completedAtJ) 'J: access convergence does not rewrite completion evidence'
+    Start-Sleep -Seconds 3
+    Assert-True ((Get-AnchorState $stateF.AccountId) -eq 'AccessPending') 'F: unexpected extra capability drift fails closed'
+    Assert-True ((Get-AnchorState $stateG.AccountId) -eq 'AccessPending') 'G: arbitrary partial capability set is not reclassified as server-owned'
+    Assert-True ((Get-AnchorState $stateH.AccountId) -eq 'AccessPending') 'H: canonical-name role with identity drift is not upgraded'
 
     Assert-RuntimeUsable $stateA 'A:'
     Assert-RuntimeUsable $stateB 'B:'
     Assert-RuntimeUsable $stateC 'C:'
+    Assert-RuntimeUsable $stateI 'I:'
+    Assert-RuntimeUsable $stateJ 'J:'
     Assert-SingleState $stateA 'A:'
     Assert-SingleState $stateB 'B:'
     Assert-SingleState $stateC 'C:'
-    Assert-True ((Invoke-SqlScalar "SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($stateA.WorkspaceId)';") -eq $stateA.RoleId) 'A: the pre-existing role identity was preserved'
-    Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateA.WorkspaceId)';") -eq $stateA.AssignmentId) 'A: the pre-existing assignment identity was preserved'
+    Assert-SingleState $stateI 'I:'
+    Assert-SingleState $stateJ 'J:'
+    Assert-True ((Invoke-SqlScalar "SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($stateA.WorkspaceId)' AND Name='Workspace Owner';") -eq $stateA.RoleId) 'A: the pre-existing role identity was preserved'
+    Assert-True ((Invoke-SqlScalar "SELECT a.AssignmentId FROM access.MembershipRoleAssignments a JOIN access.Roles r ON r.RoleId=a.RoleId WHERE a.WorkspaceId='$($stateA.WorkspaceId)' AND r.Name='Workspace Owner';") -eq $stateA.AssignmentId) 'A: the pre-existing assignment identity was preserved'
     Assert-True ((Invoke-SqlScalar "SELECT MembershipId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateB.WorkspaceId)';") -eq $stateB.MembershipId) 'B: the created assignment targets the creator membership'
     Assert-True ((Invoke-SqlScalar "SELECT Name FROM access.Roles WHERE WorkspaceId='$($stateB.WorkspaceId)';") -eq 'Workspace Owner') 'B: the created role is the server-owned initial role'
     Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateC.WorkspaceId)';") -eq $stateC.AssignmentId) 'C: the untouched assignment identity was preserved'
+    Assert-True ((Invoke-SqlScalar "SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($stateI.WorkspaceId)' AND Name='Workspace Owner';") -eq $stateI.RoleId) 'I: concurrent convergence preserved the role identity'
+    Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateI.WorkspaceId)';") -eq $stateI.AssignmentId) 'I: concurrent convergence preserved the assignment identity'
+    Assert-True ((Invoke-SqlScalar "SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($stateJ.WorkspaceId)' AND Name='Workspace Owner';") -eq $stateJ.RoleId) 'J: completed-anchor convergence preserved the role identity'
+    Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($stateJ.WorkspaceId)';") -eq $stateJ.AssignmentId) 'J: completed-anchor convergence preserved the assignment identity'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$customRoleId' AND Capability='contacts.create';") -eq '1') 'A: unrelated custom role capability set is unchanged'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$customRoleId';") -eq '1') 'A: unrelated custom role received no canonical capabilities'
+    Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE RoleId='$customRoleId';") -eq $customAssignmentId) 'A: unrelated custom assignment identity is unchanged'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateF.RoleId)' AND Capability='contacts.create';") -eq '1') 'F: unexpected extra capability is not silently deleted or reclassified'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateF.RoleId)' AND Capability='contacts.read';") -eq '0') 'F: drifted role receives no contacts.read grant'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateG.RoleId)' AND Capability='contacts.read';") -eq '0') 'G: arbitrary partial role receives no contacts.read grant'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateH.RoleId)' AND Capability='contacts.read';") -eq '0') 'H: identity-drifted role receives no contacts.read grant'
 
     Start-Sleep -Seconds 5
     Assert-SingleState $stateA 'A (after another resume window):'
     Assert-SingleState $stateB 'B (after another resume window):'
     Assert-SingleState $stateC 'C (after another resume window):'
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE State<>'Completed';") -eq 0) 'Correction: no outstanding provisioning remains'
+    Assert-SingleState $stateI 'I (after another resume window):'
+    Assert-SingleState $stateJ 'J (after another resume window):'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.InitialProvisioningRecords WHERE State<>'Completed';") -eq 3) 'Correction: only the three deliberately invalid upgrade fixtures remain outstanding'
     Stop-ApiHost $hostProcess
     $hostProcess = $null
+    Stop-ApiHost $hostProcessSecondary
+    $hostProcessSecondary = $null
 
     # ---------------------------------------------------------------- E. never applied the faulty migration
     New-Database $chainDatabase
@@ -395,11 +481,14 @@ try {
         LegacyAssignedWorkspace = $stateA.WorkspaceId
         LegacyUnassignedWorkspace = $stateB.WorkspaceId
         GenuinelyCompletedWorkspace = $stateC.WorkspaceId
+        ConcurrentUpgradeWorkspace = $stateI.WorkspaceId
+        CompletedPreContactsWorkspace = $stateJ.WorkspaceId
         PreRecoveryWorkspace = $workspaceE
         Checks = $checks
     } | ConvertTo-Json -Depth 6
 }
 finally {
     Stop-ApiHost $hostProcess
+    Stop-ApiHost $hostProcessSecondary
     $client.Dispose()
 }

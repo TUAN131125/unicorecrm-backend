@@ -56,6 +56,17 @@ internal sealed class EfInitialWorkspaceProvisioningPersistence(WorkspaceDbConte
             .Take(limit)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<InitialWorkspaceProvisioningRecord>> ListAccessConvergenceAnchorsAsync(
+        int offset,
+        int limit,
+        CancellationToken cancellationToken) =>
+        await dbContext.InitialProvisioningRecords
+            .AsNoTracking()
+            .OrderBy(record => record.AccountId)
+            .Skip(offset)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken);
+
     public async Task<bool> TryCompleteProvisioningAsync(
         string accountId,
         DateTimeOffset now,
