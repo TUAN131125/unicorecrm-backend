@@ -185,6 +185,58 @@ function Clear-CustomerFields {
         -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_customers_read_%'"
 }
 
+function Assert-InvalidCustomerEnumRejected {
+    param(
+        [string] $TestId,
+        [string] $FieldName,
+        [string] $ExpectedConstraint,
+        [string] $Type,
+        [string] $RelationshipType,
+        [string] $Status,
+        [string] $Health
+    )
+
+    $customerId = "customer_invalid_$TestId"
+    $rejected = $false
+    try {
+        Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO customers.Customers
+(WorkspaceId, CustomerId, CustomerCode, Type, RelationshipType, RelationshipId, Status, Health,
+ FirstPurchaseAt, LastPurchaseAt, Version, CreatedAt, UpdatedAt, Profile)
+VALUES
+('$($script:WorkspaceId)', '$customerId', 'CUS-INVALID-$TestId', '$Type', '$RelationshipType',
+ 'relationship_invalid_$TestId', '$Status', '$Health', SYSUTCDATETIME(), SYSUTCDATETIME(), 0,
+ SYSUTCDATETIME(), SYSUTCDATETIME(), N'{}');
+"@
+    }
+    catch {
+        $exception = $_.Exception
+        $sqlException = $null
+        while ($null -ne $exception) {
+            if ($exception -is [System.Data.SqlClient.SqlException]) {
+                $sqlException = $exception
+                break
+            }
+            $exception = $exception.InnerException
+        }
+        if ($null -eq $sqlException `
+            -or $sqlException.Number -ne 547 `
+            -or $sqlException.Message -notmatch [regex]::Escape($ExpectedConstraint)) {
+            throw
+        }
+        $rejected = $true
+    }
+
+    Add-Result "$FieldName invalid persisted value is rejected" 'True' $rejected.ToString()
+    $persisted = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM customers.Customers WHERE WorkspaceId = '$($script:WorkspaceId)' AND CustomerId = '$customerId'"
+    Add-Result "$FieldName invalid persisted value leaves no row" '0' ([string]$persisted)
+    if ([int]$persisted -ne 0) {
+        Invoke-SqlNonQuery -Database $DatabaseName `
+            -Query "DELETE FROM customers.Customers WHERE WorkspaceId = '$($script:WorkspaceId)' AND CustomerId = '$customerId'"
+    }
+}
+
 function Same-Problem {
     param($Left, $Right)
     return $Left.Status -eq $Right.Status `
@@ -321,6 +373,32 @@ WHERE s.name = 'customers' AND t.name = 'Customers'
   AND i.is_unique = 1
 "@
     Add-Result 'Customers Workspace relationship reverse key is unique' '1' ([string]$reverseIndexCount)
+    $requiredEnumConstraintCount = Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) FROM sys.check_constraints c
+JOIN sys.tables t ON t.object_id = c.parent_object_id
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+WHERE s.name = 'customers' AND t.name = 'Customers'
+  AND c.name IN ('CK_Customers_Type', 'CK_Customers_RelationshipType', 'CK_Customers_Status', 'CK_Customers_Health')
+  AND c.is_disabled = 0 AND c.is_not_trusted = 0
+"@
+    Add-Result 'Customers required enum constraints are present, enabled, and trusted' '4' ([string]$requiredEnumConstraintCount)
+
+    Assert-InvalidCustomerEnumRejected -TestId 'type_lower' -FieldName 'Type lowercase' -ExpectedConstraint 'CK_Customers_Type' `
+        -Type 'b2c' -RelationshipType 'CONTACT' -Status 'ACTIVE' -Health 'GOOD'
+    Assert-InvalidCustomerEnumRejected -TestId 'type_padded' -FieldName 'Type padded' -ExpectedConstraint 'CK_Customers_Type' `
+        -Type 'B2C ' -RelationshipType 'CONTACT' -Status 'ACTIVE' -Health 'GOOD'
+    Assert-InvalidCustomerEnumRejected -TestId 'relationship_lower' -FieldName 'RelationshipType lowercase' -ExpectedConstraint 'CK_Customers_RelationshipType' `
+        -Type 'B2C' -RelationshipType 'contact' -Status 'ACTIVE' -Health 'GOOD'
+    Assert-InvalidCustomerEnumRejected -TestId 'relationship_padded' -FieldName 'RelationshipType padded' -ExpectedConstraint 'CK_Customers_RelationshipType' `
+        -Type 'B2C' -RelationshipType 'CONTACT ' -Status 'ACTIVE' -Health 'GOOD'
+    Assert-InvalidCustomerEnumRejected -TestId 'status_lower' -FieldName 'Status lowercase' -ExpectedConstraint 'CK_Customers_Status' `
+        -Type 'B2C' -RelationshipType 'CONTACT' -Status 'active' -Health 'GOOD'
+    Assert-InvalidCustomerEnumRejected -TestId 'status_padded' -FieldName 'Status padded' -ExpectedConstraint 'CK_Customers_Status' `
+        -Type 'B2C' -RelationshipType 'CONTACT' -Status 'ACTIVE ' -Health 'GOOD'
+    Assert-InvalidCustomerEnumRejected -TestId 'health_lower' -FieldName 'Health lowercase' -ExpectedConstraint 'CK_Customers_Health' `
+        -Type 'B2C' -RelationshipType 'CONTACT' -Status 'ACTIVE' -Health 'good'
+    Assert-InvalidCustomerEnumRejected -TestId 'health_padded' -FieldName 'Health padded' -ExpectedConstraint 'CK_Customers_Health' `
+        -Type 'B2C' -RelationshipType 'CONTACT' -Status 'ACTIVE' -Health 'GOOD '
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 IF NOT EXISTS (SELECT 1 FROM workspace.Workspaces WHERE WorkspaceId = '$foreignWorkspaceId')
@@ -347,6 +425,67 @@ VALUES
  DATEADD(minute, -10, SYSUTCDATETIME()), DATEADD(minute, -3, SYSUTCDATETIME()),
  N'{"sourceSystem":"foreign-fixture","externalCustomerRef":"$secretC","careOwnerId":"mem-customers-read-other"}');
 "@
+
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO customers.Customers
+(WorkspaceId, CustomerId, CustomerCode, Type, RelationshipType, RelationshipId, Status, Health,
+ FirstPurchaseAt, LastPurchaseAt, Version, CreatedAt, UpdatedAt, Profile)
+VALUES
+('$($script:WorkspaceId)', 'customer_enum_new', 'CUS-ENUM-NEW', 'B2C', 'CONTACT', 'enum_ref_new', 'NEW', 'GOOD',
+ SYSUTCDATETIME(), SYSUTCDATETIME(), 1, SYSUTCDATETIME(), SYSUTCDATETIME(),
+ N'{"calculatedHealth":"GOOD","manualHealthOverride":"WATCH","onboardingStatus":"PENDING","tier":"STANDARD","serviceLevel":"STANDARD"}'),
+('$($script:WorkspaceId)', 'customer_enum_active', 'CUS-ENUM-ACTIVE', 'B2B', 'ORGANIZATION_ACCOUNT', 'enum_ref_active', 'ACTIVE', 'WATCH',
+ SYSUTCDATETIME(), SYSUTCDATETIME(), 1, SYSUTCDATETIME(), SYSUTCDATETIME(),
+ N'{"onboardingStatus":"COMPLETED","tier":"SILVER","serviceLevel":"PRIORITY"}'),
+('$($script:WorkspaceId)', 'customer_enum_at_risk', 'CUS-ENUM-AT-RISK', 'B2C', 'CONTACT', 'enum_ref_at_risk', 'AT_RISK', 'RISK',
+ SYSUTCDATETIME(), SYSUTCDATETIME(), 1, SYSUTCDATETIME(), SYSUTCDATETIME(),
+ N'{"tier":"GOLD","serviceLevel":"PREMIUM"}'),
+('$($script:WorkspaceId)', 'customer_enum_inactive', 'CUS-ENUM-INACTIVE', 'B2B', 'ORGANIZATION_ACCOUNT', 'enum_ref_inactive', 'INACTIVE', 'GOOD',
+ SYSUTCDATETIME(), SYSUTCDATETIME(), 1, SYSUTCDATETIME(), SYSUTCDATETIME(),
+ N'{"tier":"PLATINUM","serviceLevel":"ENTERPRISE"}'),
+('$($script:WorkspaceId)', 'customer_enum_churned', 'CUS-ENUM-CHURNED', 'B2C', 'CONTACT', 'enum_ref_churned', 'CHURNED', 'WATCH',
+ SYSUTCDATETIME(), SYSUTCDATETIME(), 1, SYSUTCDATETIME(), SYSUTCDATETIME(), N'{"tier":"STRATEGIC"}'),
+('$($script:WorkspaceId)', 'customer_enum_do_not_contact', 'CUS-ENUM-DNC', 'B2B', 'ORGANIZATION_ACCOUNT', 'enum_ref_dnc', 'DO_NOT_CONTACT', 'RISK',
+ SYSUTCDATETIME(), SYSUTCDATETIME(), 1, SYSUTCDATETIME(), SYSUTCDATETIME(), N'{}'),
+('$($script:WorkspaceId)', 'customer_enum_archived', 'CUS-ENUM-ARCHIVED', 'B2C', 'CONTACT', 'enum_ref_archived', 'ARCHIVED', 'GOOD',
+ SYSUTCDATETIME(), SYSUTCDATETIME(), 1, SYSUTCDATETIME(), SYSUTCDATETIME(), N'{}');
+"@
+
+    Set-CustomerScope -RoleId $roleId -Scope 'Workspace'
+    $validEnumCustomerIds = @(
+        'customer_enum_new',
+        'customer_enum_active',
+        'customer_enum_at_risk',
+        'customer_enum_inactive',
+        'customer_enum_churned',
+        'customer_enum_do_not_contact',
+        'customer_enum_archived'
+    )
+    $validEnumDocuments = New-Object System.Collections.ArrayList
+    foreach ($validEnumCustomerId in $validEnumCustomerIds) {
+        $validEnumDetail = Invoke-Customer -Method 'GET' -Path "/customers/$validEnumCustomerId"
+        Add-Result "admitted enum fixture $validEnumCustomerId is readable" '200' $validEnumDetail.Status
+        [void]$validEnumDocuments.Add($validEnumDetail.Body)
+    }
+    Add-Result 'all admitted Customer Type values persist and project exactly' 'B2B,B2C' `
+        ((@($validEnumDocuments.type | Sort-Object -Unique)) -join ',')
+    Add-Result 'all admitted RelationshipType values persist and project exactly' 'CONTACT,ORGANIZATION_ACCOUNT' `
+        ((@($validEnumDocuments.relationshipRef.type | Sort-Object -Unique)) -join ',')
+    Add-Result 'all admitted Customer Status values persist and project exactly' `
+        'ACTIVE,ARCHIVED,AT_RISK,CHURNED,DO_NOT_CONTACT,INACTIVE,NEW' `
+        ((@($validEnumDocuments.status | Sort-Object -Unique)) -join ',')
+    Add-Result 'all admitted Customer Health values persist and project exactly' 'GOOD,RISK,WATCH' `
+        ((@($validEnumDocuments.health | Sort-Object -Unique)) -join ',')
+    Add-Result 'controlled fixtures use every admitted OnboardingStatus value' 'COMPLETED,PENDING' `
+        ((@($validEnumDocuments.onboardingStatus | Where-Object { $_ } | Sort-Object -Unique)) -join ',')
+    Add-Result 'controlled fixtures use every admitted Tier value' 'GOLD,PLATINUM,SILVER,STANDARD,STRATEGIC' `
+        ((@($validEnumDocuments.tier | Where-Object { $_ } | Sort-Object -Unique)) -join ',')
+    Add-Result 'controlled fixtures use every admitted ServiceLevel value' 'ENTERPRISE,PREMIUM,PRIORITY,STANDARD' `
+        ((@($validEnumDocuments.serviceLevel | Where-Object { $_ } | Sort-Object -Unique)) -join ',')
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM customers.Customers WHERE WorkspaceId = '$($script:WorkspaceId)' AND CustomerId LIKE 'customer_enum_%'"
+    Add-Result 'admitted enum fixtures are removed before Read Core regression checks' '0' `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM customers.Customers WHERE WorkspaceId = '$($script:WorkspaceId)' AND CustomerId LIKE 'customer_enum_%'"))
 
     $sameWorkspaceDuplicateRejected = $false
     try {
@@ -394,6 +533,23 @@ VALUES
     Add-Result 'detail carries trusted Workspace' $script:WorkspaceId $customerDetail.Body.workspaceId
     Add-Result 'detail required customerCode present' 'CUS-A-001' $customerDetail.Body.customerCode
     Add-Result 'detail required version present' '4' ([string]$customerDetail.Body.version)
+    $requiredCustomerFields = @(
+        'id', 'workspaceId', 'customerCode', 'type', 'relationshipRef', 'status', 'health',
+        'firstPurchaseAt', 'lastPurchaseAt', 'version', 'createdAt', 'updatedAt'
+    )
+    $allowedCustomerFields = @(
+        $requiredCustomerFields + @(
+            'calculatedHealth', 'manualHealthOverride', 'onboardingStatus', 'onboardingCompletedAt',
+            'createdFromEvidenceId', 'conversionPolicyVersion', 'conversionCorrelationId', 'sourceSystem',
+            'externalCustomerRef', 'tier', 'serviceLevel', 'careCadenceDays', 'careOwnerId', 'segment',
+            'tags', 'nextCareAt', 'lastCareAt'
+        )
+    )
+    $actualCustomerFields = @($customerDetail.Body.PSObject.Properties.Name)
+    Add-Result 'Customer detail contains every exact required wire field' '0' `
+        ([string](@($requiredCustomerFields | Where-Object { $actualCustomerFields -cnotcontains $_ }).Count))
+    Add-Result 'Customer detail contains no field outside the exact wire' '0' `
+        ([string](@($actualCustomerFields | Where-Object { $allowedCustomerFields -cnotcontains $_ }).Count))
     Add-Result 'RelationshipRef CONTACT projects exactly' 'CONTACT|contact_relationship_ref_a' `
         ("{0}|{1}" -f $customerDetail.Body.relationshipRef.type, $customerDetail.Body.relationshipRef.id)
     Add-Result 'customerId remains independent from relationshipRef.id' 'True' `
@@ -563,6 +719,14 @@ WHERE CustomerId IN ('$customerC', '$customerUnknown')
         (($customerSource -notmatch 'ContactsDbContext') -and ($customerSource -notmatch 'OrganizationsDbContext')).ToString()
     Add-Result 'Customers has no speculative relationship reader' 'True' `
         ($customerSource -notmatch 'ICustomerRelationshipReader|IContactCustomerReader|IOrganizationCustomerReader').ToString()
+    $customerEndpointSource = Get-Content -Raw `
+        -LiteralPath (Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/Customers/Contracts/CustomersEndpoints.cs')
+    Add-Result 'Customer Read Core maps exactly two GET operations' '2' `
+        ([string]([regex]::Matches($customerEndpointSource, 'endpoints\.MapGet\(').Count))
+    Add-Result 'Customer list operationId remains exact' 'True' `
+        ($customerEndpointSource -cmatch '\.WithName\("listCustomers"\)').ToString()
+    Add-Result 'Customer detail operationId remains exact' 'True' `
+        ($customerEndpointSource -cmatch '\.WithName\("getCustomer"\)').ToString()
 }
 finally {
     if ($null -ne $hostProcess -and -not $hostProcess.HasExited) {

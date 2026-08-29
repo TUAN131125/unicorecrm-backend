@@ -15,7 +15,31 @@ internal sealed class CustomersDbContext(DbContextOptions<CustomersDbContext> op
         modelBuilder.HasDefaultSchema("customers");
         modelBuilder.Entity<Customer>(entity =>
         {
-            entity.ToTable("Customers");
+            entity.ToTable("Customers", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_Customers_Type",
+                    "(([Type] COLLATE Latin1_General_100_BIN2 = N'B2C' AND DATALENGTH([Type]) = DATALENGTH(N'B2C')) OR " +
+                    "([Type] COLLATE Latin1_General_100_BIN2 = N'B2B' AND DATALENGTH([Type]) = DATALENGTH(N'B2B')))");
+                table.HasCheckConstraint(
+                    "CK_Customers_RelationshipType",
+                    "(([RelationshipType] COLLATE Latin1_General_100_BIN2 = N'CONTACT' AND DATALENGTH([RelationshipType]) = DATALENGTH(N'CONTACT')) OR " +
+                    "([RelationshipType] COLLATE Latin1_General_100_BIN2 = N'ORGANIZATION_ACCOUNT' AND DATALENGTH([RelationshipType]) = DATALENGTH(N'ORGANIZATION_ACCOUNT')))");
+                table.HasCheckConstraint(
+                    "CK_Customers_Status",
+                    "(([Status] COLLATE Latin1_General_100_BIN2 = N'NEW' AND DATALENGTH([Status]) = DATALENGTH(N'NEW')) OR " +
+                    "([Status] COLLATE Latin1_General_100_BIN2 = N'ACTIVE' AND DATALENGTH([Status]) = DATALENGTH(N'ACTIVE')) OR " +
+                    "([Status] COLLATE Latin1_General_100_BIN2 = N'AT_RISK' AND DATALENGTH([Status]) = DATALENGTH(N'AT_RISK')) OR " +
+                    "([Status] COLLATE Latin1_General_100_BIN2 = N'INACTIVE' AND DATALENGTH([Status]) = DATALENGTH(N'INACTIVE')) OR " +
+                    "([Status] COLLATE Latin1_General_100_BIN2 = N'CHURNED' AND DATALENGTH([Status]) = DATALENGTH(N'CHURNED')) OR " +
+                    "([Status] COLLATE Latin1_General_100_BIN2 = N'DO_NOT_CONTACT' AND DATALENGTH([Status]) = DATALENGTH(N'DO_NOT_CONTACT')) OR " +
+                    "([Status] COLLATE Latin1_General_100_BIN2 = N'ARCHIVED' AND DATALENGTH([Status]) = DATALENGTH(N'ARCHIVED')))");
+                table.HasCheckConstraint(
+                    "CK_Customers_Health",
+                    "(([Health] COLLATE Latin1_General_100_BIN2 = N'GOOD' AND DATALENGTH([Health]) = DATALENGTH(N'GOOD')) OR " +
+                    "([Health] COLLATE Latin1_General_100_BIN2 = N'WATCH' AND DATALENGTH([Health]) = DATALENGTH(N'WATCH')) OR " +
+                    "([Health] COLLATE Latin1_General_100_BIN2 = N'RISK' AND DATALENGTH([Health]) = DATALENGTH(N'RISK')))");
+            });
             entity.HasKey(item => new { item.WorkspaceId, item.CustomerId });
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
             entity.Property(item => item.CustomerId).HasMaxLength(128);

@@ -1741,15 +1741,22 @@ implementation slice from this foundation is therefore `NONE` until its named au
 
 ### Reproducible wire evidence
 
-This task used the exact checked-out local frontend contract at
-`D:\Project_All\UnicoreCRM\frontend\unicorecrm-web\docs\api\openapi.json`. The checked-out frontend
-commit was `bfcabd0f44e93f7e9f15dacef9829d9d7666f546`; `origin/main` resolved to that same commit. The
-local OpenAPI SHA-256 was
-`fd079b2f6e189ffe391d555cee1d2acaa735cf532346cc74a02070862bd78792`, exactly matching the value in
-`docs/api/openapi.sha256`. Both local contract files differ from their committed forms at that
-frontend commit, so the wire is internally checksum-reproducible for this task but is not remotely
-reproducible from the named commit. `CUSTOMER WIRE REPRODUCIBILITY: LOCAL CONTRACT EVIDENCE ONLY /
-REMOTE NOT YET REPRODUCIBLE`. The frontend was not modified by this backend task.
+The 2026-08-29 release-hardening task started from frontend commit
+`bfcabd0f44e93f7e9f15dacef9829d9d7666f546`, equal to `origin/main`, and committed the exact contract
+artifact plus its required generated `docs/api` metadata in the dedicated local frontend commit
+`c12a182f4df86976b018b09d2d9080d0ab46b722` (`docs(api): freeze current customer contract`). The
+OpenAPI SHA-256 is `fd079b2f6e189ffe391d555cee1d2acaa735cf532346cc74a02070862bd78792`, exactly matching
+`docs/api/openapi.sha256`. Every `/customers*` path and its transitive schemas are deeply unchanged
+from the frontend baseline; the whole-file checksum changed only for two Product read concurrency
+annotations and Support Customer-reference optionality. `CUSTOMER WIRE LOCAL CHECKSUM: PASS` and
+`CUSTOMER WIRE DRIFT: NONE`.
+
+The frontend contract commit was not pushed; remote `origin/main` remains at the previous checksum.
+The official frontend `quality.api-contract` gate passes in the current working tree, whose existing
+generated frontend source and generator changes are outside this task's allowed scope. A clean
+checkout of the contract-only commit therefore does not reproduce that wider generated-source state.
+`CUSTOMER WIRE REMOTE REPRODUCIBILITY: NOT READY`; no repository-wide frontend generation claim is
+made from the local contract commit.
 
 The pinned wire admits exactly `listCustomers` (`GET /customers`) and `getCustomer`
 (`GET /customers/{customerId}`) for this slice. Both are `PRODUCTION_CONTRACT_READY`, require trusted
@@ -1782,11 +1789,25 @@ key. `customerId` is never inferred from `contactId`, `organizationId`, or `rela
 Workspaces but never twice in one Workspace. No Contact or Organization existence validation,
 enrichment, join, synchronization, or foreign persistence read occurs.
 
-Required wire state is stored in explicit columns; optional current read state is stored in the
-Customers-owned profile JSON. The slice adds no lifecycle transition, onboarding command, creation
-workflow, purchase conversion, reversal behavior, identifier/code generator, or speculative domain
-mutation. Migration `20260828141857_CustomersReadCore` creates only the owner state and immutable
-successful-read evidence. Query-driven indexes are
+Required wire state is stored in explicit columns. Migration
+`20260829053302_CustomersRequiredEnumConstraints` adds the Customers-owned relational constraints
+`CK_Customers_Type`, `CK_Customers_RelationshipType`, `CK_Customers_Status`, and
+`CK_Customers_Health`. Each constraint admits only the exact closed values above using binary
+comparison plus exact byte length, so the default case-insensitive SQL Server collation and
+space-padded comparison cannot admit a value that would violate the wire. The migration adds no
+default and rewrites no row; pre-existing invalid state blocks migration rather than being normalized.
+Once applied, these required values cannot be persisted and therefore cannot be serialized outside
+the exact contract.
+
+Optional current read state remains in the Customers-owned profile JSON. No minimal trustworthy
+relational mechanism was found for enforcing its closed enum fields without introducing a bespoke
+JSON-validation system whose semantics could diverge from `System.Text.Json`.
+`CUSTOMER OPTIONAL PROFILE ENUM PERSISTENCE: KNOWN HARDENING LIMITATION`; controlled verifier
+fixtures use only admitted `CustomerHealth`, `OnboardingStatus`, `Tier`, and `ServiceLevel` values.
+The slice adds no lifecycle transition, onboarding command, creation workflow, purchase conversion,
+reversal behavior, identifier/code generator, or speculative domain mutation. Migration
+`20260828141857_CustomersReadCore` creates only the owner state and immutable successful-read
+evidence. Query-driven indexes are
 `(WorkspaceId, CreatedAt, CustomerId)`, `(WorkspaceId, OccurredAt)`, and
 `(WorkspaceId, CustomerId, OccurredAt)` in addition to the relationship reverse unique index.
 
@@ -1817,23 +1838,38 @@ role is unchanged without `customers.view`. No provisioning or convergence chang
 Therefore `CUSTOMERS DEFAULT NEW-WORKSPACE MODULE: AUTHORITY_GAP`,
 `CUSTOMERS INITIAL OWNER CAPABILITY: AUTHORITY_GAP`, and
 `CUSTOMERS END-TO-END NORMAL-WORKSPACE READ: NOT READY` even though an explicitly configured and
-authorized Workspace can use the owner-local read core.
+authorized Workspace can use the owner-local read core. The decisions are independent: module and
+capability registration plus an implemented read surface establish neither a new-Workspace default
+nor an initial-role grant, and the separately admitted Contacts precedent does not widen Customers.
+Historical AccessControl roles, including custom roles, are unchanged and no capability snapshot or
+convergence path is added. Historical `EnabledModuleKeysJson`, `ConfigurationVersion`, stored
+provisioning fingerprint, and effective provisioning intent are unchanged. Existing replay and
+fail-closed fingerprint behavior are therefore preserved without a new code path.
+`EXISTING WORKSPACE CUSTOMERS MODULE CONFIG UPGRADE: AUTHORITY_GAP / NOT IMPLEMENTED`.
 
 ### Executable evidence and gates
 
-On 2026-08-28, `scripts/verify-customers-read-core.ps1` ran against an isolated LocalDB database and
-real ApiHost and reported `PASS=80 FAIL=0`. It proved both relationship variants, independent Customer
-identity, same-Workspace reverse uniqueness and cross-Workspace allowance, authentication,
-capability, Workspace isolation, anti-existence leakage, fail-closed `OWN`/`TEAM`/`CUSTOM`, complete
-field behavior, one list authorization, zero per-row decisions, SQL scoping, successful-read audit,
-absent mutation/360 routes, no foreign persistence/readers, and no pending Customers EF changes.
-Unchanged regressions reported AccessControl Record Access `PASS=404 FAIL=0`, Contacts Read Core
-`PASS=67 FAIL=0`, and Organizations Read Core `PASS=71 FAIL=0`.
+On 2026-08-29, `scripts/verify-customers-read-core.ps1` ran against an isolated LocalDB database and
+real ApiHost and reported `PASS=117 FAIL=0`. In addition to the preserved Read Core evidence, it
+proved all four constraints present/enabled/trusted; lowercase and padded invalid values rejected at
+the persistence boundary with no row left behind; every admitted required enum value persisted and
+projected exactly; every admitted optional profile enum used by controlled fixtures; the exact two
+GET operation names; required-field completeness; no unexpected response field; unchanged reverse
+uniqueness/cross-Workspace allowance; and no pending Customers EF changes. Unchanged regressions
+reported AccessControl Record Access `PASS=404 FAIL=0`, Contacts Read Core `PASS=67 FAIL=0`, and
+Organizations Read Core `PASS=71 FAIL=0`.
+
+`dotnet build UnicoreCRM.slnx --no-restore` completed with zero warnings and zero errors. GitHub
+published zero status checks and zero workflow runs for backend commit
+`06efd938e1f9323f8f8c0b65afb026cbc04c1122`; the local frontend contract commit is not published.
+`GITHUB CI EVIDENCE: NONE`; local executable evidence is not reported as CI.
 
 Therefore `CUSTOMER IDENTITY: PASS`, `CUSTOMER RELATIONSHIPREF: PASS`,
 `CUSTOMER REVERSE UNIQUENESS: PASS`, `CUSTOMERS MODULE BOUNDARY/PERSISTENCE/WORKSPACE ISOLATION/
 CROSS-WORKSPACE NON-LEAKAGE/LIST/DETAIL/READ CAPABILITY/RECORD ACCESS/WORKSPACE SCOPE/FIELD SECURITY/
 SQL SCOPE PUSHDOWN/NO N+1/READ AUDIT/EF MODEL: PASS`, `CUSTOMERS OWN/TEAM/CUSTOM: AUTHORITY_GAP`,
+`CUSTOMER REQUIRED ENUM PERSISTENCE: PASS`,
+`CUSTOMER OPTIONAL PROFILE ENUM PERSISTENCE: KNOWN HARDENING LIMITATION`,
 `CUSTOMERS MASKED: AUTHORITY_GAP` for any rendered mask beyond safe withholding,
 `CUSTOMER CREATION SEMANTICS: AUTHORITY_GAP`, `CUSTOMER 360: AUTHORITY_GAP`,
 `CUSTOMERS READ CORE: PASS`, `CUSTOMERS END-TO-END NORMAL-WORKSPACE READ: NOT READY`, and
