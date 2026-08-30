@@ -6,6 +6,8 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence;
 
 internal sealed class EfQuotesPersistence(QuotesDbContext dbContext) : IQuotesPersistence
 {
+    private const string CaseInsensitiveSearchCollation = "Latin1_General_100_CI_AS";
+
     public Task<Quote?> ReadQuoteAsync(
         string workspaceId,
         string quoteId,
@@ -25,11 +27,12 @@ internal sealed class EfQuotesPersistence(QuotesDbContext dbContext) : IQuotesPe
             .AsNoTracking()
             .Where(item => item.WorkspaceId == workspaceId);
 
-        // AUTHORITY_GAP: authority admits a search parameter but does not define its exact corpus
-        // or matching rules. This existing compatibility behavior is not treated as a verified
-        // contract guarantee by the focused verifier.
         if (specification.Search is { } search)
-            query = query.Where(item => item.QuoteNumber.Contains(search) || item.Title.Contains(search));
+        {
+            query = query.Where(item =>
+                EF.Functions.Collate(item.QuoteNumber, CaseInsensitiveSearchCollation).Contains(search)
+                || EF.Functions.Collate(item.Title, CaseInsensitiveSearchCollation).Contains(search));
+        }
         if (specification.Status is { } status)
             query = query.Where(item => item.Status == status);
         if (specification.SourceDealId is { } sourceDealId)

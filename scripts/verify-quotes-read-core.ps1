@@ -397,6 +397,73 @@ VALUES
         (Invoke-Quote -Method 'GET' -Path '/quotes?sourceDealId=deal_source_a').Body.items[0].id
     Add-Result 'buyer filter is exact' $quoteB `
         (Invoke-Quote -Method 'GET' -Path '/quotes?buyerType=CONTACT&buyerId=contact_buyer_b').Body.items[0].id
+
+    $quoteNumberExact = Invoke-Quote -Method 'GET' -Path '/quotes?search=Q-2026-0001'
+    Add-Result 'search: quoteNumber exact match succeeds' '200' $quoteNumberExact.Status
+    Add-Result 'search: quoteNumber exact match returns the Quote' $quoteA $quoteNumberExact.Body.items[0].id
+    Add-Result 'search: quoteNumber partial substring returns the Quote' $quoteA `
+        (Invoke-Quote -Method 'GET' -Path '/quotes?search=2026-0001').Body.items[0].id
+    Add-Result 'search: quoteNumber matching is case-insensitive' $quoteA `
+        (Invoke-Quote -Method 'GET' -Path '/quotes?search=q-2026-0001').Body.items[0].id
+
+    $titleExactPath = '/quotes?search=' + [Uri]::EscapeDataString('Verified Enterprise Quote')
+    Add-Result 'search: title exact match returns the Quote' $quoteA `
+        (Invoke-Quote -Method 'GET' -Path $titleExactPath).Body.items[0].id
+    Add-Result 'search: title partial substring returns the Quote' $quoteA `
+        (Invoke-Quote -Method 'GET' -Path '/quotes?search=Enterprise').Body.items[0].id
+    $titleDifferentCasePath = '/quotes?search=' + [Uri]::EscapeDataString('verified enterprise quote')
+    Add-Result 'search: title matching is case-insensitive' $quoteA `
+        (Invoke-Quote -Method 'GET' -Path $titleDifferentCasePath).Body.items[0].id
+    $trimmedSearchPath = '/quotes?search=' + [Uri]::EscapeDataString('  Enterprise  ')
+    Add-Result 'search: leading and trailing whitespace is trimmed' $quoteA `
+        (Invoke-Quote -Method 'GET' -Path $trimmedSearchPath).Body.items[0].id
+    Add-Result 'search: empty value applies no filter' '2' `
+        ([string](Invoke-Quote -Method 'GET' -Path '/quotes?search=').Body.items.Count)
+    Add-Result 'search: whitespace-only value applies no filter' '2' `
+        ([string](Invoke-Quote -Method 'GET' -Path '/quotes?search=%20%20%20').Body.items.Count)
+    Add-Result 'search: percent is a literal substring character, not a SQL wildcard' '0' `
+        ([string](Invoke-Quote -Method 'GET' -Path '/quotes?search=%25').Body.items.Count)
+    Add-Result 'search: underscore is a literal substring character, not a SQL wildcard' '0' `
+        ([string](Invoke-Quote -Method 'GET' -Path '/quotes?search=_').Body.items.Count)
+
+    $tooLongSearchPath = '/quotes?search=' + ('a' * 241)
+    $tooLongSearch = Invoke-Quote -Method 'GET' -Path $tooLongSearchPath
+    Add-Result 'search: value over 240 characters is rejected' '422' $tooLongSearch.Status
+    Add-Result 'search: overlength validation identifies search' 'True' `
+        ($tooLongSearch.Raw -match 'search').ToString()
+
+    $excludedSearchValues = @(
+        $secretA,
+        'buyer@example.test',
+        'organization_buyer_a',
+        'deal_source_a',
+        'Historical Product Snapshot',
+        'SKU-SNAPSHOT',
+        'Verified discount',
+        'Manual verification',
+        'DEPOSIT_AND_BALANCE',
+        'sha256:delivery-a',
+        'QUOTE_APPROVAL_REQUIRED'
+    )
+    foreach ($excludedSearchValue in $excludedSearchValues) {
+        $excludedSearchPath = '/quotes?search=' + [Uri]::EscapeDataString($excludedSearchValue)
+        Add-Result ("search: excluded corpus value is not matched ({0})" -f $excludedSearchValue) '0' `
+            ([string](Invoke-Quote -Method 'GET' -Path $excludedSearchPath).Body.items.Count)
+    }
+
+    $foreignSearch = Invoke-Quote -Method 'GET' -Path '/quotes?search=Q-FOREIGN-SECRET'
+    Add-Result 'search: foreign Workspace Quote is absent' '0' ([string]$foreignSearch.Body.items.Count)
+    Add-Result 'search: foreign Workspace value is absent from response bytes' 'True' `
+        ($foreignSearch.Raw -notmatch [regex]::Escape($secretC)).ToString()
+
+    $filteredPage = Invoke-Quote -Method 'GET' -Path '/quotes?search=Enterprise&limit=1&sortBy=quoteNumber&sortDirection=asc'
+    Add-Result 'search: filtered page succeeds' '200' $filteredPage.Status
+    Add-Result 'search: page limit applies to filtered results' '1' ([string]$filteredPage.Body.items.Count)
+    Add-Result 'search: totalCount reflects the filtered visible result set' '1' `
+        ([string]$filteredPage.Body.pageInfo.totalCount)
+    Add-Result 'search: pageInfo reflects filtered continuation' 'False' `
+        ([string]$filteredPage.Body.pageInfo.hasNextPage)
+
     Add-Result 'invalid status is rejected' '422' (Invoke-Quote -Method 'GET' -Path '/quotes?status=draft').Status
     Add-Result 'invalid cursor is rejected' '422' (Invoke-Quote -Method 'GET' -Path '/quotes?cursor=not-a-cursor').Status
     Add-Result 'invalid limit type is rejected' '422' (Invoke-Quote -Method 'GET' -Path '/quotes?limit=abc').Status
@@ -458,6 +525,10 @@ VALUES
     Add-Result 'OWN fails closed despite matching ownerId wire field' '404' $ownDetail.Status
     Add-Result 'OWN access denial does not leak existence' 'True' (Same-Problem $ownDetail $ownUnknown).ToString()
     Add-Result 'OWN list fails closed before Quote query' '0' ([string](Invoke-Quote -Method 'GET' -Path '/quotes').Body.items.Count)
+    $ownSearch = Invoke-Quote -Method 'GET' -Path '/quotes?search=Enterprise'
+    Add-Result 'search: OWN record-access scope still fails closed' '0' ([string]$ownSearch.Body.items.Count)
+    Add-Result 'search: OWN record-access totalCount still fails closed' '0' `
+        ([string]$ownSearch.Body.pageInfo.totalCount)
     foreach ($scope in @('Team','Custom')) {
         Set-QuoteScope -RoleId $roleId -Scope $scope
         Add-Result ("{0} detail fails closed" -f $scope.ToUpperInvariant()) '404' `
@@ -556,5 +627,7 @@ END;
 $script:Results | ForEach-Object { Write-Host $_ }
 Write-Host ("Quotes Read Core verification: passed={0} failed={1}" -f $script:Passed, $script:Failed)
 if ($script:Failed -ne 0) { throw 'Quotes Read Core verification failed.' }
-Write-Host 'QUOTE SEARCH SEMANTICS: AUTHORITY_GAP'
-Write-Host 'QUOTE OWNER-LOCAL READ CORE: PARTIALLY VERIFIED'
+Write-Host 'QUOTE SEARCH CORPUS: quoteNumber + title'
+Write-Host 'QUOTE SEARCH MATCH: CASE_INSENSITIVE_SUBSTRING'
+Write-Host 'QUOTE SEARCH SEMANTICS: PASS'
+Write-Host 'QUOTE OWNER-LOCAL READ CORE: IMPLEMENTED AND VERIFIED'
