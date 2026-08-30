@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>UnicoreCRM.CommercialEvidence.Verifier</AssemblyName>
+    <RootNamespace>UnicoreCRM.CommercialEvidence.Verifier</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/UnicoreCRM.CommercialEvidence/UnicoreCRM.CommercialEvidence.csproj" />
+  </ItemGroup>
+</Project>

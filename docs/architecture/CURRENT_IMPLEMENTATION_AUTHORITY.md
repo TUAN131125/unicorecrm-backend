@@ -1875,6 +1875,1100 @@ SQL SCOPE PUSHDOWN/NO N+1/READ AUDIT/EF MODEL: PASS`, `CUSTOMERS OWN/TEAM/CUSTOM
 `CUSTOMERS READ CORE: PASS`, `CUSTOMERS END-TO-END NORMAL-WORKSPACE READ: NOT READY`, and
 `CUSTOMERS FULL MODULE: NOT COMPLETE`.
 
+## PurchaseEvidence Aggregate Identity Frozen Authority
+
+### Decision provenance and scope
+
+On 2026-08-29, the PurchaseEvidence Aggregate-ID Scheme authority task created the decisions in this
+section as **NEW FROZEN TECHNICAL AUTHORITY**. Existing authority already established
+CommercialEvidence as the canonical owner of the append-only `PurchaseEvidence` aggregate, required
+trusted Workspace scope, and separated source/correlation concepts from aggregate identity. It did
+not establish the exact durable aggregate key, allocation character, collision behavior, or reversal
+ID namespace. No higher-precedence source was found that contradicts the technical decisions below.
+These decisions are explicitly frozen by this task; they are not attributed to OpenAPI, the
+registries, Design Authority, frontend behavior, or an existing runtime implementation.
+
+This section decides only PurchaseEvidence aggregate identity. It does not decide the producer,
+source namespace or source-key tuple; source-specific replay transport; reversal authorization or
+complete durable row shape; effective-evidence policy; audit/outbox schemas; a consumer contract;
+Customer conversion; or WF-05 execution. It admits no operation, route, command, query, event,
+cross-owner contract, persistence model, migration, or implementation slice.
+
+### Aggregate key and ID allocation
+
+The canonical durable PurchaseEvidence identity is `(workspaceId, evidenceId)`, represented by the
+future relational key `(WorkspaceId, EvidenceId)`. Workspace is part of the aggregate identity and
+`evidenceId` is unique only within one Workspace; it need not be globally unique. Every owner-local
+lookup or mutation must use a trusted Workspace context plus `evidenceId`. Caller-supplied Workspace
+data is never authority, lookup by `evidenceId` alone is insufficient, a foreign-Workspace collision
+is legal and must not disclose existence, and the same `evidenceId` may identify different records in
+different Workspaces.
+
+CommercialEvidence alone allocates `evidenceId`. It is an opaque, immutable, server-generated owner
+identifier with no business meaning beyond identifying the canonical record. It is not supplied by
+the frontend, Orders, Workflows, Customers, or another source owner and is not derived from
+`orderId`, an external transaction identifier, an import row identifier, `correlationId`, BuyerRef,
+or any future source key. The identifier satisfies the repository's canonical EntityId envelope:
+one to 128 characters matching `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`. This authority does not mandate
+Guid, UUID, ULID, Snowflake, a prefix, or another generator technology.
+
+Aggregate identity and producer/source identity are distinct. The aggregate key identifies the
+CommercialEvidence-owned record. A future Workspace-qualified source key will support idempotency,
+replay, provenance uniqueness, and resolution to the existing canonical `evidenceId`; it must not
+replace the aggregate key or deterministically fabricate `evidenceId`. BuyerRef and `correlationId`
+are neither aggregate identity nor source identity.
+
+### Non-reuse, collision and reversal namespace
+
+After a PurchaseEvidence or reversal record is successfully appended, its `evidenceId` is never
+reused within that Workspace. Reversal and retention do not release it, and deletion is not part of
+the canonical model. A generated candidate that fails before canonical append creates no durable ID
+reservation unless separately admitted later.
+
+A generated-ID collision with an already persisted `(WorkspaceId, EvidenceId)` is not source replay,
+is not success, grants no authority to return the unrelated existing record, and never permits that
+record to be mutated. CommercialEvidence may generate another opaque candidate internally before a
+successful append result is exposed. The exact bounded retry algorithm and retry count are deferred
+implementation details; if internal allocation cannot establish uniqueness, the future operation
+must fail closed.
+
+A reversal is a separate immutable CommercialEvidence record in the same `evidenceId` namespace as
+original PurchaseEvidence. Its durable identity is also `(workspaceId, evidenceId)`; it receives a
+new opaque `evidenceId`, shares the original's trusted Workspace boundary, and separately references
+the original through `reversalOfEvidenceId`. It never reuses the original ID. This freezes no other
+reversal row field and does not decide BuyerRef/source/evidence-type duplication, policy provenance,
+reason, authorization, multiple reversals, reversal-of-reversal, concurrency, or Customer effects.
+
+### Conceptual relational and security consequences
+
+The conceptual future PurchaseEvidence primary key is `(WorkspaceId, EvidenceId)`. No alternate or
+unique source constraint is admitted by this section. Trusted Workspace is mandatory for future
+owner-local reads and writes; source-key lookup must also become Workspace-qualified when its exact
+namespace is frozen. No public API is created by these decisions.
+
+| Concern | Frozen decision | Authority type | Remaining gap |
+|---|---|---|---|
+| Aggregate owner | CommercialEvidence | Existing | None |
+| Aggregate key | `(workspaceId, evidenceId)` | NEW FROZEN TECHNICAL AUTHORITY | None |
+| ID allocation owner | CommercialEvidence | Existing | None |
+| ID character | Opaque server-generated EntityId | NEW FROZEN TECHNICAL AUTHORITY | Exact generator implementation |
+| Source-derived ID | No | NEW FROZEN TECHNICAL AUTHORITY | None |
+| ID non-reuse | Yes after canonical append | Existing + frozen clarification | None |
+| Collision | Internal re-allocation or fail closed | NEW FROZEN TECHNICAL AUTHORITY | Bounded retry implementation |
+| Reversal namespace | Same `evidenceId` namespace | NEW FROZEN TECHNICAL AUTHORITY | Reversal operation and complete row semantics |
+| Aggregate/source identity separation | Required | NEW FROZEN TECHNICAL AUTHORITY | Exact Workspace-qualified source tuple |
+
+The following invariants are frozen `PASS`:
+
+1. PurchaseEvidence canonical identity is `(WorkspaceId, EvidenceId)`.
+2. CommercialEvidence alone allocates `evidenceId`.
+3. `evidenceId` is opaque.
+4. `evidenceId` is not derived from source identity.
+5. `evidenceId` is immutable.
+6. A successfully appended `evidenceId` is never reused in that Workspace.
+7. Generated-ID collision is not source replay.
+8. Collision never returns an unrelated existing evidence record.
+9. Reversal receives its own `evidenceId`.
+10. Reversal uses the same `evidenceId` namespace.
+11. Reversal and original share the trusted Workspace boundary.
+12. Aggregate identity and source identity are separate concepts.
+13. Source replay resolves through a future source key, not by fabricating `evidenceId`.
+14. BuyerRef is not aggregate identity.
+15. `correlationId` is not aggregate identity.
+16. The same `EvidenceId` may exist in another Workspace without identity conflict or disclosure.
+
+### Deferred authority and readiness
+
+The exact `sourceType` vocabulary, `sourceSystem` semantics, `sourceId` meaning for Order, external,
+and historical evidence, Workspace-qualified source identity tuple, source uniqueness, participation
+of `evidenceType` in that key, producer contracts, replay execution, reversal operation and complete
+reversal durable shape remain `AUTHORITY_GAP`. `EVIDENCE REVERSAL DURABLE RECORD MODEL: PARTIALLY
+FROZEN`, `EVIDENCE REVERSAL OPERATIONAL SEMANTICS: AUTHORITY_GAP`, and WF-05 Customer Conversion
+remains `BLOCKED`.
+
+Therefore `PURCHASE EVIDENCE AGGREGATE-ID AUTHORITY FREEZE: PASS`,
+`PURCHASE EVIDENCE AGGREGATE IDENTITY: PASS`, `PURCHASE EVIDENCE IDENTITY MODEL: READY`,
+`PURCHASE EVIDENCE SOURCE-KEY MODEL: AUTHORITY_GAP`,
+`EVIDENCE REVERSAL COMPLETE DURABLE MODEL: AUTHORITY_GAP`,
+`COMMERCIALEVIDENCE DURABLE MODEL: AUTHORITY_GAP`,
+`COMMERCIALEVIDENCE OWNER-LOCAL PERSISTENCE: NOT YET ADMITTED`, and
+`SAFE NEXT IMPLEMENTATION SLICE: NONE`. The exact next authority task is
+**PurchaseEvidence Source Namespace and Source-Key Authority Freeze**.
+
+## PurchaseEvidence Source Namespace and Source-Key Frozen Authority
+
+### Decision provenance and scope
+
+On 2026-08-29, the PurchaseEvidence Source Namespace and Source-Key authority task created the
+decisions in this section as **NEW FROZEN TECHNICAL AUTHORITY**. The current local working-tree
+version of this document, including the preceding uncommitted PurchaseEvidence Aggregate Identity
+Frozen Authority, was the Level-1 authority input and is preserved unchanged. The adopted OpenAPI,
+canonical registries, architecture invariants, non-superseded Design Authority, backend skeleton and
+targeted frontend supporting evidence were then applied in that order. No higher-precedence source
+was found that contradicts the source taxonomy or source-key decisions below. These decisions are
+not attributed to OpenAPI, Design Authority, frontend behavior or a runtime implementation.
+
+This section freezes only source classification, namespace, identifier meaning, exact identity
+equality, uniqueness, replay semantics, source/evidence cardinality and the conceptual relational
+source-key shape for canonical original PurchaseEvidence. It does not admit or define a producer,
+command/event/transport contract, operation-level idempotency, source-truth validation, transaction
+choreography, reversal operation, effective-evidence policy, audit/outbox schema, consumer contract,
+Customer lifecycle effect or WF-05 execution. It creates no operation, route or implementation
+slice.
+
+### Source taxonomy and exact source identities
+
+The admitted original `evidenceType` vocabulary remains exactly `ORDER_COMPLETED`,
+`EXTERNAL_PURCHASE_CONFIRMED` and `HISTORICAL_PURCHASE_IMPORTED`. No Payment, Invoice, manual or
+generic purchase evidence kind is admitted. `sourceType` is a separate provenance classification
+whose exact vocabulary is now `ORDER`, `EXTERNAL_PURCHASE` and `HISTORICAL_IMPORT`.
+
+| Evidence type | `sourceType` | `sourceSystem` | `sourceId` semantic | Exact source identity | `evidenceType` in key? | Authority |
+|---|---|---|---|---|---|---|
+| `ORDER_COMPLETED` | `ORDER` | Not part of Order source identity | Canonical Orders-owned `orderId` | `(workspaceId, ORDER, orderId)` | No | PASS |
+| `EXTERNAL_PURCHASE_CONFIRMED` | `EXTERNAL_PURCHASE` | Required canonical external namespace | Immutable purchase-fact ID inside `sourceSystem` | `(workspaceId, EXTERNAL_PURCHASE, sourceSystem, sourceId)` | No | PASS |
+| `HISTORICAL_PURCHASE_IMPORTED` | `HISTORICAL_IMPORT` | Required original historical namespace | Immutable original purchase-fact ID inside `sourceSystem` | `(workspaceId, HISTORICAL_IMPORT, sourceSystem, sourceId)` | No | PASS |
+
+`ORDER` means the canonical source fact is an Orders-owned Order. Its `sourceId` is the canonical
+`orderId`; `sourceSystem` is not required and does not participate in Order source identity. One
+exact `(workspaceId, ORDER, orderId)` source may produce zero or one canonical `ORDER_COMPLETED`
+PurchaseEvidence. Repeated handling of that source is replay, not a second evidence fact. This does
+not decide who invokes CommercialEvidence or when an Order is eligible to close.
+
+`EXTERNAL_PURCHASE` means the source fact originates from an identified external source system.
+`sourceSystem` is required as its opaque canonical namespace, and `sourceId` is the immutable
+identifier of the purchase fact within that namespace. Identical native identifiers from two source
+systems are distinct source identities. No provider value, registration model, integration owner or
+confirmation-validity rule is frozen here.
+
+`HISTORICAL_IMPORT` means the source fact is an original historical purchase from an identified
+source system. `sourceSystem` is the required original namespace and `sourceId` is the immutable
+identifier of the original purchase fact inside it. Import batch ID, import execution ID, upload or
+session ID and row number are not canonical source identity. Re-importing the same original
+`sourceSystem` plus `sourceId` in another batch resolves to the same source identity. Future import
+execution and validation authority remain unresolved.
+
+### Source namespace, identifier and equality semantics
+
+`sourceSystem` is an opaque canonical namespace identifier where the native `sourceId` is not
+sufficient by itself. It is immutable provenance and participates in External and Historical source
+identity; it is not `evidenceId`, WorkspaceId, BuyerRef, `correlationId` or a display label. This task
+does not define a global source-system registry, provider onboarding, physical storage or maximum
+length.
+
+`sourceId` identifies the business/source fact being deduplicated: canonical `orderId` for Order,
+the external purchase-fact identifier within its external namespace, or the original historical
+purchase-fact identifier within its historical namespace. An API request, import execution, upload,
+batch, row, correlation, aggregate evidence or buyer identifier cannot substitute for `sourceId`.
+
+Two source identities are equal only when every component of the applicable source-type-specific key
+is exactly equal. There is no fuzzy matching and equality is not inferred from BuyerRef, amount,
+occurrence time, note, document or `correlationId`. Database collation and normalization are deferred
+implementation details and must preserve this exact canonical equality. A changed source-key
+component denotes a different source identity; it must not be silently normalized into an existing
+one.
+
+`evidenceType` does not participate in the current source key. Each admitted `sourceType` maps to one
+admitted evidence kind: `ORDER` to `ORDER_COMPLETED`, `EXTERNAL_PURCHASE` to
+`EXTERNAL_PURCHASE_CONFIRMED`, and `HISTORICAL_IMPORT` to `HISTORICAL_PURCHASE_IMPORTED`. The key may
+not be widened to let one current source fact manufacture multiple evidence kinds. Future authority
+that admits such a case must explicitly amend this rule.
+
+### Source uniqueness and replay
+
+Within one Workspace, one exact source identity corresponds to at most one canonical original
+PurchaseEvidence. The same source components may coexist in another Workspace. BuyerRef is not
+unique; multiple distinct source identities may reference the same BuyerRef, and no PurchaseEvidence
+uniqueness rule may use `(workspaceId, BuyerRef)`.
+
+When the same exact source identity is presented with the same canonical immutable PurchaseEvidence
+payload, the existing canonical PurchaseEvidence identity is resolved and reused. No evidence row is
+created, no replacement `evidenceId` is allocated and the existing record is not mutated. This is a
+durable semantic rule only; response, status, command DTO, acknowledgement and retry transport are
+not defined.
+
+When the same exact source identity is presented with a different canonical immutable payload, the
+attempt fails closed. The existing record remains unchanged; no merge, normalization, second
+PurchaseEvidence, correction, supersession or reinterpretation as a new purchase is admitted. A
+different BuyerRef, occurrence time, `evidenceType` or other required immutable fact is therefore a
+conflict for that source identity. The exact internal or public error contract is deferred.
+
+`correlationId` remains immutable provenance/workflow correlation and does not participate in source
+identity. Changing it cannot manufacture a new source fact; where a persisted canonical correlation
+would differ under the same source identity, the changed-payload fail-closed rule applies. BuyerRef
+also remains excluded from source identity. Aggregate identity remains the separately frozen
+`(workspaceId, evidenceId)`; a source key is an alternate identity/idempotency boundary that resolves
+to an aggregate and never generates or replaces its `evidenceId`.
+
+### Conceptual relational source-key model
+
+The aggregate primary key remains `(WorkspaceId, EvidenceId)`. The following are semantic future
+uniqueness constraints for original evidence only:
+
+- `ORDER`: unique within Workspace on `(SourceType = ORDER, SourceId)`;
+- `EXTERNAL_PURCHASE`: unique within Workspace on
+  `(SourceType = EXTERNAL_PURCHASE, SourceSystem, SourceId)`;
+- `HISTORICAL_IMPORT`: unique within Workspace on
+  `(SourceType = HISTORICAL_IMPORT, SourceSystem, SourceId)`.
+
+A future implementation may use filtered unique indexes, discriminator-aware constraints or another
+relationally equivalent mechanism. No physical representation, collation, index technology, EF
+model or migration is admitted here. `EvidenceType`, BuyerRef and `CorrelationId` must not widen or
+replace these current semantic source keys.
+
+### Ownership boundary, decision table and invariants
+
+Orders owns Order truth. CommercialEvidence owns PurchaseEvidence and canonical PurchaseEvidence
+source uniqueness. External/historical producer and source-truth ownership remain unresolved. This
+authority permits neither CommercialEvidence access to Orders, Payments, Invoices, Contacts or
+Organizations persistence nor source-owner writes to CommercialEvidence persistence. The production
+model remains `DEFERRED / AUTHORITY_GAP`; no command or cross-owner contract is admitted.
+
+| Concern | Frozen decision | Authority type | Remaining gap |
+|---|---|---|---|
+| `sourceType` vocabulary | `ORDER` / `EXTERNAL_PURCHASE` / `HISTORICAL_IMPORT` | NEW FROZEN TECHNICAL AUTHORITY | None |
+| Order `sourceId` | Canonical `orderId` | NEW FROZEN TECHNICAL AUTHORITY | Producer execution |
+| External `sourceSystem` | Required namespace | NEW FROZEN TECHNICAL AUTHORITY | Provider registration |
+| External `sourceId` | Source-system purchase ID | NEW FROZEN TECHNICAL AUTHORITY | Producer validation |
+| Historical `sourceSystem` | Required original namespace | NEW FROZEN TECHNICAL AUTHORITY | Import producer |
+| Historical `sourceId` | Original purchase-fact ID | NEW FROZEN TECHNICAL AUTHORITY | Import validation |
+| `evidenceType` in source key | No | NEW FROZEN TECHNICAL AUTHORITY | Future explicit amendment only |
+| Identical replay | Reuse existing evidence | Existing + frozen clarification | Transport |
+| Changed replay | Fail closed | Existing + frozen clarification | Error contract |
+| Aggregate/source identity separation | Required | Existing frozen authority | None |
+
+The following invariants are frozen `PASS`:
+
+1. Every canonical source identity is Workspace-qualified.
+2. Order source identity uses canonical `orderId`.
+3. External source identity requires `sourceSystem`.
+4. Historical source identity requires `sourceSystem`.
+5. Historical import batch is not source identity.
+6. Historical import row number is not source identity.
+7. BuyerRef is not source identity.
+8. `correlationId` is not source identity.
+9. `evidenceType` is not part of the current source key.
+10. One exact source identity yields at most one canonical original PurchaseEvidence.
+11. The same source identity components may coexist in different Workspaces.
+12. Multiple source identities may reference the same BuyerRef.
+13. Identical replay reuses existing canonical evidence.
+14. Changed-payload replay cannot mutate canonical evidence.
+15. Changed-payload replay cannot create correction or supersession.
+16. Source identity does not replace aggregate identity.
+17. `sourceSystem` is a namespace identity component, not a display label.
+18. Source owners do not own canonical PurchaseEvidence persistence.
+
+### Deferred authority and readiness
+
+Reversal source type/system/identifier, reversal uniqueness, authorization, multiplicity,
+reversal-of-reversal, reason and operational idempotency remain outside this source-key authority.
+`EVIDENCE REVERSAL COMPLETE DURABLE MODEL: AUTHORITY_GAP`. `PURCHASE EVIDENCE POLICY VERSION:
+AUTHORITY_GAP`. Effective state remains derived from immutable evidence/reversal facts, while
+`EFFECTIVE PURCHASE EVIDENCE COMPLETE PREDICATE: AUTHORITY_GAP` because source-specific validity and
+complete reversal semantics are not closed. WF-05 Customer Conversion remains `BLOCKED`.
+
+Therefore `PURCHASE EVIDENCE SOURCE NAMESPACE AUTHORITY FREEZE: PASS`,
+`PURCHASE EVIDENCE SOURCE TYPE VOCABULARY: PASS`, `PURCHASE EVIDENCE SOURCE IDENTITY: PASS`,
+`PURCHASE EVIDENCE SOURCE UNIQUENESS: PASS`, `PURCHASE EVIDENCE RELATIONAL SOURCE-KEY MODEL: PASS`,
+`PURCHASE EVIDENCE IDENTITY MODEL: READY`, `PURCHASE EVIDENCE SOURCE-KEY MODEL: READY`,
+`COMMERCIALEVIDENCE DURABLE MODEL: AUTHORITY_GAP`,
+`COMMERCIALEVIDENCE OWNER-LOCAL PERSISTENCE: NOT YET ADMITTED`, and
+`SAFE NEXT IMPLEMENTATION SLICE: NONE`. The exact next authority task is
+**Reversal Durable Record and Policy Provenance Authority Freeze**.
+
+## PurchaseEvidence Reversal Durable Record and Policy Provenance Frozen Authority
+
+### Decision provenance and scope
+
+On 2026-08-29, the Reversal Durable Record and Policy Provenance Authority Freeze task created the
+decisions in this section as **NEW FROZEN TECHNICAL AUTHORITY**. The authority hierarchy actually
+used was: the explicit Level-0 decisions in that task; the current local working-tree version of this
+document, including both preceding uncommitted PurchaseEvidence freezes; the exact adopted OpenAPI;
+the canonical registries; architecture and tenancy invariants; non-superseded Design Authority;
+backend skeleton evidence; and frontend implementation as supporting evidence only. No
+higher-precedence source was found that contradicts the technical decisions below. They are not
+attributed to OpenAPI, Design Authority, frontend behavior or a current runtime implementation.
+
+This section freezes only the conceptual immutable original/reversal record family, structural
+reversal identity and cardinality, minimum durable provenance, `policyVersion` meaning, evidence-level
+unreversed-state derivation and conceptual owner-local relational invariants. It does not admit a
+producer, reversal operation, authorization rule, public contract, source-truth validation,
+transaction/concurrency behavior, audit/outbox/inbox schema, effective-evidence consumer contract,
+Customer lifecycle effect or WF-05 execution. It creates no operation, route, command, query, event,
+cross-owner interface, persistence model, migration or implementation slice.
+
+### Immutable durable record family
+
+CommercialEvidence durable history has two conceptual immutable variants sharing the same
+`(workspaceId, evidenceId)` identity envelope: original PurchaseEvidence and reversal evidence. This
+is a structural model, not a requirement to use one physical table or a stored discriminator column.
+
+| Concern | Original PurchaseEvidence | Reversal Evidence | Authority |
+|---|---|---|---|
+| `workspaceId` | Required | Required | PASS |
+| `evidenceId` | Required | Required own ID | PASS |
+| `evidenceType` | Exact admitted purchase type | Not admitted | PASS |
+| `buyerRef` | Required | Derived through original | PASS |
+| Source identity | Required applicable frozen source key | Not copied from original | PASS |
+| `reversalOfEvidenceId` | Null | Required | PASS |
+| `occurredAt` | Purchase occurrence | Reversal occurrence | PASS |
+| `policyVersion` | Required | Required | PASS |
+| `correlationId` | Required | Required own provenance | PASS |
+| Effective/status | Derived; not stored | Not applicable | PASS |
+
+An original is structurally identified by `reversalOfEvidenceId = null`; a reversal is structurally
+identified by `reversalOfEvidenceId != null`. The original `evidenceType` vocabulary remains exactly
+`ORDER_COMPLETED`, `EXTERNAL_PURCHASE_CONFIRMED` and `HISTORICAL_PURCHASE_IMPORTED`. No `REVERSAL`
+evidence type, reversal `sourceType`, mutable `status = REVERSED`, or mutable `effective` flag is
+admitted.
+
+The minimum canonical durable facts for an original are `workspaceId`, `evidenceId`, `evidenceType`,
+BuyerRef, the applicable frozen source identity, `occurredAt`, `policyVersion` and `correlationId`.
+The minimum canonical durable facts for a reversal are `workspaceId`, `evidenceId`,
+`reversalOfEvidenceId`, `occurredAt`, `policyVersion` and `correlationId`. No `amount`, `currency`,
+`documentRef`, `note`, `createdBy`, `status`, `effective`, `recordedAt`, `createdAt`, mutable resource
+`version`, or `reversalReason` is admitted by this authority.
+
+### Reversal identity, target and cardinality
+
+A reversal is a separate append-only, immutable CommercialEvidence record. It receives its own new
+opaque `evidenceId` from the same namespace as originals; it never reuses the original ID. Its
+canonical identity is `(workspaceId, evidenceId)`. The owner-local target identity
+`(reversal.workspaceId, reversal.reversalOfEvidenceId)` must resolve to exactly one canonical
+original `(original.workspaceId, original.evidenceId)` in the same trusted Workspace.
+
+A reversal may not reference unknown evidence, foreign-Workspace evidence, itself, another reversal,
+or another owner's record. The target must have `reversalOfEvidenceId = null`; reversal-of-reversal,
+undo reversal, restore reversal and effective-state toggling are not admitted. One original has zero
+or one canonical reversal. If one already exists, another distinct reversal record must not be
+appended. This freezes only the durable result; command response, returned identity, retry and
+transport semantics remain deferred.
+
+Both the original and reversal remain physically and semantically intact after append. Neither is
+editable, deletable, converted into the other or rewritten by the reversal. A reversal does not own
+an independent copied BuyerRef and does not copy the original `sourceType`, `sourceSystem`, `sourceId`
+or `evidenceType` as canonical truth. BuyerRef and original purchase-source provenance are resolved
+through the CommercialEvidence-owned original record. No foreign-owner lookup or persistence access
+is thereby admitted.
+
+The current source-key authority applies only to original `ORDER`, `EXTERNAL_PURCHASE` and
+`HISTORICAL_IMPORT` facts. A reversal producer/source namespace, source key and operational
+idempotency model remain `AUTHORITY_GAP`; no `REVERSAL`, `REVERSAL_COMMAND` or `REVERSAL_EVENT`
+`sourceType` is created.
+
+### Temporal, correlation and policy provenance
+
+`occurredAt` on an original is the time the purchase fact occurred. `occurredAt` on a reversal is the
+time the reversal fact occurred and is not copied from the original. System processing,
+`recordedAt` and `createdAt` timestamps are not frozen or added here.
+
+Every reversal carries its own immutable `correlationId` provenance/workflow correlation. It need
+not equal the original's `correlationId` and is not evidence identity, reversal target identity,
+source identity, an idempotency key, permission or Customer identity. Its generation mechanism is
+deferred.
+
+`policyVersion` is the immutable identifier of the CommercialEvidence-owned evidence policy under
+which a durable evidence fact was admitted/interpreted at append time. It records the
+CommercialEvidence policy context associated with that immutable fact. It is not a Customer
+lifecycle, Customer conversion, CustomerState aggregate, Order, source-system, API, schema, workflow
+or AccessControl policy version.
+
+`policyVersion` is required and immutable on both original and reversal records. An original records
+the evidence-policy version applied when the original fact was admitted; a reversal records the
+evidence-policy version applied when the reversal fact was admitted. A reversal does not
+automatically copy the original version, and the two may differ because they are distinct facts
+admitted at different times. Policy changes affect future admitted facts and do not rewrite existing
+records absent separate explicit migration authority. Policy registry/storage and actual policy
+content, including monetary thresholds, allowed providers or source states, import validation,
+BuyerRef validation, authorization and conversion requirements, remain deferred.
+
+| Policy concern | Decision | Authority |
+|---|---|---|
+| Policy owner | CommercialEvidence | PASS |
+| Original `policyVersion` | Required | PASS |
+| Reversal `policyVersion` | Required | PASS |
+| Immutable | Yes | PASS |
+| Copied from original | No requirement | PASS |
+| Customer lifecycle version | No | PASS |
+| Source-system version | No | PASS |
+| API/schema version | No | PASS |
+| Actual policy content | Deferred | DEFERRED |
+
+### Derived reversal state and ownership guard
+
+A canonical original with zero canonical reversal is `UNREVERSED`; an original with one canonical
+reversal is `REVERSED` at evidence level. The original remains intact. A reversed original cannot
+satisfy the unreversed-PurchaseEvidence portion of future effective-evidence eligibility. This
+durable unreversed predicate is complete, but the full effective PurchaseEvidence predicate remains
+`AUTHORITY_GAP` because producer/source-truth validity, BuyerRef existence validation, policy content
+and the consumer boundary are not closed. Effective/reversed state is derived from immutable facts,
+not written as mutable state on the original.
+
+Customers owns the Customer aggregate and Customer lifecycle truth. CommercialEvidence owns
+PurchaseEvidence truth, reversal evidence truth and derived evidence effectiveness/projection policy;
+it acquires no authority to mutate Customer lifecycle state because evidence is reversed. Customer
+deletion, archival, deactivation, rollback, relationship removal, onboarding change or other
+consequence of reversal remains `AUTHORITY_GAP`.
+
+The frozen source-key model deliberately keeps
+`(workspaceId, EXTERNAL_PURCHASE, sourceSystem, sourceId)` and
+`(workspaceId, HISTORICAL_IMPORT, sourceSystem, sourceId)` as distinct source identities. Whether
+such records can represent the same underlying business purchase is
+`CROSS-SOURCE-TYPE PURCHASE-FACT EQUIVALENCE: AUTHORITY_GAP`; this authority neither merges them nor
+declares them distinct business purchases.
+
+### Conceptual owner-local relational invariants
+
+The conceptual aggregate primary key remains `(WorkspaceId, EvidenceId)`. A reversal's owner-local
+reference `(WorkspaceId, ReversalOfEvidenceId)` targets `(WorkspaceId, EvidenceId)` and the target
+must be an original. At most one reversal may target an original, conceptually equivalent to a unique
+`(WorkspaceId, ReversalOfEvidenceId)` constraint for reversal records only. A physical implementation
+may use separate original/reversal tables, a filtered unique index, discriminator-aware constraints
+or another relationally equivalent mechanism; no physical model is frozen.
+
+The reversal-to-original reference is entirely CommercialEvidence-owned. No relational foreign key
+to Contacts, Organizations, Orders or Customers is admitted. Trusted Workspace context is mandatory,
+caller-supplied Workspace data is never authority, and foreign-Workspace target existence must not be
+observable.
+
+### Frozen invariants
+
+The following invariants are frozen `PASS`:
+
+1. Original and reversal records share the `(WorkspaceId, EvidenceId)` identity envelope.
+2. A reversal receives a new `evidenceId`.
+3. A reversal references exactly one original through `reversalOfEvidenceId`.
+4. Original and reversal share the trusted Workspace.
+5. A reversal cannot reference itself.
+6. A reversal cannot target another reversal.
+7. Reversal-of-reversal is not admitted.
+8. One original has at most one canonical reversal.
+9. A second distinct reversal cannot be appended for the same original.
+10. The original remains immutable after reversal.
+11. The reversal remains immutable after append.
+12. A reversal does not require an independently duplicated BuyerRef.
+13. A reversal does not duplicate original purchase source identity as canonical truth.
+14. Reversal `occurredAt` is its own fact occurrence time.
+15. Every original carries CommercialEvidence `policyVersion`.
+16. Every reversal carries CommercialEvidence `policyVersion`.
+17. `policyVersion` is immutable CommercialEvidence provenance.
+18. `policyVersion` is not Customer lifecycle or conversion version.
+19. `correlationId` is provenance, not source identity.
+20. No mutable effective/status flag is written onto the original.
+21. Zero reversal means unreversed.
+22. One canonical reversal means reversed at evidence level.
+23. Reversed evidence cannot satisfy an unreversed-evidence requirement.
+24. Customer lifecycle consequences are outside CommercialEvidence authority.
+25. The reversal-to-original reference is owner-local only.
+
+### Deferred authority and readiness
+
+`COMMERCIAL EVIDENCE PRODUCTION MODEL: AUTHORITY_GAP`, `REVERSAL PRODUCER SOURCE IDENTITY:
+AUTHORITY_GAP`, `EVIDENCE REVERSAL OPERATIONAL SEMANTICS: AUTHORITY_GAP`, `EFFECTIVE PURCHASE
+EVIDENCE COMPLETE PREDICATE: AUTHORITY_GAP`, `EFFECTIVE EVIDENCE CONSUMER MODEL: AUTHORITY_GAP`,
+`CUSTOMER CONSEQUENCES OF EVIDENCE REVERSAL: AUTHORITY_GAP`, and `WF-05 EXECUTABLE ENTRY CONDITION:
+AUTHORITY_GAP`. WF-05 Customer Conversion remains `BLOCKED`.
+
+Therefore `PURCHASE EVIDENCE REVERSAL/POLICY AUTHORITY FREEZE: PASS`,
+`PURCHASE EVIDENCE IDENTITY MODEL: READY`, `PURCHASE EVIDENCE SOURCE-KEY MODEL: READY`,
+`EVIDENCE REVERSAL DURABLE MODEL: READY`, `PURCHASE EVIDENCE POLICY PROVENANCE MODEL: READY`,
+`PURCHASE EVIDENCE DURABLE RECORD MODEL: READY`, and `COMMERCIALEVIDENCE DURABLE MODEL: READY`.
+Durable-model readiness is not runtime admission: `COMMERCIALEVIDENCE OWNER-LOCAL RUNTIME: NOT YET
+ADMITTED` and `SAFE NEXT IMPLEMENTATION SLICE: NONE` because no authoritative producer/append
+boundary, reversal operation boundary, local transaction/concurrency semantics, audit/outbox behavior
+or effective-evidence consumer contract is frozen. The exact next authority task is
+**CommercialEvidence Owner-Boundary Authority Freeze**.
+
+## CommercialEvidence Owner-Boundary Frozen Authority
+
+### Decision provenance and scope
+
+On 2026-08-29, the CommercialEvidence Owner-Boundary Authority Freeze task created the decisions in
+this section as **NEW FROZEN TECHNICAL AUTHORITY**. The hierarchy actually used was: the explicit
+Level-0 task decisions; the current local working-tree authority including all three preceding
+uncommitted PurchaseEvidence freezes; the adopted OpenAPI; canonical operation, command, query,
+workflow, capability, owner and cross-owner registries; architecture and trusted-Workspace
+invariants; non-superseded Design Authority; backend skeleton evidence; and frontend behavior as
+supporting evidence only. No higher-precedence contradiction was found inside the authorized
+technical envelope.
+
+This section freezes only the CommercialEvidence-owned internal application boundary, field
+ownership, replay/concurrency/transaction behavior, reversal request boundary, successful-append
+audit, event/outbox/inbox posture, CommercialEvidence-owned effectiveness predicate and a narrow
+effective-evidence read boundary. It does not create a public API, name a C# interface, implement a
+producer or Workflow, admit a permission, define foreign source business validity, create an event,
+or authorize Customer conversion or lifecycle mutation.
+
+The freeze is `PARTIAL`: Orders and WF-12 establish the `ORDER_COMPLETED` producer mapping, while
+authoritative producers for external, historical and reversal facts remain `AUTHORITY_GAP`. The
+internal original boundary is independently implementable without wiring those unresolved producers;
+the internal reversal boundary is structurally closed but has no admitted caller.
+
+### Canonical owner application boundary and source-truth split
+
+Only CommercialEvidence owns and mutates canonical PurchaseEvidence persistence. Foreign owners may
+neither access a CommercialEvidence DbContext/repository nor allocate `evidenceId`, bypass source
+uniqueness, append a reversal directly or participate in a cross-DbContext transaction. A multi-owner
+flow is coordinated by Workflows through narrow owner application boundaries, and each owner commits
+only its own state.
+
+CommercialEvidence owns two narrow internal application boundaries: one accepts authoritative
+original source facts and returns an `APPENDED`, `REPLAYED` or `CONFLICT` decision with the canonical
+evidence identity; the other accepts a request to reverse a target original. Neither boundary is
+public HTTP, a generic repository gateway, frontend mutation, direct persistence exposure or an
+admission of a specific C# interface name.
+
+CommercialEvidence validates evidence shape, admitted evidence/source vocabulary, source-key shape,
+source uniqueness, canonical replay equality, immutable persistence, policy provenance, reversal
+target structure and reversal truth. It does not query Orders, Integrations, Contacts or
+Organizations persistence to rediscover whether an Order is completed, an external purchase is
+confirmed, a historical purchase is legitimate or a BuyerRef currently exists. Those authoritative
+source/business facts must arrive through an upstream owner and Workflow boundary.
+
+CommercialEvidence validates BuyerRef only structurally: type is exactly `CONTACT` or
+`ORGANIZATION_ACCOUNT`, and ID satisfies the canonical EntityId envelope. Existence validation is a
+cross-owner Workflow/owner responsibility where the consuming workflow requires it. Persisting a
+BuyerRef creates no Contacts/Organizations foreign lookup or foreign relational key.
+
+| Evidence/operation | Source truth owner | Coordinator | CommercialEvidence boundary | Foreign DB read by CE? | Authority |
+|---|---|---|---|---|---|
+| `ORDER_COMPLETED` | Orders | WF-12 Order Closing | Original append | No | PASS |
+| `EXTERNAL_PURCHASE_CONFIRMED` | `AUTHORITY_GAP` | `AUTHORITY_GAP`; WF-07 is a blocked baseline only | Original append | No | AUTHORITY_GAP |
+| `HISTORICAL_PURCHASE_IMPORTED` | `AUTHORITY_GAP` | `AUTHORITY_GAP`; WF-07 is a blocked baseline only | Original append | No | AUTHORITY_GAP |
+| Reversal | `AUTHORITY_GAP` | `AUTHORITY_GAP` | Reversal request | No | AUTHORITY_GAP |
+
+Orders owns canonical Order completion truth. The canonical WF-12 Order Closing sequence coordinates
+Orders, Payments, Shipping and CommercialEvidence, completes the Order and appends idempotent
+PurchaseEvidence. This establishes the producer mapping, but WF-12 remains not implemented and
+`CONTRACT_READY_REQUIRES_RECONCILIATION`; this section does not implement or otherwise admit its
+runtime wiring. CommercialEvidence never queries Orders persistence to re-prove completion.
+
+WF-07 names external/historical onboarding evidence but remains `BLOCKED`, and neither its registry
+nor another higher authority establishes the exact upstream source-truth owner/integration path.
+Therefore external and historical producer models remain `AUTHORITY_GAP`; frontend demo behavior
+cannot close them. No authoritative reversal producer or coordinator is registered, so reversal
+producer authority also remains open.
+
+### Append field ownership and outcomes
+
+The internal original append boundary receives trusted server-derived Workspace context plus
+authoritative `evidenceType`, BuyerRef, applicable `sourceType`, `sourceSystem` where required,
+`sourceId`, `occurredAt` and `correlationId`. CommercialEvidence validates/uses that context,
+generates `evidenceId`, evaluates the canonical source key, owns replay and durable-append decisions,
+and resolves/assigns the current CommercialEvidence `policyVersion`. The caller cannot supply
+`evidenceId`, choose whether another row exists, override uniqueness or authoritatively select
+`policyVersion`.
+
+| Fact | Caller/Workflow | CommercialEvidence | Authority |
+|---|---|---|---|
+| Trusted Workspace | Supplies server-derived context | Validates and uses | PASS |
+| `evidenceId` | No | Generates | PASS |
+| `evidenceType` | Supplies authoritative intent | Validates admitted value | PASS |
+| BuyerRef | Supplies | Structural validation only | PASS |
+| Source identity | Supplies authoritative source fact | Validates and deduplicates | PASS |
+| `occurredAt` | Supplies authoritative fact time | Persists | PASS |
+| `correlationId` | Supplies provenance | Persists initial provenance | PASS |
+| `policyVersion` | No | Resolves and assigns | PASS |
+| Replay decision | No | Owns | PASS |
+| Reversal `evidenceId` | No | Generates | PASS |
+| Reversal target | Supplies original `evidenceId` | Validates owner-local target | PASS |
+
+An original append has exactly three conceptual results. `APPENDED` means one new canonical original
+and its owner-assigned `evidenceId`; `REPLAYED` means an identical exact source identity resolves to
+the existing canonical `evidenceId` with no new record; `CONFLICT` means the source identity already
+exists but canonical immutable purchase facts differ, so no record is created and existing evidence
+is unchanged. No transport status or DTO is frozen.
+
+Canonical replay comparison includes only facts whose difference changes immutable original
+PurchaseEvidence truth, including `evidenceType`, BuyerRef, exact source identity and `occurredAt`.
+Owner-generated `evidenceId` is excluded. The current policy version is excluded: replay does not
+re-admit or rewrite an existing fact, and its stored `policyVersion` remains historical provenance.
+Request/workflow `correlationId` is also excluded from purchase-fact equality: a retry with a new
+correlation remains `REPLAYED` and does not mutate the original correlation provenance.
+
+Within this authorized replay-comparison envelope, the preceding source-key section's statement that
+a different later correlation would invoke changed-payload conflict is narrowly superseded. Its
+source-key exclusion and immutable initial correlation provenance remain authoritative. No other
+part of the previous section is changed.
+
+### Concurrency, local transaction and cross-owner convergence
+
+For concurrent attempts with the same exact original source identity, CommercialEvidence persistence
+uniqueness is the final race authority; no check-before-write alone is sufficient. At most one
+original becomes canonical. A loser reloads the canonical evidence and returns `REPLAYED` when the
+canonical immutable payload matches or `CONFLICT` when it differs. A generated aggregate-ID
+collision is separate: CommercialEvidence internally reallocates an opaque ID and never returns an
+unrelated row. A source-key race resolves the source identity and performs replay comparison.
+
+For every newly appended original or reversal, the canonical evidence and required
+CommercialEvidence-owned successful append audit commit atomically in one CommercialEvidence-local
+transaction. No foreign owner persistence participates. Replay never rewrites existing evidence.
+
+There is no distributed or cross-DbContext transaction between Orders, Integrations, Customers or
+another owner and CommercialEvidence. If an upstream owner commits and the evidence step is
+incomplete, Workflow retries/converges that same CommercialEvidence step using the same source
+identity. If evidence committed but the response was lost, retry resolves `REPLAYED` with the
+existing ID. Retry must not insert CommercialEvidence state directly, roll back a foreign owner,
+manufacture a new source identity or broaden transaction scope. Timing and retry counts remain
+implementation details.
+
+| Concern | Transaction owner | Atomic? | Cross-owner transaction? |
+|---|---|---|---|
+| Original evidence + success audit | CommercialEvidence | Yes | No |
+| Reversal + success audit | CommercialEvidence | Yes | No |
+| Orders + evidence | Separate owners / Workflow coordination | No distributed transaction | Prohibited |
+| External source + evidence | Separate owners / Workflow coordination | No distributed transaction | Prohibited |
+| Historical import + evidence | Separate owners / Workflow coordination | No distributed transaction | Prohibited |
+
+### Reversal request boundary
+
+The internal reversal boundary identifies its target by trusted Workspace plus original
+`evidenceId`. A caller may supply target original ID, reversal `occurredAt` and `correlationId` only.
+CommercialEvidence owns original lookup, same-Workspace and original-only validation, the 0..1
+reversal invariant, reversal `evidenceId`, current `policyVersion` and append decision. The caller may
+not provide reversal ID, copied BuyerRef/source identity, policy version, mutable status or reversal
+reason.
+
+The durable owner-boundary idempotency identity is `(workspaceId, originalEvidenceId)`. If no reversal
+exists, one may be appended. If a canonical reversal exists, it is resolved and no second record is
+created. Different retry correlation or payload does not mutate its immutable `occurredAt`,
+`policyVersion` or `correlationId`; the existing reversal wins. Whether a caller is told "already
+reversed" or "replayed" is deferred transport semantics.
+
+Concurrent reversal attempts are resolved by the owner-local unique target constraint. Exactly one
+canonical reversal may exist; losing attempts resolve it without appending or mutating another
+record. These idempotency/concurrency semantics are frozen, but no authoritative reversal producer,
+permission or cross-owner caller is admitted. Consequently the reversal application boundary is
+closed while the reversal owner-local runtime core remains `AUTHORITY_GAP`.
+
+### Successful append audit and event delivery posture
+
+CommercialEvidence owns immutable successful mutation audit for newly appended canonical evidence.
+At minimum each successful audit is attributable to Workspace, canonical `evidenceId`, operation kind
+`ORIGINAL_APPEND` or `REVERSAL_APPEND`, correlation ID, system decision/audit time and resulting
+evidence `policyVersion`. It is CommercialEvidence technical evidence, not Customer audit truth. The
+new evidence and successful audit are atomic: neither may commit without the other. Physical audit
+identity/table design is deferred; durable replay/conflict audit is not required by this freeze and
+operational telemetry remains deferred.
+
+No current OpenAPI operation, registry entry, cross-owner contract or non-superseded design source
+admits a CommercialEvidence outbound event. Therefore no domain/integration event or outbox payload
+is created for the first owner-local core. If a future event is explicitly admitted, CommercialEvidence
+must stage its outbox record atomically with owner-local state. The synchronous internal application
+boundary requires no inbox; an inbox must not be invented merely to avoid an application call.
+
+### CommercialEvidence effectiveness and Workflow read boundary
+
+A canonical original PurchaseEvidence is CommercialEvidence-effective when it exists as an admitted
+canonical original under its stored CommercialEvidence policy version and has no canonical reversal:
+`admitted canonical original + no canonical reversal`. CommercialEvidence does not continuously
+query or poll source owners after append. A later source change affects evidence only through an
+admitted reversal mechanism. This predicate proves CommercialEvidence evidence effectiveness, not
+BuyerRef existence, Customer existence/non-existence, conversion eligibility or Customer lifecycle.
+
+CommercialEvidence exposes a narrow internal application-level read boundary for Workflows, resolved
+by trusted Workspace plus `evidenceId`. It never exposes a DbContext, repository or persistence
+entity. Missing evidence, a reversal record or a reversed original yields no effective-evidence
+snapshot. An effective snapshot contains only `workspaceId`, `evidenceId`, `evidenceType`, BuyerRef,
+`occurredAt` and `policyVersion`. Source identity is not required for WF-05 unless later workflow
+authority proves otherwise.
+
+The snapshot proves only canonical CommercialEvidence identity, semantic evidence type, recorded
+BuyerRef, occurrence time, policy provenance and current owner-local effectiveness. It does not prove
+Contact/Organization existence, Customer existence or absence, Customer conversion eligibility or
+Customer lifecycle. No generic `IEntityReader`, `ICrossModuleReader`, `IRepositoryGateway` or foreign
+persistence reader is authorized.
+
+CommercialEvidence must not merge distinct external and historical source identities merely because
+their namespace/identifier text matches. Whether they represent the same business purchase remains
+`CROSS-SOURCE-TYPE PURCHASE-FACT EQUIVALENCE: AUTHORITY_GAP`.
+
+| Scenario | Canonical outcome | New evidence? | Existing mutation? |
+|---|---|---:|---:|
+| New original source | `APPENDED` | Yes | No |
+| Identical original replay | `REPLAYED` | No | No |
+| Changed-payload original replay | `CONFLICT` | No | No |
+| `evidenceId` generation collision | Internal re-allocation | Eventually one | No |
+| Concurrent identical source | One `APPENDED` plus replay resolution | One total | No |
+| First valid reversal | `REVERSAL APPENDED` | Yes | Original unchanged |
+| Duplicate reversal target | Existing reversal wins | No | No |
+| Concurrent reversal | One canonical reversal | One total | No |
+
+### Frozen invariants
+
+The following invariants are frozen `PASS` except I29, which remains `AUTHORITY_GAP`:
+
+1. Only CommercialEvidence allocates canonical `evidenceId`.
+2. Only CommercialEvidence mutates canonical PurchaseEvidence state.
+3. Foreign owners never access CommercialEvidence persistence directly.
+4. Cross-owner mutations are coordinated by Workflow.
+5. CommercialEvidence does not query Orders persistence to re-prove Order truth.
+6. CommercialEvidence does not query Contacts/Organizations merely to persist BuyerRef.
+7. Source-key uniqueness is enforced inside CommercialEvidence.
+8. Identical replay returns/resolves existing evidence.
+9. Changed-payload replay fails closed.
+10. `correlationId` difference alone does not create another purchase fact.
+11. Current `policyVersion` difference alone does not invalidate identical replay.
+12. Concurrent source append creates at most one canonical original.
+13. Source uniqueness races resolve after persistence uniqueness enforcement.
+14. Generated `evidenceId` collision is distinct from source replay.
+15. Owner-local append does not participate in a foreign DbContext transaction.
+16. Workflow retries owner steps rather than using a distributed transaction.
+17. New evidence and required successful append audit are atomic owner-local state.
+18. No speculative outbound event/outbox payload is invented without an admitted event.
+19. The reversal application boundary is CommercialEvidence-owned.
+20. Reversal retry identity is the target original inside the Workspace.
+21. Concurrent reversal creates at most one canonical reversal.
+22. Existing reversal remains immutable on duplicate request.
+23. CommercialEvidence-effective evidence is an admitted canonical original with no reversal.
+24. CommercialEvidence does not continuously revalidate source-owner state.
+25. Effective-evidence consumers read through a narrow owner application boundary.
+26. The consumer boundary does not expose CommercialEvidence persistence.
+27. Its result does not prove Customer conversion eligibility.
+28. Customer lifecycle remains Customers-owned.
+29. Cross-source-type purchase equivalence remains unresolved (`AUTHORITY_GAP`).
+
+### Deferred authority and readiness
+
+Exact external-purchase, historical-import and reversal source-truth owners/coordinators remain
+`AUTHORITY_GAP`, as do reversal permission/caller admission, cross-source-type business equivalence,
+Customer consequences of evidence reversal and WF-05 executable entry semantics. WF-05 remains
+`BLOCKED`. Replay/conflict durable audit is `DEFERRED`. There is no currently admitted
+CommercialEvidence outbound event, outbox requirement or inbox requirement for the owner-local core.
+
+Therefore `COMMERCIALEVIDENCE OWNER-BOUNDARY AUTHORITY FREEZE: PARTIAL`, `COMMERCIALEVIDENCE OWNER
+BOUNDARY: PASS`, `ORDER_COMPLETED PRODUCER MODEL: PASS`, `EXTERNAL PURCHASE PRODUCER MODEL:
+AUTHORITY_GAP`, `HISTORICAL PURCHASE PRODUCER MODEL: AUTHORITY_GAP`, `REVERSAL AUTHORITATIVE
+PRODUCER: AUTHORITY_GAP`, `COMMERCIALEVIDENCE EFFECTIVE-EVIDENCE PREDICATE: PASS`, and
+`EFFECTIVE-EVIDENCE INTERNAL READ BOUNDARY: PASS`.
+
+The five durable-model gates remain `READY`. `ORIGINAL EVIDENCE OWNER-LOCAL CORE: READY` because the
+Order/WF-12 producer mapping, append ownership, replay, concurrency, policy assignment, local
+transaction, audit and no-event posture are closed. `REVERSAL OWNER-LOCAL CORE: AUTHORITY_GAP`
+because no authoritative producer/caller is admitted. Consequently `COMMERCIALEVIDENCE OWNER-LOCAL
+RUNTIME: PARTIALLY ADMITTED`.
+
+The exact safe implementation slice is **CommercialEvidence Owner-Local Original Evidence Core**,
+limited to owner-local original persistence, source uniqueness, owner-generated ID, the internal
+append boundary, `APPENDED`/`REPLAYED`/`CONFLICT`, concurrency-safe replay, atomic successful-append
+audit and effective-evidence-by-ID internal read. The only admitted producer-facing original path in
+that slice is `ORDER_COMPLETED`; external and historical append paths must remain unreachable until
+their producer authority is frozen. The slice excludes public HTTP, Workflow wiring, reversal
+runtime, external/historical ingestion, Customer mutation, WF-05, outbound events and speculative
+outbox/inbox.
+
+Because unresolved CommercialEvidence producer/reversal gaps must not be skipped, the exact next
+authority task is **CommercialEvidence External/Historical/Reversal Producer Authority Freeze**.
+WF-05 Customer Conversion Authority Freeze may follow the original-core implementation and closure
+of the remaining producer/reversal authority required by that workflow.
+
+## CommercialEvidence Owner-Local Original Evidence Core Implementation Authority
+
+On 2026-08-29, backend baseline `39df722941ae39e8f9ede6f4f969e4232ee9f367` implemented and locally
+verified the authority-admitted **CommercialEvidence Owner-Local Original Evidence Core**. This is
+implementation evidence under the four preceding PurchaseEvidence/CommercialEvidence frozen
+authority sections; it neither rewrites those decisions nor creates new producer, reversal,
+Workflow, Customer or HTTP authority.
+
+CommercialEvidence now owns `CommercialEvidenceDbContext`, the `commercial_evidence` schema and
+migration `20260829164625_CommercialEvidenceOriginalCore`. The immutable original record is stored in
+`commercial_evidence.PurchaseEvidence` under composite primary key `(WorkspaceId, EvidenceId)`; no
+global EvidenceId unique index exists. The named unique source index is exactly
+`(WorkspaceId, SourceType, SourceSystem, SourceId)`, has no nullable-column filter, and uses
+`Latin1_General_100_BIN2` column equality so the SQL race authority and ordinal application equality
+agree for the admitted Order path. Check constraints fail closed for the exact EvidenceType,
+SourceType and BuyerRefType vocabularies and enforce each frozen source-to-evidence mapping, including
+`ORDER` requiring `ORDER_COMPLETED` with null SourceSystem. There is no foreign-owner foreign key,
+DbContext or persistence access.
+
+The only callable original append contract is the CommercialEvidence-specific internal application
+boundary for `ORDER_COMPLETED`. It receives the existing trusted Workspace carrier plus Orders-owned
+`orderId`, BuyerRef, `occurredAt` and correlation provenance; the caller cannot supply EvidenceId,
+policyVersion, SourceType or EvidenceType. CommercialEvidence generates the opaque ID, assigns the
+module-owned policy token and returns typed `APPENDED`, `REPLAYED` or `CONFLICT` results. Replay
+compares the frozen immutable source facts using ordinal equality after exact UTC timestamp
+canonicalization; retry correlation and the provider's current policy token do not participate.
+Identical and correlation-only replay preserve the original row, EvidenceId, correlation and policy;
+a newer current policy still replays the historical record; changed BuyerRef or occurrence time
+conflicts without mutation.
+
+Database uniqueness is the final concurrent source authority. A named source-index race reloads the
+winner and resolves to `REPLAYED` or `CONFLICT`; a named aggregate-primary-key collision is not replay
+and causes bounded internal opaque-ID reallocation; unrelated persistence failures fail closed. A new
+original and exactly one immutable `ORIGINAL_APPEND` CommercialEvidence audit record are staged in one
+DbContext and one SaveChanges transaction. The audit contains Workspace, canonical EvidenceId,
+original correlation, system decision time and resulting policyVersion. Replay/conflict durable audit,
+outbox, inbox and outbound event records remain unimplemented as frozen. Failure injection against the
+audit insert proved that neither an evidence-only nor audit-only commit survives.
+
+The narrow `IEffectivePurchaseEvidenceReader` reads by trusted Workspace plus EvidenceId and returns
+only WorkspaceId, EvidenceId, EvidenceType, BuyerRef, OccurredAt and PolicyVersion. Foreign Workspace
+and unknown evidence both resolve to no snapshot. For this original-only slice every canonical
+original has no admitted reversal and is therefore effective; no mutable status/effective/reversed
+column was introduced. The implementation exports no generic reader or persistence surface.
+
+Executable verification used the real DI, EF Core model and SQL Server persistence against repeated
+fresh LocalDB databases. `scripts/verify-commercial-evidence-original-core.ps1` reported
+`passed=91 failed=0`, including schema/key/index metadata, closed-value rejection, exact case-sensitive
+source equality, server-owned identity/policy fields, UTC round trip, identical/correlation/policy
+replay, changed-payload conflict, identical and changed-payload concurrency races, aggregate-ID
+collision reallocation, cross-Workspace source and EvidenceId coexistence, successful audit evidence,
+audit rollback and Workspace-scoped effective reads. The migration applied repeatedly and
+`dotnet ef migrations has-pending-model-changes` reported no model changes. `dotnet build
+UnicoreCRM.slnx --no-restore` completed with zero warnings and zero errors. Unchanged regression
+verifiers reported AccessControl `404/0`, Contacts `67/0`, Organizations `71/0` and Customers `117/0`.
+These are local executable results, not GitHub CI evidence or independent release attestation.
+
+No CommercialEvidence HTTP route, Workflow/WF-12 wiring, external/historical append path, reversal
+runtime, Customer mutation, WF-05 execution, event, outbox or inbox was added. Therefore the original
+owner-local core is `IMPLEMENTED_AND_VERIFIED`, while `COMMERCIALEVIDENCE OWNER-LOCAL RUNTIME` remains
+`PARTIALLY_IMPLEMENTED`; external purchase producer, historical import producer and authoritative
+reversal producer remain `AUTHORITY_GAP`; reversal runtime and WF-12 wiring remain not implemented;
+WF-05 remains blocked. The exact next authority task remains **CommercialEvidence
+External/Historical/Reversal Producer Authority Freeze** and no next implementation slice is admitted.
+
+## CommercialEvidence External and Historical Producer Frozen Authority
+
+### Decision provenance and scope
+
+On 2026-08-30, the CommercialEvidence External/Historical Producer Authority Freeze task evaluated
+only the producer/source-truth boundaries for `EXTERNAL_PURCHASE_CONFIRMED` and
+`HISTORICAL_PURCHASE_IMPORTED`. The hierarchy actually used was: the task's explicit Level-0
+decision envelope; the current working-tree version of this document, including all preceding
+PurchaseEvidence and CommercialEvidence freezes and original-core implementation evidence; the
+adopted OpenAPI; the canonical operation, command, query, workflow, capability, owner-context and
+cross-owner-contract registries; architecture, ownership, trusted-Workspace and Workflow invariants;
+non-superseded Design Authority; current backend implementation as evidence only; and frontend
+behavior as supporting evidence only.
+
+This is an **authority decision and freeze**, not runtime admission. Statements below are marked as
+**EXISTING AUTHORITY**, **NEW FROZEN TECHNICAL AUTHORITY**, or **AUTHORITY_GAP**. No conflict with a
+higher-precedence source was found. The result is `PARTIAL`: field ownership, attested-fact,
+validation, convergence, transaction and namespace-isolation boundaries are closed, but no exact
+source-truth owner, executable coordinator, namespace-registration owner, BuyerRef existence
+validator or transport is admitted for either producer kind.
+
+The existing CommercialEvidence Owner-Local Original Evidence Core remains
+`IMPLEMENTED_AND_VERIFIED` with its recorded `91/0` owner verifier, zero-warning/zero-error build and
+AccessControl `404/0`, Contacts `67/0`, Organizations `71/0` and Customers `117/0` local regression
+evidence. This task neither reran those suites nor changes or reinterprets that runtime evidence.
+
+### Common attested-fact and owner boundary
+
+The following is **NEW FROZEN TECHNICAL AUTHORITY**, consistent with existing ownership laws:
+CommercialEvidence receives an authoritatively attested purchase fact; it does not discover or prove
+foreign business truth. The admitted upstream producer/coordinator must establish that the
+external/historical fact is authorized for submission. CommercialEvidence then owns only admitted
+shape validation, exact source-key validation, source uniqueness, replay comparison, owner-generated
+`evidenceId`, owner-assigned `policyVersion`, immutable persistence and successful-append audit.
+
+CommercialEvidence must not read an Integrations, Customers, Contacts, Organizations, Orders or
+historical-import DbContext/repository/table to rediscover source truth or BuyerRef existence. It
+consumes only a future admitted application-boundary fact. Direct foreign writes to CommercialEvidence
+persistence and cross-owner/cross-DbContext distributed transactions remain prohibited. A
+coordinator retries owner-local steps using the same canonical source identity; it never invents a
+new `sourceId`, changes `sourceSystem`, allocates `evidenceId` or persists CommercialEvidence state
+directly.
+
+Therefore `COMMERCIALEVIDENCE ATTESTED-FACT BOUNDARY: PASS`, `EXTERNAL/HISTORICAL FOREIGN DB READ BY
+CE: PROHIBITED`, `EXTERNAL/HISTORICAL FIELD OWNERSHIP: PASS`, `EXTERNAL/HISTORICAL CE CONVERGENCE:
+PASS`, and `EXTERNAL/HISTORICAL CROSS-OWNER TRANSACTION: PROHIBITED`.
+
+### External purchase authority
+
+The exact external source-truth owner is **AUTHORITY_GAP**. Integrations owns provider verification,
+bindings and ingress orchestration in general, but the owner-context and cross-owner-contract maps
+admit no external-purchase truth or CommercialEvidence producer contract. Integration-connection
+mutation operations remain blocked. Integrations must not be promoted from transport/configuration
+owner to purchase-truth owner by inference; Customers and CommercialEvidence also do not own this
+foreign fact.
+
+WF-07 Customer Onboarding conceptually names external/historical evidence, but its registry status is
+`BLOCKED`, backend admission is `BLOCKED`, implementation is `NOT_IMPLEMENTED`, its transaction
+boundary is `UNRESOLVED_BLOCKED`, and both mapped onboarding operations are `NOT_ADMITTED`. The
+command registry contains no corresponding producer command and the cross-owner map contains no
+CommercialEvidence producer contract. Consequently the exact external coordinator/application
+caller and ingestion transport are **AUTHORITY_GAP**; the blocked WF-07 baseline is not executable
+producer authority and no event/inbox contract is inferred.
+
+The external validation split is **NEW FROZEN TECHNICAL AUTHORITY** and `PASS`: a future admitted
+upstream owner/coordinator owns source authenticity, provider validity, business meaning of
+"confirmed", provider-specific security checks and mapping of the provider-native purchase-fact ID.
+CommercialEvidence validates only admitted `sourceType`, required `sourceSystem` and `sourceId`
+shape, BuyerRef structure, `occurredAt` structure, source uniqueness, replay and persistence. This
+freeze does not define what confirmation means, which provider is trusted or any callback/security
+protocol.
+
+The `EXTERNAL_PURCHASE` source key and namespace semantics remain **EXISTING AUTHORITY**:
+`(workspaceId, EXTERNAL_PURCHASE, sourceSystem, sourceId)`, with `sourceSystem` required. The namespace
+is part of CommercialEvidence source-identity semantics, but issuance/registration must belong to a
+future authoritative upstream configuration/integration boundary. No such exact owner is currently
+admitted, so `EXTERNAL SOURCE SYSTEM REGISTRATION OWNER: AUTHORITY_GAP`; arbitrary display strings do
+not become canonical namespaces merely by being submitted.
+
+The authoritative upstream producer supplies immutable `sourceId` as the purchase-fact identifier
+inside `sourceSystem`. CommercialEvidence persists and enforces it and does not replace it with a
+request, correlation, webhook-delivery or other transport ID absent later explicit authority. This is
+`EXTERNAL SOURCE ID PROVENANCE: PASS` as **NEW FROZEN TECHNICAL AUTHORITY** within the existing source
+key.
+
+CommercialEvidence validates BuyerRef structure only. Neither WF-07 nor another admitted contract
+assigns responsibility for proving the Contact/Organization relationship exists before external
+append, so `EXTERNAL BUYERREF EXISTENCE VALIDATION: AUTHORITY_GAP`. The combined source-truth,
+coordinator, namespace-registration, BuyerRef-existence and transport gaps make `EXTERNAL PURCHASE
+PRODUCER MODEL: AUTHORITY_GAP` and `EXTERNAL PURCHASE OWNER-LOCAL PRODUCER PATH: AUTHORITY_GAP`.
+
+| Concern | Decision | Authority source | Readiness |
+|---|---|---|---|
+| evidenceType | `EXTERNAL_PURCHASE_CONFIRMED` | EXISTING AUTHORITY: frozen source namespace/model | PASS |
+| sourceType | `EXTERNAL_PURCHASE` | EXISTING AUTHORITY: frozen source namespace/model | PASS |
+| source-truth owner | `AUTHORITY_GAP` | No registry/cross-owner contract assigns it | GAP |
+| coordinator | `AUTHORITY_GAP`; blocked WF-07 is not executable authority | Workflow/operation registries | GAP |
+| sourceSystem required | YES | EXISTING AUTHORITY | PASS |
+| sourceSystem registration owner | `AUTHORITY_GAP` | No admitted provider-namespace registration contract | GAP |
+| sourceId provenance | Authoritative upstream purchase-fact ID | NEW FROZEN TECHNICAL AUTHORITY | PASS |
+| BuyerRef structure | CommercialEvidence validates | EXISTING AUTHORITY | PASS |
+| BuyerRef existence | `AUTHORITY_GAP` | No admitted Workflow/owner contract | GAP |
+| replay owner | CommercialEvidence | EXISTING AUTHORITY | PASS |
+| persistence owner | CommercialEvidence | EXISTING AUTHORITY | PASS |
+| transport | `AUTHORITY_GAP` | No admitted application/event producer contract | GAP |
+| producer model | `AUTHORITY_GAP` | Derived readiness gate | GAP |
+
+### Historical purchase authority
+
+The exact historical source-truth owner and the owner authorized to admit a historical purchase for
+import are both **AUTHORITY_GAP**. No migration/import authority or cross-owner contract defines CSV
+trust, mapping/approval policy, duplicate-batch handling or legacy-source correctness. A file,
+frontend importer, batch/job or CommercialEvidence itself is not source-truth authority.
+
+The historical import admission boundary is **NEW FROZEN TECHNICAL AUTHORITY** and `PASS` as a
+separation rule: a historical fact may reach CommercialEvidence only after a future authoritative
+admission boundary has accepted it. CommercialEvidence does not perform file/import trust,
+provider/legacy-source verification or admission policy. The exact admission owner remains
+`AUTHORITY_GAP`.
+
+WF-07 is also only a blocked conceptual baseline for historical onboarding, so the historical
+coordinator/application caller and ingestion transport remain **AUTHORITY_GAP**. No synchronous
+application call, event or inbox transport is admitted merely from that blocked workflow.
+
+The `HISTORICAL_IMPORT` source key and namespace semantics remain **EXISTING AUTHORITY**:
+`(workspaceId, HISTORICAL_IMPORT, sourceSystem, sourceId)`, with `sourceSystem` required and denoting
+the original historical source namespace. It is not a batch, filename, tenant, user, row, import job
+or frontend session. No exact owner currently registers/validates those namespaces, so `HISTORICAL
+SOURCE SYSTEM REGISTRATION OWNER: AUTHORITY_GAP`.
+
+The future authoritative historical producer supplies immutable `sourceId` as the original purchase
+fact's identifier within that original namespace. It is not a batch ID, row number, upload ID,
+execution ID or correlation ID. CommercialEvidence owns uniqueness/replay only after receipt. This is
+`HISTORICAL SOURCE ID PROVENANCE: PASS` as **NEW FROZEN TECHNICAL AUTHORITY**.
+
+Historical BuyerRef existence responsibility remains **AUTHORITY_GAP**; CommercialEvidence performs
+only structural validation and does not query Contact/Organization persistence. Same
+`(workspaceId, HISTORICAL_IMPORT, sourceSystem, sourceId)` is the same source fact regardless of
+batch, upload, execution or correlation: matching canonical payload returns `REPLAYED`, differing
+canonical payload returns `CONFLICT`, and existing evidence remains immutable. This is
+`HISTORICAL REIMPORT CONVERGENCE: PASS`; import-batch idempotency itself is not defined.
+
+The combined source-truth, admission-owner, coordinator, namespace-registration, BuyerRef-existence
+and transport gaps make `HISTORICAL PURCHASE PRODUCER MODEL: AUTHORITY_GAP` and `HISTORICAL PURCHASE
+OWNER-LOCAL PRODUCER PATH: AUTHORITY_GAP`.
+
+| Concern | Decision | Authority source | Readiness |
+|---|---|---|---|
+| evidenceType | `HISTORICAL_PURCHASE_IMPORTED` | EXISTING AUTHORITY: frozen source namespace/model | PASS |
+| sourceType | `HISTORICAL_IMPORT` | EXISTING AUTHORITY: frozen source namespace/model | PASS |
+| source-truth owner | `AUTHORITY_GAP` | No registry/cross-owner contract assigns it | GAP |
+| import admission owner | `AUTHORITY_GAP` | No admitted import/admission boundary | GAP |
+| coordinator | `AUTHORITY_GAP`; blocked WF-07 is not executable authority | Workflow/operation registries | GAP |
+| sourceSystem required | YES | EXISTING AUTHORITY | PASS |
+| sourceSystem registration owner | `AUTHORITY_GAP` | No admitted historical namespace registry | GAP |
+| sourceId provenance | Original historical purchase-fact ID | NEW FROZEN TECHNICAL AUTHORITY | PASS |
+| batch/row identity | Excluded | EXISTING AUTHORITY plus frozen clarification | PASS |
+| BuyerRef structure | CommercialEvidence validates | EXISTING AUTHORITY | PASS |
+| BuyerRef existence | `AUTHORITY_GAP` | No admitted Workflow/owner contract | GAP |
+| replay owner | CommercialEvidence | EXISTING AUTHORITY | PASS |
+| re-import convergence | Matching payload replays; changed payload conflicts | EXISTING AUTHORITY | PASS |
+| transport | `AUTHORITY_GAP` | No admitted application/event producer contract | GAP |
+| producer model | `AUTHORITY_GAP` | Derived readiness gate | GAP |
+
+### Responsibility, transport and cross-source-type decisions
+
+| Responsibility | External | Historical | CommercialEvidence |
+|---|---|---|---|
+| source fact authenticity | Upstream owner `AUTHORITY_GAP` | Upstream owner `AUTHORITY_GAP` | NO |
+| provider/import validation | Upstream boundary `AUTHORITY_GAP` | Upstream boundary `AUTHORITY_GAP` | NO |
+| sourceSystem semantics | Frozen namespace semantics | Frozen namespace semantics | Validates shape/identity |
+| sourceSystem registration | Upstream owner `AUTHORITY_GAP` | Upstream owner `AUTHORITY_GAP` | NO |
+| sourceId assignment | Future authoritative upstream | Future authoritative upstream | NO |
+| BuyerRef structural validation | Supplies | Supplies | YES |
+| BuyerRef existence | Workflow/owner `AUTHORITY_GAP` | Workflow/owner `AUTHORITY_GAP` | NO |
+| evidenceId | NO | NO | YES |
+| policyVersion | NO | NO | YES |
+| source uniqueness | NO | NO | YES |
+| replay decision | NO | NO | YES |
+| persistence | NO | NO | YES |
+
+No generic `AppendAnyPurchaseEvidence` application contract, generic original-evidence producer API,
+public CommercialEvidence producer route, new capability, outbound event, inbox or outbox is admitted.
+If a producer is later admitted, its semantic boundary must fix its own evidence/source types and may
+allow only authoritative BuyerRef, `sourceSystem`, `sourceId`, `occurredAt` and correlation
+provenance; the caller never chooses `evidenceId`, `policyVersion` or replay outcome. Exact C# names
+remain implementation details. The current core has `EXTERNAL/HISTORICAL CE OUTBOX REQUIREMENT: NONE`.
+
+`EXTERNAL_PURCHASE` and `HISTORICAL_IMPORT` remain distinct source-identity classes. Equal
+`sourceSystem`/`sourceId` text across them does not collide because SourceType participates in the
+source key. Auto-merge is prohibited and whether such records represent one underlying business
+purchase remains **AUTHORITY_GAP**. That gap does **not** block a future owner-local producer append
+path: existing authority intentionally treats the source identities as distinct, permits multiple
+distinct evidence records for one BuyerRef, and no admitted producer invariant requires cross-type
+business deduplication. It does block any later consumer policy that assumes business-level
+equivalence or single counting until that policy is expressly frozen. Therefore `SOURCE-TYPE
+NAMESPACE ISOLATION: PASS`, `CROSS-SOURCE-TYPE AUTO-MERGE: PROHIBITED`, `CROSS-SOURCE-TYPE BUSINESS
+EQUIVALENCE: AUTHORITY_GAP`, and `CROSS-SOURCE-TYPE PRODUCER BLOCKER: NO`.
+
+### Frozen invariants and readiness
+
+The following invariants are frozen/evaluated `PASS`:
+
+1. External/historical producers do not allocate `evidenceId`.
+2. External/historical producers do not choose `policyVersion`.
+3. CommercialEvidence does not prove external-provider business truth.
+4. CommercialEvidence does not prove historical-import business truth.
+5. CommercialEvidence does not query foreign persistence for BuyerRef existence.
+6. External `sourceSystem` is required.
+7. Historical `sourceSystem` is required.
+8. External `sourceId` identifies the source-system purchase fact.
+9. Historical `sourceId` identifies the original historical purchase fact.
+10. Historical import batch is not source identity.
+11. Historical row number is not source identity.
+12. Retry keeps the same source identity.
+13. Re-import keeps the same source identity.
+14. CommercialEvidence owns replay and source uniqueness.
+15. No distributed transaction is admitted.
+16. No direct foreign persistence write to CommercialEvidence is admitted.
+17. No generic CommercialEvidence producer operation is admitted.
+18. No public CommercialEvidence producer route is admitted.
+19. No speculative inbox/event is created.
+20. Cross-source-type source identities remain distinct.
+21. Cross-source-type business equivalence is not invented.
+22. Reversal authority remains outside this task.
+23. Customer conversion remains outside this task.
+
+The frozen caller-field and convergence rules are independently useful, but neither producer reaches
+its all-or-nothing readiness gate. Therefore `COMMERCIALEVIDENCE EXTERNAL/HISTORICAL PRODUCER
+AUTHORITY FREEZE: PARTIAL`, `EXTERNAL PURCHASE PRODUCER MODEL: AUTHORITY_GAP`, `HISTORICAL PURCHASE
+PRODUCER MODEL: AUTHORITY_GAP`, and both owner-local producer paths remain `AUTHORITY_GAP`.
+
+Reversal producer/actor/authorization/source and operation semantics remain `AUTHORITY_GAP`; reversal
+runtime remains not implemented. Customer consequences remain unresolved and WF-05 remains
+`BLOCKED`. No runtime implementation slice is admitted: `SAFE NEXT IMPLEMENTATION TASK: NONE`.
+
+The exact next authority task is **External/Historical Purchase Source-Truth and Import-Admission
+Owner Authority Decision**. It must designate, without implementation, the authoritative external
+purchase source-truth owner and historical source-truth/import-admission owner before coordinator,
+namespace-registration, BuyerRef-existence and transport authority can be closed. This task does not
+automatically advance to WF-05 or reversal authority.
+
 ## B07 Inbound Lead Webhook implementation authority
 
 B07 introduced one backend-local `PROJECT_EXTENSION_INBOUND_LEAD_WEBHOOK` contract because the adopted frontend OpenAPI declares no inbound Lead webhook. The exact contract is frozen in `INBOUND_LEAD_WEBHOOK_EXTENSION.md`; it is not historical OpenAPI or Design Authority behavior. The six existing integration-configuration operations remain unchanged: the two read contracts are deferred from B07 Core and the four mutation contracts remain blocked.

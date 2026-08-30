@@ -611,10 +611,10 @@ VALUES ('field_record_access_verify_desc2', 'role_record_access_verify_second', 
 
     # ------------------------------------------------------------ 10. unowned resource keys
 
-    # `quotes` has no implemented owner/fact provider, so it remains an honest example of a resource
-    # key with no registered fact authority. Contacts, Organizations and Customers now have Read Core
-    # providers and therefore cannot serve as this negative fixture.
-    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'quotes'; recordId = 'quote_anything_0001'; requestedFields = @('totalAmount') }
+    # Unknown resource keys are contract-valid inputs and fail closed when no authoritative fact
+    # provider is registered. A reserved synthetic key keeps this invariant independent of which
+    # business modules happen to be implemented.
+    $unknownResource = Invoke-Evaluate -Request @{ resourceKey = 'verification.unowned-resource'; recordId = 'verification_unowned_record_0001'; requestedFields = @('totalAmount') }
     Add-Result 'authority: resource with no fact owner fails closed' 'False' ($unknownResource.Body.canRead).ToString()
     Add-Result 'authority: unowned resource reports the missing authority' 'RESOURCE_FACT_AUTHORITY_UNAVAILABLE' `
         (($unknownResource.Body.decisionReasons | Where-Object { $_.effect -eq 'DENY' }).code)
