@@ -21,6 +21,7 @@ using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Crm.Organizations.Contracts;
 using UnicoreCRM.Sales.Products.Contracts;
 using UnicoreCRM.Sales.Quotes.Contracts;
+using UnicoreCRM.Sales.Orders.Contracts;
 using UnicoreCRM.Integrations.Webhooks.Inbound.Contracts;
 using UnicoreCRM.Workflows.Durable.Contracts;
 using UnicoreCRM.AI.Gateway;
@@ -102,6 +103,7 @@ app.MapCustomersEndpoints();
 app.MapOrganizationsEndpoints();
 app.MapProductsEndpoints();
 app.MapQuotesEndpoints();
+app.MapOrdersEndpoints();
 app.MapInboundLeadWebhookEndpoints();
 app.MapAiEndpoints();
 

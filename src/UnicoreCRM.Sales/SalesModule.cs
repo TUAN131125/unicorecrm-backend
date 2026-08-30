@@ -12,7 +12,7 @@ public static class SalesModule
     {
         services.AddProductsModule(configuration);
         services.AddQuotesModule(configuration);
-        services.AddOrdersModule();
+        services.AddOrdersModule(configuration);
 
         return services;
     }
