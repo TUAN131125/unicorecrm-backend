@@ -32,6 +32,8 @@ $script:RequestCounter = 0
 $script:BaseUrl = "http://127.0.0.1:$Port"
 $script:Token = $null
 $script:WorkspaceId = $null
+$script:MemberId = $null
+$script:LastRequestId = $null
 
 function Add-Result {
     param([string] $Name, [string] $Expected, [string] $Actual)
@@ -109,7 +111,8 @@ function Get-Scalar {
 
 function New-RequestId {
     $script:RequestCounter++
-    return ('req-quotes-read-{0:d6}' -f $script:RequestCounter)
+    $script:LastRequestId = 'req-quotes-read-{0:d6}' -f $script:RequestCounter
+    return $script:LastRequestId
 }
 
 function Invoke-Api {
@@ -169,6 +172,29 @@ function Invoke-Api {
 function Invoke-Quote {
     param([string] $Method, [string] $Path, [string] $Body)
     return Invoke-Api -Method $Method -Path $Path -Body $Body -Token $script:Token -WorkspaceId $script:WorkspaceId
+}
+
+function Get-QuoteReadAuditCount {
+    return [int](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM quotes.ReadAuditRecords')
+}
+
+function Get-QuoteRecordDecisionCount {
+    return [int](Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM access.RecordAccessDecisions WHERE ResourceKey = 'quotes'")
+}
+
+function Measure-QuoteRead {
+    param([string] $Path)
+    $before = Get-QuoteReadAuditCount
+    $response = Invoke-Quote -Method 'GET' -Path $Path
+    $delta = (Get-QuoteReadAuditCount) - $before
+    return [pscustomobject]@{
+        Status = $response.Status
+        Body = $response.Body
+        Raw = $response.Raw
+        Delta = $delta
+        Probe = ('{0}|{1}' -f $response.Status, $delta)
+    }
 }
 
 function Set-QuoteScope {
@@ -264,6 +290,7 @@ CREATE DATABASE [$DatabaseName];
 
     $session = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
     $callerMemberId = $session.Body.principal.memberId
+    $script:MemberId = $callerMemberId
     $provisioning = Invoke-Api -Method 'POST' -Path '/workspaces/initial-provisioning' `
         -Token $script:Token -IdempotencyKey 'idem-quotes-read-provisioning-0001' `
         -Body '{"name":"Quotes Read Workspace"}'
@@ -288,10 +315,26 @@ CREATE DATABASE [$DatabaseName];
 
     Add-Result 'fresh migration created Quotes table' '1' ([string](Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'quotes' AND TABLE_NAME = 'Quotes'"))
-    Add-Result 'fresh migration contains no Quote read-audit table' '0' ([string](Get-Scalar -Database $DatabaseName `
+    Add-Result 'fresh migration contains Quote read-audit table' '1' ([string](Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'quotes' AND TABLE_NAME = 'ReadAuditRecords'"))
-    Add-Result 'fresh migration recorded exactly one Quotes migration' '1' ([string](Get-Scalar -Database $DatabaseName `
+    Add-Result 'fresh migration recorded exactly two Quotes migrations' '2' ([string](Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM quotes.__EFMigrationsHistory"))
+    Add-Result 'read-audit columns exact' `
+        'ActorId,AuditId,CorrelationId,OccurredAt,Operation,Outcome,RecordId,RequestId,ResourceVersion,WorkspaceId' `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT STRING_AGG(COLUMN_NAME, ',') WITHIN GROUP (ORDER BY COLUMN_NAME)
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = 'quotes' AND TABLE_NAME = 'ReadAuditRecords'
+"@))
+    Add-Result 'read-audit Workspace-leading index' '1' ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) FROM sys.indexes
+WHERE object_id = OBJECT_ID('quotes.ReadAuditRecords')
+  AND name = 'IX_ReadAuditRecords_WorkspaceId_OccurredAt'
+"@))
+    Add-Result 'read-audit has zero foreign keys' '0' ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) FROM sys.foreign_keys
+WHERE parent_object_id = OBJECT_ID('quotes.ReadAuditRecords')
+"@))
 
     $constraintCount = Get-Scalar -Database $DatabaseName -Query @"
 SELECT COUNT(*) FROM sys.check_constraints c
@@ -366,10 +409,96 @@ VALUES
 
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'quotes.read'"
-    Add-Result 'missing quotes.read denies list' '403' (Invoke-Quote -Method 'GET' -Path '/quotes').Status
-    Add-Result 'missing quotes.read denies detail' '403' (Invoke-Quote -Method 'GET' -Path "/quotes/$quoteA").Status
+    Add-Result 'missing quotes.read denies list with +0 audit' '403|0' `
+        (Measure-QuoteRead -Path '/quotes').Probe
+    Add-Result 'missing quotes.read denies detail with +0 audit' '403|0' `
+        (Measure-QuoteRead -Path "/quotes/$quoteA").Probe
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'quotes.read')"
+
+    # Frozen READ_ACCESS_LOG owner evidence: one row per successful invocation after projection.
+    $recordDecisionsBeforeList = Get-QuoteRecordDecisionCount
+    $multiRowAudit = Measure-QuoteRead -Path '/quotes'
+    Add-Result 'read audit: multi-row listQuotes => 200 and +1, not per-row' '200|1' $multiRowAudit.Probe
+    Add-Result 'read audit: multi-row list returns two Quotes' '2' ([string]$multiRowAudit.Body.items.Count)
+    Add-Result 'read audit: list writes zero per-row record decisions' '0' `
+        ([string]((Get-QuoteRecordDecisionCount) - $recordDecisionsBeforeList))
+    $emptyAudit = Measure-QuoteRead -Path '/quotes?search=quote_read_audit_no_match'
+    Add-Result 'read audit: empty successful list => 200 and +1' '200|1' $emptyAudit.Probe
+    Add-Result 'read audit: empty successful list contains zero Quotes' '0' ([string]$emptyAudit.Body.items.Count)
+    Add-Result 'read audit: every list row has null recordId and resourceVersion' '0' `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) FROM quotes.ReadAuditRecords
+WHERE Operation = 'listQuotes' AND (RecordId IS NOT NULL OR ResourceVersion IS NOT NULL)
+"@))
+
+    $recordDecisionsBeforeDetail = Get-QuoteRecordDecisionCount
+    $detailAudit = Measure-QuoteRead -Path "/quotes/$quoteA"
+    $detailAuditRequestId = $script:LastRequestId
+    Add-Result 'read audit: getQuote => 200 and +1' '200|1' $detailAudit.Probe
+    Add-Result 'read audit: detail writes canonical record decision' '1' `
+        ([string]((Get-QuoteRecordDecisionCount) - $recordDecisionsBeforeDetail))
+    Add-Result 'read audit: detail recordId and resourceVersion exact' "$quoteA|7" `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT CONCAT(RecordId, '|', ResourceVersion)
+FROM quotes.ReadAuditRecords WHERE RequestId = '$detailAuditRequestId'
+"@))
+    Add-Result 'read audit: detail version matches response' '7' ([string]$detailAudit.Body.resourceVersion)
+    Add-Result 'read audit: provenance and exact operationId' `
+        "getQuote|$($script:WorkspaceId)|$($script:MemberId)|$detailAuditRequestId|corr-quotes-read-core-0001|READ|$quoteA|7" `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT CONCAT(Operation, '|', WorkspaceId, '|', ActorId, '|', RequestId, '|', CorrelationId, '|', Outcome, '|', RecordId, '|', ResourceVersion)
+FROM quotes.ReadAuditRecords WHERE RequestId = '$detailAuditRequestId'
+"@))
+    Add-Result 'read audit: every row outcome is READ' '0' `
+        ([string](Get-Scalar -Database $DatabaseName `
+            -Query "SELECT COUNT(*) FROM quotes.ReadAuditRecords WHERE Outcome <> 'READ'"))
+    Add-Result 'read audit: only admitted operationIds are stored' '0' `
+        ([string](Get-Scalar -Database $DatabaseName `
+            -Query "SELECT COUNT(*) FROM quotes.ReadAuditRecords WHERE Operation NOT IN ('listQuotes', 'getQuote')"))
+
+    Add-Result 'read audit: malformed authorized query => 422 and +0' '422|0' `
+        (Measure-QuoteRead -Path '/quotes?status=draft').Probe
+    Add-Result 'read audit: malformed cursor => 422 and +0' '422|0' `
+        (Measure-QuoteRead -Path '/quotes?cursor=not-a-cursor').Probe
+    Add-Result 'read audit: malformed limit type => 422 and +0' '422|0' `
+        (Measure-QuoteRead -Path '/quotes?limit=abc').Probe
+    Add-Result 'read audit: malformed authorized path => 404 and +0' '404|0' `
+        (Measure-QuoteRead -Path '/quotes/bad%20quote').Probe
+    Add-Result 'read audit: unknown Quote => 404 and +0' '404|0' `
+        (Measure-QuoteRead -Path "/quotes/$quoteUnknown").Probe
+    Add-Result 'read audit: foreign Workspace Quote => 404 and +0' '404|0' `
+        (Measure-QuoteRead -Path "/quotes/$quoteC").Probe
+
+    Set-QuoteScope -RoleId $roleId -Scope 'Own'
+    Add-Result 'read audit: record-access denied detail => 404 and +0' '404|0' `
+        (Measure-QuoteRead -Path "/quotes/$quoteA").Probe
+    Add-Result 'read audit: OWN empty list is successful and +1' '200|1' `
+        (Measure-QuoteRead -Path '/quotes').Probe
+    Set-QuoteScope -RoleId $roleId -Scope 'Workspace'
+
+    Clear-QuoteFields
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_quotes_read_audit_required', '$roleId', 'quotes', 'title', 'Hidden');
+"@
+    Add-Result 'read audit: required hidden field list => 403 and +0' '403|0' `
+        (Measure-QuoteRead -Path '/quotes').Probe
+    Add-Result 'read audit: required hidden field detail => 403 and +0' '403|0' `
+        (Measure-QuoteRead -Path "/quotes/$quoteA").Probe
+    Clear-QuoteFields
+
+    $auditDump = Get-Scalar -Database $DatabaseName -Query @"
+SELECT STRING_AGG(CONCAT(AuditId, '|', Operation, '|', WorkspaceId, '|', ActorId, '|',
+    ISNULL(RecordId, ''), '|', RequestId, '|', CorrelationId, '|', Outcome, '|',
+    ISNULL(CAST(ResourceVersion AS varchar(32)), '')), ' ')
+FROM quotes.ReadAuditRecords
+"@
+    Add-Result 'read audit: no Quote business values stored' 'True' `
+        ([string]($auditDump -notmatch 'Q-2026|Q-FOREIGN|Verified Enterprise|Minimal Direct|buyer@example|organization_buyer|contact_buyer|deal_source|Historical Product|SKU-SNAPSHOT|QUOTE-A-OPTIONAL|QUOTE-C-FOREIGN|USD|VND|1357\.924678|1000000'))
+    Add-Result 'read audit: no foreign Workspace owner evidence' '0' `
+        ([string](Get-Scalar -Database $DatabaseName `
+            -Query "SELECT COUNT(*) FROM quotes.ReadAuditRecords WHERE WorkspaceId = '$foreignWorkspaceId'"))
 
     $workspaceList = Invoke-Quote -Method 'GET' -Path '/quotes'
     Add-Result 'WORKSPACE list succeeds' '200' $workspaceList.Status
@@ -559,6 +688,26 @@ VALUES ('field_quotes_read_required', '$roleId', 'quotes', 'title', 'Hidden');
     Add-Result 'required restricted Quote value is absent' 'True' ($requiredHidden.Raw -notmatch 'Verified Enterprise Quote').ToString()
     Clear-QuoteFields
 
+    # Simulate legacy/corrupt persisted JSON after disabling only the physical JSON constraint.
+    # Projection must fail before owner evidence is appended.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+ALTER TABLE quotes.Quotes NOCHECK CONSTRAINT CK_Quotes_ActionsJson;
+UPDATE quotes.Quotes SET ActionsJson = N'{'
+WHERE WorkspaceId = '$($script:WorkspaceId)' AND QuoteId = '$quoteA';
+"@
+    Add-Result 'read audit: corrupt persisted detail => 500 and +0' '500|0' `
+        (Measure-QuoteRead -Path "/quotes/$quoteA").Probe
+    Add-Result 'read audit: corrupt persisted list => 500 and +0' '500|0' `
+        (Measure-QuoteRead -Path '/quotes').Probe
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+UPDATE quotes.Quotes
+SET ActionsJson = N'{"accept":{"allowed":false,"blockerCodes":["QUOTE_APPROVAL_REQUIRED"]}}'
+WHERE WorkspaceId = '$($script:WorkspaceId)' AND QuoteId = '$quoteA';
+ALTER TABLE quotes.Quotes WITH CHECK CHECK CONSTRAINT CK_Quotes_ActionsJson;
+"@
+    Add-Result 'restored Quote fixture reads cleanly with +1 audit' '200|1' `
+        (Measure-QuoteRead -Path "/quotes/$quoteA").Probe
+
     $wrongWorkspace = Invoke-Api -Method 'GET' -Path "/quotes/$quoteA" `
         -Token $script:Token -WorkspaceId $foreignWorkspaceId
     Add-Result 'untrusted foreign Workspace header is denied' '403' $wrongWorkspace.Status
@@ -585,8 +734,19 @@ VALUES ('field_quotes_read_required', '$roleId', 'quotes', 'title', 'Hidden');
         (($quoteSource -notmatch 'ProductsDbContext') -and ($quoteSource -notmatch 'UnicoreCRM\.Sales\.Products') -and ($quoteSource -notmatch '\bIProduct[A-Za-z]*Reader\b')).ToString()
     Add-Result 'Quotes has no foreign owner DbContext' 'True' `
         ($quoteSource -notmatch '\b(Deals|Orders|Customers|Contacts|Organizations|Products)DbContext\b').ToString()
-    Add-Result 'Quotes has no owner-local durable read-audit runtime' 'True' `
-        ($quoteSource -notmatch 'QuoteReadAuditRecord|ReadAuditRecords|AddReadAudit').ToString()
+    Add-Result 'Quotes has owner-local durable read-audit runtime' 'True' `
+        (($quoteSource -match 'QuoteReadAuditRecord') `
+            -and ($quoteSource -match 'ReadAuditRecords') `
+            -and ($quoteSource -match 'AddReadAudit')).ToString()
+    Add-Result 'Quotes has no generic cross-module audit framework' 'True' `
+        ($quoteSource -notmatch 'IAuditFramework|IReadAuditService|GenericAudit').ToString()
+    # SaveChanges is admitted only for owner read-evidence append persistence. The Quote surface
+    # remains read-only and no business mutation path may acquire it.
+    $saveChangesFiles = (Get-ChildItem -LiteralPath $quoteRoot -Recurse -File -Filter '*.cs' |
+        Where-Object { (Get-Content -Raw -LiteralPath $_.FullName) -match 'SaveChangesAsync' } |
+        ForEach-Object Name | Sort-Object) -join ','
+    Add-Result 'SaveChanges confined to read-audit append' `
+        'EfQuotesPersistence.cs,QuoteReadAudit.cs,QuotesApplication.cs' $saveChangesFiles
     Add-Result 'Quotes adds neither WF-16 nor WF-22 runtime' 'True' `
         (($quoteSource -notmatch 'WF-16|WF-22|acceptQuoteAndCloseDeal|convertAcceptedQuoteToOrderDraft')).ToString()
 

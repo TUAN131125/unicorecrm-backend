@@ -192,6 +192,37 @@ function New-Headers([string] $token, [string] $workspaceId, [string] $idempoten
     return $headers
 }
 
+function Get-ProductReadAuditCount {
+    return [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE Outcome='READ';")
+}
+
+function Get-ProductRecordDecisionCount {
+    return [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM access.RecordAccessDecisions WHERE ResourceKey='products';")
+}
+
+function Measure-ProductRead([string] $path, [hashtable] $headers) {
+    $before = Get-ProductReadAuditCount
+    $response = Send-Json 'GET' $path $null $headers
+    $delta = (Get-ProductReadAuditCount) - $before
+    $body = $null
+    if (-not [string]::IsNullOrWhiteSpace($response.Body)) {
+        try { $body = $response.Body | ConvertFrom-Json } catch { $body = $null }
+    }
+    return [pscustomobject] @{ Status = $response.Status; Body = $body; Raw = $response.Body; Delta = $delta; Probe = "$($response.Status)|$delta" }
+}
+
+function Set-ProductScope([string] $roleId, [string] $scope) {
+    Invoke-Sql @"
+DELETE FROM access.RoleDataScopes WHERE PolicyId='scope_products_canonical_read_audit';
+INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_products_canonical_read_audit', '$roleId', 'products', '$scope', '[]');
+"@
+}
+
+function Clear-ProductReadFields {
+    Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_products_canonical_read_audit_%';"
+}
+
 function Product-Body(
     [string] $sku,
     [string] $name,
@@ -256,6 +287,21 @@ try {
     Assert-Status $workspaceResponse 200 'Workspace listing'
     $workspaceId = (($workspaceResponse.Body | ConvertFrom-Json).items | Where-Object { $_.workspaceKey -eq $workspaceKey }).workspaceId
     Assert-True (-not [string]::IsNullOrWhiteSpace($workspaceId)) 'Trusted Workspace resolved'
+    $memberId = Invoke-SqlScalar "SELECT MemberId FROM workspace.Memberships WHERE WorkspaceId='$workspaceId';"
+    $roleId = Invoke-SqlScalar "SELECT RoleId FROM access.Roles WHERE WorkspaceId='$workspaceId' AND Name='Products Core Owner';"
+    Assert-True (-not [string]::IsNullOrWhiteSpace($memberId) -and -not [string]::IsNullOrWhiteSpace($roleId)) 'Trusted Product member and role resolved'
+
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='products' AND TABLE_NAME='AuditRecords';") -eq '1') 'Products-owned audit store reused'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM products.__EFMigrationsHistory;") -eq '1') 'No Product audit migration required'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID('products.AuditRecords');") -eq '0') 'Product audit store has zero foreign keys'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='products' AND TABLE_NAME='AuditRecords' AND COLUMN_NAME IN ('AuditId','Operation','WorkspaceId','ActorId','AggregateId','RequestId','CorrelationId','OccurredAt','Outcome','NewVersion');") -eq '10') 'Product audit store represents frozen read evidence'
+
+    $emptyHeaders = New-Headers $token $workspaceId
+    $emptyRequestId = $emptyHeaders['X-Request-Id']
+    $emptyList = Measure-ProductRead '/products' $emptyHeaders
+    Assert-True ($emptyList.Probe -eq '200|1') 'Canonical empty list writes exactly one owner audit'
+    Assert-True ((@($emptyList.Body).Count) -eq 0) 'Canonical empty list remains empty'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE RequestId='$emptyRequestId' AND Operation='listProducts' AND WorkspaceId='$workspaceId' AND ActorId='$memberId' AND Outcome='READ' AND AggregateId IS NULL AND PriorVersion IS NULL AND NewVersion IS NULL;") -eq '1') 'Canonical empty list audit evidence exact'
 
     $createKey = 'idem-product-create-0001'
     $createBody = Product-Body 'SKU-CORE-001' 'Core Product'
@@ -280,8 +326,33 @@ try {
 
     $massAssignment = $createBody.TrimEnd('}') + ',"id":"client-owned","version":91}'
     Assert-Status (Send-Json 'POST' '/products' $massAssignment (New-Headers $token $workspaceId 'idem-product-mass-assignment')) 400 'Mass assignment rejection'
-    Assert-Status (Send-Json 'GET' '/products' $null (New-Headers $token $workspaceId)) 200 'listProducts'
-    Assert-Status (Send-Json 'GET' "/products/$productId" $null (New-Headers $token $workspaceId)) 200 'getProduct'
+    $recordDecisionsBeforeList = Get-ProductRecordDecisionCount
+    $singleList = Measure-ProductRead '/products' (New-Headers $token $workspaceId)
+    Assert-True ($singleList.Probe -eq '200|1' -and @($singleList.Body).Count -eq 1) 'Canonical one-row list writes one audit'
+    Assert-True (((Get-ProductRecordDecisionCount) - $recordDecisionsBeforeList) -eq 0) 'Canonical list writes zero per-row record decisions'
+
+    $detailHeaders = New-Headers $token $workspaceId
+    $detailRequestId = $detailHeaders['X-Request-Id']
+    $detailCorrelationId = $detailHeaders['X-Correlation-Id']
+    $recordDecisionsBeforeDetail = Get-ProductRecordDecisionCount
+    $detailRead = Measure-ProductRead "/products/$productId" $detailHeaders
+    $detailDocument = $detailRead.Body
+    Assert-True ($detailRead.Probe -eq '200|1') 'Canonical detail writes exactly one owner audit'
+    Assert-True (((Get-ProductRecordDecisionCount) - $recordDecisionsBeforeDetail) -eq 1) 'Canonical detail record-access behavior unchanged'
+    Assert-True ((Invoke-SqlScalar "SELECT CONCAT(Operation,'|',WorkspaceId,'|',ActorId,'|',RequestId,'|',CorrelationId,'|',Outcome,'|',AggregateId,'|',NewVersion) FROM products.AuditRecords WHERE RequestId='$detailRequestId';") -eq "getProduct|$workspaceId|$memberId|$detailRequestId|$detailCorrelationId|READ|$productId|$($detailDocument.version)") 'Canonical detail provenance and disclosed version exact'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE Operation='listProducts' AND (AggregateId IS NOT NULL OR PriorVersion IS NOT NULL OR NewVersion IS NOT NULL);") -eq '0') 'Canonical list record and resource version remain null'
+
+    Invoke-Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='products.read';"
+    Assert-True ((Measure-ProductRead '/products' (New-Headers $token $workspaceId)).Probe -eq '403|0') 'Capability-denied list writes no owner audit'
+    Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '403|0') 'Capability-denied detail writes no owner audit'
+    Invoke-Sql "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'products.read');"
+
+    $malformedHeaders = New-Headers $token $workspaceId
+    $malformedHeaders['X-Request-Id'] = 'bad'
+    $malformedRead = Measure-ProductRead '/products' $malformedHeaders
+    Assert-True ($malformedRead.Probe -eq '422|0') 'Malformed authorized metadata writes no owner audit'
+    Assert-True ((Measure-ProductRead '/products/bad%20product' (New-Headers $token $workspaceId)).Probe -eq '404|0') 'Malformed Product path writes no owner audit'
+    Assert-True ((Measure-ProductRead '/products/product_does_not_exist_0001' (New-Headers $token $workspaceId)).Probe -eq '404|0') 'Unknown Product writes no owner audit'
 
     $projectionAuditBefore = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ';")
     $projectionOutboxBefore = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.OutboxMessages WHERE WorkspaceId='$workspaceId';")
@@ -300,7 +371,7 @@ try {
     $projectionAuditAfter = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ';")
     $projectionOutboxAfter = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.OutboxMessages WHERE WorkspaceId='$workspaceId';")
     $authorizationAuditAfter = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$workspaceId' AND RequiredCapability='products.read';")
-    $invalidProjectionAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ' AND (Operation IS NULL OR Operation='' OR ActorId IS NULL OR ActorId='' OR AggregateId IS NULL OR AggregateId='' OR RequestId IS NULL OR RequestId='' OR CorrelationId IS NULL OR CorrelationId='' OR OccurredAt IS NULL);")
+    $invalidProjectionAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ' AND Operation IN ('getProductAvailability','getProductPriceProjection') AND (ActorId IS NULL OR ActorId='' OR AggregateId IS NULL OR AggregateId='' OR RequestId IS NULL OR RequestId='' OR CorrelationId IS NULL OR CorrelationId='' OR OccurredAt IS NULL);")
     $productAfterRead = Send-Json 'GET' "/products/$productId" $null (New-Headers $token $workspaceId)
     Assert-True ($availabilityAuditCount -eq 1 -and $priceAuditCount -eq 1 -and $projectionAuditAfter -eq ($projectionAuditBefore + 2)) 'Product-owned projection READ_AUDIT evidence'
     Assert-True ($invalidProjectionAuditCount -eq 0) 'Product READ_AUDIT authoritative fields'
@@ -343,6 +414,10 @@ try {
     Assert-Status $third 201 'Third Product create'
     $secondId = ($second.Body | ConvertFrom-Json).aggregateId
     $thirdId = ($third.Body | ConvertFrom-Json).aggregateId
+    $recordDecisionsBeforeMultiList = Get-ProductRecordDecisionCount
+    $multiList = Measure-ProductRead '/products' (New-Headers $token $workspaceId)
+    Assert-True ($multiList.Probe -eq '200|1' -and @($multiList.Body).Count -eq 3) 'Canonical multi-row list writes one audit, never per row'
+    Assert-True (((Get-ProductRecordDecisionCount) - $recordDecisionsBeforeMultiList) -eq 0) 'Canonical multi-row list has no record-decision fan-out'
     $inclusivePrice = Send-Json 'GET' "/products/$secondId/price-projection?quantity=1" $null (New-Headers $token $workspaceId '' 0)
     Assert-Status $inclusivePrice 200 'Inclusive tax projection'
     $inclusivePriceBody = $inclusivePrice.Body | ConvertFrom-Json
@@ -392,14 +467,72 @@ try {
     # relaxed one.
     $foreignWorkspaceId = Invoke-SqlScalar "SELECT WorkspaceId FROM workspace.Workspaces WHERE [Key]='$foreignWorkspaceKey';"
     Invoke-Sql "UPDATE products.Products SET WorkspaceId='$foreignWorkspaceId' WHERE ProductId='$thirdId';"
-    $crossWorkspace = Send-Json 'GET' "/products/$thirdId" $null (New-Headers $token $workspaceId)
-    $unknownProduct = Send-Json 'GET' '/products/product_does_not_exist_0001' $null (New-Headers $token $workspaceId)
+    $crossWorkspaceMeasured = Measure-ProductRead "/products/$thirdId" (New-Headers $token $workspaceId)
+    $unknownMeasured = Measure-ProductRead '/products/product_does_not_exist_0001' (New-Headers $token $workspaceId)
+    $crossWorkspace = [pscustomobject] @{ Status = $crossWorkspaceMeasured.Status; Body = $crossWorkspaceMeasured.Raw }
+    $unknownProduct = [pscustomobject] @{ Status = $unknownMeasured.Status; Body = $unknownMeasured.Raw }
     Assert-Status $crossWorkspace 404 'Cross-Workspace Product access collapses to not found'
     Assert-Status $unknownProduct 404 'Unknown Product access'
+    Assert-True ($crossWorkspaceMeasured.Delta -eq 0 -and $unknownMeasured.Delta -eq 0) 'Foreign and unknown Product write no owner audit'
     $foreignNormalised = ($crossWorkspace.Body -replace '"correlationId":"[^"]*"', '"correlationId":"<c>"')
     $unknownNormalised = ($unknownProduct.Body -replace '"correlationId":"[^"]*"', '"correlationId":"<c>"')
     Assert-True ($foreignNormalised -eq $unknownNormalised) 'Foreign Product is byte-indistinguishable from an unknown Product'
     Assert-True ($crossWorkspace.Body -notmatch 'SKU-CORE-003') 'Foreign Product leaks no business value'
+    $workspaceList = Measure-ProductRead '/products' (New-Headers $token $workspaceId)
+    Assert-True ($workspaceList.Probe -eq '200|1' -and @($workspaceList.Body).Count -eq 5) 'Workspace list discloses only current Workspace Products with one audit'
+    Assert-True ($workspaceList.Raw -notmatch 'SKU-CORE-003') 'Workspace list leaks no foreign Product value'
+
+    Set-ProductScope $roleId 'Own'
+    Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '404|0') 'Record-access denied detail writes no owner audit'
+    Assert-True ((Measure-ProductRead '/products' (New-Headers $token $workspaceId)).Probe -eq '200|1') 'OWN fail-closed empty list remains a successful audited disclosure'
+    foreach ($scope in @('Team', 'Custom')) {
+        Set-ProductScope $roleId $scope
+        Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '404|0') "$scope record denial writes no owner audit"
+        $scopedList = Measure-ProductRead '/products' (New-Headers $token $workspaceId)
+        Assert-True ($scopedList.Probe -eq '200|1' -and @($scopedList.Body).Count -eq 0) "$scope list fails closed with one invocation audit"
+    }
+    Set-ProductScope $roleId 'Workspace'
+
+    Clear-ProductReadFields
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES ('field_products_canonical_read_audit_required', '$roleId', 'products', 'name', 'Hidden');"
+    Assert-True ((Measure-ProductRead '/products' (New-Headers $token $workspaceId)).Probe -eq '403|0') 'Required hidden Product field list writes no owner audit'
+    Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '403|0') 'Required hidden Product field detail writes no owner audit'
+    Clear-ProductReadFields
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES ('field_products_canonical_read_audit_optional', '$roleId', 'products', 'description', 'Hidden');"
+    $optionalHidden = Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)
+    Assert-True ($optionalHidden.Probe -eq '200|1' -and $optionalHidden.Raw -notmatch 'description|Authoritative Product fixture') 'Optional hidden Product field is withheld before one detail audit'
+    Clear-ProductReadFields
+
+    $corruptProductId = 'product_corrupt_read_audit_0001'
+    Invoke-Sql @"
+INSERT INTO products.Products
+(ProductId, WorkspaceId, Profile, NormalizedSku, ArchivedAt, ArchiveReason, CreatedAt, UpdatedAt, Version)
+VALUES ('$corruptProductId', '$workspaceId', N'{', 'SKU-CORRUPT-READ-AUDIT', NULL, NULL, '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z', 0);
+"@
+    Assert-True ((Measure-ProductRead "/products/$corruptProductId" (New-Headers $token $workspaceId)).Probe -eq '500|0') 'Corrupt persisted Product detail fails before owner audit'
+    Assert-True ((Measure-ProductRead '/products' (New-Headers $token $workspaceId)).Probe -eq '500|0') 'Corrupt persisted Product list fails before owner audit'
+    Invoke-Sql "DELETE FROM products.Products WHERE ProductId='$corruptProductId';"
+    Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '200|1') 'Healthy Product detail recovers with one audit'
+
+    Invoke-Sql @"
+CREATE TRIGGER products.TR_AuditRecords_CanonicalReadFailureProbe
+ON products.AuditRecords
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted WHERE Operation IN ('listProducts', 'getProduct'))
+        THROW 51000, 'Canonical Product read-audit persistence probe.', 1;
+END;
+"@
+    Assert-True ((Measure-ProductRead '/products' (New-Headers $token $workspaceId)).Probe -eq '500|0') 'List returns no success when owner audit persistence fails'
+    Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '500|0') 'Detail returns no success when owner audit persistence fails'
+    Invoke-Sql 'DROP TRIGGER products.TR_AuditRecords_CanonicalReadFailureProbe;'
+    Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '200|1') 'Canonical detail recovers after audit persistence probe removal'
+
+    $canonicalAuditDump = Invoke-SqlScalar "SELECT STRING_AGG(CONCAT(AuditId,'|',Operation,'|',WorkspaceId,'|',ActorId,'|',ISNULL(AggregateId,''),'|',RequestId,'|',CorrelationId,'|',Outcome,'|',ISNULL(CAST(NewVersion AS varchar(32)),'')), ' ') FROM products.AuditRecords WHERE Outcome='READ' AND Operation IN ('listProducts','getProduct');"
+    Assert-True ($canonicalAuditDump -notmatch 'SKU-CORE|Core Product|Professional Services|Authoritative Product fixture|10\.125|verified|core') 'Canonical read evidence stores no Product business values'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$foreignWorkspaceId' AND Outcome='READ' AND Operation IN ('listProducts','getProduct');") -eq '0') 'No foreign Workspace canonical owner evidence'
 
     $auditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='COMMITTED';")
     $readAuditCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM products.AuditRecords WHERE WorkspaceId='$workspaceId' AND Outcome='READ';")
@@ -407,6 +540,15 @@ try {
     Assert-True ($auditCount -eq 13) 'Immutable command audit count'
     Assert-True ($readAuditCount -ge 8) 'Immutable Product READ_AUDIT count'
     Assert-True ($outboxCount -eq 11) 'Atomic Product outbox count'
+
+    $productsRoot = Resolve-Path "$PSScriptRoot/../src/UnicoreCRM.Sales/Products"
+    $productsSource = (Get-ChildItem -LiteralPath $productsRoot -Recurse -File -Filter '*.cs' | Get-Content -Raw) -join "`n"
+    $endpointSource = Get-Content -Raw -LiteralPath (Join-Path $productsRoot 'Contracts/ProductsEndpoints.cs')
+    Assert-True ([regex]::Matches($endpointSource, 'MapGet\(endpoints,').Count -eq 4) 'Product route surface remains unchanged'
+    Assert-True ([regex]::Matches($endpointSource, 'Map(Post|Put)\(endpoints,').Count -eq 6) 'Existing Product mutation route count remains unchanged'
+    Assert-True ($productsSource -notmatch '\b(Quotes|Orders|Invoices|Payments|Shipping)DbContext\b') 'Products adds no foreign DbContext'
+    Assert-True ($productsSource -notmatch 'IReadAuditService|GenericAudit|READ_ACCESS_LOG framework') 'Products adds no generic audit framework'
+    Assert-True ($productsSource -notmatch 'WF-16|WF-22|QuoteToOrder|ProductWorkflow') 'Products adds no workflow implementation'
 
     if ($RunConnectedAcceptance) {
         Invoke-ConnectedBrowserAcceptance $token $workspaceId $productId

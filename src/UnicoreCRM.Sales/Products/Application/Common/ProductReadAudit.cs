@@ -5,6 +5,30 @@ namespace UnicoreCRM.Sales.Products.Application.Common;
 
 internal static class ProductReadAudit
 {
+    internal static async Task RecordCanonicalAsync(
+        IProductsPersistence persistence,
+        string? recordId,
+        long? resourceVersion,
+        TrustedWorkspaceContext trusted,
+        ProductRequestMetadata metadata,
+        string operation,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken)
+    {
+        persistence.AddAudit(new ProductAuditRecord(
+            operation,
+            trusted.WorkspaceId,
+            trusted.MemberId,
+            recordId,
+            metadata.RequestId,
+            metadata.CorrelationId,
+            "READ",
+            null,
+            resourceVersion,
+            occurredAt));
+        await persistence.SaveChangesAsync(cancellationToken);
+    }
+
     internal static async Task RecordAsync(
         IProductsPersistence persistence,
         Product product,

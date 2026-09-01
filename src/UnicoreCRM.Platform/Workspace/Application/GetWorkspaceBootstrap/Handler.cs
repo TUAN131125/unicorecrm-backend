@@ -24,11 +24,12 @@ internal sealed class Handler(
         if (bootstrap is null)
             return WorkspaceOperationResult<WorkspaceBootstrapDocument>.Failure(WorkspaceErrors.AccessDenied());
 
-        trustedWorkspaceSetter.Set(new TrustedWorkspaceContext(
+        var trustedWorkspace = new TrustedWorkspaceContext(
             bootstrap.Workspace.WorkspaceId,
             query.AccountId,
             query.MemberId,
-            bootstrap.Workspace.MembershipId));
+            bootstrap.Workspace.MembershipId);
+        trustedWorkspaceSetter.Set(trustedWorkspace);
         var accessDecision = await accessAuthorizer.AuthorizeAsync(
             AccessCapabilities.WorkspaceContextResolve,
             query.CorrelationId,
@@ -49,7 +50,13 @@ internal sealed class Handler(
                 Deserialize(bootstrap.EnabledModuleKeysJson),
                 Deserialize(bootstrap.AvailableProductSpacesJson)),
             now);
-        persistence.AddAccessRecord(new WorkspaceAccessRecord("getWorkspaceBootstrap", query.AccountId, query.WorkspaceId, query.CorrelationId, now));
+        persistence.AddAccessRecord(WorkspaceAccessRecord.SuccessfulRead(
+            "getWorkspaceBootstrap",
+            trustedWorkspace.AccountId,
+            trustedWorkspace.WorkspaceId,
+            query.RequestId,
+            query.CorrelationId,
+            now));
         await persistence.SaveChangesAsync(cancellationToken);
         return WorkspaceOperationResult<WorkspaceBootstrapDocument>.Success(document);
     }

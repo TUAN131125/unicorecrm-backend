@@ -19,6 +19,10 @@ public static class AccessControlEndpoints
             .RequireAuthorization()
             .RequireTrustedWorkspace()
             .WithName("evaluateEffectiveRecordAccess");
+        endpoints.MapPost("/access/roles", CreateAccessRoleAsync)
+            .RequireAuthorization()
+            .RequireTrustedWorkspace()
+            .WithName("createAccessRole");
         return endpoints;
     }
 
@@ -92,6 +96,31 @@ public static class AccessControlEndpoints
             : AccessHttp.Error(result.Error!, correlationId);
     }
 
+    private static async Task<IResult> CreateAccessRoleAsync(
+        HttpContext context,
+        Application.CreateAccessRole.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        var suppliedCorrelationId = context.Request.Headers["X-Correlation-Id"].ToString();
+        var correlationId = suppliedCorrelationId.Length is >= 8 and <= 128
+            ? suppliedCorrelationId
+            : context.TraceIdentifier;
+        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        using var reader = new StreamReader(context.Request.Body);
+        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var result = await handler.HandleAsync(
+            new Application.CreateAccessRole.Command(
+                rawBody,
+                context.Request.Headers["X-Request-Id"].ToString(),
+                correlationId,
+                suppliedCorrelationId,
+                context.Request.Headers["Idempotency-Key"].ToString()),
+            cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value)
+            : AccessHttp.Error(result.Error!, correlationId);
+    }
+
     private static string CorrelationId(HttpContext context)
     {
         var supplied = context.Request.Headers["X-Correlation-Id"].ToString();
@@ -110,7 +139,8 @@ internal static class AccessHttp
                 error.Code,
                 false,
                 correlationId,
-                FieldErrors: error.FieldErrors),
+                FieldErrors: error.FieldErrors,
+                IdempotencyKey: error.IdempotencyKey),
             statusCode: error.Status,
             contentType: "application/problem+json");
 }

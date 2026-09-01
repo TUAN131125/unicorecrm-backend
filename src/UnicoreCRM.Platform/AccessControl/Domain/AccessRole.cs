@@ -8,7 +8,8 @@ internal sealed class AccessRole
     {
         RoleId = AccessControlIds.New("role");
         WorkspaceId = workspaceId;
-        Name = name;
+        Name = name.Trim();
+        NormalizedName = Name.ToUpperInvariant();
         Description = description;
         SourceTemplateId = sourceTemplateId;
         IsActive = true;
@@ -20,6 +21,7 @@ internal sealed class AccessRole
     public string RoleId { get; private set; } = null!;
     public string WorkspaceId { get; private set; } = null!;
     public string Name { get; private set; } = null!;
+    public string NormalizedName { get; private set; } = null!;
     public string? Description { get; private set; }
     public string? SourceTemplateId { get; private set; }
     public bool IsActive { get; private set; }

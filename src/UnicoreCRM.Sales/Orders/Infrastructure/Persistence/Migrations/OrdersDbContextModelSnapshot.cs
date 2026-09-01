@@ -238,6 +238,65 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Orders_State", "(([State] COLLATE Latin1_General_100_BIN2 = N'DRAFT' AND DATALENGTH([State]) = DATALENGTH(N'DRAFT')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'CONFIRMED' AND DATALENGTH([State]) = DATALENGTH(N'CONFIRMED')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'COMPLETED' AND DATALENGTH([State]) = DATALENGTH(N'COMPLETED')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'CANCELLED' AND DATALENGTH([State]) = DATALENGTH(N'CANCELLED')))");
                         });
                 });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Orders.Domain.OrderReadAuditRecord", b =>
+                {
+                    b.Property<string>("AuditId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("RecordId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long?>("ResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("AuditId");
+
+                    b.HasIndex("WorkspaceId", "OccurredAt");
+
+                    b.ToTable("ReadAuditRecords", "orders", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReadAuditRecords_Outcome", "(([Outcome] COLLATE Latin1_General_100_BIN2 = N'READ' AND DATALENGTH([Outcome]) = DATALENGTH(N'READ')))");
+
+                            t.HasCheckConstraint("CK_ReadAuditRecords_ResourceVersion", "[ResourceVersion] IS NULL OR [ResourceVersion] >= 0");
+                        });
+                });
 #pragma warning restore 612, 618
         }
     }

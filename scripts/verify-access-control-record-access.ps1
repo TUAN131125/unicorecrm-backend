@@ -205,8 +205,8 @@ function Set-SupportScope {
     param([string] $RoleId, [string] $Database, [string] $Scope)
     Invoke-SqlNonQuery -Database $Database -Query @"
 DELETE FROM access.RoleDataScopes WHERE PolicyId = 'scope_record_access_verify_support';
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
-VALUES ('scope_record_access_verify_support', '$RoleId', 'support', '$Scope', '[]');
+INSERT INTO access.RoleDataScopes (PolicyId, WorkspaceId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_record_access_verify_support', '$($script:WorkspaceId)', '$RoleId', 'support', '$Scope', '[]');
 "@
 }
 
@@ -217,12 +217,12 @@ function Set-ModuleScope {
     param([string] $RoleId, [string] $Database, [string] $Scope)
     Invoke-SqlNonQuery -Database $Database -Query @"
 DELETE FROM access.RoleDataScopes WHERE PolicyId LIKE 'scope_retro_%';
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson) VALUES
-('scope_retro_tasks', '$RoleId', 'tasks', '$Scope', '[]'),
-('scope_retro_leads', '$RoleId', 'leads', '$Scope', '[]'),
-('scope_retro_deals', '$RoleId', 'deals', '$Scope', '[]'),
-('scope_retro_products', '$RoleId', 'products', '$Scope', '[]'),
-('scope_retro_contacts', '$RoleId', 'contacts', '$Scope', '[]');
+INSERT INTO access.RoleDataScopes (PolicyId, WorkspaceId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson) VALUES
+('scope_retro_tasks', '$($script:WorkspaceId)', '$RoleId', 'tasks', '$Scope', '[]'),
+('scope_retro_leads', '$($script:WorkspaceId)', '$RoleId', 'leads', '$Scope', '[]'),
+('scope_retro_deals', '$($script:WorkspaceId)', '$RoleId', 'deals', '$Scope', '[]'),
+('scope_retro_products', '$($script:WorkspaceId)', '$RoleId', 'products', '$Scope', '[]'),
+('scope_retro_contacts', '$($script:WorkspaceId)', '$RoleId', 'contacts', '$Scope', '[]');
 "@
 }
 
@@ -523,8 +523,8 @@ DROP TABLE #foreign_case;
     # ------------------------------------------------------------ 7. OWN scope
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
-VALUES ('scope_record_access_verify_support', '$roleId', 'support', 'Own', '[]');
+INSERT INTO access.RoleDataScopes (PolicyId, WorkspaceId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_record_access_verify_support', '$($script:WorkspaceId)', '$roleId', 'support', 'Own', '[]');
 "@
 
     $ownAllowed = Invoke-Evaluate -Request @{ resourceKey = 'support'; recordId = $ownCaseId; requestedCommands = $supportProfileCommands; requestedFields = $supportProfileFields; includeExport = $true }
@@ -571,10 +571,10 @@ VALUES ('scope_record_access_verify_support', '$roleId', 'support', 'Own', '[]')
     Add-Result 'field: only requested fields are projected' '7' ([int]($defaultField.Body.fieldAccess.PSObject.Properties | Measure-Object).Count)
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
-('field_record_access_verify_desc', '$roleId', 'support', 'description', 'Masked'),
-('field_record_access_verify_sla', '$roleId', 'support', 'channel', 'Hidden'),
-('field_record_access_verify_status', '$roleId', 'support', 'status', 'ReadOnly');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_record_access_verify_desc', '$($script:WorkspaceId)', '$roleId', 'support', 'description', 'Masked'),
+('field_record_access_verify_sla', '$($script:WorkspaceId)', '$roleId', 'support', 'channel', 'Hidden'),
+('field_record_access_verify_status', '$($script:WorkspaceId)', '$roleId', 'support', 'status', 'ReadOnly');
 "@
 
     $restrictedFields = Invoke-Evaluate -Request $baseRequest
@@ -592,14 +592,14 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
 
     # Most-restrictive-wins across roles: a second role granting READ_WRITE must not widen MASKED.
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.Roles (RoleId, WorkspaceId, Name, Description, SourceTemplateId, IsActive, Version, CreatedAt, UpdatedAt)
-VALUES ('role_record_access_verify_second', '$($script:WorkspaceId)', 'Record Access Verify Second', NULL, NULL, 1, 0, SYSUTCDATETIME(), SYSUTCDATETIME());
+INSERT INTO access.Roles (RoleId, WorkspaceId, Name, NormalizedName, Description, SourceTemplateId, IsActive, Version, CreatedAt, UpdatedAt)
+VALUES ('role_record_access_verify_second', '$($script:WorkspaceId)', 'Record Access Verify Second', 'RECORD ACCESS VERIFY SECOND', NULL, NULL, 1, 0, SYSUTCDATETIME(), SYSUTCDATETIME());
 INSERT INTO access.MembershipRoleAssignments (AssignmentId, WorkspaceId, MembershipId, RoleId, AssignedAt)
 SELECT 'assign_record_access_verify_second', WorkspaceId, MembershipId, 'role_record_access_verify_second', SYSUTCDATETIME()
 FROM access.MembershipRoleAssignments WHERE RoleId = '$roleId';
 INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('role_record_access_verify_second', 'support.read');
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_record_access_verify_desc2', 'role_record_access_verify_second', 'support', 'description', 'ReadWrite');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_record_access_verify_desc2', '$($script:WorkspaceId)', 'role_record_access_verify_second', 'support', 'description', 'ReadWrite');
 "@
     $multiRole = Invoke-Evaluate -Request $baseRequest
     Add-Result 'field: most restrictive role wins across roles' 'HIDDEN' $multiRole.Body.fieldAccess.description
@@ -784,9 +784,9 @@ SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE WorkspaceId = '$for
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_enforce_%';
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
-('field_enforce_owner', '$roleId', 'support', 'ownerId', 'Hidden'),
-('field_enforce_tags', '$roleId', 'support', 'TAGS', 'ReadOnly');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_enforce_owner', '$($script:WorkspaceId)', '$roleId', 'support', 'ownerId', 'Hidden'),
+('field_enforce_tags', '$($script:WorkspaceId)', '$roleId', 'support', 'TAGS', 'ReadOnly');
 "@
 
     $hiddenField = Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId"
@@ -823,8 +823,8 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
     # A restrictive policy on a required wire field cannot be honoured, so the operation fails closed
     # rather than returning a value the policy forbids.
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_enforce_required', '$roleId', 'support', 'description', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_enforce_required', '$($script:WorkspaceId)', '$roleId', 'support', 'description', 'Hidden');
 "@
     $requiredField = Invoke-Support -Method 'GET' -Path "/support/cases/$ownCaseId"
     Add-Result 'field: unwithholdable required field fails the read closed' '403' $requiredField.Status
@@ -913,16 +913,16 @@ VALUES ('field_enforce_required', '$roleId', 'support', 'description', 'Hidden')
     # Two roles spelling one resource key differently must not produce two effective entries: the
     # restrictive one has to win, or a casing difference becomes a scope bypass.
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.Roles (RoleId, WorkspaceId, Name, Description, SourceTemplateId, IsActive, Version, CreatedAt, UpdatedAt)
-VALUES ('role_record_access_case', '$($script:WorkspaceId)', 'Record Access Case Casing', NULL, NULL, 1, 0, SYSUTCDATETIME(), SYSUTCDATETIME());
+INSERT INTO access.Roles (RoleId, WorkspaceId, Name, NormalizedName, Description, SourceTemplateId, IsActive, Version, CreatedAt, UpdatedAt)
+VALUES ('role_record_access_case', '$($script:WorkspaceId)', 'Record Access Case Casing', 'RECORD ACCESS CASE CASING', NULL, NULL, 1, 0, SYSUTCDATETIME(), SYSUTCDATETIME());
 INSERT INTO access.MembershipRoleAssignments (AssignmentId, WorkspaceId, MembershipId, RoleId, AssignedAt)
 SELECT 'assign_record_access_case', WorkspaceId, MembershipId, 'role_record_access_case', SYSUTCDATETIME()
 FROM access.MembershipRoleAssignments WHERE RoleId = '$roleId';
 INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('role_record_access_case', 'support.read');
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
-VALUES ('scope_record_access_case', 'role_record_access_case', 'SUPPORT', 'Own', '[]');
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_record_access_case', 'role_record_access_case', 'SuPPoRt', 'ownerId', 'Hidden');
+INSERT INTO access.RoleDataScopes (PolicyId, WorkspaceId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_record_access_case', '$($script:WorkspaceId)', 'role_record_access_case', 'SUPPORT', 'Own', '[]');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_record_access_case', '$($script:WorkspaceId)', 'role_record_access_case', 'SuPPoRt', 'ownerId', 'Hidden');
 "@
 
     # The primary role spells the key `support` and the second spells it `SUPPORT`. One canonical
@@ -1202,11 +1202,11 @@ VALUES
     # ---- field enforcement per module, proven on the raw backend JSON ----
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_retro_%';
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
-('field_retro_task_desc', '$roleId', 'tasks', 'description', 'Hidden'),
-('field_retro_lead_email', '$roleId', 'LEADS', 'email', 'Hidden'),
-('field_retro_product_cost', '$roleId', 'products', 'costPrice', 'Masked'),
-('field_retro_contact_email', '$roleId', 'contacts', 'workEmail', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_retro_task_desc', '$($script:WorkspaceId)', '$roleId', 'tasks', 'description', 'Hidden'),
+('field_retro_lead_email', '$($script:WorkspaceId)', '$roleId', 'LEADS', 'email', 'Hidden'),
+('field_retro_product_cost', '$($script:WorkspaceId)', '$roleId', 'products', 'costPrice', 'Masked'),
+('field_retro_contact_email', '$($script:WorkspaceId)', '$roleId', 'contacts', 'workEmail', 'Hidden');
 "@
 
     $taskFields = Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId"
@@ -1230,8 +1230,8 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
 
     # A restrictive policy on a required field cannot be represented, so the read fails closed.
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_retro_task_required', '$roleId', 'tasks', 'title', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_retro_task_required', '$($script:WorkspaceId)', '$roleId', 'tasks', 'title', 'Hidden');
 "@
     $taskRequired = Invoke-Support -Method 'GET' -Path "/tasks/$taskOwnId"
     Add-Result 'tasks: unwithholdable required field fails the read closed' '403' $taskRequired.Status
@@ -1321,8 +1321,8 @@ SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$res
         param([string] $Resource, [string] $Field, [string] $Access)
         Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 DELETE FROM access.RoleFieldSecurity WHERE PolicyId LIKE 'field_gate_%';
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_gate_01', '$roleId', '$Resource', '$Field', '$Access');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_gate_01', '$($script:WorkspaceId)', '$roleId', '$Resource', '$Field', '$Access');
 "@
     }
 

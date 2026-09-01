@@ -101,6 +101,10 @@ namespace UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.HasKey("Id");
 
                     b.ToTable("AuditRecords", "iam");

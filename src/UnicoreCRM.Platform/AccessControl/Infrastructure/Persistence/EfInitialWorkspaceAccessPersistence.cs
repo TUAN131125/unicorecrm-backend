@@ -15,7 +15,9 @@ internal sealed class EfInitialWorkspaceAccessPersistence(AccessControlDbContext
     public Task<AccessRole?> FindRoleAsync(string workspaceId, string roleName, CancellationToken cancellationToken) =>
         dbContext.Roles
             .AsNoTracking()
-            .SingleOrDefaultAsync(role => role.WorkspaceId == workspaceId && role.Name == roleName, cancellationToken);
+            .SingleOrDefaultAsync(
+                role => role.WorkspaceId == workspaceId && role.NormalizedName == roleName.Trim().ToUpperInvariant(),
+                cancellationToken);
 
     public async Task<IReadOnlyList<string>> ReadRoleCapabilitiesAsync(string roleId, CancellationToken cancellationToken) =>
         await dbContext.RoleCapabilities
@@ -57,6 +59,22 @@ internal sealed class EfInitialWorkspaceAccessPersistence(AccessControlDbContext
             dbContext.MembershipRoleAssignments.Add(assignment);
         try
         {
+            var workspaceId = role?.WorkspaceId ?? assignment?.WorkspaceId;
+            if (workspaceId is null && capabilities.Count > 0)
+            {
+                var roleId = capabilities[0].RoleId;
+                workspaceId = await dbContext.Roles
+                    .Where(item => item.RoleId == roleId)
+                    .Select(item => item.WorkspaceId)
+                    .SingleAsync(cancellationToken);
+            }
+            var revision = await dbContext.WorkspaceDirectoryRevisions
+                .FromSqlInterpolated($"SELECT [WorkspaceId], [Revision] FROM [access].[WorkspaceDirectoryRevisions] WITH (UPDLOCK, HOLDLOCK) WHERE [WorkspaceId] = {workspaceId}")
+                .SingleOrDefaultAsync(cancellationToken);
+            if (revision is null)
+                dbContext.WorkspaceDirectoryRevisions.Add(new WorkspaceAccessDirectoryRevision(workspaceId!));
+            else
+                revision.Advance();
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return true;

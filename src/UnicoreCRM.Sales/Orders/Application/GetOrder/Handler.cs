@@ -8,7 +8,8 @@ internal sealed record Query(string OrderId, OrderRequestMetadata Metadata);
 
 internal sealed partial class Handler(
     OrderAuthorization authorization,
-    IOrdersPersistence persistence)
+    IOrdersPersistence persistence,
+    TimeProvider timeProvider)
 {
     internal async Task<OrderOperationResult<OrderReadModel>> HandleAsync(
         Query query,
@@ -36,10 +37,18 @@ internal sealed partial class Handler(
         if (denied is not null)
             return OrderOperationResult<OrderReadModel>.Failure(denied);
 
-        return OrderOperationResult<OrderReadModel>.Success(
-            OrderFieldSecurity.Project(
-                OrderProjection.Document(order),
-                access.Value.Authorization));
+        var document = OrderFieldSecurity.Project(
+            OrderProjection.Document(order),
+            access.Value.Authorization);
+        await OrderReadAudit.RecordResourceAsync(
+            persistence,
+            access.Value,
+            query.Metadata,
+            order.OrderId,
+            order.ResourceVersion,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return OrderOperationResult<OrderReadModel>.Success(document);
     }
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", RegexOptions.CultureInvariant)]

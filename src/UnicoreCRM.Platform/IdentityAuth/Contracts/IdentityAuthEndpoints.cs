@@ -100,7 +100,9 @@ public static class IdentityAuthEndpoints
             return headerError!;
         if (!TryPrincipal(httpContext, out var accountId, out var sessionId))
             return IdentityHttp.Error(IdentityErrors.SessionInvalid(), metadata!.CorrelationId);
-        var result = await handler.HandleAsync(new Application.GetCurrentSession.Query(accountId, sessionId, metadata!.CorrelationId), cancellationToken);
+        var result = await handler.HandleAsync(
+            new Application.GetCurrentSession.Query(accountId, sessionId, metadata!.RequestId, metadata.CorrelationId),
+            cancellationToken);
         return result.IsSuccess ? Results.Json(result.Value) : IdentityHttp.Error(result.Error!, metadata.CorrelationId);
     }
 

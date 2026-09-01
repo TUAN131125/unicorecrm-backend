@@ -49,12 +49,58 @@ internal sealed class EfOrdersPersistence(OrdersDbContext dbContext) : IOrdersPe
             query = query.Where(item => item.BuyerId == buyerId);
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await Order(query, specification.SortBy, specification.Descending)
-            .Skip(specification.Offset)
-            .Take(specification.Limit)
+        query = Continue(query, specification.SortBy, specification.Descending, specification.Continuation);
+        var window = await Order(query, specification.SortBy, specification.Descending)
+            .Take(specification.Limit + 1)
             .ToArrayAsync(cancellationToken);
-        return new OrderPage(items, totalCount);
+        var hasNextPage = window.Length > specification.Limit;
+        var items = hasNextPage ? window[..specification.Limit] : window;
+        return new OrderPage(items, totalCount, hasNextPage);
     }
+
+    public void AddReadAudit(OrderReadAuditRecord readAudit) => dbContext.ReadAuditRecords.Add(readAudit);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
+
+    private static IQueryable<Order> Continue(
+        IQueryable<Order> query,
+        string sortBy,
+        bool descending,
+        OrderListContinuation? continuation) => (sortBy, descending, continuation) switch
+        {
+            (_, _, null) => query,
+            ("updatedAt", true, OrderTimestampContinuation value) => query.Where(item =>
+                item.UpdatedAt < value.LastPrimary
+                || (item.UpdatedAt == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) < 0)),
+            ("updatedAt", false, OrderTimestampContinuation value) => query.Where(item =>
+                item.UpdatedAt > value.LastPrimary
+                || (item.UpdatedAt == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) > 0)),
+            ("createdAt", true, OrderTimestampContinuation value) => query.Where(item =>
+                item.CreatedAt < value.LastPrimary
+                || (item.CreatedAt == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) < 0)),
+            ("createdAt", false, OrderTimestampContinuation value) => query.Where(item =>
+                item.CreatedAt > value.LastPrimary
+                || (item.CreatedAt == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) > 0)),
+            ("orderDate", true, OrderDateContinuation value) => query.Where(item =>
+                item.OrderDate < value.LastPrimary
+                || (item.OrderDate == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) < 0)),
+            ("orderDate", false, OrderDateContinuation value) => query.Where(item =>
+                item.OrderDate > value.LastPrimary
+                || (item.OrderDate == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) > 0)),
+            ("grandTotal", true, OrderAmountContinuation value) => query.Where(item =>
+                item.GrandTotalAmount < value.LastPrimary
+                || (item.GrandTotalAmount == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) < 0)),
+            ("grandTotal", false, OrderAmountContinuation value) => query.Where(item =>
+                item.GrandTotalAmount > value.LastPrimary
+                || (item.GrandTotalAmount == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) > 0)),
+            ("orderNumber", true, OrderTextContinuation value) => query.Where(item =>
+                string.Compare(item.OrderNumber, value.LastPrimary) < 0
+                || (item.OrderNumber == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) < 0)),
+            ("orderNumber", false, OrderTextContinuation value) => query.Where(item =>
+                string.Compare(item.OrderNumber, value.LastPrimary) > 0
+                || (item.OrderNumber == value.LastPrimary && string.Compare(item.OrderId, value.LastOrderId) > 0)),
+            _ => throw new InvalidOperationException("The Order continuation does not match its resolved sort field.")
+        };
 
     private static IOrderedQueryable<Order> Order(IQueryable<Order> query, string sortBy, bool descending) =>
         (sortBy, descending) switch

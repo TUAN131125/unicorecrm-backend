@@ -99,6 +99,14 @@ namespace UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(96)
                         .HasColumnType("nvarchar(96)");
 
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("WorkspaceId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");

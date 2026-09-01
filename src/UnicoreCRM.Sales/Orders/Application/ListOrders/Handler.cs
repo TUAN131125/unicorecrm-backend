@@ -20,7 +20,8 @@ internal sealed record Query(
 
 internal sealed partial class Handler(
     OrderAuthorization authorization,
-    IOrdersPersistence persistence)
+    IOrdersPersistence persistence,
+    TimeProvider timeProvider)
 {
     internal async Task<OrderOperationResult<OrderListResponse>> HandleAsync(
         Query query,
@@ -31,7 +32,6 @@ internal sealed partial class Handler(
             return OrderOperationResult<OrderListResponse>.Failure(access.Error!);
 
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        OrderListCursor.TryParse(query.Cursor, fields, out var offset);
         var limit = query.Limit ?? 50;
         if (limit is < 1 or > 250)
             fields["limit"] = ["limit must be between 1 and 250."];
@@ -55,16 +55,47 @@ internal sealed partial class Handler(
         if (fields.Count != 0)
             return OrderOperationResult<OrderListResponse>.Failure(OrderErrors.Validation(fields));
 
+        if ((query.SourceQuoteId is not null && !access.Value!.Authorization.CanRead("sourceQuoteId"))
+            || (query.SourceDealId is not null && !access.Value!.Authorization.CanRead("sourceDealId")))
+        {
+            return OrderOperationResult<OrderListResponse>.Failure(OrderErrors.AccessDenied());
+        }
+
+        var searchRecipientName = access.Value!.Authorization.CanRead("recipientName");
+        var searchableFields = searchRecipientName
+            ? new[] { "orderNumber", "recipientName" }
+            : ["orderNumber"];
+        var sortDirection = descending ? "desc" : "asc";
+        var queryFingerprint = OrderListCursor.QueryFingerprint(new(
+            search,
+            searchableFields,
+            query.State,
+            query.SourceQuoteId,
+            query.SourceDealId,
+            query.BuyerType,
+            query.BuyerId,
+            sortBy,
+            sortDirection));
+        OrderListCursor.TryParse(
+            query.Cursor,
+            sortBy,
+            descending,
+            queryFingerprint,
+            fields,
+            out var continuation);
+        if (fields.Count != 0)
+            return OrderOperationResult<OrderListResponse>.Failure(OrderErrors.Validation(fields));
+
         OrderPage page;
         if (access.Value!.Authorization.ScopeFilter == RecordAccessScopeFilter.Workspace)
         {
             page = await persistence.ReadOrdersAsync(
                 access.Value.Trusted.WorkspaceId,
                 new OrderListSpecification(
-                    offset,
+                    continuation,
                     limit,
                     search,
-                    access.Value.Authorization.CanRead("recipientName"),
+                    searchRecipientName,
                     sortBy,
                     descending,
                     query.State,
@@ -78,19 +109,26 @@ internal sealed partial class Handler(
         {
             // No authoritative Order owner/team fact exists. OWN, TEAM and CUSTOM therefore fail
             // closed before any Order row is queried or counted.
-            page = new OrderPage([], 0);
+            page = new OrderPage([], 0, false);
         }
 
-        var nextOffset = offset + page.Items.Count;
-        var hasNextPage = nextOffset < page.TotalCount;
-        return OrderOperationResult<OrderListResponse>.Success(new(
+        var response = new OrderListResponse(
             page.Items.Select(item => OrderFieldSecurity.Project(
                 OrderProjection.Document(item),
                 access.Value.Authorization)).ToArray(),
             new OrderPageInfo(
-                hasNextPage,
-                hasNextPage ? OrderListCursor.Encode(nextOffset) : null,
-                page.TotalCount)));
+                page.HasNextPage,
+                page.HasNextPage
+                    ? OrderListCursor.Encode(page.Items[^1], sortBy, descending, queryFingerprint)
+                    : null,
+                page.TotalCount));
+        await OrderReadAudit.RecordListAsync(
+            persistence,
+            access.Value,
+            query.Metadata,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return OrderOperationResult<OrderListResponse>.Success(response);
     }
 
     private static string? OptionalSearch(string? value, IDictionary<string, string[]> fields)

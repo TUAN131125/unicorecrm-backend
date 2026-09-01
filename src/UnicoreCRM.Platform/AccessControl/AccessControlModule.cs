@@ -32,6 +32,9 @@ internal static class AccessControlModule
         services.AddScoped<IDelegatedAccessAuthorizer, AccessAuthorizer>();
         services.AddScoped<IAccessContextAuthorizer, AccessAuthorizer>();
         services.AddScoped<Application.GetCurrentAuthorizationContext.Handler>();
+        services.AddScoped<Application.CreateAccessRole.ICreateAccessRolePersistence, EfCreateAccessRolePersistence>();
+        services.AddScoped<Application.CreateAccessRole.DirectoryComposer>();
+        services.AddScoped<Application.CreateAccessRole.Handler>();
         // Owner fact providers are registered by their own modules. The registry is scoped so a
         // provider that needs its owner's scoped persistence can be resolved normally, and it
         // rejects two owners claiming the same resource key at composition time.

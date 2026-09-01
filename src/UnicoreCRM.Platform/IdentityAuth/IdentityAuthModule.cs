@@ -36,6 +36,7 @@ internal static class IdentityAuthModule
             (provider, cancellationToken) => provider.GetRequiredService<IdentityAuthDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<IDevelopmentIdentityReferenceLookup, EfDevelopmentIdentityReferenceLookup>();
         services.AddScoped<IAuthenticatedIdentityReferenceLookup, EfAuthenticatedIdentityReferenceLookup>();
+        services.AddScoped<IIdentityAccessDirectoryProfileSource, EfIdentityAccessDirectoryProfileSource>();
         services.AddSingleton<IIdentityPasswordHasher, FrameworkPasswordHasher>();
         services.AddSingleton<IIdentityTokenIssuer, JwtIdentityTokenIssuer>();
         services.AddSingleton<IRefreshTokenProtector, HmacRefreshTokenProtector>();

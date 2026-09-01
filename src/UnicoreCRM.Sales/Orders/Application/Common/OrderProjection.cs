@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using UnicoreCRM.Sales.Orders.Contracts;
 using UnicoreCRM.Sales.Orders.Domain;
 
@@ -7,8 +6,6 @@ namespace UnicoreCRM.Sales.Orders.Application.Common;
 
 internal static class OrderProjection
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     internal static OrderReadModel Document(Order order) =>
         new(
             order.OrderId,
@@ -16,13 +13,13 @@ internal static class OrderProjection
             order.OrderDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             new OrderBuyerReference(order.BuyerType, order.BuyerId),
             order.State,
-            RequiredJson<IReadOnlyList<OrderLineReadModel>>(order.LineItemsJson, "lineItems"),
+            OrderPersistedDocuments.LineItems(order.LineItemsJson),
             Money(order.SubtotalAmount, order.SubtotalCurrency),
             Money(order.DiscountTotalAmount, order.DiscountTotalCurrency),
             Money(order.TaxTotalAmount, order.TaxTotalCurrency),
             Money(order.GrandTotalAmount, order.GrandTotalCurrency),
             order.Currency,
-            RequiredJson<OrderReadActions>(order.ActionsJson, "actions"),
+            OrderPersistedDocuments.Actions(order.ActionsJson),
             order.ResourceVersion,
             Timestamp(order.CreatedAt),
             Timestamp(order.UpdatedAt))
@@ -32,7 +29,7 @@ internal static class OrderProjection
             SourceQuoteId = order.SourceQuoteId,
             SourceQuoteNumber = order.SourceQuoteNumber,
             SourceDealId = order.SourceDealId,
-            Adjustments = OptionalJson<IReadOnlyList<OrderCommercialAdjustmentReadModel>>(order.AdjustmentsJson),
+            Adjustments = OrderPersistedDocuments.Adjustments(order.AdjustmentsJson),
             ConfirmedAt = Timestamp(order.ConfirmedAt),
             CompletedAt = Timestamp(order.CompletedAt),
             CancelledAt = Timestamp(order.CancelledAt),
@@ -40,13 +37,13 @@ internal static class OrderProjection
             RecipientName = order.RecipientName,
             RecipientPhone = order.RecipientPhone,
             RecipientEmail = order.RecipientEmail,
-            ShippingAddress = OptionalJson<OrderShippingAddressReadModel>(order.ShippingAddressJson),
+            ShippingAddress = OrderPersistedDocuments.ShippingAddress(order.ShippingAddressJson),
             OwnerId = order.OwnerId,
             Notes = order.Notes,
-            CreditPolicyEvaluation = OptionalJson<OrderCreditPolicyEvaluationReadModel>(order.CreditPolicyEvaluationJson),
+            CreditPolicyEvaluation = OrderPersistedDocuments.CreditPolicyEvaluation(order.CreditPolicyEvaluationJson),
             ArchivedAt = Timestamp(order.ArchivedAt),
             ArchiveReason = order.ArchiveReason,
-            CreditApproval = OptionalJson<OrderCreditApprovalSummaryReadModel>(order.CreditApprovalJson)
+            CreditApproval = OrderPersistedDocuments.CreditApproval(order.CreditApprovalJson)
         };
 
     private static OrderMoney Money(decimal amount, string currency) =>
@@ -57,18 +54,4 @@ internal static class OrderProjection
 
     private static string? Timestamp(DateTimeOffset? value) => value is null ? null : Timestamp(value.Value);
 
-    private static T RequiredJson<T>(string json, string field)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<T>(json, JsonOptions)
-                ?? throw new InvalidOperationException($"Persisted Order {field} is invalid.");
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidOperationException($"Persisted Order {field} is invalid.", exception);
-        }
-    }
-
-    private static T? OptionalJson<T>(string? json) => json is null ? default : RequiredJson<T>(json, typeof(T).Name);
 }

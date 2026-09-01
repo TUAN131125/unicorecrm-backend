@@ -32,6 +32,8 @@ $script:RequestCounter = 0
 $script:BaseUrl = "http://127.0.0.1:$Port"
 $script:Token = $null
 $script:WorkspaceId = $null
+$script:MemberId = $null
+$script:LastRequestId = $null
 
 function Add-Result {
     param([string] $Name, [string] $Expected, [string] $Actual)
@@ -109,7 +111,8 @@ function Get-Scalar {
 
 function New-RequestId {
     $script:RequestCounter++
-    return ('req-orders-read-{0:d6}' -f $script:RequestCounter)
+    $script:LastRequestId = 'req-orders-read-{0:d6}' -f $script:RequestCounter
+    return $script:LastRequestId
 }
 
 function Invoke-Api {
@@ -165,6 +168,29 @@ function Invoke-Order {
     return Invoke-Api -Method $Method -Path $Path -Body $Body -Token $script:Token -WorkspaceId $script:WorkspaceId
 }
 
+function Get-OrderReadAuditCount {
+    return [int](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM orders.ReadAuditRecords')
+}
+
+function Get-OrderRecordDecisionCount {
+    return [int](Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM access.RecordAccessDecisions WHERE ResourceKey = 'orders'")
+}
+
+function Measure-OrderRead {
+    param([string] $Path)
+    $before = Get-OrderReadAuditCount
+    $response = Invoke-Order -Method 'GET' -Path $Path
+    $delta = (Get-OrderReadAuditCount) - $before
+    return [pscustomobject]@{
+        Status = $response.Status
+        Body = $response.Body
+        Raw = $response.Raw
+        Delta = $delta
+        Probe = ('{0}|{1}' -f $response.Status, $delta)
+    }
+}
+
 function Set-OrderScope {
     param([string] $RoleId, [string] $Scope)
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
@@ -188,6 +214,75 @@ function Same-Problem {
         -and $Left.Body.status -eq $Right.Body.status
 }
 
+function ConvertTo-Base64Url {
+    param([string] $Value)
+    return [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Value)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+function Cursor-ValidationResult {
+    param($Response)
+    $hasCursorError = $null -ne $Response.Body.fieldErrors `
+        -and @($Response.Body.fieldErrors.cursor).Count -gt 0
+    return ('{0}|{1}|{2}' -f $Response.Status, $Response.Body.code, $hasCursorError)
+}
+
+function ConvertTo-SqlNVarCharLiteral {
+    param([AllowNull()][string] $Value)
+    if ([string]::IsNullOrEmpty($Value)) { return 'NULL' }
+    return "N'$($Value.Replace("'", "''"))'"
+}
+
+function Set-CorruptOrderFixture {
+    param(
+        [string] $OrderId,
+        [string] $Marker,
+        [string] $LineItemsJson,
+        [string] $ActionsJson,
+        [AllowNull()][string] $AdjustmentsJson,
+        [AllowNull()][string] $ShippingAddressJson,
+        [AllowNull()][string] $CreditPolicyEvaluationJson,
+        [AllowNull()][string] $CreditApprovalJson
+    )
+    $lineItemsSql = ConvertTo-SqlNVarCharLiteral $LineItemsJson
+    $actionsSql = ConvertTo-SqlNVarCharLiteral $ActionsJson
+    $adjustmentsSql = ConvertTo-SqlNVarCharLiteral $AdjustmentsJson
+    $shippingSql = ConvertTo-SqlNVarCharLiteral $ShippingAddressJson
+    $creditPolicySql = ConvertTo-SqlNVarCharLiteral $CreditPolicyEvaluationJson
+    $creditApprovalSql = ConvertTo-SqlNVarCharLiteral $CreditApprovalJson
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM orders.Orders WHERE WorkspaceId = '$($script:WorkspaceId)' AND OrderId = '$OrderId';
+INSERT INTO orders.Orders
+(WorkspaceId, OrderId, OrderNumber, OrderDate, BuyerType, BuyerId, State, LineItemsJson,
+ AdjustmentsJson, SubtotalAmount, SubtotalCurrency, DiscountTotalAmount, DiscountTotalCurrency,
+ TaxTotalAmount, TaxTotalCurrency, GrandTotalAmount, GrandTotalCurrency, Currency, RecipientName,
+ ShippingAddressJson, CreditPolicyEvaluationJson, ActionsJson, ResourceVersion, CreatedAt, UpdatedAt,
+ CreditApprovalJson)
+VALUES
+('$($script:WorkspaceId)', '$OrderId', 'ORD-CORRUPT-NESTED', '2026-08-30', 'CONTACT',
+ 'contact_corrupt_nested', 'DRAFT', $lineItemsSql, $adjustmentsSql, 1, 'USD', 0, 'USD', 0, 'USD',
+ 1, 'USD', 'USD', '$Marker', $shippingSql, $creditPolicySql, $actionsSql, 0,
+ '2026-08-30T00:00:00Z', '2026-08-30T02:00:00Z', $creditApprovalSql);
+"@
+}
+
+function Remove-CorruptOrderFixture {
+    param([string] $OrderId)
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM orders.Orders WHERE WorkspaceId = '$($script:WorkspaceId)' AND OrderId = '$OrderId'"
+}
+
+function Assert-CorruptOrderFailure {
+    param([string] $Name, [string] $OrderId, [string] $Marker)
+    $response = Measure-OrderRead -Path "/orders/$OrderId"
+    Add-Result ("nested JSON: {0} fails closed" -f $Name) '500|INTERNAL_ERROR' `
+        ('{0}|{1}' -f $response.Status, $response.Body.code)
+    Add-Result ("nested JSON: {0} writes +0 owner audit" -f $Name) '0' ([string]$response.Delta)
+    Add-Result ("nested JSON: {0} leaks no partial Order" -f $Name) 'True' `
+        (($response.Raw -notmatch [regex]::Escape($OrderId)) `
+            -and ($response.Raw -notmatch [regex]::Escape($Marker)) `
+            -and ($response.Raw -notmatch 'Persisted Order|JsonException|lineItemsJson|actionsJson')).ToString()
+}
+
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $hostProject = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj'
 $salesProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Sales/UnicoreCRM.Sales.csproj'
@@ -200,8 +295,10 @@ $orderB = 'order_read_core_b'
 $orderC = 'order_read_core_c'
 $orderForeign = 'order_read_core_foreign'
 $orderUnknown = 'order_read_core_unknown'
+$orderCorrupt = 'order_read_core_corrupt'
 $secretNote = 'ORDER-A-NOTES-EXCLUDED-SECRET'
 $foreignSecret = 'ORDER-FOREIGN-SECRET-VALUE'
+$corruptSecret = 'ORDER-CORRUPT-NESTED-SECRET'
 
 try {
     Write-Host "Provisioning isolated database $DatabaseName on $SqlServer ..."
@@ -259,6 +356,7 @@ CREATE DATABASE [$DatabaseName];
 
     $session = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
     $callerMemberId = $session.Body.principal.memberId
+    $script:MemberId = $callerMemberId
     $provisioning = Invoke-Api -Method 'POST' -Path '/workspaces/initial-provisioning' `
         -Token $script:Token -IdempotencyKey 'idem-orders-read-provisioning-0001' `
         -Body '{"name":"Orders Read Workspace"}'
@@ -281,10 +379,26 @@ CREATE DATABASE [$DatabaseName];
 
     Add-Result 'fresh migration created Orders table' '1' ([string](Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'orders' AND TABLE_NAME = 'Orders'"))
-    Add-Result 'fresh migration contains no Orders read-audit table' '0' ([string](Get-Scalar -Database $DatabaseName `
+    Add-Result 'fresh migration contains Orders read-audit table' '1' ([string](Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'orders' AND TABLE_NAME = 'ReadAuditRecords'"))
-    Add-Result 'fresh migration recorded exactly one Orders migration' '1' ([string](Get-Scalar -Database $DatabaseName `
+    Add-Result 'fresh migration recorded exactly two Orders migrations' '2' ([string](Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM orders.__EFMigrationsHistory"))
+    Add-Result 'read-audit columns exact' `
+        'ActorId,AuditId,CorrelationId,OccurredAt,Operation,Outcome,RecordId,RequestId,ResourceVersion,WorkspaceId' `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT STRING_AGG(COLUMN_NAME, ',') WITHIN GROUP (ORDER BY COLUMN_NAME)
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = 'orders' AND TABLE_NAME = 'ReadAuditRecords'
+"@))
+    Add-Result 'read-audit Workspace-leading index' '1' ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) FROM sys.indexes
+WHERE object_id = OBJECT_ID('orders.ReadAuditRecords')
+  AND name = 'IX_ReadAuditRecords_WorkspaceId_OccurredAt'
+"@))
+    Add-Result 'read-audit has zero foreign keys' '0' ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) FROM sys.foreign_keys
+WHERE parent_object_id = OBJECT_ID('orders.ReadAuditRecords')
+"@))
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 IF NOT EXISTS (SELECT 1 FROM workspace.Workspaces WHERE WorkspaceId = '$foreignWorkspaceId')
@@ -354,10 +468,115 @@ VALUES
 
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'orders.read'"
-    Add-Result 'missing orders.read denies list' '403' (Invoke-Order -Method 'GET' -Path '/orders').Status
-    Add-Result 'missing orders.read denies detail' '403' (Invoke-Order -Method 'GET' -Path "/orders/$orderA").Status
+    Add-Result 'missing orders.read denies list with +0 audit' '403|0' `
+        (Measure-OrderRead -Path '/orders').Probe
+    Add-Result 'missing orders.read denies detail with +0 audit' '403|0' `
+        (Measure-OrderRead -Path "/orders/$orderA").Probe
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'orders.read')"
+
+    # Frozen READ_ACCESS_LOG: one owner row per successful invocation/page, after projection.
+    $page1 = Measure-OrderRead -Path '/orders?limit=1&sortBy=updatedAt&sortDirection=desc'
+    Add-Result 'read audit: first cursor page => 200 and +1' '200|1' $page1.Probe
+    Add-Result 'read audit: first cursor page returns one Order' '1' ([string]$page1.Body.items.Count)
+    $page1Cursor = $page1.Body.pageInfo.nextCursor
+    $page2 = Measure-OrderRead -Path ('/orders?limit=1&sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($page1Cursor))
+    Add-Result 'read audit: second cursor page => 200 and +1' '200|1' $page2.Probe
+    $page2Cursor = $page2.Body.pageInfo.nextCursor
+    $page3 = Measure-OrderRead -Path ('/orders?limit=1&sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($page2Cursor))
+    Add-Result 'read audit: third cursor page => 200 and +1' '200|1' $page3.Probe
+    Add-Result 'read audit: three keyset pages preserve order' "$orderC,$orderB,$orderA" `
+        (($page1.Body.items.id, $page2.Body.items.id, $page3.Body.items.id) -join ',')
+
+    $recordDecisionsBeforeList = Get-OrderRecordDecisionCount
+    $multiRowPage = Measure-OrderRead -Path '/orders?limit=3'
+    Add-Result 'read audit: multi-row page => 200 and +1, not per-row' '200|1' $multiRowPage.Probe
+    Add-Result 'read audit: multi-row page contains three Orders' '3' ([string]$multiRowPage.Body.items.Count)
+    Add-Result 'read audit: list writes zero per-row record decisions' '0' `
+        ([string]((Get-OrderRecordDecisionCount) - $recordDecisionsBeforeList))
+    $emptyPage = Measure-OrderRead -Path '/orders?search=order_read_audit_no_match'
+    Add-Result 'read audit: empty successful page => 200 and +1' '200|1' $emptyPage.Probe
+    Add-Result 'read audit: empty successful page contains zero Orders' '0' ([string]$emptyPage.Body.items.Count)
+    Add-Result 'read audit: every list row has null recordId and resourceVersion' '0' `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT COUNT(*) FROM orders.ReadAuditRecords
+WHERE Operation = 'listOrders' AND (RecordId IS NOT NULL OR ResourceVersion IS NOT NULL)
+"@))
+
+    $recordDecisionsBeforeDetail = Get-OrderRecordDecisionCount
+    $detailAudit = Measure-OrderRead -Path "/orders/$orderA"
+    $detailAuditRequestId = $script:LastRequestId
+    Add-Result 'read audit: getOrder => 200 and +1' '200|1' $detailAudit.Probe
+    Add-Result 'read audit: detail writes canonical record decision' '1' `
+        ([string]((Get-OrderRecordDecisionCount) - $recordDecisionsBeforeDetail))
+    Add-Result 'read audit: detail recordId and version exact' "$orderA|7" `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT CONCAT(RecordId, '|', ResourceVersion)
+FROM orders.ReadAuditRecords WHERE RequestId = '$detailAuditRequestId'
+"@))
+    Add-Result 'read audit: detail version matches response' '7' ([string]$detailAudit.Body.resourceVersion)
+    Add-Result 'read audit: provenance and exact operationId' `
+        "getOrder|$($script:WorkspaceId)|$($script:MemberId)|$detailAuditRequestId|corr-orders-read-core-0001|READ|$orderA|7" `
+        ([string](Get-Scalar -Database $DatabaseName -Query @"
+SELECT CONCAT(Operation, '|', WorkspaceId, '|', ActorId, '|', RequestId, '|', CorrelationId, '|', Outcome, '|', RecordId, '|', ResourceVersion)
+FROM orders.ReadAuditRecords WHERE RequestId = '$detailAuditRequestId'
+"@))
+    Add-Result 'read audit: every row outcome is READ' '0' `
+        ([string](Get-Scalar -Database $DatabaseName `
+            -Query "SELECT COUNT(*) FROM orders.ReadAuditRecords WHERE Outcome <> 'READ'"))
+    Add-Result 'read audit: only admitted operationIds are stored' '0' `
+        ([string](Get-Scalar -Database $DatabaseName `
+            -Query "SELECT COUNT(*) FROM orders.ReadAuditRecords WHERE Operation NOT IN ('listOrders', 'getOrder')"))
+
+    Add-Result 'read audit: malformed authorized query => 422 and +0' '422|0' `
+        (Measure-OrderRead -Path '/orders?limit=abc').Probe
+    Add-Result 'read audit: malformed cursor => 422 and +0' '422|0' `
+        (Measure-OrderRead -Path '/orders?cursor=not-a-cursor').Probe
+    Add-Result 'read audit: cross-query cursor reuse => 422 and +0' '422|0' `
+        (Measure-OrderRead -Path ('/orders?limit=1&search=different&sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($page1Cursor))).Probe
+    Add-Result 'read audit: malformed orderId => 404 and +0' '404|0' `
+        (Measure-OrderRead -Path '/orders/%20bad').Probe
+    Add-Result 'read audit: unknown order => 404 and +0' '404|0' `
+        (Measure-OrderRead -Path "/orders/$orderUnknown").Probe
+    Add-Result 'read audit: foreign Workspace order => 404 and +0' '404|0' `
+        (Measure-OrderRead -Path "/orders/$orderForeign").Probe
+
+    Set-OrderScope -RoleId $roleId -Scope 'Own'
+    Add-Result 'read audit: record-access denied detail => 404 and +0' '404|0' `
+        (Measure-OrderRead -Path "/orders/$orderA").Probe
+    Add-Result 'read audit: OWN empty list is successful and +1' '200|1' `
+        (Measure-OrderRead -Path '/orders').Probe
+    Set-OrderScope -RoleId $roleId -Scope 'Workspace'
+
+    Clear-OrderFields
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_orders_read_audit_required', '$roleId', 'orders', 'state', 'Hidden');
+"@
+    Add-Result 'read audit: required hidden field list => 403 and +0' '403|0' `
+        (Measure-OrderRead -Path '/orders').Probe
+    Add-Result 'read audit: required hidden field detail => 403 and +0' '403|0' `
+        (Measure-OrderRead -Path "/orders/$orderA").Probe
+    Clear-OrderFields
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_orders_read_audit_filter', '$roleId', 'orders', 'sourceQuoteId', 'Hidden');
+"@
+    Add-Result 'read audit: hidden-filter rejection => 403 and +0' '403|0' `
+        (Measure-OrderRead -Path '/orders?sourceQuoteId=quote_source_a').Probe
+    Clear-OrderFields
+
+    $auditDump = Get-Scalar -Database $DatabaseName -Query @"
+SELECT STRING_AGG(CONCAT(AuditId, '|', Operation, '|', WorkspaceId, '|', ActorId, '|',
+    ISNULL(RecordId, ''), '|', RequestId, '|', CorrelationId, '|', Outcome, '|',
+    ISNULL(CAST(ResourceVersion AS varchar(32)), '')), ' ')
+FROM orders.ReadAuditRecords
+"@
+    Add-Result 'read audit: no Order business values stored' 'True' `
+        ([string]($auditDump -notmatch 'ORD-2026|ORD-FOREIGN|Acme Delivery|Beta Recipient|Gamma Recipient|ORDER-A-NOTES|ORDER-FOREIGN-SECRET|contact_order|organization_order|product_scalar|quote_source|deal_order|USD|VND|1357\.924678|1000000'))
+    Add-Result 'read audit: no foreign Workspace owner evidence' '0' `
+        ([string](Get-Scalar -Database $DatabaseName `
+            -Query "SELECT COUNT(*) FROM orders.ReadAuditRecords WHERE WorkspaceId = '$foreignWorkspaceId'"))
 
     $workspaceList = Invoke-Order -Method 'GET' -Path '/orders'
     Add-Result 'WORKSPACE list succeeds' '200' $workspaceList.Status
@@ -383,18 +602,100 @@ VALUES
     Add-Result 'explicit sort uses supplied field and direction' $orderA `
         (Invoke-Order -Method 'GET' -Path '/orders?sortBy=orderNumber&sortDirection=asc').Body.items[0].id
 
-    $cursorIds = New-Object System.Collections.ArrayList
-    $cursor = $null
-    do {
-        $path = '/orders?limit=1&sortBy=updatedAt&sortDirection=desc'
-        if (-not [string]::IsNullOrWhiteSpace($cursor)) { $path += '&cursor=' + [Uri]::EscapeDataString($cursor) }
-        $page = Invoke-Order -Method 'GET' -Path $path
-        Add-Result 'cursor page succeeds' '200' $page.Status
-        if ($page.Body.items.Count -eq 1) { [void]$cursorIds.Add($page.Body.items[0].id) }
-        $cursor = $page.Body.pageInfo.nextCursor
-    } while ($page.Body.pageInfo.hasNextPage)
-    Add-Result 'cursor continuation has no duplicates or skips' "$orderC,$orderB,$orderA" ($cursorIds -join ',')
-    Add-Result 'cursor continuation returns every visible Order once' '3' ([string](@($cursorIds | Select-Object -Unique).Count))
+    foreach ($sortField in @('updatedAt','createdAt','orderDate','grandTotal','orderNumber')) {
+        foreach ($sortDirection in @('asc','desc')) {
+            $cursorIds = New-Object System.Collections.ArrayList
+            $cursor = $null
+            do {
+                $path = "/orders?limit=1&sortBy=$sortField&sortDirection=$sortDirection"
+                if (-not [string]::IsNullOrWhiteSpace($cursor)) { $path += '&cursor=' + [Uri]::EscapeDataString($cursor) }
+                $page = Invoke-Order -Method 'GET' -Path $path
+                Add-Result ("keyset page succeeds: {0} {1}" -f $sortField, $sortDirection) '200' $page.Status
+                if ($page.Body.items.Count -eq 1) { [void]$cursorIds.Add($page.Body.items[0].id) }
+                $cursor = $page.Body.pageInfo.nextCursor
+            } while ($page.Body.pageInfo.hasNextPage)
+            $expectedCursorIds = if ($sortDirection -eq 'asc') {
+                "$orderA,$orderB,$orderC"
+            } else {
+                "$orderC,$orderB,$orderA"
+            }
+            Add-Result ("keyset has no skips: {0} {1}" -f $sortField, $sortDirection) `
+                $expectedCursorIds ($cursorIds -join ',')
+            Add-Result ("keyset has no duplicates: {0} {1}" -f $sortField, $sortDirection) `
+                '3' ([string](@($cursorIds | Select-Object -Unique).Count))
+        }
+    }
+
+    $firstCursorPage = Invoke-Order -Method 'GET' `
+        -Path '/orders?limit=1&sortBy=updatedAt&sortDirection=desc'
+    $baseCursor = $firstCursorPage.Body.pageInfo.nextCursor
+    Add-Result 'first keyset page returns continuation' 'True' `
+        (-not [string]::IsNullOrWhiteSpace($baseCursor)).ToString()
+    $changedLimitPage = Invoke-Order -Method 'GET' `
+        -Path ('/orders?limit=2&sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($baseCursor))
+    Add-Result 'same cursor accepts a different valid page size' '200' $changedLimitPage.Status
+    Add-Result 'changed page size continues after last returned row' "$orderB,$orderA" `
+        (($changedLimitPage.Body.items.id) -join ',')
+    Add-Result 'changed page size computes lookahead correctly' 'False' `
+        ([string]$changedLimitPage.Body.pageInfo.hasNextPage)
+
+    $cursorReusePaths = [ordered]@{
+        'different search' = '/orders?search=Delivery'
+        'different state' = '/orders?state=DRAFT'
+        'different sourceQuoteId' = '/orders?sourceQuoteId=quote_source_a'
+        'different sourceDealId' = '/orders?sourceDealId=deal_order_c'
+        'different buyer filter' = '/orders?buyerType=CONTACT&buyerId=contact_order_buyer_b'
+        'different sortBy' = '/orders?sortBy=orderNumber&sortDirection=desc'
+        'different direction' = '/orders?sortBy=updatedAt&sortDirection=asc'
+    }
+    foreach ($reuseCase in $cursorReusePaths.GetEnumerator()) {
+        $separator = if ($reuseCase.Value.Contains('?')) { '&' } else { '?' }
+        $reuse = Invoke-Order -Method 'GET' `
+            -Path ($reuseCase.Value + $separator + 'cursor=' + [Uri]::EscapeDataString($baseCursor))
+        Add-Result ("query-bound cursor rejects {0}" -f $reuseCase.Key) `
+            '422|VALIDATION_FAILED|True' (Cursor-ValidationResult $reuse)
+    }
+
+    $unsupportedCursor = ConvertTo-Base64Url `
+        '{"v":2,"sortBy":"updatedAt","sortDirection":"desc","lastPrimary":"2026-08-30T00:00:00.0000000+00:00","lastOrderId":"order_read_core_c","queryFingerprint":"0000000000000000000000000000000000000000000000000000000000000000"}'
+    Add-Result 'unsupported cursor version is rejected on cursor field' '422|VALIDATION_FAILED|True' `
+        (Cursor-ValidationResult (Invoke-Order -Method 'GET' `
+            -Path ('/orders?cursor=' + [Uri]::EscapeDataString($unsupportedCursor))))
+    Add-Result 'malformed cursor is rejected on cursor field' '422|VALIDATION_FAILED|True' `
+        (Cursor-ValidationResult (Invoke-Order -Method 'GET' -Path '/orders?cursor=not-a-cursor'))
+
+    $foreignCursor = Invoke-Api -Method 'GET' `
+        -Path ('/orders?sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($baseCursor)) `
+        -Token $script:Token -WorkspaceId $foreignWorkspaceId
+    Add-Result 'foreign Workspace cannot use a valid cursor' '403' $foreignCursor.Status
+    Add-Result 'foreign Workspace cursor response leaks no value' 'True' `
+        ($foreignCursor.Raw -notmatch [regex]::Escape($foreignSecret)).ToString()
+
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'orders.read'"
+    Add-Result 'orders.read is re-evaluated on a continuation request' '403' `
+        (Invoke-Order -Method 'GET' `
+            -Path ('/orders?sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($baseCursor))).Status
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'orders.read')"
+
+    Set-OrderScope -RoleId $roleId -Scope 'Own'
+    $restrictedContinuation = Invoke-Order -Method 'GET' `
+        -Path ('/orders?sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($baseCursor))
+    Add-Result 'record access is re-evaluated on a continuation request' '200|0|0|False' `
+        ('{0}|{1}|{2}|{3}' -f $restrictedContinuation.Status, $restrictedContinuation.Body.items.Count, `
+            $restrictedContinuation.Body.pageInfo.totalCount, $restrictedContinuation.Body.pageInfo.hasNextPage)
+    Set-OrderScope -RoleId $roleId -Scope 'Workspace'
+
+    Clear-OrderFields
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_orders_read_cursor_recipient', '$roleId', 'orders', 'recipientName', 'Hidden');
+"@
+    Add-Result 'cursor rejects changed effective searchable-field set' '422|VALIDATION_FAILED|True' `
+        (Cursor-ValidationResult (Invoke-Order -Method 'GET' `
+            -Path ('/orders?sortBy=updatedAt&sortDirection=desc&cursor=' + [Uri]::EscapeDataString($baseCursor))))
+    Clear-OrderFields
 
     Add-Result 'state filter is exact' $orderA `
         (Invoke-Order -Method 'GET' -Path '/orders?state=CONFIRMED').Body.items[0].id
@@ -446,7 +747,6 @@ VALUES
     Add-Result 'search: filtered pageInfo has no false continuation' 'False' ([string]$filtered.Body.pageInfo.hasNextPage)
 
     Add-Result 'invalid state is rejected' '422' (Invoke-Order -Method 'GET' -Path '/orders?state=confirmed').Status
-    Add-Result 'invalid cursor is rejected' '422' (Invoke-Order -Method 'GET' -Path '/orders?cursor=not-a-cursor').Status
     Add-Result 'invalid limit type is rejected' '422' (Invoke-Order -Method 'GET' -Path '/orders?limit=abc').Status
 
     $detail = Invoke-Order -Method 'GET' -Path "/orders/$orderA"
@@ -474,6 +774,8 @@ VALUES
         ("{0}|{1}|{2}" -f $detail.Body.grandTotal.amount.GetType().Name, $detail.Body.grandTotal.amount, $detail.Body.grandTotal.currency)
     Add-Result 'line snapshot enums/money persist exactly' 'product_scalar_a|493.827156|EXCLUSIVE' `
         ("{0}|{1}|{2}" -f $detail.Body.lineItems[0].productId, $detail.Body.lineItems[0].unitPrice.amount, $detail.Body.lineItems[0].taxMode)
+    Add-Result 'valid optional line snapshots remain accepted' 'SKU-ORDER-EXCLUDED|SERVICE|MONTHLY' `
+        ("{0}|{1}|{2}" -f $detail.Body.lineItems[0].skuSnapshot, $detail.Body.lineItems[0].productTypeSnapshot, $detail.Body.lineItems[0].billingCycleSnapshot)
     Add-Result 'timestamp projects canonical UTC Z' '2026-08-29T02:10:11.0000000Z' `
         $detail.Body.updatedAt.ToUniversalTime().ToString('O')
     Add-Result 'business date projects exact date' '2026-08-27|2026-09-30' `
@@ -510,6 +812,27 @@ VALUES
     Clear-OrderFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_orders_read_filter_quote', '$roleId', 'orders', 'sourceQuoteId', 'Hidden'),
+('field_orders_read_filter_deal', '$roleId', 'orders', 'sourceDealId', 'Masked');
+"@
+    $hiddenQuoteKnown = Invoke-Order -Method 'GET' -Path '/orders?sourceQuoteId=quote_source_a'
+    $hiddenQuoteUnknown = Invoke-Order -Method 'GET' -Path '/orders?sourceQuoteId=quote_source_unknown'
+    Add-Result 'hidden sourceQuoteId filter is denied before list query' '403' $hiddenQuoteKnown.Status
+    Add-Result 'hidden sourceQuoteId filter does not reveal existence' 'True' `
+        (Same-Problem $hiddenQuoteKnown $hiddenQuoteUnknown).ToString()
+    Add-Result 'hidden sourceQuoteId denial exposes no list counts/pageInfo' 'True' `
+        ($hiddenQuoteKnown.Raw -notmatch 'items|totalCount|hasNextPage|nextCursor').ToString()
+    $hiddenDealKnown = Invoke-Order -Method 'GET' -Path '/orders?sourceDealId=deal_order_c'
+    $hiddenDealUnknown = Invoke-Order -Method 'GET' -Path '/orders?sourceDealId=deal_order_unknown'
+    Add-Result 'masked sourceDealId filter is denied before list query' '403' $hiddenDealKnown.Status
+    Add-Result 'masked sourceDealId filter does not reveal existence' 'True' `
+        (Same-Problem $hiddenDealKnown $hiddenDealUnknown).ToString()
+    Add-Result 'masked sourceDealId denial exposes no list counts/pageInfo' 'True' `
+        ($hiddenDealKnown.Raw -notmatch 'items|totalCount|hasNextPage|nextCursor').ToString()
+    Clear-OrderFields
+
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
 ('field_orders_read_recipient', '$roleId', 'orders', 'recipientName', 'Hidden'),
 ('field_orders_read_notes', '$roleId', 'orders', 'notes', 'Masked');
 "@
@@ -528,6 +851,153 @@ VALUES ('field_orders_read_required', '$roleId', 'orders', 'orderNumber', 'Hidde
     Add-Result 'required Order field restriction fails operation closed' '403' `
         (Invoke-Order -Method 'GET' -Path "/orders/$orderA").Status
     Clear-OrderFields
+
+    $validCorruptLineItems = '[{"id":"order_line_corrupt","productId":"product_corrupt_snapshot","productNameSnapshot":"__MARKER__","quantity":"1","unitPrice":{"amount":"1","currency":"USD"},"discountRate":"0","taxMode":"NONE","lineSubtotal":{"amount":"1","currency":"USD"},"lineDiscountAmount":{"amount":"0","currency":"USD"},"lineTaxAmount":{"amount":"0","currency":"USD"},"lineTotal":{"amount":"1","currency":"USD"}}]'.Replace('__MARKER__', $corruptSecret)
+    $validCorruptActions = '{"confirm":{"allowed":true,"blockerCodes":[]},"cancel":{"allowed":true,"blockerCodes":[]}}'
+
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query 'ALTER TABLE orders.Orders NOCHECK CONSTRAINT CK_Orders_LineItemsJson'
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson '[{"id":' -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'malformed lineItems JSON syntax' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+    Invoke-SqlNonQuery -Database $DatabaseName `
+        -Query 'ALTER TABLE orders.Orders WITH CHECK CHECK CONSTRAINT CK_Orders_LineItemsJson'
+
+    $missingLineField = '[{"id":"order_line_corrupt","productNameSnapshot":"__MARKER__","quantity":"1","unitPrice":{"amount":"1","currency":"USD"},"discountRate":"0","taxMode":"NONE","lineSubtotal":{"amount":"1","currency":"USD"},"lineDiscountAmount":{"amount":"0","currency":"USD"},"lineTaxAmount":{"amount":"0","currency":"USD"},"lineTotal":{"amount":"1","currency":"USD"}}]'.Replace('__MARKER__', $corruptSecret)
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $missingLineField -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'missing required line productId' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $nullLineString = $validCorruptLineItems.Replace('"productNameSnapshot":"' + $corruptSecret + '"', '"productNameSnapshot":null')
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $nullLineString -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'null required line string' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $missingMoneyField = $validCorruptLineItems.Replace('{"amount":"1","currency":"USD"}', '{"amount":"1"}')
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $missingMoneyField -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'required nested money field missing' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $invalidTaxMode = $validCorruptLineItems.Replace('"taxMode":"NONE"', '"taxMode":"UNKNOWN"')
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $invalidTaxMode -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'invalid line taxMode vocabulary' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $invalidQuantity = $validCorruptLineItems.Replace('"quantity":"1"', '"quantity":"1e2"')
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $invalidQuantity -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'invalid DecimalAmount string' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $invalidMoneyAmount = $validCorruptLineItems.Replace('"amount":"1"', '"amount":"NaN"')
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $invalidMoneyAmount -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'invalid Money amount string' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $invalidPercentage = $validCorruptLineItems.Replace('"discountRate":"0"', '"discountRate":"100.000001"')
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $invalidPercentage -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'invalid PercentageRate string' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $unknownLineProperty = $validCorruptLineItems.Replace('"quantity":"1"', '"quantity":"1","unknown":"forbidden"')
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $unknownLineProperty -ActionsJson $validCorruptActions
+    Assert-CorruptOrderFailure 'line additional property' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson '[]'
+    Assert-CorruptOrderFailure 'malformed actions structure' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $missingActionAllowed = '{"confirm":{"blockerCodes":[]},"cancel":{"allowed":true,"blockerCodes":[]}}'
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $missingActionAllowed
+    Assert-CorruptOrderFailure 'missing required action member' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $invalidBlockerCode = '{"confirm":{"allowed":false,"blockerCodes":["NOT_AN_ERROR_CODE"]},"cancel":{"allowed":true,"blockerCodes":[]}}'
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $invalidBlockerCode
+    Assert-CorruptOrderFailure 'invalid blockerCode vocabulary' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions -AdjustmentsJson '{}'
+    Assert-CorruptOrderFailure 'malformed adjustments structure' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $invalidAdjustmentEnum = '[{"id":"adjustment_corrupt","label":"Corrupt adjustment","type":"UNKNOWN","calculation":"FIXED_AMOUNT","value":"1","amount":{"amount":"1","currency":"USD"}}]'
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions -AdjustmentsJson $invalidAdjustmentEnum
+    Assert-CorruptOrderFailure 'invalid adjustment type vocabulary' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions `
+        -ShippingAddressJson '{"line1":"Address without city"}'
+    Assert-CorruptOrderFailure 'malformed shippingAddress structure' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions `
+        -CreditPolicyEvaluationJson '{"status":"NOT_REQUIRED","blockerCodes":"not-an-array"}'
+    Assert-CorruptOrderFailure 'malformed creditPolicyEvaluation structure' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions `
+        -CreditPolicyEvaluationJson '{"status":"UNKNOWN","blockerCodes":[]}'
+    Assert-CorruptOrderFailure 'invalid credit-policy status vocabulary' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions `
+        -CreditPolicyEvaluationJson '{"status":"NOT_REQUIRED","blockerCodes":[],"evaluatedAt":"2026-08-30T00:00:00+07:00"}'
+    Assert-CorruptOrderFailure 'non-UTC credit-policy timestamp' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $missingCreditApprovalField = '{"id":"credit_approval_corrupt","state":"APPROVED","policyVersion":"policy-v1","orderResourceVersion":0,"paymentPlanResourceVersion":0,"resourceVersion":0}'
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions `
+        -CreditApprovalJson $missingCreditApprovalField
+    Assert-CorruptOrderFailure 'malformed creditApproval structure' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $invalidCreditApprovalState = '{"id":"credit_approval_corrupt","state":"UNKNOWN","amount":{"amount":"1","currency":"USD"},"policyVersion":"policy-v1","orderResourceVersion":0,"paymentPlanResourceVersion":0,"resourceVersion":0}'
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions `
+        -CreditApprovalJson $invalidCreditApprovalState
+    Assert-CorruptOrderFailure 'invalid credit-approval state vocabulary' $orderCorrupt $corruptSecret
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $negativeCreditApprovalVersion = '{"id":"credit_approval_corrupt","state":"APPROVED","amount":{"amount":"1","currency":"USD"},"policyVersion":"policy-v1","orderResourceVersion":-1,"paymentPlanResourceVersion":0,"resourceVersion":0}'
+    Set-CorruptOrderFixture -OrderId $orderCorrupt -Marker $corruptSecret `
+        -LineItemsJson $validCorruptLineItems -ActionsJson $validCorruptActions `
+        -CreditApprovalJson $negativeCreditApprovalVersion
+    Assert-CorruptOrderFailure 'negative nested resource version' $orderCorrupt $corruptSecret
+    $corruptList = Measure-OrderRead -Path '/orders'
+    Add-Result 'corrupt row fails the whole list closed' '500|INTERNAL_ERROR' `
+        ('{0}|{1}' -f $corruptList.Status, $corruptList.Body.code)
+    Add-Result 'corrupt list writes +0 owner audit' '0' ([string]$corruptList.Delta)
+    Add-Result 'corrupt list emits no partial Order data' 'True' `
+        (($corruptList.Raw -notmatch [regex]::Escape($orderCorrupt)) `
+            -and ($corruptList.Raw -notmatch [regex]::Escape($corruptSecret)) `
+            -and ($corruptList.Raw -notmatch '"items"')).ToString()
+    Remove-CorruptOrderFixture $orderCorrupt
+
+    $healthyAfterCorruption = Invoke-Order -Method 'GET' -Path '/orders'
+    Add-Result 'healthy Orders list after corrupt-fixture removal' '200|3' `
+        ('{0}|{1}' -f $healthyAfterCorruption.Status, $healthyAfterCorruption.Body.items.Count)
+    Add-Result 'healthy Order detail after corrupt-fixture removal' '200' `
+        (Invoke-Order -Method 'GET' -Path "/orders/$orderA").Status
 
     $wrongWorkspace = Invoke-Api -Method 'GET' -Path "/orders/$orderA" `
         -Token $script:Token -WorkspaceId $foreignWorkspaceId
@@ -557,13 +1027,26 @@ VALUES ('field_orders_read_required', '$roleId', 'orders', 'orderNumber', 'Hidde
         ($ordersSource -notmatch '\b(Quotes|Products|Payments|Shipping|CommercialEvidence|Customers)DbContext\b').ToString()
     Add-Result 'Orders adds no WF-12/WF-13/WF-22 or CommercialEvidence wiring' 'True' `
         (($ordersSource -notmatch 'WF-12|WF-13|WF-22|CommercialEvidence|PurchaseEvidence|convertAcceptedQuoteToOrderDraft')).ToString()
-    Add-Result 'Orders has no owner-local durable read-audit runtime' 'True' `
-        ($ordersSource -notmatch 'ReadAuditRecord|ReadAuditRecords|AddReadAudit').ToString()
+    Add-Result 'Orders has owner-local durable read-audit runtime' 'True' `
+        (($ordersSource -match 'OrderReadAuditRecord') `
+            -and ($ordersSource -match 'ReadAuditRecords') `
+            -and ($ordersSource -match 'AddReadAudit')).ToString()
+    Add-Result 'Orders has no generic cross-module audit framework' 'True' `
+        ($ordersSource -notmatch 'IAuditFramework|IReadAuditService|GenericAudit').ToString()
+    # SaveChanges is admitted only for Orders read-evidence append persistence. No Order business
+    # mutation path may acquire it while this read-only surface remains the only admitted surface.
+    $saveChangesFiles = (Get-ChildItem -LiteralPath $ordersRoot -Recurse -File -Filter '*.cs' |
+        Where-Object { (Get-Content -Raw -LiteralPath $_.FullName) -match 'SaveChangesAsync' } |
+        ForEach-Object Name | Sort-Object) -join ','
+    Add-Result 'SaveChanges confined to read-audit append' `
+        'EfOrdersPersistence.cs,OrderReadAudit.cs,OrdersApplication.cs' $saveChangesFiles
 
     $logText = ''
     if (Test-Path -LiteralPath $logPath) { $logText += Get-Content -Raw -LiteralPath $logPath }
     if (Test-Path -LiteralPath "$logPath.err") { $logText += Get-Content -Raw -LiteralPath "$logPath.err" }
     Add-Result 'foreign Order value absent from host logs' 'True' ($logText -notmatch [regex]::Escape($foreignSecret)).ToString()
+    Add-Result 'corrupt persisted JSON value absent from host logs' 'True' `
+        ($logText -notmatch [regex]::Escape($corruptSecret)).ToString()
 }
 finally {
     if ($null -ne $hostProcess -and -not $hostProcess.HasExited) {

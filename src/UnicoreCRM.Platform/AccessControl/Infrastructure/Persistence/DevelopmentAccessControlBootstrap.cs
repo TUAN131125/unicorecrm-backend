@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -39,11 +40,13 @@ internal sealed class DevelopmentAccessControlBootstrap(
                 cancellationToken)
             ?? throw new InvalidOperationException("The Development AccessControl bootstrap identity must already have an active Workspace membership.");
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var roleName = bootstrap.RoleName.Trim();
         var role = await dbContext.Roles.SingleOrDefaultAsync(
-            item => item.WorkspaceId == workspace.WorkspaceId && item.Name == roleName,
+            item => item.WorkspaceId == workspace.WorkspaceId && item.NormalizedName == roleName.ToUpperInvariant(),
             cancellationToken);
         var now = TimeProvider.System.GetUtcNow();
+        var changed = false;
         if (role is null)
         {
             role = new AccessRole(
@@ -54,6 +57,7 @@ internal sealed class DevelopmentAccessControlBootstrap(
                 now);
             dbContext.Roles.Add(role);
             dbContext.RoleCapabilities.AddRange(capabilities.Select(capability => new RoleCapability(role.RoleId, capability)));
+            changed = true;
         }
         else
         {
@@ -78,9 +82,21 @@ internal sealed class DevelopmentAccessControlBootstrap(
                 workspace.MembershipId,
                 role.RoleId,
                 now));
+            changed = true;
         }
 
+        if (changed)
+        {
+            var revision = await dbContext.WorkspaceDirectoryRevisions
+                .FromSqlInterpolated($"SELECT [WorkspaceId], [Revision] FROM [access].[WorkspaceDirectoryRevisions] WITH (UPDLOCK, HOLDLOCK) WHERE [WorkspaceId] = {workspace.WorkspaceId}")
+                .SingleOrDefaultAsync(cancellationToken);
+            if (revision is null)
+                dbContext.WorkspaceDirectoryRevisions.Add(new WorkspaceAccessDirectoryRevision(workspace.WorkspaceId));
+            else
+                revision.Advance();
+        }
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         logger.LogInformation(
             "Development AccessControl bootstrap ensured role {RoleId} for workspace {WorkspaceId} membership {MembershipId}.",
             role.RoleId,

@@ -6,7 +6,10 @@ namespace UnicoreCRM.Sales.Products.Application.ListProducts;
 
 internal sealed record Query(ProductRequestMetadata Metadata);
 
-internal sealed class Handler(ProductAuthorization authorization, IProductsPersistence persistence)
+internal sealed class Handler(
+    ProductAuthorization authorization,
+    IProductsPersistence persistence,
+    TimeProvider timeProvider)
 {
     internal async Task<ProductOperationResult<IReadOnlyList<ProductDocument>>> HandleAsync(
         Query query,
@@ -21,12 +24,32 @@ internal sealed class Handler(ProductAuthorization authorization, IProductsPersi
         // policy denies every Product and the list is empty rather than unfiltered.
         var scope = access.Value!.Authorization.ScopeFilter;
         if (scope != RecordAccessScopeFilter.Workspace)
+        {
+            await ProductReadAudit.RecordCanonicalAsync(
+                persistence,
+                null,
+                null,
+                access.Value.Trusted,
+                metadata,
+                "listProducts",
+                timeProvider.GetUtcNow(),
+                cancellationToken);
             return ProductOperationResult<IReadOnlyList<ProductDocument>>.Success([]);
+        }
 
         var products = await persistence.ReadProductsAsync(access.Value!.Trusted.WorkspaceId, null, cancellationToken);
-        return ProductOperationResult<IReadOnlyList<ProductDocument>>.Success(
-            products
-                .Select(product => ProductFieldSecurity.Project(ProductProjection.Document(product), access.Value!.Authorization))
-                .ToArray());
+        var response = products
+            .Select(product => ProductFieldSecurity.Project(ProductProjection.Document(product), access.Value!.Authorization))
+            .ToArray();
+        await ProductReadAudit.RecordCanonicalAsync(
+            persistence,
+            null,
+            null,
+            access.Value.Trusted,
+            metadata,
+            "listProducts",
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return ProductOperationResult<IReadOnlyList<ProductDocument>>.Success(response);
     }
 }

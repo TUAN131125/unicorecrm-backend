@@ -26,6 +26,7 @@ internal static class WorkspaceModule
         services.AddScoped<IDevelopmentWorkspaceReferenceLookup, EfDevelopmentWorkspaceReferenceLookup>();
         services.AddScoped<IWorkspaceMemberReferenceValidator, EfWorkspaceMemberReferenceValidator>();
         services.AddScoped<IEffectiveWorkspaceBaseCurrencyReader, EfEffectiveWorkspaceBaseCurrencyReader>();
+        services.AddScoped<IWorkspaceAccessDirectorySource, EfWorkspaceAccessDirectorySource>();
         services.AddScoped<ITrustedWorkspaceMemberResolver, EfWorkspaceMemberReferenceValidator>();
         services.AddScoped<IWorkspaceContextResolver, WorkspaceContextResolver>();
         services.AddScoped<CurrentWorkspaceAccessor>();

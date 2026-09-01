@@ -306,6 +306,64 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteReadAuditRecord", b =>
+                {
+                    b.Property<string>("AuditId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("RecordId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long?>("ResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("AuditId");
+
+                    b.HasIndex("WorkspaceId", "OccurredAt");
+
+                    b.ToTable("ReadAuditRecords", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReadAuditRecords_Outcome", "(([Outcome] COLLATE Latin1_General_100_BIN2 = N'READ' AND DATALENGTH([Outcome]) = DATALENGTH(N'READ')))");
+
+                            t.HasCheckConstraint("CK_ReadAuditRecords_ResourceVersion", "[ResourceVersion] IS NULL OR [ResourceVersion] >= 0");
+                        });
+                });
 #pragma warning restore 612, 618
         }
     }

@@ -26,10 +26,22 @@ internal sealed class IdentityAuditRecord
     private IdentityAuditRecord() { }
 
     internal IdentityAuditRecord(string operation, string outcome, string? accountId, string correlationId, DateTimeOffset occurredAt)
+        : this(operation, outcome, accountId, null, correlationId, occurredAt)
+    {
+    }
+
+    internal IdentityAuditRecord(
+        string operation,
+        string outcome,
+        string? accountId,
+        string? requestId,
+        string correlationId,
+        DateTimeOffset occurredAt)
     {
         Operation = operation;
         Outcome = outcome;
         AccountId = accountId;
+        RequestId = requestId;
         CorrelationId = correlationId;
         OccurredAt = occurredAt;
     }
@@ -38,6 +50,7 @@ internal sealed class IdentityAuditRecord
     public string Operation { get; private set; } = null!;
     public string Outcome { get; private set; } = null!;
     public string? AccountId { get; private set; }
+    public string? RequestId { get; private set; }
     public string CorrelationId { get; private set; } = null!;
     public DateTimeOffset OccurredAt { get; private set; }
 }

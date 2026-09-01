@@ -81,4 +81,5 @@ public sealed record AccessProblemDetails(
     string CorrelationId,
     string? Detail = null,
     string? Instance = null,
-    IReadOnlyDictionary<string, string[]>? FieldErrors = null);
+    IReadOnlyDictionary<string, string[]>? FieldErrors = null,
+    string? IdempotencyKey = null);

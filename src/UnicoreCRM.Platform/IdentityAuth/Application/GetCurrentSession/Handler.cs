@@ -19,8 +19,15 @@ internal sealed class Handler(IIdentityAuthPersistence persistence, TimeProvider
         if (account is null)
             return OperationResult<AuthSessionDocument>.Failure(IdentityErrors.SessionInvalid());
 
-        persistence.AddAudit(new IdentityAuditRecord("getCurrentSession", "SUCCEEDED", account.AccountId, query.CorrelationId, timeProvider.GetUtcNow()));
+        var response = IdentityProjection.Session(account, session);
+        persistence.AddAudit(new IdentityAuditRecord(
+            "getCurrentSession",
+            "READ",
+            account.AccountId,
+            query.RequestId,
+            query.CorrelationId,
+            timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
-        return OperationResult<AuthSessionDocument>.Success(IdentityProjection.Session(account, session));
+        return OperationResult<AuthSessionDocument>.Success(response);
     }
 }

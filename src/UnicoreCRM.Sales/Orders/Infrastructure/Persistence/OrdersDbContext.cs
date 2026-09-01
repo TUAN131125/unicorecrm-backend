@@ -6,6 +6,7 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence;
 internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options) : DbContext(options)
 {
     internal DbSet<Order> Orders => Set<Order>();
+    internal DbSet<OrderReadAuditRecord> ReadAuditRecords => Set<OrderReadAuditRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -78,7 +79,33 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
             entity.HasIndex(item => new { item.WorkspaceId, item.SourceDealId });
             entity.HasIndex(item => new { item.WorkspaceId, item.BuyerType, item.BuyerId });
         });
+
+        modelBuilder.Entity<OrderReadAuditRecord>(entity =>
+        {
+            entity.ToTable("ReadAuditRecords", table =>
+            {
+                table.HasCheckConstraint("CK_ReadAuditRecords_Outcome", ExactValues("Outcome", "READ"));
+                table.HasCheckConstraint(
+                    "CK_ReadAuditRecords_ResourceVersion",
+                    "[ResourceVersion] IS NULL OR [ResourceVersion] >= 0");
+            });
+            entity.HasKey(item => item.AuditId);
+            EntityId(entity.Property(item => item.AuditId));
+            entity.Property(item => item.Operation).HasMaxLength(128).IsRequired();
+            EntityId(entity.Property(item => item.WorkspaceId));
+            EntityId(entity.Property(item => item.ActorId));
+            entity.Property(item => item.RecordId).HasMaxLength(128);
+            EntityId(entity.Property(item => item.RequestId));
+            EntityId(entity.Property(item => item.CorrelationId));
+            entity.Property(item => item.Outcome).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.ResourceVersion);
+            Timestamp(entity.Property(item => item.OccurredAt));
+            entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt });
+        });
     }
+
+    private static void EntityId(Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<string> property) =>
+        property.HasMaxLength(128).IsRequired();
 
     private static void Money(Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<decimal> property) =>
         property.HasPrecision(38, 6);

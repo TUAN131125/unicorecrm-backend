@@ -22,6 +22,8 @@ using UnicoreCRM.Crm.Organizations.Contracts;
 using UnicoreCRM.Sales.Products.Contracts;
 using UnicoreCRM.Sales.Quotes.Contracts;
 using UnicoreCRM.Sales.Orders.Contracts;
+using UnicoreCRM.Billing.Invoices.Contracts;
+using UnicoreCRM.Billing.Payments.Contracts;
 using UnicoreCRM.Integrations.Webhooks.Inbound.Contracts;
 using UnicoreCRM.Workflows.Durable.Contracts;
 using UnicoreCRM.AI.Gateway;
@@ -57,7 +59,7 @@ if (builder.Environment.IsDevelopment())
 builder.Services.AddPlatformModule(builder.Configuration);
 builder.Services.AddCrmModule(builder.Configuration);
 builder.Services.AddSalesModule(builder.Configuration);
-builder.Services.AddBillingModule();
+builder.Services.AddBillingModule(builder.Configuration);
 builder.Services.AddFulfillmentModule();
 builder.Services.AddOperationsModule(builder.Configuration);
 builder.Services.AddCommercialEvidenceModule(builder.Configuration);
@@ -104,6 +106,10 @@ app.MapOrganizationsEndpoints();
 app.MapProductsEndpoints();
 app.MapQuotesEndpoints();
 app.MapOrdersEndpoints();
+app.MapPaymentsEndpoints();
+app.MapPaymentIntentEndpoints();
+app.MapPaymentRecordEndpoints();
+app.MapInvoiceEndpoints();
 app.MapInboundLeadWebhookEndpoints();
 app.MapAiEndpoints();
 

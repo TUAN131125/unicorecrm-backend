@@ -15,7 +15,13 @@ internal sealed class Handler(IWorkspacePersistence persistence, TimeProvider ti
         var response = new WorkspaceMembershipListResponse(
             memberships.Select(WorkspaceProjection.Membership).ToArray(),
             now);
-        persistence.AddAccessRecord(new WorkspaceAccessRecord("listMyWorkspaces", query.AccountId, null, query.CorrelationId, now));
+        persistence.AddAccessRecord(WorkspaceAccessRecord.SuccessfulRead(
+            "listMyWorkspaces",
+            query.AccountId,
+            null,
+            query.RequestId,
+            query.CorrelationId,
+            now));
         await persistence.SaveChangesAsync(cancellationToken);
         return WorkspaceOperationResult<WorkspaceMembershipListResponse>.Success(response);
     }

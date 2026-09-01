@@ -35,6 +35,8 @@ internal interface IQuotesPersistence
 {
     Task<Quote?> ReadQuoteAsync(string workspaceId, string quoteId, CancellationToken cancellationToken);
     Task<QuotePage> ReadQuotesAsync(string workspaceId, QuoteListSpecification specification, CancellationToken cancellationToken);
+    void AddReadAudit(QuoteReadAuditRecord readAudit);
+    Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
 internal static class QuoteErrors

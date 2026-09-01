@@ -51,6 +51,10 @@ internal sealed class EfQuotesPersistence(QuotesDbContext dbContext) : IQuotesPe
         return new QuotePage(items, totalCount);
     }
 
+    public void AddReadAudit(QuoteReadAuditRecord readAudit) => dbContext.ReadAuditRecords.Add(readAudit);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
+
     private static IOrderedQueryable<Quote> Order(IQueryable<Quote> query, string sortBy, bool descending) =>
         (sortBy, descending) switch
         {

@@ -4,9 +4,10 @@ internal sealed class RoleFieldSecurityPolicy
 {
     private RoleFieldSecurityPolicy() { }
 
-    internal RoleFieldSecurityPolicy(string roleId, string resourceKey, string fieldKey, AccessFieldAccess access)
+    internal RoleFieldSecurityPolicy(string workspaceId, string roleId, string resourceKey, string fieldKey, AccessFieldAccess access)
     {
         PolicyId = AccessControlIds.New("field");
+        WorkspaceId = workspaceId;
         RoleId = roleId;
         ResourceKey = resourceKey;
         FieldKey = fieldKey;
@@ -14,6 +15,7 @@ internal sealed class RoleFieldSecurityPolicy
     }
 
     public string PolicyId { get; private set; } = null!;
+    public string WorkspaceId { get; private set; } = null!;
     public string RoleId { get; private set; } = null!;
     public string ResourceKey { get; private set; } = null!;
     public string FieldKey { get; private set; } = null!;

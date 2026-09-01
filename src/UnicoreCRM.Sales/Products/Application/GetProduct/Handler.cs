@@ -5,7 +5,10 @@ namespace UnicoreCRM.Sales.Products.Application.GetProduct;
 
 internal sealed record Query(string ProductId, ProductRequestMetadata Metadata);
 
-internal sealed class Handler(ProductAuthorization authorization, IProductsPersistence persistence)
+internal sealed class Handler(
+    ProductAuthorization authorization,
+    IProductsPersistence persistence,
+    TimeProvider timeProvider)
 {
     internal async Task<ProductOperationResult<ProductDocument>> HandleAsync(
         Query query,
@@ -30,7 +33,19 @@ internal sealed class Handler(ProductAuthorization authorization, IProductsPersi
         if (denied is not null)
             return ProductOperationResult<ProductDocument>.Failure(denied);
 
-        return ProductOperationResult<ProductDocument>.Success(
-            ProductFieldSecurity.Project(ProductProjection.Document(ownership.Value!), access.Value!.Authorization));
+        var product = ownership.Value!;
+        var response = ProductFieldSecurity.Project(
+            ProductProjection.Document(product),
+            access.Value!.Authorization);
+        await ProductReadAudit.RecordCanonicalAsync(
+            persistence,
+            product.ProductId,
+            product.Version,
+            access.Value.Trusted,
+            metadata,
+            "getProduct",
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return ProductOperationResult<ProductDocument>.Success(response);
     }
 }

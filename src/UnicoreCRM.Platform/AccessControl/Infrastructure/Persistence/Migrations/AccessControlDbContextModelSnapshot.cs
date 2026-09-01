@@ -23,6 +23,139 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("UnicoreCRM.Platform.AccessControl.Domain.AccessControlOutboxEvent", b =>
+                {
+                    b.Property<string>("EventId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AggregateId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AggregateType")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("nvarchar(96)");
+
+                    b.Property<long>("AggregateVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CausationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("nvarchar(96)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("CausationId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "EventType", "OccurredAt");
+
+                    b.ToTable("OutboxEvents", "access");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Platform.AccessControl.Domain.AccessGovernanceCommandAudit", b =>
+                {
+                    b.Property<string>("EvidenceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ActorAccountId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ActorMemberId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ActorMembershipId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CommandId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("EvidenceType")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("nvarchar(96)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("nvarchar(96)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("ResultingVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RoleId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("EvidenceId");
+
+                    b.HasIndex("CommandId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "OperationId", "OccurredAt");
+
+                    b.ToTable("GovernanceCommandAudits", "access");
+                });
+
             modelBuilder.Entity("UnicoreCRM.Platform.AccessControl.Domain.AccessRole", b =>
                 {
                     b.Property<string>("RoleId")
@@ -44,6 +177,12 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
 
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
                     b.Property<string>("SourceTemplateId")
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
@@ -61,10 +200,82 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
 
                     b.HasKey("RoleId");
 
-                    b.HasIndex("WorkspaceId", "Name")
+                    b.HasIndex("WorkspaceId", "NormalizedName")
                         .IsUnique();
 
                     b.ToTable("Roles", "access");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Platform.AccessControl.Domain.AccessRoleCommandIdempotencyRecord", b =>
+                {
+                    b.Property<string>("ScopeKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ActorMembershipId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AuditEvidenceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CommandId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("DirectoryRevisionAtCommit")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("nvarchar(96)");
+
+                    b.Property<string>("RoleId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("RoleVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("ScopeKey");
+
+                    b.HasIndex("WorkspaceId", "OperationId", "ActorMembershipId");
+
+                    b.ToTable("AccessRoleCommandIdempotencyRecords", "access");
                 });
 
             modelBuilder.Entity("UnicoreCRM.Platform.AccessControl.Domain.AuthorizationDecisionRecord", b =>
@@ -268,10 +479,17 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.HasKey("PolicyId");
 
                     b.HasIndex("RoleId", "ResourceKey")
                         .IsUnique();
+
+                    b.HasIndex("RoleId", "WorkspaceId");
 
                     b.ToTable("RoleDataScopes", "access");
                 });
@@ -302,12 +520,33 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.HasKey("PolicyId");
+
+                    b.HasIndex("RoleId", "WorkspaceId");
 
                     b.HasIndex("RoleId", "ResourceKey", "FieldKey")
                         .IsUnique();
 
                     b.ToTable("RoleFieldSecurity", "access");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Platform.AccessControl.Domain.WorkspaceAccessDirectoryRevision", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("WorkspaceId");
+
+                    b.ToTable("WorkspaceDirectoryRevisions", "access");
                 });
 
             modelBuilder.Entity("UnicoreCRM.Platform.AccessControl.Domain.MembershipRoleAssignment", b =>
@@ -333,7 +572,8 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                 {
                     b.HasOne("UnicoreCRM.Platform.AccessControl.Domain.AccessRole", null)
                         .WithMany()
-                        .HasForeignKey("RoleId")
+                        .HasForeignKey("RoleId", "WorkspaceId")
+                        .HasPrincipalKey("RoleId", "WorkspaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -342,7 +582,8 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migration
                 {
                     b.HasOne("UnicoreCRM.Platform.AccessControl.Domain.AccessRole", null)
                         .WithMany()
-                        .HasForeignKey("RoleId")
+                        .HasForeignKey("RoleId", "WorkspaceId")
+                        .HasPrincipalKey("RoleId", "WorkspaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

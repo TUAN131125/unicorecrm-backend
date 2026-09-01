@@ -30,7 +30,7 @@ public static class WorkspaceEndpoints
             return WorkspaceHttp.Error(WorkspaceErrors.AuthenticationRequired(), request!.CorrelationId);
 
         var result = await handler.HandleAsync(
-            new Application.ListMyWorkspaces.Query(accountId, memberId, request!.CorrelationId),
+            new Application.ListMyWorkspaces.Query(accountId, memberId, request!.RequestId, request.CorrelationId),
             cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value)
@@ -51,7 +51,7 @@ public static class WorkspaceEndpoints
             return WorkspaceHttp.Error(WorkspaceErrors.AuthenticationRequired(), request!.CorrelationId);
 
         var result = await handler.HandleAsync(
-            new Application.GetWorkspaceBootstrap.Query(accountId, memberId, workspaceId, request!.CorrelationId),
+            new Application.GetWorkspaceBootstrap.Query(accountId, memberId, workspaceId, request!.RequestId, request.CorrelationId),
             cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value)

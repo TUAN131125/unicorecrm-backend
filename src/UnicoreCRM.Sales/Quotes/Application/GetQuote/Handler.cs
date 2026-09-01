@@ -8,7 +8,8 @@ internal sealed record Query(string QuoteId, QuoteRequestMetadata Metadata);
 
 internal sealed partial class Handler(
     QuoteAuthorization authorization,
-    IQuotesPersistence persistence)
+    IQuotesPersistence persistence,
+    TimeProvider timeProvider)
 {
     internal async Task<QuoteOperationResult<QuoteReadModel>> HandleAsync(
         Query query,
@@ -36,10 +37,18 @@ internal sealed partial class Handler(
         if (denied is not null)
             return QuoteOperationResult<QuoteReadModel>.Failure(denied);
 
-        return QuoteOperationResult<QuoteReadModel>.Success(
-            QuoteFieldSecurity.Project(
-                QuoteProjection.Document(quote),
-                access.Value.Authorization));
+        var document = QuoteFieldSecurity.Project(
+            QuoteProjection.Document(quote),
+            access.Value.Authorization);
+        await QuoteReadAudit.RecordResourceAsync(
+            persistence,
+            access.Value,
+            query.Metadata,
+            quote.QuoteId,
+            quote.ResourceVersion,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return QuoteOperationResult<QuoteReadModel>.Success(document);
     }
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", RegexOptions.CultureInvariant)]

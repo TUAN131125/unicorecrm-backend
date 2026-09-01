@@ -78,7 +78,9 @@ internal sealed class WorkspaceDbContext(DbContextOptions<WorkspaceDbContext> op
             entity.Property(x => x.Operation).HasMaxLength(96);
             entity.Property(x => x.AccountId).HasMaxLength(64);
             entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.RequestId).HasMaxLength(128);
             entity.Property(x => x.CorrelationId).HasMaxLength(128);
+            entity.Property(x => x.Outcome).HasMaxLength(32);
             entity.HasIndex(x => new { x.AccountId, x.OccurredAt });
         });
     }

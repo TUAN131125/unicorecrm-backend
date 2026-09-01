@@ -19,7 +19,8 @@ internal sealed record Query(
 
 internal sealed partial class Handler(
     QuoteAuthorization authorization,
-    IQuotesPersistence persistence)
+    IQuotesPersistence persistence,
+    TimeProvider timeProvider)
 {
     internal async Task<QuoteOperationResult<QuoteListResponse>> HandleAsync(
         Query query,
@@ -81,14 +82,21 @@ internal sealed partial class Handler(
 
         var nextOffset = offset + page.Items.Count;
         var hasNextPage = nextOffset < page.TotalCount;
-        return QuoteOperationResult<QuoteListResponse>.Success(new(
+        var response = new QuoteListResponse(
             page.Items.Select(item => QuoteFieldSecurity.Project(
                 QuoteProjection.Document(item),
                 access.Value.Authorization)).ToArray(),
             new QuotePageInfo(
                 hasNextPage,
                 hasNextPage ? QuoteListCursor.Encode(nextOffset) : null,
-                page.TotalCount)));
+                page.TotalCount));
+        await QuoteReadAudit.RecordListAsync(
+            persistence,
+            access.Value,
+            query.Metadata,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return QuoteOperationResult<QuoteListResponse>.Success(response);
     }
 
     private static string? OptionalSearch(string? value, IDictionary<string, string[]> fields)

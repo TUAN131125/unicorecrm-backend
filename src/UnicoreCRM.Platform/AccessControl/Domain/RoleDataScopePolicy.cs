@@ -4,9 +4,10 @@ internal sealed class RoleDataScopePolicy
 {
     private RoleDataScopePolicy() { }
 
-    internal RoleDataScopePolicy(string roleId, string resourceKey, AccessDataScope scope, string allowedOwnerIdsJson)
+    internal RoleDataScopePolicy(string workspaceId, string roleId, string resourceKey, AccessDataScope scope, string allowedOwnerIdsJson)
     {
         PolicyId = AccessControlIds.New("scope");
+        WorkspaceId = workspaceId;
         RoleId = roleId;
         ResourceKey = resourceKey;
         Scope = scope;
@@ -14,6 +15,7 @@ internal sealed class RoleDataScopePolicy
     }
 
     public string PolicyId { get; private set; } = null!;
+    public string WorkspaceId { get; private set; } = null!;
     public string RoleId { get; private set; } = null!;
     public string ResourceKey { get; private set; } = null!;
     public AccessDataScope Scope { get; private set; }

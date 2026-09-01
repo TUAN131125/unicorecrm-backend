@@ -12,6 +12,10 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
     internal DbSet<RoleFieldSecurityPolicy> RoleFieldSecurity => Set<RoleFieldSecurityPolicy>();
     internal DbSet<AuthorizationDecisionRecord> AuthorizationDecisions => Set<AuthorizationDecisionRecord>();
     internal DbSet<RecordAccessDecisionRecord> RecordAccessDecisions => Set<RecordAccessDecisionRecord>();
+    internal DbSet<WorkspaceAccessDirectoryRevision> WorkspaceDirectoryRevisions => Set<WorkspaceAccessDirectoryRevision>();
+    internal DbSet<AccessRoleCommandIdempotencyRecord> AccessRoleCommandIdempotencyRecords => Set<AccessRoleCommandIdempotencyRecord>();
+    internal DbSet<AccessGovernanceCommandAudit> AccessGovernanceCommandAudits => Set<AccessGovernanceCommandAudit>();
+    internal DbSet<AccessControlOutboxEvent> AccessControlOutboxEvents => Set<AccessControlOutboxEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,9 +29,10 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.Property(x => x.RoleId).HasMaxLength(128);
             entity.Property(x => x.WorkspaceId).HasMaxLength(128);
             entity.Property(x => x.Name).HasMaxLength(160);
+            entity.Property(x => x.NormalizedName).HasMaxLength(160).UseCollation("Latin1_General_100_BIN2");
             entity.Property(x => x.Description).HasMaxLength(500);
             entity.Property(x => x.SourceTemplateId).HasMaxLength(160);
-            entity.HasIndex(x => new { x.WorkspaceId, x.Name }).IsUnique();
+            entity.HasIndex(x => new { x.WorkspaceId, x.NormalizedName }).IsUnique();
         });
 
         modelBuilder.Entity<RoleCapability>(entity =>
@@ -60,12 +65,17 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.ToTable("RoleDataScopes");
             entity.HasKey(x => x.PolicyId);
             entity.Property(x => x.PolicyId).HasMaxLength(128);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
             entity.Property(x => x.RoleId).HasMaxLength(128);
             entity.Property(x => x.ResourceKey).HasMaxLength(160);
             entity.Property(x => x.Scope).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.AllowedOwnerIdsJson).HasColumnType("nvarchar(max)");
             entity.HasIndex(x => new { x.RoleId, x.ResourceKey }).IsUnique();
-            entity.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<AccessRole>()
+                .WithMany()
+                .HasForeignKey(x => new { x.RoleId, x.WorkspaceId })
+                .HasPrincipalKey(x => new { x.RoleId, x.WorkspaceId })
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RoleFieldSecurityPolicy>(entity =>
@@ -73,12 +83,17 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.ToTable("RoleFieldSecurity");
             entity.HasKey(x => x.PolicyId);
             entity.Property(x => x.PolicyId).HasMaxLength(128);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
             entity.Property(x => x.RoleId).HasMaxLength(128);
             entity.Property(x => x.ResourceKey).HasMaxLength(160);
             entity.Property(x => x.FieldKey).HasMaxLength(160);
             entity.Property(x => x.Access).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(x => new { x.RoleId, x.ResourceKey, x.FieldKey }).IsUnique();
-            entity.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<AccessRole>()
+                .WithMany()
+                .HasForeignKey(x => new { x.RoleId, x.WorkspaceId })
+                .HasPrincipalKey(x => new { x.RoleId, x.WorkspaceId })
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AuthorizationDecisionRecord>(entity =>
@@ -113,6 +128,67 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.Property(x => x.RestrictedFields).HasMaxLength(2000);
             entity.HasIndex(x => new { x.WorkspaceId, x.MembershipId, x.EvaluatedAt });
             entity.HasIndex(x => new { x.WorkspaceId, x.ResourceKey, x.RecordId });
+        });
+
+        modelBuilder.Entity<WorkspaceAccessDirectoryRevision>(entity =>
+        {
+            entity.ToTable("WorkspaceDirectoryRevisions");
+            entity.HasKey(x => x.WorkspaceId);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+        });
+
+        modelBuilder.Entity<AccessRoleCommandIdempotencyRecord>(entity =>
+        {
+            entity.ToTable("AccessRoleCommandIdempotencyRecords");
+            entity.HasKey(x => x.ScopeKey);
+            entity.Property(x => x.ScopeKey).HasMaxLength(64);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.OperationId).HasMaxLength(96);
+            entity.Property(x => x.ActorMembershipId).HasMaxLength(128);
+            entity.Property(x => x.IdempotencyKey).HasMaxLength(128);
+            entity.Property(x => x.Fingerprint).HasMaxLength(64);
+            entity.Property(x => x.CommandId).HasMaxLength(128);
+            entity.Property(x => x.RoleId).HasMaxLength(128);
+            entity.Property(x => x.AuditEvidenceId).HasMaxLength(128);
+            entity.Property(x => x.EventId).HasMaxLength(128);
+            entity.Property(x => x.CorrelationId).HasMaxLength(128);
+            entity.HasIndex(x => new { x.WorkspaceId, x.OperationId, x.ActorMembershipId });
+        });
+
+        modelBuilder.Entity<AccessGovernanceCommandAudit>(entity =>
+        {
+            entity.ToTable("GovernanceCommandAudits");
+            entity.HasKey(x => x.EvidenceId);
+            entity.Property(x => x.EvidenceId).HasMaxLength(128);
+            entity.Property(x => x.EvidenceType).HasMaxLength(96);
+            entity.Property(x => x.OperationId).HasMaxLength(96);
+            entity.Property(x => x.CommandId).HasMaxLength(128);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.ActorAccountId).HasMaxLength(64);
+            entity.Property(x => x.ActorMembershipId).HasMaxLength(128);
+            entity.Property(x => x.ActorMemberId).HasMaxLength(64);
+            entity.Property(x => x.RequestId).HasMaxLength(128);
+            entity.Property(x => x.CorrelationId).HasMaxLength(128);
+            entity.Property(x => x.RoleId).HasMaxLength(128);
+            entity.Property(x => x.Outcome).HasMaxLength(32);
+            entity.HasIndex(x => new { x.WorkspaceId, x.OperationId, x.OccurredAt });
+            entity.HasIndex(x => x.CommandId).IsUnique();
+        });
+
+        modelBuilder.Entity<AccessControlOutboxEvent>(entity =>
+        {
+            entity.ToTable("OutboxEvents");
+            entity.HasKey(x => x.EventId);
+            entity.Property(x => x.EventId).HasMaxLength(128);
+            entity.Property(x => x.EventType).HasMaxLength(96);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.AggregateId).HasMaxLength(128);
+            entity.Property(x => x.AggregateType).HasMaxLength(96);
+            entity.Property(x => x.CorrelationId).HasMaxLength(128);
+            entity.Property(x => x.CausationId).HasMaxLength(128);
+            entity.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)");
+            entity.HasIndex(x => new { x.WorkspaceId, x.EventType, x.OccurredAt });
+            entity.HasIndex(x => x.CausationId).IsUnique();
         });
     }
 }

@@ -19,7 +19,7 @@ internal sealed record OrderOperationResult<T>(T? Value, OrderOperationError? Er
 }
 
 internal sealed record OrderListSpecification(
-    int Offset,
+    OrderListContinuation? Continuation,
     int Limit,
     string? Search,
     bool SearchRecipientName,
@@ -31,12 +31,28 @@ internal sealed record OrderListSpecification(
     string? BuyerType,
     string? BuyerId);
 
-internal sealed record OrderPage(IReadOnlyList<Order> Items, int TotalCount);
+internal abstract record OrderListContinuation(string LastOrderId);
+
+internal sealed record OrderTimestampContinuation(DateTimeOffset LastPrimary, string LastOrderId)
+    : OrderListContinuation(LastOrderId);
+
+internal sealed record OrderDateContinuation(DateOnly LastPrimary, string LastOrderId)
+    : OrderListContinuation(LastOrderId);
+
+internal sealed record OrderAmountContinuation(decimal LastPrimary, string LastOrderId)
+    : OrderListContinuation(LastOrderId);
+
+internal sealed record OrderTextContinuation(string LastPrimary, string LastOrderId)
+    : OrderListContinuation(LastOrderId);
+
+internal sealed record OrderPage(IReadOnlyList<Order> Items, int TotalCount, bool HasNextPage);
 
 internal interface IOrdersPersistence
 {
     Task<Order?> ReadOrderAsync(string workspaceId, string orderId, CancellationToken cancellationToken);
     Task<OrderPage> ReadOrdersAsync(string workspaceId, OrderListSpecification specification, CancellationToken cancellationToken);
+    void AddReadAudit(OrderReadAuditRecord readAudit);
+    Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
 internal static class OrderErrors
