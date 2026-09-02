@@ -12,6 +12,21 @@ internal sealed class EfInitialWorkspaceAccessPersistence(AccessControlDbContext
     private const int DuplicateKey = 2601;
     private const int UniqueConstraint = 2627;
 
+    public async Task<InitialWorkspaceAccessAnchor?> FindAssignedRoleAsync(
+        string workspaceId,
+        string membershipId,
+        CancellationToken cancellationToken)
+    {
+        var anchor = await (
+            from assignment in dbContext.MembershipRoleAssignments.AsNoTracking()
+            join role in dbContext.Roles.AsNoTracking() on assignment.RoleId equals role.RoleId
+            where assignment.WorkspaceId == workspaceId && assignment.MembershipId == membershipId
+            orderby assignment.AssignedAt, assignment.AssignmentId
+            select new InitialWorkspaceAccessAnchor(assignment, role))
+            .FirstOrDefaultAsync(cancellationToken);
+        return anchor;
+    }
+
     public Task<AccessRole?> FindRoleAsync(string workspaceId, string roleName, CancellationToken cancellationToken) =>
         dbContext.Roles
             .AsNoTracking()

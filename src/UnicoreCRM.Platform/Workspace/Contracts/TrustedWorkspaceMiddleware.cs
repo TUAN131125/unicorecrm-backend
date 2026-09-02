@@ -18,19 +18,24 @@ internal sealed class TrustedWorkspaceMiddleware(RequestDelegate next)
         IWorkspaceContextResolver resolver,
         ITrustedWorkspaceSetter setter)
     {
-        if (context.GetEndpoint()?.Metadata.GetMetadata<WorkspaceRequiredMetadata>() is null)
+        var metadata = context.GetEndpoint()?.Metadata.GetMetadata<WorkspaceRequiredMetadata>();
+        if (metadata is null)
         {
             await next(context);
             return;
         }
 
-        var correlationId = WorkspaceHttp.TryRequest(context, out var request, out var metadataError)
-            ? request!.CorrelationId
-            : WorkspaceHttpCorrelation(context);
-        if (metadataError is not null)
+        var correlationId = WorkspaceHttpCorrelation(context);
+        if (metadata.ValidateRequestMetadata)
         {
-            await metadataError.ExecuteAsync(context);
-            return;
+            correlationId = WorkspaceHttp.TryRequest(context, out var request, out var metadataError)
+                ? request!.CorrelationId
+                : correlationId;
+            if (metadataError is not null)
+            {
+                await metadataError.ExecuteAsync(context);
+                return;
+            }
         }
 
         var accountId = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;

@@ -20,6 +20,18 @@ internal sealed class RoleDataScopePolicy
     public string ResourceKey { get; private set; } = null!;
     public AccessDataScope Scope { get; private set; }
     public string AllowedOwnerIdsJson { get; private set; } = null!;
+
+    /// <summary>
+    /// Replaces the policy value while preserving the owner-generated <see cref="PolicyId"/>. Policy
+    /// identity is stable across a full role replacement for an unchanged canonical
+    /// <c>(RoleId, ResourceKey)</c> key, so a replacement that only changes a scope value does not
+    /// churn identities that other evidence may reference.
+    /// </summary>
+    internal void Replace(AccessDataScope scope, string allowedOwnerIdsJson)
+    {
+        Scope = scope;
+        AllowedOwnerIdsJson = allowedOwnerIdsJson;
+    }
 }
 
 internal enum AccessDataScope

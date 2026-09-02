@@ -23,6 +23,22 @@ public static class AccessControlEndpoints
             .RequireAuthorization()
             .RequireTrustedWorkspace()
             .WithName("createAccessRole");
+        endpoints.MapPut("/access/roles/{roleId}", ReplaceAccessRoleAsync)
+            .RequireAuthorization()
+            .RequireTrustedWorkspaceWithDeferredRequestMetadata()
+            .WithName("replaceAccessRole");
+        endpoints.MapPost("/access/roles/{roleId}/archive", ArchiveAccessRoleAsync)
+            .RequireAuthorization()
+            .RequireTrustedWorkspaceWithDeferredRequestMetadata()
+            .WithName("archiveAccessRole");
+        endpoints.MapPost("/access/members/{membershipId}/access", ReplaceWorkspaceMemberAccessAsync)
+            .RequireAuthorization()
+            .RequireTrustedWorkspaceWithDeferredRequestMetadata()
+            .WithName("replaceWorkspaceMemberAccess");
+        endpoints.MapGet("/access/directory", GetWorkspaceAccessDirectoryAsync)
+            .RequireAuthorization()
+            .RequireTrustedWorkspaceWithDeferredRequestMetadata()
+            .WithName("getWorkspaceAccessDirectory");
         return endpoints;
     }
 
@@ -115,6 +131,132 @@ public static class AccessControlEndpoints
                 correlationId,
                 suppliedCorrelationId,
                 context.Request.Headers["Idempotency-Key"].ToString()),
+            cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value)
+            : AccessHttp.Error(result.Error!, correlationId);
+    }
+
+    /// <summary>
+    /// The route defers request-metadata validation to the handler so the frozen precedence holds:
+    /// authentication, then the Trusted Workspace, then <c>access.configure</c>, and only then the
+    /// required metadata and <c>If-Match</c> syntax. Validating metadata in the pipeline would let
+    /// an unauthorized caller distinguish request shapes before the capability decision.
+    /// </summary>
+    private static async Task<IResult> ReplaceAccessRoleAsync(
+        HttpContext context,
+        string roleId,
+        Application.ReplaceAccessRole.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        var suppliedCorrelationId = context.Request.Headers["X-Correlation-Id"].ToString();
+        var correlationId = suppliedCorrelationId.Length is >= 8 and <= 128
+            ? suppliedCorrelationId
+            : context.TraceIdentifier;
+        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        using var reader = new StreamReader(context.Request.Body);
+        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        // The raw header value is used rather than the parsed typed header so a weak validator, a
+        // wildcard, an unquoted value and a multi-value header all reach the frozen If-Match syntax
+        // rule instead of being silently normalized away.
+        var ifMatch = context.Request.Headers["If-Match"];
+        var result = await handler.HandleAsync(
+            new Application.ReplaceAccessRole.Command(
+                roleId,
+                rawBody,
+                context.Request.Headers["X-Request-Id"].ToString(),
+                correlationId,
+                suppliedCorrelationId,
+                context.Request.Headers["Idempotency-Key"].ToString(),
+                ifMatch.Count == 1 ? ifMatch[0] ?? string.Empty : string.Empty),
+            cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value)
+            : AccessHttp.Error(result.Error!, correlationId);
+    }
+
+    /// <summary>
+    /// Like <c>replaceAccessRole</c>, this route defers request-metadata validation to the handler so
+    /// the frozen precedence holds: authentication, the Trusted Workspace, <c>access.configure</c>,
+    /// and only then the required metadata and <c>If-Match</c> syntax.
+    /// </summary>
+    private static async Task<IResult> ArchiveAccessRoleAsync(
+        HttpContext context,
+        string roleId,
+        Application.ArchiveAccessRole.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        var suppliedCorrelationId = context.Request.Headers["X-Correlation-Id"].ToString();
+        var correlationId = suppliedCorrelationId.Length is >= 8 and <= 128
+            ? suppliedCorrelationId
+            : context.TraceIdentifier;
+        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        using var reader = new StreamReader(context.Request.Body);
+        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var ifMatch = context.Request.Headers["If-Match"];
+        var result = await handler.HandleAsync(
+            new Application.ArchiveAccessRole.Command(
+                roleId,
+                rawBody,
+                context.Request.Headers["X-Request-Id"].ToString(),
+                correlationId,
+                suppliedCorrelationId,
+                context.Request.Headers["Idempotency-Key"].ToString(),
+                ifMatch.Count == 1 ? ifMatch[0] ?? string.Empty : string.Empty),
+            cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value)
+            : AccessHttp.Error(result.Error!, correlationId);
+    }
+
+    private static async Task<IResult> GetWorkspaceAccessDirectoryAsync(
+        HttpContext context,
+        Application.GetWorkspaceAccessDirectory.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        var suppliedCorrelationId = context.Request.Headers["X-Correlation-Id"].ToString();
+        var correlationId = suppliedCorrelationId.Length is >= 8 and <= 128
+            ? suppliedCorrelationId
+            : context.TraceIdentifier;
+        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        var result = await handler.HandleAsync(
+            new Application.GetWorkspaceAccessDirectory.Query(
+                context.Request.Headers["X-Request-Id"].ToString(),
+                correlationId,
+                suppliedCorrelationId),
+            cancellationToken);
+        return result.IsSuccess
+            ? Results.Json(result.Value)
+            : AccessHttp.Error(result.Error!, correlationId);
+    }
+
+    /// <summary>
+    /// Request metadata stays in the application stage so authorization precedes every request or
+    /// target-membership validation and unauthorized callers learn no membership fact.
+    /// </summary>
+    private static async Task<IResult> ReplaceWorkspaceMemberAccessAsync(
+        HttpContext context,
+        string membershipId,
+        Application.ReplaceWorkspaceMemberAccess.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        var suppliedCorrelationId = context.Request.Headers["X-Correlation-Id"].ToString();
+        var correlationId = suppliedCorrelationId.Length is >= 8 and <= 128
+            ? suppliedCorrelationId
+            : context.TraceIdentifier;
+        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        using var reader = new StreamReader(context.Request.Body);
+        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var ifMatch = context.Request.Headers["If-Match"];
+        var result = await handler.HandleAsync(
+            new Application.ReplaceWorkspaceMemberAccess.Command(
+                membershipId,
+                rawBody,
+                context.Request.Headers["X-Request-Id"].ToString(),
+                correlationId,
+                suppliedCorrelationId,
+                context.Request.Headers["Idempotency-Key"].ToString(),
+                ifMatch.Count == 1 ? ifMatch[0] ?? string.Empty : string.Empty),
             cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value)

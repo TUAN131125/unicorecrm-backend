@@ -63,7 +63,7 @@ function Assert-True([bool] $condition, [string] $name) {
 
 function Invoke-Api([string] $method, [string] $path, [string] $body, [hashtable] $headers) {
     $message = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new($method), "$baseUrl$path")
-    if ($null -ne $body) {
+    if (-not [string]::IsNullOrEmpty($body)) {
         $message.Content = [System.Net.Http.StringContent]::new($body, [Text.Encoding]::UTF8, 'application/json')
     }
     if ($null -ne $headers) {

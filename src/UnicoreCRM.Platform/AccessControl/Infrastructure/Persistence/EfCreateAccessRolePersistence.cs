@@ -11,6 +11,7 @@ internal sealed class EfCreateAccessRolePersistence(
     AccessControlDbContext dbContext,
     TimeProvider timeProvider) : ICreateAccessRolePersistence
 {
+    private const string OperationId = "createAccessRole";
     private const int DuplicateKey = 2601;
     private const int UniqueConstraint = 2627;
     private const int DeadlockVictim = 1205;
@@ -21,7 +22,7 @@ internal sealed class EfCreateAccessRolePersistence(
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
-        var scopeKey = AccessRoleCommandIdempotencyRecord.CreateScopeKey(workspaceId, actorMembershipId, idempotencyKey);
+        var scopeKey = AccessRoleCommandIdempotencyRecord.CreateScopeKey(OperationId, workspaceId, actorMembershipId, idempotencyKey);
         return dbContext.AccessRoleCommandIdempotencyRecords
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
@@ -41,7 +42,7 @@ internal sealed class EfCreateAccessRolePersistence(
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
         {
-            var scopeKey = AccessRoleCommandIdempotencyRecord.CreateScopeKey(workspaceId, actorMembershipId, idempotencyKey);
+            var scopeKey = AccessRoleCommandIdempotencyRecord.CreateScopeKey(OperationId, workspaceId, actorMembershipId, idempotencyKey);
             var existing = await dbContext.AccessRoleCommandIdempotencyRecords
                 .AsNoTracking()
                 .SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
@@ -85,6 +86,7 @@ internal sealed class EfCreateAccessRolePersistence(
                 item.FieldKey,
                 item.Access)).ToArray();
             var audit = new AccessGovernanceCommandAudit(
+                OperationId,
                 commandId,
                 workspaceId,
                 actorAccountId,
@@ -93,9 +95,14 @@ internal sealed class EfCreateAccessRolePersistence(
                 requestId,
                 correlationId,
                 role.RoleId,
+                null,
+                0,
+                null,
                 now);
             var outbox = new AccessControlOutboxEvent(
+                "ACCESS_ROLE_CREATED",
                 role.RoleId,
+                0,
                 correlationId,
                 commandId,
                 JsonSerializer.Serialize(new { roleId = role.RoleId, version = 0 }),
@@ -113,12 +120,14 @@ internal sealed class EfCreateAccessRolePersistence(
             }
 
             var idempotency = new AccessRoleCommandIdempotencyRecord(
+                OperationId,
                 workspaceId,
                 actorMembershipId,
                 idempotencyKey,
                 request.Fingerprint,
                 commandId,
                 role.RoleId,
+                0,
                 audit.EvidenceId,
                 outbox.EventId,
                 revision.Revision,
@@ -159,26 +168,6 @@ internal sealed class EfCreateAccessRolePersistence(
             dbContext.ChangeTracker.Clear();
             return new CreateAccessRoleCommitResult(CreateAccessRoleCommitStatus.Contention);
         }
-    }
-
-    public async Task<AccessControlDirectoryState?> ReadDirectoryAsync(
-        string workspaceId,
-        CancellationToken cancellationToken)
-    {
-        var revision = await dbContext.WorkspaceDirectoryRevisions
-            .AsNoTracking()
-            .Where(item => item.WorkspaceId == workspaceId)
-            .Select(item => (long?)item.Revision)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (revision is null)
-            return null;
-        var roles = await dbContext.Roles.AsNoTracking().Where(item => item.WorkspaceId == workspaceId).ToArrayAsync(cancellationToken);
-        var roleIds = roles.Select(item => item.RoleId).ToArray();
-        var capabilities = await dbContext.RoleCapabilities.AsNoTracking().Where(item => roleIds.Contains(item.RoleId)).ToArrayAsync(cancellationToken);
-        var assignments = await dbContext.MembershipRoleAssignments.AsNoTracking().Where(item => item.WorkspaceId == workspaceId).ToArrayAsync(cancellationToken);
-        var scopes = await dbContext.RoleDataScopes.AsNoTracking().Where(item => item.WorkspaceId == workspaceId).ToArrayAsync(cancellationToken);
-        var fields = await dbContext.RoleFieldSecurity.AsNoTracking().Where(item => item.WorkspaceId == workspaceId).ToArrayAsync(cancellationToken);
-        return new AccessControlDirectoryState(revision.Value, roles, capabilities, assignments, scopes, fields);
     }
 
     private async Task<WorkspaceAccessDirectoryRevision?> LockRevisionAsync(

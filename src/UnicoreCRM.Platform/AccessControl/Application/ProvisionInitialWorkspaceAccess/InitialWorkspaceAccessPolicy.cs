@@ -69,7 +69,16 @@ internal static class InitialWorkspaceAccessPolicy
         return storedCapabilities.SequenceEqual(previous, StringComparer.Ordinal);
     }
 
-    internal static bool HasCanonicalRoleIdentity(AccessRole role, string workspaceId) =>
+    /// <summary>
+    /// The untouched-seed signature. It is used only on the fallback path taken when this membership
+    /// has no AccessControl assignment yet, to decide whether a role already carrying the seeded
+    /// display name is the freshly created seed whose assignment write did not land. It is not a
+    /// protected-role concept and is deliberately never applied to a role reached through the
+    /// assignment anchor: an admitted <c>replaceAccessRole</c> legitimately changes the name,
+    /// description, template provenance and version, and that is a committed mutation rather than
+    /// provisioning corruption.
+    /// </summary>
+    internal static bool HasUntouchedSeedIdentity(AccessRole role, string workspaceId) =>
         string.Equals(role.WorkspaceId, workspaceId, StringComparison.Ordinal)
         && string.Equals(role.Name, RoleName, StringComparison.Ordinal)
         && string.Equals(role.Description, RoleDescription, StringComparison.Ordinal)

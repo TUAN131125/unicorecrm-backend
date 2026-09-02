@@ -11,6 +11,29 @@ public sealed record CreateAccessRoleRequest(
     string? Description = null,
     string? SourceTemplateId = null);
 
+/// <summary>
+/// The lifecycle deactivation request. <c>reason</c> is optional explanatory governance provenance
+/// only: it is persisted solely in the archive governance audit and influences no business rule.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ArchiveAccessRoleRequest(string? Reason = null);
+
+/// <summary>
+/// The full replacement of a role's mutable configuration. Every replaceable collection is required
+/// by the wire contract, so there is no preserve-on-omission behavior; an omitted optional scalar is
+/// the canonical null. <c>IsActive</c> is nullable only so an omitted required property is reported
+/// as a missing field rather than silently defaulting to false.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ReplaceAccessRoleRequest(
+    string? Name,
+    bool? IsActive,
+    IReadOnlyList<string?>? Capabilities,
+    IReadOnlyList<AccessRoleDataScopeInput?>? DataScopes,
+    IReadOnlyList<AccessRoleFieldSecurityInput?>? FieldSecurity,
+    string? Description = null,
+    string? SourceTemplateId = null);
+
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AccessRoleDataScopeInput(
     string? ResourceKey,

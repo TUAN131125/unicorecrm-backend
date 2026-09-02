@@ -4,10 +4,10 @@ using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 
-namespace UnicoreCRM.Platform.AccessControl.Application.CreateAccessRole;
+namespace UnicoreCRM.Platform.AccessControl.Application.AccessDirectory;
 
 internal sealed class DirectoryComposer(
-    ICreateAccessRolePersistence persistence,
+    IAccessDirectoryPersistence persistence,
     IWorkspaceAccessDirectorySource workspaceSource,
     IIdentityAccessDirectoryProfileSource identitySource,
     TimeProvider timeProvider)
@@ -16,8 +16,7 @@ internal sealed class DirectoryComposer(
         string workspaceId,
         CancellationToken cancellationToken)
     {
-        var access = await persistence.ReadDirectoryAsync(workspaceId, cancellationToken)
-            ?? throw new InvalidOperationException("AccessControl directory revision is missing after a committed mutation.");
+        var access = await persistence.ReadDirectoryAsync(workspaceId, cancellationToken);
 
         WorkspaceAccessDirectorySnapshot? workspace;
         IReadOnlyList<IdentityAccessDirectoryProfile> identityProfiles;
@@ -133,7 +132,7 @@ internal sealed class DirectoryComposer(
                 item.WorkspaceId,
                 item.RoleId,
                 item.ResourceKey,
-                CreateAccessRoleNormalizer.ToWire(item.Scope),
+                AccessDirectoryWire.ToWire(item.Scope),
                 item.Scope == Domain.AccessDataScope.Custom ? OwnerIds(item.AllowedOwnerIdsJson) : null))
             .ToArray();
         var fieldSecurity = access.FieldSecurity
@@ -146,7 +145,7 @@ internal sealed class DirectoryComposer(
                 item.RoleId,
                 item.ResourceKey,
                 item.FieldKey,
-                CreateAccessRoleNormalizer.ToWire(item.Access)))
+                AccessDirectoryWire.ToWire(item.Access)))
             .ToArray();
         var invitations = workspace.Invitations
             .OrderBy(item => item.InvitationId, StringComparer.Ordinal)

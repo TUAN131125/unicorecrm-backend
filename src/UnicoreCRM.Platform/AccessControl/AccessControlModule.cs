@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
+using UnicoreCRM.Platform.AccessControl.Application.AccessDirectory;
 using UnicoreCRM.Platform.AccessControl.Application.Common;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.AccessControl.Infrastructure;
@@ -33,8 +34,16 @@ internal static class AccessControlModule
         services.AddScoped<IAccessContextAuthorizer, AccessAuthorizer>();
         services.AddScoped<Application.GetCurrentAuthorizationContext.Handler>();
         services.AddScoped<Application.CreateAccessRole.ICreateAccessRolePersistence, EfCreateAccessRolePersistence>();
-        services.AddScoped<Application.CreateAccessRole.DirectoryComposer>();
+        services.AddScoped<IAccessDirectoryPersistence, EfAccessDirectoryPersistence>();
+        services.AddScoped<DirectoryComposer>();
         services.AddScoped<Application.CreateAccessRole.Handler>();
+        services.AddScoped<Application.ReplaceAccessRole.IReplaceAccessRolePersistence, EfReplaceAccessRolePersistence>();
+        services.AddScoped<Application.ReplaceAccessRole.Handler>();
+        services.AddScoped<Application.ArchiveAccessRole.IArchiveAccessRolePersistence, EfArchiveAccessRolePersistence>();
+        services.AddScoped<Application.ArchiveAccessRole.Handler>();
+        services.AddScoped<Application.ReplaceWorkspaceMemberAccess.IReplaceWorkspaceMemberAccessPersistence, EfReplaceWorkspaceMemberAccessPersistence>();
+        services.AddScoped<Application.ReplaceWorkspaceMemberAccess.Handler>();
+        services.AddScoped<Application.GetWorkspaceAccessDirectory.Handler>();
         // Owner fact providers are registered by their own modules. The registry is scoped so a
         // provider that needs its owner's scoped persistence can be resolved normally, and it
         // rejects two owners claiming the same resource key at composition time.
@@ -42,6 +51,7 @@ internal static class AccessControlModule
         services.AddScoped<RecordAccessEvaluator>();
         services.AddScoped<IRecordAccessEvaluator>(provider => provider.GetRequiredService<RecordAccessEvaluator>());
         services.AddScoped<Application.EvaluateEffectiveRecordAccess.Handler>();
+        services.AddHostedService<AccessRoleLegacyNormalizationCorrectionService>();
         services.AddHostedService<DevelopmentAccessControlBootstrap>();
         return services;
     }

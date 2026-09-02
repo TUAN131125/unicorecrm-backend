@@ -65,5 +65,10 @@ internal static class AccessErrors
     internal static AccessOperationError IdempotencyKeyReused(string key) =>
         new("IDEMPOTENCY_KEY_REUSED", 409, "Idempotency key reused", IdempotencyKey: key);
     internal static AccessOperationError LifecycleConflict() => new("LIFECYCLE_CONFLICT", 409, "Lifecycle conflict");
+    internal static AccessOperationError ResourceNotFound() => new("RESOURCE_NOT_FOUND", 404, "Resource not found");
+    internal static AccessOperationError VersionConflict() => new("VERSION_CONFLICT", 412, "Version conflict");
+    internal static AccessOperationError RoleInactive() => new("ROLE_INACTIVE", 409, "Role inactive");
+    internal static AccessOperationError LastWorkspaceAdministrator() =>
+        new("LAST_WORKSPACE_ADMINISTRATOR", 409, "Last Workspace administrator");
     internal static AccessOperationError IntegrationUnavailable() => new("INTEGRATION_UNAVAILABLE", 503, "Integration unavailable");
 }

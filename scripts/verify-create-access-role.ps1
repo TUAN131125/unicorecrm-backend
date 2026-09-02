@@ -122,7 +122,10 @@ function Invoke-Api(
     if (-not [string]::IsNullOrWhiteSpace($Token)) { $null = $request.Headers.TryAddWithoutValidation('Authorization', "Bearer $Token") }
     if (-not [string]::IsNullOrWhiteSpace($WorkspaceId)) { $null = $request.Headers.TryAddWithoutValidation('X-Workspace-Id', $WorkspaceId) }
     if (-not [string]::IsNullOrWhiteSpace($IdempotencyKey)) { $null = $request.Headers.TryAddWithoutValidation('Idempotency-Key', $IdempotencyKey) }
-    if ($null -ne $Body) { $request.Content = [System.Net.Http.StringContent]::new($Body, [Text.Encoding]::UTF8, 'application/json') }
+    # Windows PowerShell binds $null to a [string] parameter as the empty string, so a
+    # body-less GET would still be given a content body and rejected with "Cannot send a
+    # content-body with this verb-type" before it ever reached the host.
+    if (-not [string]::IsNullOrEmpty($Body)) { $request.Content = [System.Net.Http.StringContent]::new($Body, [Text.Encoding]::UTF8, 'application/json') }
     $client = New-Client
     try {
         $response = $client.SendAsync($request).GetAwaiter().GetResult()

@@ -249,7 +249,7 @@ function New-SeededAnchor(
     if ($seedAccessAssignment) {
         $roleId = "role_$suffix"
         $assignmentId = "assignment_$suffix"
-        Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$roleId','$workspaceId','Workspace Owner','$roleDescription',NULL,1,0,'$provisionedAtText','$provisionedAtText');"
+        Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,NormalizedName,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$roleId','$workspaceId','Workspace Owner','WORKSPACE OWNER','$roleDescription',NULL,1,0,'$provisionedAtText','$provisionedAtText');"
         foreach ($capability in $roleCapabilities) {
             Invoke-Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$roleId','$capability');"
         }
@@ -387,7 +387,7 @@ try {
 
     $customRoleId = 'role_custom_' + [Guid]::NewGuid().ToString('N')
     $customAssignmentId = 'assignment_custom_' + [Guid]::NewGuid().ToString('N')
-    Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$customRoleId','$($stateA.WorkspaceId)','Custom Observer','Verifier-owned unrelated custom role.',NULL,1,0,SYSUTCDATETIME(),SYSUTCDATETIME()); INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$customRoleId','contacts.create'); INSERT INTO access.MembershipRoleAssignments (AssignmentId,WorkspaceId,MembershipId,RoleId,AssignedAt) VALUES ('$customAssignmentId','$($stateA.WorkspaceId)','$($stateA.MembershipId)','$customRoleId',SYSUTCDATETIME());"
+    Invoke-Sql "INSERT INTO access.Roles (RoleId,WorkspaceId,Name,NormalizedName,Description,SourceTemplateId,IsActive,[Version],CreatedAt,UpdatedAt) VALUES ('$customRoleId','$($stateA.WorkspaceId)','Custom Observer','CUSTOM OBSERVER','Verifier-owned unrelated custom role.',NULL,1,0,SYSUTCDATETIME(),SYSUTCDATETIME()); INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$customRoleId','contacts.create'); INSERT INTO access.MembershipRoleAssignments (AssignmentId,WorkspaceId,MembershipId,RoleId,AssignedAt) VALUES ('$customAssignmentId','$($stateA.WorkspaceId)','$($stateA.MembershipId)','$customRoleId',SYSUTCDATETIME());"
 
     # The current host with the durable resume path enabled must converge A and B without any
     # client action and must not touch C.

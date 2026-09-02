@@ -8,12 +8,22 @@ namespace UnicoreCRM.Platform.AccessControl.Application.ProvisionInitialWorkspac
 /// convergent: repeated calls for the same Workspace and membership reach the same single role
 /// and single assignment, so a workflow retry completes an interrupted provisioning without
 /// producing duplicate authority.
+///
+/// <para><c>DEC-REPLACEACCESSROLE-AUTHORITY-CLOSURE</c> admits <c>replaceAccessRole</c> against
+/// every role, including the one provisioned here, and that command may legitimately change the
+/// role's name, description, template provenance and version. Convergence therefore treats the
+/// seeded display name as evidence only while the role's version is still 0, which is the exact
+/// signal that no admitted command has replaced it. Once a role has been replaced its configuration
+/// is caller-owned: convergence anchors on the AccessControl assignment this membership already
+/// holds, reports it unchanged, and never rewrites it. The same rule keeps an unrelated role that
+/// was merely renamed to the seeded display name from ever being adopted as the canonical seed,
+/// while a genuinely drifted, never-replaced role still fails closed exactly as before.</para>
 /// </summary>
 internal sealed class InitialWorkspaceAccessProvisioningService(
     IInitialWorkspaceAccessPersistence persistence,
     TimeProvider timeProvider) : IInitialWorkspaceAccessProvisioning
 {
-    private const int ConvergenceAttempts = 2;
+    private const int ConvergenceAttempts = 3;
 
     public async Task<InitialWorkspaceAccessResult> EnsureInitialWorkspaceAccessAsync(
         string workspaceId,
@@ -27,9 +37,30 @@ internal sealed class InitialWorkspaceAccessProvisioningService(
         for (var attempt = 0; attempt < ConvergenceAttempts; attempt++)
         {
             var existingRole = await persistence.FindRoleAsync(workspaceId, InitialWorkspaceAccessPolicy.RoleName, cancellationToken);
-            if (existingRole is not null)
+
+            if (existingRole is null || existingRole.Version > 0)
             {
-                if (!InitialWorkspaceAccessPolicy.HasCanonicalRoleIdentity(existingRole, workspaceId))
+                // No role carries the seeded name, or the one that does has been replaced. Either
+                // way the name proves nothing, so the assignment is the anchor.
+                var anchor = await persistence.FindAssignedRoleAsync(workspaceId, membershipId, cancellationToken);
+                if (anchor is not null)
+                {
+                    var anchoredCapabilities = await persistence.ReadRoleCapabilitiesAsync(anchor.Role.RoleId, cancellationToken);
+                    return new InitialWorkspaceAccessResult(
+                        InitialWorkspaceAccessStatus.AlreadyAssigned,
+                        anchor.Role.RoleId,
+                        anchor.Assignment.AssignmentId,
+                        anchoredCapabilities);
+                }
+
+                // A replaced role carrying the seeded name with no assignment to anchor on is
+                // ambiguous state that this participant must not resolve by guessing.
+                if (existingRole is not null)
+                    throw new InvalidOperationException("The existing initial Workspace role identity does not match the server-owned definition.");
+            }
+            else
+            {
+                if (!InitialWorkspaceAccessPolicy.HasUntouchedSeedIdentity(existingRole, workspaceId))
                     throw new InvalidOperationException("The existing initial Workspace role identity does not match the server-owned definition.");
 
                 var storedCapabilities = await persistence.ReadRoleCapabilitiesAsync(existingRole.RoleId, cancellationToken);

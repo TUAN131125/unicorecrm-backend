@@ -20,6 +20,12 @@ internal sealed class RoleFieldSecurityPolicy
     public string ResourceKey { get; private set; } = null!;
     public string FieldKey { get; private set; } = null!;
     public AccessFieldAccess Access { get; private set; }
+
+    /// <summary>
+    /// Replaces the access value while preserving the owner-generated <see cref="PolicyId"/> for an
+    /// unchanged canonical <c>(RoleId, ResourceKey, FieldKey)</c> key.
+    /// </summary>
+    internal void Replace(AccessFieldAccess access) => Access = access;
 }
 
 internal enum AccessFieldAccess

@@ -1,3 +1,4 @@
+using UnicoreCRM.Platform.AccessControl.Application.Common;
 using UnicoreCRM.Platform.AccessControl.Domain;
 
 namespace UnicoreCRM.Platform.AccessControl.Application.CreateAccessRole;
@@ -19,18 +20,6 @@ internal sealed record NormalizedCreateAccessRole(
     IReadOnlyList<NormalizedDataScope> DataScopes,
     IReadOnlyList<NormalizedFieldSecurity> FieldSecurity,
     string Fingerprint);
-
-internal sealed record NormalizedCapabilityInput(string Value, int OriginalIndex);
-
-internal sealed record NormalizedDataScope(
-    string ResourceKey,
-    AccessDataScope Scope,
-    IReadOnlyList<string> AllowedOwnerIds);
-
-internal sealed record NormalizedFieldSecurity(
-    string ResourceKey,
-    string FieldKey,
-    AccessFieldAccess Access);
 
 internal sealed record CreateAccessRoleCommit(
     string CommandId,
@@ -57,14 +46,6 @@ internal sealed record CreateAccessRoleCommitResult(
     CreateAccessRoleCommitStatus Status,
     CreateAccessRoleCommit? Commit = null);
 
-internal sealed record AccessControlDirectoryState(
-    long Revision,
-    IReadOnlyList<AccessRole> Roles,
-    IReadOnlyList<RoleCapability> Capabilities,
-    IReadOnlyList<MembershipRoleAssignment> Assignments,
-    IReadOnlyList<RoleDataScopePolicy> DataScopes,
-    IReadOnlyList<RoleFieldSecurityPolicy> FieldSecurity);
-
 internal interface ICreateAccessRolePersistence
 {
     Task<AccessRoleCommandIdempotencyRecord?> FindIdempotencyAsync(
@@ -84,7 +65,4 @@ internal interface ICreateAccessRolePersistence
         NormalizedCreateAccessRole request,
         CancellationToken cancellationToken);
 
-    Task<AccessControlDirectoryState?> ReadDirectoryAsync(
-        string workspaceId,
-        CancellationToken cancellationToken);
 }
