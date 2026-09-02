@@ -292,7 +292,11 @@ try {
     Assert-True (-not [string]::IsNullOrWhiteSpace($memberId) -and -not [string]::IsNullOrWhiteSpace($roleId)) 'Trusted Product member and role resolved'
 
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='products' AND TABLE_NAME='AuditRecords';") -eq '1') 'Products-owned audit store reused'
-    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM products.__EFMigrationsHistory;") -eq '1') 'No Product audit migration required'
+    # The audit store still comes from the single ProductsCore migration. Counting every Products
+    # migration would instead assert that the owner never gains an unrelated one, which is not what
+    # this check is about: ProductConfigurationOverlay adds configuration tables and touches no audit
+    # table, as the frozen column assertion below continues to prove.
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM products.__EFMigrationsHistory WHERE MigrationId LIKE '%ProductsCore';") -eq '1') 'No Product audit migration required'
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID('products.AuditRecords');") -eq '0') 'Product audit store has zero foreign keys'
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='products' AND TABLE_NAME='AuditRecords' AND COLUMN_NAME IN ('AuditId','Operation','WorkspaceId','ActorId','AggregateId','RequestId','CorrelationId','OccurredAt','Outcome','NewVersion');") -eq '10') 'Product audit store represents frozen read evidence'
 

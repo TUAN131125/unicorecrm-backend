@@ -16,6 +16,7 @@ public static class ProductsEndpoints
         MapPost(endpoints, "/products", CreateProductAsync, "createProduct");
         MapPost(endpoints, "/products/archive-batch", ArchiveBatchAsync, "archiveProductsBatch");
         MapPost(endpoints, "/products/restore-batch", RestoreBatchAsync, "restoreProductsBatch");
+        MapGet(endpoints, "/products/configuration/types", ListProductConfigurationTypesAsync, "listProductConfigurationTypes");
         MapGet(endpoints, "/products/{productId}", GetProductAsync, "getProduct");
         MapPut(endpoints, "/products/{productId}", ReplaceProductAsync, "replaceProduct");
         MapPost(endpoints, "/products/{productId}/archive", ArchiveProductAsync, "archiveProduct");
@@ -44,6 +45,28 @@ public static class ProductsEndpoints
         var result = await handler.HandleAsync(
             new Application.ListProducts.Query(new(metadata!.RequestId, metadata.CorrelationId)),
             cancellationToken);
+        return ProductsHttp.Result(result, metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> ListProductConfigurationTypesAsync(
+        HttpContext context,
+        Application.ListProductConfigurationTypes.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        if (!ProductsHttp.TryMetadata(context, false, false, out var metadata, out var error))
+            return error!;
+        var result = await handler.HandleAsync(
+            new Application.ListProductConfigurationTypes.Query(new(metadata!.RequestId, metadata.CorrelationId)),
+            cancellationToken);
+        if (result.IsSuccess)
+        {
+            // A strong validator carrying the revision verbatim. If-Match uses strong comparison, so
+            // a weak tag could not serve the concurrency role the contract assigns this version, and
+            // an unquoted value is not a valid entity-tag at all.
+            context.Response.Headers.ETag =
+                "\"" + result.Value!.Revision.ToString(CultureInfo.InvariantCulture) + "\"";
+        }
+
         return ProductsHttp.Result(result, metadata.CorrelationId);
     }
 

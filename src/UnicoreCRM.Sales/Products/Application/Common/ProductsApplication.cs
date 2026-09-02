@@ -54,6 +54,13 @@ internal interface IProductsPersistence
     /// </summary>
     Task<IReadOnlyList<Product>> LoadProductsAsync(string workspaceId, IReadOnlyCollection<string> productIds, CancellationToken cancellationToken);
     Task<bool> SkuExistsAsync(string workspaceId, string normalizedSku, string? exceptProductId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the Workspace's Product Configuration revision anchor and its sparse overrides as one
+    /// consistent snapshot, so the revision cannot come from a different state than the overrides.
+    /// A Workspace with no anchor and no overrides is a valid sparse state, not an absent resource.
+    /// </summary>
+    Task<ProductConfigurationState> ReadProductConfigurationAsync(string workspaceId, CancellationToken cancellationToken);
     Task<ProductIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddProduct(Product product);
     void AddIdempotency(ProductIdempotencyRecord record);
@@ -96,4 +103,12 @@ internal static class ProductErrors
         new("PRODUCT_ARCHIVE_BLOCKED", 409, "Product cannot be archived", AggregateId: productId);
     internal static ProductOperationError RestoreBlocked(string productId) =>
         new("PRODUCT_RESTORE_BLOCKED", 409, "Product cannot be restored", AggregateId: productId);
+
+    /// <summary>
+    /// Persisted Product Configuration violates a structural invariant. INTERNAL_ERROR is the
+    /// admitted vocabulary for this operation; no dedicated code is invented, and the detail stays
+    /// generic because the caller cannot act on it.
+    /// </summary>
+    internal static ProductOperationError ConfigurationCorrupt() =>
+        new("INTERNAL_ERROR", 500, "Internal error");
 }

@@ -60,6 +60,29 @@ internal sealed class EfProductsPersistence(ProductsDbContext dbContext) : IProd
                 && (exceptProductId == null || item.ProductId != exceptProductId),
             cancellationToken);
 
+    // The anchor and the overrides are two tables, so they are read inside one serialisable
+    // transaction. Without it a concurrent configuration commit could be observed by one query and
+    // not the other, and the response would pair a document with a revision that never described it.
+    public async Task<ProductConfigurationState> ReadProductConfigurationAsync(
+        string workspaceId,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var anchor = await dbContext.ProductConfigurationDocuments
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId, cancellationToken);
+        var overrides = await dbContext.ProductConfigurationTypeOverrides
+            .AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId)
+            .ToArrayAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        // No anchor is the valid sparse state of a Workspace that has never committed a
+        // configuration change. It reports revision 0 and is never created by this read.
+        return new ProductConfigurationState(anchor?.Revision ?? 0L, overrides);
+    }
+
     public Task<ProductIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) =>
         dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
 

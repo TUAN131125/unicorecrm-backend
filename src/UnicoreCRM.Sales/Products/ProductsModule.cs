@@ -23,6 +23,7 @@ internal static class ProductsModule
         services.AddScoped<ProductMutationExecution>();
         services.AddScoped<ProductBatchMutationExecution>();
         services.AddScoped<Application.ListProducts.Handler>();
+        services.AddScoped<Application.ListProductConfigurationTypes.Handler>();
         services.AddScoped<Application.GetProduct.Handler>();
         services.AddScoped<Application.GetProductAvailability.Handler>();
         services.AddScoped<Application.GetProductPriceProjection.Handler>();

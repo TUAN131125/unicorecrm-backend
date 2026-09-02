@@ -11,6 +11,8 @@ internal sealed class ProductsDbContext(DbContextOptions<ProductsDbContext> opti
     internal DbSet<ProductIdempotencyRecord> IdempotencyRecords => Set<ProductIdempotencyRecord>();
     internal DbSet<ProductAuditRecord> AuditRecords => Set<ProductAuditRecord>();
     internal DbSet<ProductOutboxMessage> OutboxMessages => Set<ProductOutboxMessage>();
+    internal DbSet<ProductConfigurationDocumentRecord> ProductConfigurationDocuments => Set<ProductConfigurationDocumentRecord>();
+    internal DbSet<ProductConfigurationTypeOverride> ProductConfigurationTypeOverrides => Set<ProductConfigurationTypeOverride>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,6 +74,32 @@ internal sealed class ProductsDbContext(DbContextOptions<ProductsDbContext> opti
             entity.Property(item => item.CorrelationId).HasMaxLength(128);
             entity.Property(item => item.PayloadJson).HasColumnType("nvarchar(max)");
             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt });
+        });
+
+        modelBuilder.Entity<ProductConfigurationDocumentRecord>(entity =>
+        {
+            entity.ToTable(
+                "ProductConfigurationDocuments",
+                table => table.HasCheckConstraint("CK_ProductConfigurationDocuments_Revision", "[Revision] >= 0"));
+            entity.HasKey(item => item.WorkspaceId);
+            entity.Property(item => item.WorkspaceId).HasMaxLength(128);
+            entity.Property(item => item.Revision).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<ProductConfigurationTypeOverride>(entity =>
+        {
+            entity.ToTable("ProductConfigurationTypeOverrides");
+            // The composite key is the identity decision made structural: the canonical ProductType
+            // code is the identity, there is no opaque overlay id, and a Workspace cannot hold two
+            // overrides for one code. Uniqueness is enforced by the database, not only in code.
+            entity.HasKey(item => new { item.WorkspaceId, item.ProductTypeCode });
+            entity.Property(item => item.WorkspaceId).HasMaxLength(128);
+            // A binary collation keeps canonical identity exactly ordinal. Under the server's default
+            // case-insensitive collation "Service" would collide with "service" in the key and could
+            // masquerade as canonical; here it is stored as the distinct, non-canonical value it is
+            // and the read fails closed on it instead of silently normalising it.
+            entity.Property(item => item.ProductTypeCode).HasMaxLength(64).UseCollation("Latin1_General_100_BIN2");
+            entity.Property(item => item.Status).HasMaxLength(16).UseCollation("Latin1_General_100_BIN2");
         });
     }
 
