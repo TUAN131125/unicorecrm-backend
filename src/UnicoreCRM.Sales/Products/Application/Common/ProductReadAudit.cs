@@ -29,6 +29,36 @@ internal static class ProductReadAudit
         await persistence.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Records a Product Configuration disclosure. It follows the same immutable READ evidence shape
+    /// as the canonical read audit, and additionally raises the Workspace's trusted revision in the
+    /// same transaction. That extra write is access/integrity evidence, not a business mutation: no
+    /// Product Configuration resource state is created or changed by it.
+    /// </summary>
+    internal static Task RecordConfigurationAsync(
+        IProductsPersistence persistence,
+        long servedRevision,
+        TrustedWorkspaceContext trusted,
+        ProductRequestMetadata metadata,
+        string operation,
+        DateTimeOffset occurredAt,
+        CancellationToken cancellationToken) =>
+        persistence.RecordConfigurationReadEvidenceAsync(
+            trusted.WorkspaceId,
+            servedRevision,
+            new ProductAuditRecord(
+                operation,
+                trusted.WorkspaceId,
+                trusted.MemberId,
+                null,
+                metadata.RequestId,
+                metadata.CorrelationId,
+                "READ",
+                null,
+                servedRevision,
+                occurredAt),
+            cancellationToken);
+
     internal static async Task RecordAsync(
         IProductsPersistence persistence,
         Product product,

@@ -4,8 +4,13 @@ using UnicoreCRM.Sales.Products.Domain;
 namespace UnicoreCRM.Sales.Products.Application.Common;
 
 /// <summary>The persisted Product Configuration state of one Workspace, read as one snapshot.</summary>
+/// <param name="TrustedRevision">
+/// The greatest revision this Workspace has ever successfully served, read in the same snapshot as
+/// <paramref name="Revision"/> so the monotonicity comparison cannot straddle two states.
+/// </param>
 internal sealed record ProductConfigurationState(
     long Revision,
+    long TrustedRevision,
     IReadOnlyList<ProductConfigurationTypeOverride> Overrides);
 
 /// <summary>
@@ -45,6 +50,14 @@ internal static class ProductConfigurationCatalog
     private static readonly HashSet<string> CanonicalTypeCodeSet = new(CanonicalTypeCodes, StringComparer.Ordinal);
 
     /// <summary>
+    /// Whether a supplied path identifier is one of the nine canonical codes. Membership is ordinal,
+    /// so a case variant such as "Service" is not the canonical "service" and identifies no resource
+    /// at all. The vocabulary is contract-global and identical in every Workspace, so answering it
+    /// discloses no Workspace state and cannot reveal whether an override row exists.
+    /// </summary>
+    internal static bool IsCanonicalTypeCode(string code) => CanonicalTypeCodeSet.Contains(code);
+
+    /// <summary>
     /// Projects the effective document, or fails closed when the persisted state violates a
     /// structural invariant.
     ///
@@ -61,6 +74,14 @@ internal static class ProductConfigurationCatalog
     internal static ProductOperationResult<ConfigurationDocumentResponse> Project(ProductConfigurationState state)
     {
         if (state.Revision < 0)
+            return ProductOperationResult<ConfigurationDocumentResponse>.Failure(ProductErrors.ConfigurationCorrupt());
+
+        // A revision below one already served is a rollback, and 3 after 5 is structurally
+        // indistinguishable from a Workspace that only ever reached 3 without this separate evidence.
+        // Serving it would silently reuse ETag "3" for a document that no longer matches what that
+        // validator once described. A revision above the trusted mark is not corrupt: a committed
+        // mutation may legitimately have advanced the document without this node ever serving it.
+        if (state.Revision < state.TrustedRevision)
             return ProductOperationResult<ConfigurationDocumentResponse>.Failure(ProductErrors.ConfigurationCorrupt());
 
         var overrides = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -90,5 +111,62 @@ internal static class ProductConfigurationCatalog
 
         return ProductOperationResult<ConfigurationDocumentResponse>.Success(
             new ConfigurationDocumentResponse(state.Revision, new ProductConfigurationData(types)));
+    }
+}
+
+/// <summary>
+/// Decides whether a canonical ProductType may be newly selected by a Product command.
+///
+/// <para>Deliberately separate from <see cref="ProductValidation"/>: that helper answers the
+/// contract-global question "is this a canonical ProductType?" and stays a pure static with no
+/// Workspace or persistence dependency. This one answers the Workspace-scoped question "may this
+/// canonical type be newly selected here?", and runs only after the canonical answer is yes.</para>
+///
+/// <para>It derives the effective state through <see cref="ProductConfigurationCatalog.Project"/>,
+/// the same projection the public read uses, so command and read semantics cannot drift apart.</para>
+/// </summary>
+internal static class ProductTypeEligibility
+{
+    /// <param name="existingType">
+    /// The type the Product already carries, or null for a creation. Preserving a type a Product
+    /// already has is not a new selection, so an INACTIVE status does not block it - otherwise a
+    /// Workspace that retires a type would freeze every Product still using it.
+    /// </param>
+    /// <returns>Null when the selection is permitted, otherwise the error to fail with.</returns>
+    internal static ProductOperationError? Evaluate(
+        ProductConfigurationState state,
+        string requestedType,
+        string? existingType)
+    {
+        var projected = ProductConfigurationCatalog.Project(state);
+        if (!projected.IsSuccess)
+        {
+            // Corrupt configuration leaves the effective state undefined. It is not "the type is
+            // INACTIVE", and it is emphatically not "the type is ACTIVE": the command fails closed
+            // with the system error rather than guessing either way, and rather than reporting a
+            // server integrity fault as though the caller had sent a bad field.
+            return projected.Error;
+        }
+
+        // Preserving the exact existing type is never a new selection, whatever its status.
+        if (existingType is not null && string.Equals(requestedType, existingType, StringComparison.Ordinal))
+            return null;
+
+        var entry = projected.Value!.Data.Types.SingleOrDefault(
+            item => string.Equals(item.Code, requestedType, StringComparison.Ordinal));
+        if (entry is null)
+        {
+            // Unreachable for a canonically validated request, because the projection always emits
+            // every canonical code. Reaching it would mean the two vocabularies had diverged, which
+            // is an integrity fault rather than a caller error.
+            return ProductErrors.ConfigurationCorrupt();
+        }
+
+        return string.Equals(entry.Status, ProductConfigurationCatalog.Active, StringComparison.Ordinal)
+            ? null
+            : ProductErrors.FieldValidation(new Dictionary<string, string[]>(StringComparer.Ordinal)
+            {
+                ["type"] = ["type is not currently selectable in this Workspace."]
+            });
     }
 }

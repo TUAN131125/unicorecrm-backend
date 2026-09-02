@@ -13,6 +13,7 @@ internal sealed class ProductsDbContext(DbContextOptions<ProductsDbContext> opti
     internal DbSet<ProductOutboxMessage> OutboxMessages => Set<ProductOutboxMessage>();
     internal DbSet<ProductConfigurationDocumentRecord> ProductConfigurationDocuments => Set<ProductConfigurationDocumentRecord>();
     internal DbSet<ProductConfigurationTypeOverride> ProductConfigurationTypeOverrides => Set<ProductConfigurationTypeOverride>();
+    internal DbSet<ProductConfigurationTrustedRevision> ProductConfigurationTrustedRevisions => Set<ProductConfigurationTrustedRevision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -100,6 +101,20 @@ internal sealed class ProductsDbContext(DbContextOptions<ProductsDbContext> opti
             // and the read fails closed on it instead of silently normalising it.
             entity.Property(item => item.ProductTypeCode).HasMaxLength(64).UseCollation("Latin1_General_100_BIN2");
             entity.Property(item => item.Status).HasMaxLength(16).UseCollation("Latin1_General_100_BIN2");
+        });
+
+        modelBuilder.Entity<ProductConfigurationTrustedRevision>(entity =>
+        {
+            entity.ToTable(
+                "ProductConfigurationTrustedRevisions",
+                table => table.HasCheckConstraint(
+                    "CK_ProductConfigurationTrustedRevisions_Revision",
+                    "[GreatestTrustedRevision] >= 0"));
+            entity.HasKey(item => item.WorkspaceId);
+            entity.Property(item => item.WorkspaceId).HasMaxLength(128);
+            // Deliberately not a concurrency token. The value is only ever raised, and it is raised by
+            // one atomic monotonic statement rather than a read-modify-write, so a concurrent reader
+            // that served a higher revision must never be rolled back by a slower one.
         });
     }
 

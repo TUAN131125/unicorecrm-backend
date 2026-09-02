@@ -97,8 +97,26 @@ internal sealed class Handler(
                 ProductErrors.VersionConflict(product.ProductId, expectedVersion, product.Version));
         if (product.IsArchived)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.Archived(product.ProductId));
-        if (await persistence.SkuExistsAsync(trusted.WorkspaceId, profile!.NormalizedSku, product.ProductId, cancellationToken))
+
+        // Workspace type eligibility, placed after the version and archive checks so their
+        // established precedence is untouched: a stale If-Match still reports VERSION_CONFLICT and an
+        // archived Product still reports PRODUCT_ARCHIVED, even when the requested type is inactive.
+        // The existing type is passed, so a replacement that keeps it is not a new selection and is
+        // allowed however that type is configured. The read shares this command's transaction.
+        var configuration = await persistence.LoadProductConfigurationForCommandAsync(
+            trusted.WorkspaceId, cancellationToken);
+        var eligibilityError = ProductTypeEligibility.Evaluate(
+            configuration, profile!.Type, product.Profile.Type);
+        if (eligibilityError is not null)
+            return ProductOperationResult<ProductMutationResponse>.Failure(eligibilityError);
+
+        if (await persistence.SkuExistsAsync(trusted.WorkspaceId, profile.NormalizedSku, product.ProductId, cancellationToken))
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.SkuConflict());
+
+        // See CreateProduct: the revision this command relied on becomes trusted state, raised
+        // monotonically inside this transaction so it rolls back with any later failure.
+        await persistence.RaiseProductConfigurationTrustAsync(
+            trusted.WorkspaceId, configuration.Revision, cancellationToken);
 
         var priorVersion = product.Version;
         var now = timeProvider.GetUtcNow();

@@ -24,6 +24,35 @@ internal sealed class ProductConfigurationDocumentRecord
 
     public string WorkspaceId { get; private set; } = null!;
     public long Revision { get; private set; }
+
+    /// <summary>
+    /// Advances the document revision by exactly one. It is the only way the anchor moves, so a
+    /// mutation cannot skip, reuse or reverse a revision, and the concurrency token on
+    /// <see cref="Revision"/> turns a lost update into a version conflict rather than a silent
+    /// overwrite.
+    /// </summary>
+    internal void Advance() => Revision++;
+}
+
+/// <summary>
+/// The greatest Product Configuration revision this Workspace has ever successfully served.
+///
+/// <para>It exists because a revision cannot attest to its own history. If the current anchor were
+/// both the value under validation and the only record of what came before, a rollback from 5 to 3
+/// would be indistinguishable from a Workspace that had only ever reached 3 - the corrupt value
+/// would be validating itself. This record is deliberately separate durable evidence, written only
+/// on a successful read and never derived from the anchor.</para>
+///
+/// <para>It is monotonic: it is only ever raised. Absence means nothing has been trusted yet, which
+/// is equivalent to 0, so a Workspace serving revision 0 needs no row - the record is integrity
+/// evidence, never Product Configuration materialisation.</para>
+/// </summary>
+internal sealed class ProductConfigurationTrustedRevision
+{
+    private ProductConfigurationTrustedRevision() { }
+
+    public string WorkspaceId { get; private set; } = null!;
+    public long GreatestTrustedRevision { get; private set; }
 }
 
 /// <summary>
@@ -51,4 +80,10 @@ internal sealed class ProductConfigurationTypeOverride
     public string WorkspaceId { get; private set; } = null!;
     public string ProductTypeCode { get; private set; } = null!;
     public string Status { get; private set; } = null!;
+
+    /// <summary>
+    /// Retargets an existing override. The canonical code is identity and is never rewritten, so a
+    /// status change reuses the row the key already names instead of deleting and recreating it.
+    /// </summary>
+    internal void SetStatus(string status) => Status = status;
 }

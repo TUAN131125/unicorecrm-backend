@@ -17,6 +17,7 @@ public static class ProductsEndpoints
         MapPost(endpoints, "/products/archive-batch", ArchiveBatchAsync, "archiveProductsBatch");
         MapPost(endpoints, "/products/restore-batch", RestoreBatchAsync, "restoreProductsBatch");
         MapGet(endpoints, "/products/configuration/types", ListProductConfigurationTypesAsync, "listProductConfigurationTypes");
+        MapPatch(endpoints, "/products/configuration/types/{typeId}", UpdateProductConfigurationTypeAsync, "updateProductConfigurationType");
         MapGet(endpoints, "/products/{productId}", GetProductAsync, "getProduct");
         MapPut(endpoints, "/products/{productId}", ReplaceProductAsync, "replaceProduct");
         MapPost(endpoints, "/products/{productId}/archive", ArchiveProductAsync, "archiveProduct");
@@ -34,6 +35,11 @@ public static class ProductsEndpoints
 
     private static void MapPut(IEndpointRouteBuilder endpoints, string path, Delegate handler, string name) =>
         endpoints.MapPut(path, handler).RequireAuthorization().RequireTrustedWorkspace().WithName(name);
+
+    // createProductConfigurationType and deleteProductConfigurationType stay BLOCKED and are
+    // deliberately not mapped, so POST and DELETE on the configuration paths reach no handler.
+    private static void MapPatch(IEndpointRouteBuilder endpoints, string path, Delegate handler, string name) =>
+        endpoints.MapPatch(path, handler).RequireAuthorization().RequireTrustedWorkspace().WithName(name);
 
     private static async Task<IResult> ListProductsAsync(
         HttpContext context,
@@ -65,6 +71,40 @@ public static class ProductsEndpoints
             // an unquoted value is not a valid entity-tag at all.
             context.Response.Headers.ETag =
                 "\"" + result.Value!.Revision.ToString(CultureInfo.InvariantCulture) + "\"";
+        }
+
+        return ProductsHttp.Result(result, metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> UpdateProductConfigurationTypeAsync(
+        string typeId,
+        HttpContext context,
+        Application.UpdateProductConfigurationType.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        // Idempotency and If-Match are both required, and both are transport validation: a missing or
+        // malformed header is answered 400 by the shared helper and never reaches the domain. This is
+        // the identical helper every other Products command uses, so the global If-Match behaviour is
+        // unchanged.
+        if (!ProductsHttp.TryMetadata(context, true, true, out var metadata, out var error))
+            return error!;
+        // Body validation is domain validation for this operation, so a malformed body is 422 rather
+        // than the 400 the Products default uses. That difference is scoped to this call site.
+        var body = await ProductsHttp.ReadBodyAsync<UpdateProductConfigurationTypeRequest>(
+            context,
+            metadata!.CorrelationId,
+            cancellationToken,
+            StatusCodes.Status422UnprocessableEntity);
+        if (body.Error is not null)
+            return body.Error;
+        var result = await handler.HandleAsync(new(typeId, body.Value!, metadata), cancellationToken);
+        if (result.IsSuccess)
+        {
+            // The same strong validator encoding the GET emits, carrying the post-command document
+            // revision verbatim. A no-op leaves it byte-identical, which is exactly what the strong
+            // comparison If-Match uses requires.
+            context.Response.Headers.ETag =
+                "\"" + result.Value!.Version.ToString(CultureInfo.InvariantCulture) + "\"";
         }
 
         return ProductsHttp.Result(result, metadata.CorrelationId);
@@ -251,26 +291,32 @@ internal static class ProductsHttp
         return true;
     }
 
+    /// <param name="errorStatus">
+    /// The status a malformed or absent body is reported with. It defaults to the established
+    /// Products behaviour and is overridden only where the operation's frozen contract classifies the
+    /// body as domain validation, so no existing operation changes.
+    /// </param>
     internal static async Task<BodyRead<T>> ReadBodyAsync<T>(
         HttpContext context,
         string correlationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int errorStatus = StatusCodes.Status400BadRequest)
         where T : class
     {
         try
         {
             var value = await context.Request.ReadFromJsonAsync<T>(cancellationToken);
             return value is null
-                ? new(null, BodyError("A JSON request body is required.", correlationId))
+                ? new(null, BodyError("A JSON request body is required.", correlationId, errorStatus))
                 : new(value, null);
         }
         catch (JsonException)
         {
-            return new(null, BodyError("The JSON request body does not match the contract.", correlationId));
+            return new(null, BodyError("The JSON request body does not match the contract.", correlationId, errorStatus));
         }
         catch (NotSupportedException)
         {
-            return new(null, BodyError("A JSON request body is required.", correlationId));
+            return new(null, BodyError("A JSON request body is required.", correlationId, errorStatus));
         }
     }
 
@@ -312,11 +358,11 @@ internal static class ProductsHttp
         return true;
     }
 
-    private static IResult BodyError(string message, string correlationId) =>
+    private static IResult BodyError(string message, string correlationId, int status) =>
         Error(
             ProductErrors.Validation(
                 new Dictionary<string, string[]> { ["body"] = [message] },
-                StatusCodes.Status400BadRequest),
+                status),
             correlationId);
 
     internal sealed record BodyRead<T>(T? Value, IResult? Error) where T : class;

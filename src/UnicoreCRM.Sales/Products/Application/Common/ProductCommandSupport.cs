@@ -28,6 +28,16 @@ internal static class ProductCommandSupport
             ?? throw new InvalidOperationException("Stored Products idempotency response is invalid.")) with
         { Outcome = "REPLAYED" };
 
+    /// <summary>
+    /// Replays a stored Product Configuration mutation. The committed document, revision and ETag are
+    /// answered from the stored evidence alone, so a replay stays byte-identical after the Workspace
+    /// configuration has moved on, and the outcome is restated as REPLAYED rather than COMMITTED.
+    /// </summary>
+    internal static ProductConfigurationMutationResponse ReplayConfiguration(ProductIdempotencyRecord record) =>
+        (JsonSerializer.Deserialize<ProductConfigurationMutationResponse>(record.ResponseJson, JsonOptions)
+            ?? throw new InvalidOperationException("Stored Product Configuration idempotency response is invalid.")) with
+        { Outcome = "REPLAYED" };
+
     internal static ProductBatchMutationResponse ReplayBatch(ProductIdempotencyRecord record) =>
         (JsonSerializer.Deserialize<ProductBatchMutationResponse>(record.ResponseJson, JsonOptions)
             ?? throw new InvalidOperationException("Stored Products batch idempotency response is invalid.")) with

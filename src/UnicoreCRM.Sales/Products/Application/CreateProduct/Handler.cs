@@ -65,8 +65,26 @@ internal sealed class Handler(
         if (currencyFields.Count != 0)
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.PricingInvalid(currencyFields));
 
-        if (await persistence.SkuExistsAsync(trusted.WorkspaceId, profile!.NormalizedSku, null, cancellationToken))
+        // Workspace type eligibility. It reads inside this command's serializable transaction, never
+        // through the public configuration read operation, so the command neither acquires a
+        // studio.read requirement nor leaves a window in which a configuration change could commit
+        // between the check and the Product write. It follows the replay branch, so a creation that
+        // already committed stays replayable after its type is later deactivated.
+        var configuration = await persistence.LoadProductConfigurationForCommandAsync(
+            trusted.WorkspaceId, cancellationToken);
+        var eligibilityError = ProductTypeEligibility.Evaluate(configuration, profile!.Type, null);
+        if (eligibilityError is not null)
+            return ProductOperationResult<ProductMutationResponse>.Failure(eligibilityError);
+
+        if (await persistence.SkuExistsAsync(trusted.WorkspaceId, profile.NormalizedSku, null, cancellationToken))
             return ProductOperationResult<ProductMutationResponse>.Failure(ProductErrors.SkuConflict());
+
+        // The command is about to commit on the strength of this configuration revision, so that
+        // revision becomes trusted state: a later rollback below it must be detectable. The raise is
+        // monotonic and shares this transaction, so it rolls back with any later failure and a
+        // rejected command establishes no trust.
+        await persistence.RaiseProductConfigurationTrustAsync(
+            trusted.WorkspaceId, configuration.Revision, cancellationToken);
 
         var now = timeProvider.GetUtcNow();
         var product = new Product(trusted.WorkspaceId, profile, now);

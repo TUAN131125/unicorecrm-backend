@@ -58,9 +58,11 @@ internal sealed class Handler(
             return ProductOperationResult<ConfigurationDocumentResponse>.Failure(projected.Error!);
         }
 
-        await ProductReadAudit.RecordCanonicalAsync(
+        // Success evidence is established before the response is returned, and it fails the request if
+        // it cannot be committed. A 200 whose trusted-revision mark was never raised would leave the
+        // next rollback below that revision undetectable.
+        await ProductReadAudit.RecordConfigurationAsync(
             persistence,
-            null,
             projected.Value!.Revision,
             trusted,
             metadata,

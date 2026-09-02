@@ -61,6 +61,73 @@ internal interface IProductsPersistence
     /// A Workspace with no anchor and no overrides is a valid sparse state, not an absent resource.
     /// </summary>
     Task<ProductConfigurationState> ReadProductConfigurationAsync(string workspaceId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Loads the same configuration snapshot for a Product command, participating in the caller's
+    /// already-open command transaction instead of opening its own.
+    ///
+    /// <para>A command must not read eligibility in a transaction that commits before the Product
+    /// write: that gap is a check-then-write race in which a configuration change committed in
+    /// between would let the command commit against state that no longer authorises it. Reading
+    /// inside the command's serializable transaction makes the eligibility read and the Product write
+    /// one linearizable unit.</para>
+    /// </summary>
+    Task<ProductConfigurationState> LoadProductConfigurationForCommandAsync(string workspaceId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the same snapshot for a Product Configuration mutation, inside the caller's already-open
+    /// serializable transaction and holding the rows it is about to write until that transaction ends.
+    ///
+    /// <para>The update lock is what makes the proven Product-command linearization deterministic
+    /// rather than a race. A Product command that already read eligibility holds shared locks on this
+    /// state, so the mutation's write waits for that command to commit; and once the mutation commits,
+    /// a later command newly selecting the type reads the committed INACTIVE state and is rejected.
+    /// Between two concurrent mutations the update lock is exclusive, so they serialize instead of
+    /// deadlocking on a shared-to-exclusive upgrade.</para>
+    ///
+    /// <para>It deliberately does not decide anything: corruption, eligibility and the requested
+    /// transition are still decided by the caller from this snapshot.</para>
+    /// </summary>
+    Task<ProductConfigurationState> LockProductConfigurationForMutationAsync(string workspaceId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stages the persistence consequence of one effective-status change, without saving: the caller
+    /// saves it together with the audit record and the idempotency completion so revision,
+    /// configuration, evidence and commit are one atomic unit.
+    ///
+    /// <para><paramref name="overrideStatus"/> carries the Model B persistence rule and no public
+    /// semantics: a non-null value persists or retains that override, and null removes the override
+    /// so the code falls back to the canonical default. Which of the two happened is never
+    /// observable on the wire.</para>
+    /// </summary>
+    /// <param name="newRevision">
+    /// The post-command document revision. It is only ever the prior revision plus one, and this
+    /// method is only called when the effective document actually changes.
+    /// </param>
+    Task ApplyProductConfigurationTypeStatusAsync(
+        string workspaceId,
+        string productTypeCode,
+        string? overrideStatus,
+        long newRevision,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Raises the Workspace's greatest trusted configuration revision inside the caller's current
+    /// transaction, using the same monotonic statement as the read path. It rolls back with the
+    /// command, so a rejected or failed command establishes no trust.
+    /// </summary>
+    Task RaiseProductConfigurationTrustAsync(string workspaceId, long revision, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Atomically commits the read audit record and raises the Workspace's greatest trusted
+    /// configuration revision. A failure here must prevent a successful response, because success
+    /// without trust evidence would leave a later rollback undetectable.
+    /// </summary>
+    Task RecordConfigurationReadEvidenceAsync(
+        string workspaceId,
+        long servedRevision,
+        ProductAuditRecord audit,
+        CancellationToken cancellationToken);
     Task<ProductIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddProduct(Product product);
     void AddIdempotency(ProductIdempotencyRecord record);

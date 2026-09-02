@@ -214,8 +214,8 @@ function Measure-ProductRead([string] $path, [hashtable] $headers) {
 function Set-ProductScope([string] $roleId, [string] $scope) {
     Invoke-Sql @"
 DELETE FROM access.RoleDataScopes WHERE PolicyId='scope_products_canonical_read_audit';
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
-VALUES ('scope_products_canonical_read_audit', '$roleId', 'products', '$scope', '[]');
+INSERT INTO access.RoleDataScopes (PolicyId, RoleId, WorkspaceId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_products_canonical_read_audit', '$roleId', (SELECT WorkspaceId FROM access.Roles WHERE RoleId='$roleId'), 'products', '$scope', '[]');
 "@
 }
 
@@ -498,11 +498,11 @@ try {
     Set-ProductScope $roleId 'Workspace'
 
     Clear-ProductReadFields
-    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES ('field_products_canonical_read_audit_required', '$roleId', 'products', 'name', 'Hidden');"
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, WorkspaceId, ResourceKey, FieldKey, Access) VALUES ('field_products_canonical_read_audit_required', '$roleId', (SELECT WorkspaceId FROM access.Roles WHERE RoleId='$roleId'), 'products', 'name', 'Hidden');"
     Assert-True ((Measure-ProductRead '/products' (New-Headers $token $workspaceId)).Probe -eq '403|0') 'Required hidden Product field list writes no owner audit'
     Assert-True ((Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)).Probe -eq '403|0') 'Required hidden Product field detail writes no owner audit'
     Clear-ProductReadFields
-    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES ('field_products_canonical_read_audit_optional', '$roleId', 'products', 'description', 'Hidden');"
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, WorkspaceId, ResourceKey, FieldKey, Access) VALUES ('field_products_canonical_read_audit_optional', '$roleId', (SELECT WorkspaceId FROM access.Roles WHERE RoleId='$roleId'), 'products', 'description', 'Hidden');"
     $optionalHidden = Measure-ProductRead "/products/$productId" (New-Headers $token $workspaceId)
     Assert-True ($optionalHidden.Probe -eq '200|1' -and $optionalHidden.Raw -notmatch 'description|Authoritative Product fixture') 'Optional hidden Product field is withheld before one detail audit'
     Clear-ProductReadFields
@@ -548,7 +548,14 @@ END;
     $productsRoot = Resolve-Path "$PSScriptRoot/../src/UnicoreCRM.Sales/Products"
     $productsSource = (Get-ChildItem -LiteralPath $productsRoot -Recurse -File -Filter '*.cs' | Get-Content -Raw) -join "`n"
     $endpointSource = Get-Content -Raw -LiteralPath (Join-Path $productsRoot 'Contracts/ProductsEndpoints.cs')
-    Assert-True ([regex]::Matches($endpointSource, 'MapGet\(endpoints,').Count -eq 4) 'Product route surface remains unchanged'
+    # Asserts the exact admitted GET surface rather than a bare count. listProductConfigurationTypes
+    # is an admitted contract operation implemented as its own Products read; naming every path keeps
+    # the check stricter than counting, so an accidental extra or renamed route still fails.
+    $mapGetPathList = [string[]] @([regex]::Matches($endpointSource, 'MapGet\(endpoints, "([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+    [System.Array]::Sort($mapGetPathList, [System.StringComparer]::Ordinal)
+    $mapGetPaths = $mapGetPathList -join ','
+    $expectedGetPaths = '/products,/products/configuration/types,/products/{productId},/products/{productId}/availability,/products/{productId}/price-projection'
+    Assert-True ($mapGetPaths -ceq $expectedGetPaths) "Product route surface remains unchanged (actual: $mapGetPaths)"
     Assert-True ([regex]::Matches($endpointSource, 'Map(Post|Put)\(endpoints,').Count -eq 6) 'Existing Product mutation route count remains unchanged'
     Assert-True ($productsSource -notmatch '\b(Quotes|Orders|Invoices|Payments|Shipping)DbContext\b') 'Products adds no foreign DbContext'
     Assert-True ($productsSource -notmatch 'IReadAuditService|GenericAudit|READ_ACCESS_LOG framework') 'Products adds no generic audit framework'
