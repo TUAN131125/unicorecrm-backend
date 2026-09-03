@@ -23,6 +23,9 @@ internal static class ProductsModule
         services.AddScoped<ProductMutationExecution>();
         services.AddScoped<ProductBatchMutationExecution>();
         services.AddScoped<Application.ListProducts.Handler>();
+        // The narrow Products-owned snapshot reader. Internal owner boundary; it maps no route and
+        // widens no public Products surface.
+        services.AddScoped<Contracts.IProductSnapshotReader, Application.ReadProductSnapshots.Handler>();
         services.AddScoped<Application.ListProductConfigurationTypes.Handler>();
         services.AddScoped<Application.UpdateProductConfigurationType.Handler>();
         services.AddScoped<Application.GetProduct.Handler>();

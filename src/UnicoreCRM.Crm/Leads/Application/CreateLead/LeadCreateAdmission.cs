@@ -30,6 +30,16 @@ internal abstract class LeadCreateAdmission
     /// <summary>Projects the outgoing response through the admitted model's field-read policy.</summary>
     internal abstract LeadMutationResponse Project(LeadMutationResponse response);
 
+    /// <summary>
+    /// Captures the interested-product snapshots this admission model is allowed to capture.
+    /// Capture reads Products-owned facts, so which models may perform it is an authorization
+    /// question and belongs to the admission model rather than to the shared execution.
+    /// </summary>
+    internal abstract Task<LeadInterestedProductResolution.Outcome> CaptureInterestedProductsAsync(
+        LeadInterestedProductResolution resolution,
+        IReadOnlyList<Domain.LeadInterestedProductIntent> intents,
+        CancellationToken cancellationToken);
+
     internal static LeadCreateAdmission Interactive(LeadAccess access) => new InteractiveAdmission(access);
 
     internal static LeadCreateAdmission DelegatedIngress(DelegatedLeadIngressAuthorization authorization) =>
@@ -51,6 +61,17 @@ internal abstract class LeadCreateAdmission
 
         internal override LeadMutationResponse Project(LeadMutationResponse response) =>
             response with { Result = LeadFieldSecurity.Project(response.Result, access.Authorization) };
+
+        /// <summary>
+        /// The interactive model captures normally. Products evaluates <c>products.read</c> at its
+        /// own boundary for the acting member, so a member who may create Leads but may not read the
+        /// catalog cannot obtain Product facts through a Lead.
+        /// </summary>
+        internal override Task<LeadInterestedProductResolution.Outcome> CaptureInterestedProductsAsync(
+            LeadInterestedProductResolution resolution,
+            IReadOnlyList<Domain.LeadInterestedProductIntent> intents,
+            CancellationToken cancellationToken) =>
+            resolution.ResolveForCreateAsync(intents, cancellationToken);
     }
 
     /// <summary>
@@ -83,5 +104,28 @@ internal abstract class LeadCreateAdmission
                 : LeadErrors.AccessDenied();
 
         internal override LeadMutationResponse Project(LeadMutationResponse response) => response;
+
+        /// <summary>
+        /// The delegated ingress stays fail-closed for interested products. Its admitted
+        /// authorization concern is exactly one delegated <c>leads.create</c> evaluation; no
+        /// delegated <c>products.read</c> is admitted for this path, and capturing Product facts
+        /// without it would be an unauthorized cross-owner disclosure driven by an external sender.
+        /// An empty or omitted collection is unaffected, so current webhook behaviour is unchanged.
+        /// </summary>
+        internal override Task<LeadInterestedProductResolution.Outcome> CaptureInterestedProductsAsync(
+            LeadInterestedProductResolution resolution,
+            IReadOnlyList<Domain.LeadInterestedProductIntent> intents,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(intents.Count == 0
+                ? new LeadInterestedProductResolution.Outcome([], null)
+                : new LeadInterestedProductResolution.Outcome(
+                    null,
+                    LeadErrors.Validation(new Dictionary<string, string[]>
+                    {
+                        ["interestedProducts"] =
+                        [
+                            "interestedProducts are not available on the delegated inbound ingress path."
+                        ]
+                    })));
     }
 }

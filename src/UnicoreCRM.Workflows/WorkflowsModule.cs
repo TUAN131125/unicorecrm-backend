@@ -9,7 +9,7 @@ public static class WorkflowsModule
 {
     public static IServiceCollection AddWorkflowsModule(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddAtomicModule();
+        services.AddAtomicModule(configuration);
         services.AddDurableModule(configuration);
 
         return services;

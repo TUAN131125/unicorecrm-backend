@@ -8,6 +8,7 @@ namespace UnicoreCRM.Crm.Leads.Application.CreateLead;
 internal sealed class LeadCreateExecution(
     ILeadsPersistence persistence,
     IWorkspaceMemberReferenceValidator memberValidator,
+    LeadInterestedProductResolution interestedProducts,
     TimeProvider timeProvider)
 {
     /// <summary>
@@ -28,10 +29,13 @@ internal sealed class LeadCreateExecution(
     {
         ArgumentNullException.ThrowIfNull(admission);
         var trusted = admission.Trusted;
-        if (!LeadValidation.TryProfile(request, out var profile, out var fields))
+        if (!LeadValidation.TryProfile(request, out var profile, out var productIntents, out var fields))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(fields));
 
-        var fingerprint = LeadCommandSupport.Fingerprint(profile);
+        // The fingerprint covers the caller's interested-product intent, never the resolved
+        // snapshots. Snapshots are current catalog state, so including them would make a replay
+        // after a Product rename compute a different key and conflict against its own original.
+        var fingerprint = LeadCommandSupport.Fingerprint(new { profile, productIntents });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = LeadCommandSupport.ScopeKey(trusted, "createLead", "WORKSPACE", metadata);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
@@ -52,21 +56,31 @@ internal sealed class LeadCreateExecution(
         if (bindingError is not null)
             return LeadOperationResult<LeadMutationResponse>.Failure(bindingError);
 
+        // Product capture belongs to a genuinely new execution only. It follows the replay branch, so
+        // a committed creation stays replayable after the Product is renamed or archived. It also
+        // precedes the field-write guard, because that guard must inspect what will actually be
+        // written - including the captured interestedProducts collection.
+        var capture = await admission.CaptureInterestedProductsAsync(
+            interestedProducts, productIntents, cancellationToken);
+        if (capture.Error is not null)
+            return LeadOperationResult<LeadMutationResponse>.Failure(capture.Error);
+        var captured = profile! with { InterestedProducts = capture.Items! };
+
         // Creation is a resource-level question, so no record scope applies, but the admitted model's
         // field-write policy still does: a field the caller may not write must not be written on the
         // way in either. It follows the replay branch, so a committed creation stays replayable after
         // a field turns READ_ONLY or HIDDEN - the replay writes nothing.
-        var createWriteError = admission.GuardCreateWrite(profile!);
+        var createWriteError = admission.GuardCreateWrite(captured);
         if (createWriteError is not null)
             return LeadOperationResult<LeadMutationResponse>.Failure(createWriteError);
 
         // Only a genuinely new command evaluates current mutable owner/member state.
-        if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, cancellationToken))
+        if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, captured.OwnerId, cancellationToken))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."] }));
 
         var now = timeProvider.GetUtcNow();
-        var lead = new Lead(trusted.WorkspaceId, profile, now);
+        var lead = new Lead(trusted.WorkspaceId, captured, now);
         persistence.AddLead(lead);
         var response = LeadCommandSupport.RecordCommit(
             persistence,

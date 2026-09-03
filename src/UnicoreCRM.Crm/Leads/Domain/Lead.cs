@@ -36,6 +36,20 @@ internal sealed class Lead
     public string? DisqualifiedBy { get; private set; }
     public string? DisqualificationReason { get; private set; }
     public string? DisqualificationEvidence { get; private set; }
+
+    /// <summary>
+    /// The frozen conversion reference for a positively qualified Lead, projected onto the wire as
+    /// <c>LeadDocument.relationshipRef</c>. It is a scalar reference to a foreign owner's aggregate:
+    /// it creates no EF navigation, no foreign key and no Contacts persistence access.
+    ///
+    /// There is deliberately no <c>QualifiedAt</c> or <c>QualifiedBy</c> here. <c>LeadDocument</c>
+    /// declares neither and is <c>additionalProperties: false</c>, so qualification time and actor
+    /// are authoritative in the Leads command audit record instead. The asymmetry with
+    /// <c>DisqualifiedAt</c>/<c>DisqualifiedBy</c> is contract-driven and must not be "fixed" here.
+    /// </summary>
+    public string? RelationshipType { get; private set; }
+    public string? RelationshipId { get; private set; }
+
     public long Version { get; private set; }
 
     internal void ReplaceProfile(LeadProfile profile, DateTimeOffset now)
@@ -85,6 +99,27 @@ internal sealed class Lead
         return true;
     }
 
+    /// <summary>
+    /// The terminal positive-qualification transition. Only a VERIFYING Lead may close positively,
+    /// and the progressive profile is re-evaluated here rather than assumed from the work state,
+    /// because <c>replaceLeadProfile</c> can leave a VERIFYING Lead incomplete.
+    ///
+    /// It is terminal: <see cref="Reopen"/> admits only a DISQUALIFIED closed Lead, so a positively
+    /// qualified Lead can never be reopened.
+    /// </summary>
+    internal bool QualifyForNurture(string contactId, DateTimeOffset now)
+    {
+        if (WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
+            return false;
+
+        WorkState = LeadWorkState.Closed;
+        QualificationOutcome = LeadQualificationOutcome.Nurture;
+        RelationshipType = LeadRelationshipTypes.Contact;
+        RelationshipId = contactId;
+        Touch(now);
+        return true;
+    }
+
     internal bool Reopen(DateTimeOffset now)
     {
         if (WorkState != LeadWorkState.Closed
@@ -112,5 +147,16 @@ internal sealed class Lead
 }
 
 internal enum LeadWorkState { New, Contacting, Verifying, Closed }
-internal enum LeadQualificationOutcome { Disqualified }
+
+/// <summary>
+/// The admitted terminal outcomes. <c>Opportunity</c> and <c>DirectSale</c> are declared by the
+/// contract but are not added here: their workflows have no implemented downstream participant, and
+/// an unreachable enum member would misrepresent what this owner can actually produce.
+/// </summary>
+internal enum LeadQualificationOutcome { Disqualified, Nurture }
+
+internal static class LeadRelationshipTypes
+{
+    internal const string Contact = "CONTACT";
+}
 internal enum LeadTransitionResult { Succeeded, InvalidTransition, ProfileIncomplete }

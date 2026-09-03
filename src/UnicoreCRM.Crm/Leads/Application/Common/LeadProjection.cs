@@ -27,6 +27,10 @@ internal static class LeadProjection
             Email = profile.Email,
             Phone = profile.Phone,
             QualificationOutcome = Outcome(lead.QualificationOutcome),
+            RelationshipRef = lead.RelationshipType is { Length: > 0 } relationshipType
+                && lead.RelationshipId is { Length: > 0 } relationshipId
+                    ? new LeadRelationshipRefDocument(relationshipType, relationshipId)
+                    : null,
             NextFollowUpAt = OptionalUtc(profile.NextFollowUpAt),
             Priority = profile.Priority,
             Tags = profile.Tags.Count == 0 ? null : profile.Tags,
@@ -82,6 +86,11 @@ internal static class LeadProjection
         value.InterestLevel,
         Utc(value.CreatedAt))
     {
+        // The already-declared optional snapshot fields. ProductVersionSnapshot is deliberately not
+        // projected: LeadInterestedProductReadModel is additionalProperties:false and declares no
+        // version field, so the capture version stays owner-local provenance.
+        SkuSnapshot = value.SkuSnapshot,
+        ProductTypeSnapshot = value.ProductTypeSnapshot,
         EstimatedQuantity = value.EstimatedQuantity,
         ExpectedBudget = value.ExpectedBudget is null ? null : Money(value.ExpectedBudget),
         Note = value.Note
@@ -103,6 +112,7 @@ internal static class LeadProjection
     private static string? Outcome(LeadQualificationOutcome? outcome) => outcome switch
     {
         LeadQualificationOutcome.Disqualified => "DISQUALIFIED",
+        LeadQualificationOutcome.Nurture => "NURTURE",
         _ => null
     };
 }

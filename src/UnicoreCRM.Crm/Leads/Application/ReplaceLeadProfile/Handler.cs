@@ -9,6 +9,8 @@ internal sealed record Command(string LeadId, ReplaceLeadProfileRequest Request,
 internal sealed class Handler(
     LeadAuthorization authorization,
     LeadMutationExecution execution,
+    ILeadsPersistence persistence,
+    LeadInterestedProductResolution interestedProducts,
     IWorkspaceMemberReferenceValidator memberValidator)
 {
     internal async Task<LeadOperationResult<LeadMutationResponse>> HandleAsync(
@@ -22,9 +24,17 @@ internal sealed class Handler(
         if (!LeadValidation.IsEntityId(command.LeadId))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["leadId"] = ["leadId is not a valid entity identifier."] }));
-        if (!LeadValidation.TryProfile(command.Request, out var profile, out var fields))
+        if (!LeadValidation.TryProfile(command.Request, out var profile, out var productIntents, out var fields))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(fields));
-        var fingerprint = LeadCommandSupport.Fingerprint(new { command.LeadId, profile, command.Metadata.ExpectedVersion });
+
+        // The fingerprint covers the caller's interested-product intent, never the resolved
+        // snapshots: a snapshot is current catalog state, and binding it into the key would make a
+        // replay after a Product rename conflict against its own original command.
+        var fingerprint = LeadCommandSupport.Fingerprint(
+            new { command.LeadId, profile, productIntents, command.Metadata.ExpectedVersion });
+
+        // Filled by the precondition below, which runs only on a genuinely new execution.
+        IReadOnlyList<Domain.LeadInterestedProduct> resolvedProducts = [];
         return await execution.ExecuteAsync(
             access.Value!,
             "replaceLeadProfile",
@@ -37,19 +47,41 @@ internal sealed class Handler(
                 // The requested profile is compared against the stored one, so only a field the
                 // replacement actually changes is treated as a write. Repeating a READ_ONLY value
                 // unchanged is not a write and is not refused.
-                var fieldError = LeadFieldSecurity.GuardProfileWrite(access.Value!.Authorization, lead.Profile, profile!);
+                // The guard inspects what will actually be written, so the resolved interested-product
+                // collection is substituted before comparison rather than after it.
+                var replacement = profile! with { InterestedProducts = resolvedProducts };
+                var fieldError = LeadFieldSecurity.GuardProfileWrite(access.Value!.Authorization, lead.Profile, replacement);
                 if (fieldError is not null)
                     return fieldError;
 
-                lead.ReplaceProfile(profile!, now);
+                lead.ReplaceProfile(replacement, now);
                 return null;
             },
-            async (trusted, token) => await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, token)
-                ? null
-                : LeadErrors.Validation(new Dictionary<string, string[]>
+            async (trusted, token) =>
+            {
+                if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, token))
                 {
-                    ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."]
-                }),
+                    return LeadErrors.Validation(new Dictionary<string, string[]>
+                    {
+                        ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."]
+                    });
+                }
+
+                // The submitted collection is the desired state. An identifier the Lead already
+                // carries keeps its captured snapshot; only a newly added one is resolved through
+                // Products. This runs inside the command's own serializable transaction and after
+                // its replay branch, so a replay calls Products not at all.
+                var stored = await persistence.ReadLeadAsync(trusted.WorkspaceId, command.LeadId, token);
+                var capture = await interestedProducts.ResolveForReplaceAsync(
+                    productIntents,
+                    stored?.Profile.InterestedProducts ?? [],
+                    token);
+                if (capture.Error is not null)
+                    return capture.Error;
+
+                resolvedProducts = capture.Items!;
+                return null;
+            },
             (recordAccess, record) => authorization.EnforceRecordAsync(
                 recordAccess, record, "replaceLeadProfile", metadata, cancellationToken),
             // Field-write authorization is applied inside the mutation callback, which runs only

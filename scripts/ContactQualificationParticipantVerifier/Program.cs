@@ -73,6 +73,7 @@ internal sealed class ContactQualificationParticipantVerifier(string connectionS
             await VerifyDuplicateGuardAsync(provider);
             await VerifyWorkspaceIsolationAsync(provider);
             await VerifyReplayAsync(provider);
+            await VerifyDurableResolutionFactsAsync(provider);
             await VerifyConcurrentCreateAsync(provider);
             VerifyCallableSurface();
         }
@@ -384,6 +385,34 @@ internal sealed class ContactQualificationParticipantVerifier(string connectionS
             $"SELECT COUNT(*) FROM contacts.Contacts WHERE WorkspaceId = N'{WorkspaceA}' AND NormalizedWorkEmail = N'RACE@EXAMPLE.COM'"));
         Check("no unhandled concurrency failure escaped", 0, outcomes.Count(item =>
             item.Rejection == ContactQualificationRejection.ConcurrentConflict));
+    }
+
+    private async Task VerifyDurableResolutionFactsAsync(ServiceProvider provider)
+    {
+        foreach (var existing in new[] { false, true })
+        {
+            var label = existing ? "EXISTING durable receipt" : "NEW durable receipt";
+            var selected = existing ? await SeedContactAsync(WorkspaceA, MemberA, "Original owner name", $"{Guid.NewGuid():N}@example.com") : null;
+            var command = new ResolveQualificationContactCommand(Trusted(WorkspaceA, MemberA),
+                existing ? ContactQualificationMode.Existing : ContactQualificationMode.New, selected,
+                new ContactQualificationInput(existing ? "Ignored caller name" : "Original owner name", $"{Guid.NewGuid():N}@example.com", null, null),
+                MemberA, NewKey(), "req_durable_receipt", "corr_durable_receipt");
+            var first = await ResolveAsync(provider, WorkspaceA, MemberA, command);
+            Check($"{label}: resolves", true, first.IsSuccess);
+            await ExecuteAsync($"UPDATE contacts.Contacts SET FullName=N'Later mutable name', [Version]=[Version]+7 WHERE ContactId=N'{first.ContactId}'");
+            var replay = await ResolveAsync(provider, WorkspaceA, MemberA, command);
+            Check($"{label}: stable identity", first.ContactId, replay.ContactId);
+            Check($"{label}: stable original name", "Original owner name", replay.DisplayName);
+            Check($"{label}: stable original version", first.ContactVersion, replay.ContactVersion);
+            Check($"{label}: original creation decision retained", !existing, replay.WasCreated);
+            Check($"{label}: one receipt", 1L, await ScalarLongAsync($"SELECT COUNT(*) FROM contacts.ConversionRecords WHERE ContactId=N'{first.ContactId}'"));
+            Check($"{label}: no extra audit", existing ? 0L : 1L, await ScalarLongAsync($"SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId=N'{first.ContactId}'"));
+            Check($"{label}: no extra outbox", existing ? 0L : 1L, await ScalarLongAsync($"SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId=N'{first.ContactId}'"));
+            await ExecuteAsync($"UPDATE contacts.ConversionRecords SET ResultJson=NULL WHERE ContactId=N'{first.ContactId}'");
+            var legacy = await ResolveAsync(provider, WorkspaceA, MemberA, command);
+            Check($"{label}: missing original facts fail closed", false, legacy.IsSuccess);
+            Check($"{label}: legacy failure invents no name", null, legacy.DisplayName);
+        }
     }
 
     /// <summary>

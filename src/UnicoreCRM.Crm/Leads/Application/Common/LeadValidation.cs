@@ -15,6 +15,20 @@ internal static partial class LeadValidation
     internal static bool TryProfile(
         LeadProfileRequest request,
         out LeadProfile? profile,
+        out IReadOnlyDictionary<string, string[]> errors) =>
+        TryProfile(request, out profile, out _, out errors);
+
+    /// <summary>
+    /// Validates the request shape. Interested products come back as caller intents rather than
+    /// snapshots: resolving them needs the Products owner and, for a replace, the Lead's stored
+    /// snapshots, neither of which belongs in structural validation. The returned profile therefore
+    /// carries an empty interested-product collection, and the command fills it after its idempotency
+    /// replay branch.
+    /// </summary>
+    internal static bool TryProfile(
+        LeadProfileRequest request,
+        out LeadProfile? profile,
+        out IReadOnlyList<LeadInterestedProductIntent> interestedProductIntents,
         out IReadOnlyDictionary<string, string[]> errors)
     {
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -30,7 +44,7 @@ internal static partial class LeadValidation
         var campaignId = Entity(request.CampaignId, "campaignId", false, fields);
         var tags = Tags(request.Tags, fields);
         var customFields = CustomFields(request.CustomFields, fields);
-        var interestedProducts = InterestedProducts(request.InterestedProducts, fields);
+        var productIntents = InterestedProducts(request.InterestedProducts, fields);
         var salutation = Text(request.Salutation, "salutation", 0, 40, false, fields);
         var title = Text(request.Title, "title", 0, 200, false, fields);
         var department = Text(request.Department, "department", 0, 160, false, fields);
@@ -64,6 +78,7 @@ internal static partial class LeadValidation
         if (fields.Count != 0)
         {
             profile = null;
+            interestedProductIntents = [];
             return false;
         }
 
@@ -100,7 +115,9 @@ internal static partial class LeadValidation
             assignedTeam,
             decisionRole,
             priority,
-            interestedProducts,
+            // Filled by the command after its replay branch, from preserved snapshots plus a single
+            // Products batch resolution of the identifiers the Lead does not already carry.
+            [],
             estimatedValue!,
             budgetRange,
             purchaseTimeline,
@@ -111,22 +128,59 @@ internal static partial class LeadValidation
             description,
             internalNotes,
             customFields);
+        interestedProductIntents = productIntents;
         return true;
     }
 
     internal static bool IsEntityId(string? value) => value is not null && EntityIdPattern().IsMatch(value);
 
-    private static IReadOnlyList<LeadInterestedProduct> InterestedProducts(
+    /// <summary>
+    /// Structural validation only. Duplicate identifiers are rejected because productId is the entry
+    /// identity that decides preserve-versus-recapture on replace, so a duplicate would make that
+    /// rule non-deterministic. Product existence and eligibility are Products-owned and are decided
+    /// later, by Products.
+    /// </summary>
+    private static IReadOnlyList<LeadInterestedProductIntent> InterestedProducts(
         IReadOnlyList<LeadInterestedProductInput>? input,
         IDictionary<string, string[]> fields)
     {
         if (input is null || input.Count == 0)
             return [];
         if (input.Count > 500)
+        {
             fields["interestedProducts"] = ["interestedProducts cannot contain more than 500 entries."];
-        else
-            fields["interestedProducts"] = ["interestedProducts require an admitted Products snapshot contract and are not available in B05 Leads Core."];
-        return [];
+            return [];
+        }
+
+        var intents = new List<LeadInterestedProductIntent>(input.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 0; index < input.Count; index++)
+        {
+            var entry = input[index];
+            var prefix = $"interestedProducts[{index}]";
+            var productId = Entity(entry.ProductId, $"{prefix}.productId", true, fields);
+            var interestLevel = Enum(entry.InterestLevel, $"{prefix}.interestLevel", ["low", "medium", "high"], fields);
+            var note = Text(entry.Note, $"{prefix}.note", 0, 2000, false, fields);
+            var expectedBudget = Money(entry.ExpectedBudget, $"{prefix}.expectedBudget", false, fields);
+
+            if (entry.EstimatedQuantity is { } quantity && quantity is < 1 or > 1000000)
+                fields[$"{prefix}.estimatedQuantity"] = ["estimatedQuantity must be between 1 and 1000000."];
+
+            if (productId is not null && !seen.Add(productId))
+                fields[$"{prefix}.productId"] = ["interestedProducts cannot reference the same productId twice."];
+
+            if (productId is null || interestLevel is null)
+                continue;
+
+            intents.Add(new LeadInterestedProductIntent(
+                productId,
+                interestLevel,
+                entry.EstimatedQuantity,
+                expectedBudget,
+                note));
+        }
+
+        return intents;
     }
 
     private static IReadOnlyList<string> Tags(IReadOnlyList<string>? input, IDictionary<string, string[]> fields)

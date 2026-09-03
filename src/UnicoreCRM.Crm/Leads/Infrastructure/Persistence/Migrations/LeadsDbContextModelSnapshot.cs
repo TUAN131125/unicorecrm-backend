@@ -54,6 +54,14 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
                     b.Property<int?>("QualificationOutcome")
                         .HasColumnType("int");
 
+                    b.Property<string>("RelationshipId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RelationshipType")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("ScopeOwnerId")
                         .IsRequired()
                         .HasMaxLength(128)

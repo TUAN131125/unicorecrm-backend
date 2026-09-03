@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>UnicoreCRM.Workflows.NurtureVerifier</AssemblyName>
+    <RootNamespace>UnicoreCRM.Workflows.NurtureVerifier</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/UnicoreCRM.Workflows/UnicoreCRM.Workflows.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+  </ItemGroup>
+</Project>

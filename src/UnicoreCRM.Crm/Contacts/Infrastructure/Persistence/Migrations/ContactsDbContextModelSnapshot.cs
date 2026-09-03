@@ -161,6 +161,9 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence.Migrations
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
 
+                    b.Property<string>("ResultJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("WorkspaceId")
                         .IsRequired()
                         .HasMaxLength(128)

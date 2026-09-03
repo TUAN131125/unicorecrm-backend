@@ -84,14 +84,13 @@ internal sealed class ContactOutboxMessage
 }
 
 /// <summary>
-/// Contacts-owned mapping from a coordinator-supplied conversion key to the Contact this owner
-/// created for it. It makes the participant's own replay deterministic: a re-drive under the same
-/// conversion key returns the same <c>ContactId</c> instead of creating a second Contact, whether or
-/// not the coordinator's durable anchor survived.
+/// Contacts-owned receipt for a coordinator-supplied conversion key. It retains the resolved
+/// identity, original version/name and creation decision so a lost acknowledgment can be replayed
+/// without re-reading mutable result facts, whether or not the coordinator recorded the result.
 ///
 /// It is not the workflow idempotency record. Payload-fingerprint comparison and
 /// <c>IDEMPOTENCY_KEY_REUSED</c> belong to the coordinator's own idempotency boundary; this owner
-/// records only which Contact its own conversion produced.
+/// records only its own resolution result.
 /// </summary>
 internal sealed class ContactConversionRecord
 {
@@ -102,12 +101,14 @@ internal sealed class ContactConversionRecord
         string workspaceId,
         string conversionKey,
         string contactId,
+        string resultJson,
         DateTimeOffset createdAt)
     {
         ScopeKey = scopeKey;
         WorkspaceId = workspaceId;
         ConversionKey = conversionKey;
         ContactId = contactId;
+        ResultJson = resultJson;
         CreatedAt = createdAt;
     }
 
@@ -115,5 +116,7 @@ internal sealed class ContactConversionRecord
     internal string WorkspaceId { get; private set; } = null!;
     internal string ConversionKey { get; private set; } = null!;
     internal string ContactId { get; private set; } = null!;
+    // Immutable resolution facts, stored in the owner's transaction before acknowledgment.
+    internal string? ResultJson { get; private set; }
     internal DateTimeOffset CreatedAt { get; private set; }
 }

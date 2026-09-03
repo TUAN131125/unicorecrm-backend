@@ -26,7 +26,8 @@ internal static class LeadFieldSecurity
     /// field required. These are the <c>LeadDocument</c> property names, generated from that record
     /// so the vocabulary cannot drift from what Leads actually projects.
     ///
-    /// <para>The wire schema declares further properties (<c>notes</c>, <c>relationshipRef</c>,
+    /// <para><c>relationshipRef</c> is now projected, because positive qualification writes the
+    /// conversion reference. The wire schema still declares further properties (<c>notes</c>,
     /// <c>dealRef</c>, <c>qualifiedDealId</c>, <c>archivedAt</c> and the merge/consent family) that
     /// Leads does not project at all. A policy naming one of them fails closed as an unknown key.</para>
     ///
@@ -57,6 +58,7 @@ internal static class LeadFieldSecurity
             ["email"] = false,
             ["phone"] = false,
             ["qualificationOutcome"] = false,
+            ["relationshipRef"] = false,
             ["nextFollowUpAt"] = false,
             ["priority"] = false,
             ["tags"] = false,
@@ -107,6 +109,7 @@ internal static class LeadFieldSecurity
             Email = access.CanRead("email") ? model.Email : null,
             Phone = access.CanRead("phone") ? model.Phone : null,
             QualificationOutcome = access.CanRead("qualificationOutcome") ? model.QualificationOutcome : null,
+            RelationshipRef = access.CanRead("relationshipRef") ? model.RelationshipRef : null,
             NextFollowUpAt = access.CanRead("nextFollowUpAt") ? model.NextFollowUpAt : null,
             Priority = access.CanRead("priority") ? model.Priority : null,
             Tags = access.CanRead("tags") ? model.Tags : null,
