@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>UnicoreCRM.Contacts.QualificationVerifier</AssemblyName>
+    <RootNamespace>UnicoreCRM.Contacts.QualificationVerifier</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+  </ItemGroup>
+</Project>

@@ -3366,6 +3366,364 @@ OTP contract. That is separate frontend work and is not performed here. Password
 verification override, outbound provider integration and background cleanup of spent challenges
 remain out of scope and fail-closed.
 
+## Lead to Contact qualification and Contact identity frozen authority
+
+On 2026-09-02 the Lead to Contact Qualification and Identity Authority Closure task froze the
+**Contact leg** of WF-10 Lead Qualification. The full record is
+`design-authority/canonical-design/authority/lead-contact-qualification-authority.md`, authority ID
+`DEC-LEAD-CONTACT-QUALIFICATION-CLOSURE`. This section summarises what backend implementation may and
+may not now assume. It admits no operation, adds no route, adds no wire field, adds no error code and
+changes no admission row. `qualifyLeadForNurture`, `qualifyLeadForOpportunity` and
+`qualifyLeadForDirectSale` remain `ADMITTED_NOT_IMPLEMENTED`; `createContact` and `updateContact`
+remain `BLOCKED`; `qualifyLead` remains `RETIRED`.
+
+**Business boundary.** Positive qualification resolves a relationship identity and closes the Lead.
+It never creates a Customer: `LeadQualificationCreatedResource.resourceType` admits
+`CONTACT, ORGANIZATION_ACCOUNT, TASK, DEAL, QUOTE, ORDER` and has no `CUSTOMER` member, and Customer
+creation is WF-05, which is `BLOCKED`. There is no admitted operation whose only effect is
+Lead to Contact; the Contact leg is the shared first step of all three typed operations, so freezing
+it does not by itself make any of them implementable.
+
+**Preconditions.** Authenticated principal; trusted active Workspace membership derived server-side;
+`leads.qualify` at the Leads boundary, fail closed; `RESOURCE` record decision on the Lead with
+unknown and foreign indistinguishable; `Idempotency-Key` present; `If-Match` exactly equal to
+`Lead.Version`; `leadWorkState == VERIFYING`; progressive profile complete; relationship input valid;
+`contacts` module enabled. Only `VERIFYING` is qualifiable and positive qualification is terminal -
+`Lead.Reopen` requires `QualificationOutcome == Disqualified`.
+
+The progressive profile **must be re-evaluated at command time**. `replaceLeadProfile` does not
+re-check `HasProgressiveProfile()`, so a `VERIFYING` Lead can be edited into an incomplete state;
+`WorkState == VERIFYING` is not proof of completeness. `LEAD_PROGRESSIVE_PROFILE_INCOMPLETE` is not in
+the three operations' closed `x-error-codes`, so the failure reports `LEAD_INVALID_TRANSITION` (409).
+
+**Terminal Lead state.** `leadWorkState = CLOSED`; `qualificationOutcome` in
+`NURTURE | OPPORTUNITY | DIRECT_SALE`; the conversion reference is
+`relationshipRef = { type: "CONTACT", id: contactId }`. `LeadDocument` declares **no** `contactId`,
+`qualifiedAt` or `qualifiedBy` property and is `additionalProperties: false`, so none is added:
+qualification time and actor are authoritative in the Leads-owned immutable command audit record and
+in `LeadQualificationWorkflowResponse.occurredAt`. The asymmetry with `disqualifiedAt` /
+`disqualifiedBy` is contract-driven and must not be "fixed" by inventing aggregate columns; doing so
+requires a `PROJECT_EXTENSION_*`. `qualifiedDealId` is a separate older property that no lifecycle
+invariant references and qualification does not write it. The Leads aggregate cannot express this
+state today - `LeadQualificationOutcome` has only `Disqualified` and `Lead` carries no relationship
+reference - so extending both is admitted Leads-owned work.
+
+**Contact identity resolution.** The decision is **caller-declared and backend-validated, never
+backend-discovered**. `mode=EXISTING` with `selectedId` links; `mode=NEW` with `contact` creates.
+**Automatic duplicate matching is NOT ADMITTED**, so `CONFLICT / REQUIRES_HUMAN_RESOLUTION` is not
+reachable: the 200 result requires a resolved relationship, the closed error vocabulary carries no
+ambiguity code, `listContacts` declares no filter parameter, and the Contact profile is one JSON
+column with no identity index and no unique constraint. `mode=NEW` must never be silently resolved to
+a link, and `mode=EXISTING` must never fall back to creating. Identity comparison is confined to the
+one trusted Workspace; `selectedId` equality is ordinal; and delivery/idempotency identity
+(`Idempotency-Key`, `X-Request-Id`, `X-Correlation-Id`, `(IntegrationId, DeliveryId)`, `leadId`,
+`campaignId`) is never person identity. Email and phone equality semantics remain `AUTHORITY_GAP`
+because no value-based matching runs; `email` and `phone` in `LeadQualificationContactInput` are
+Contact content, not match keys. Duplicate Contacts from two independent `NEW` qualifications are an
+accepted consequence of the admitted contract (residual `R-1`).
+
+**Data transfer.** No Lead profile fact is copied. `LeadQualificationContactInput` is
+`additionalProperties: false` with exactly `{ displayName, email?, phone?, title? }`, supplied by the
+caller, and the coordinator passes it through unchanged without reading `Lead.Profile`. Landing
+fields are `displayName -> fullName`, `email -> workEmail`, `phone -> mobilePhone`,
+`title -> jobTitle`, derived by elimination within each vocabulary. Contacts assigns `id`,
+`workspaceId`, `version` and timestamps; `status` is `active`; `ownerId` is
+`Lead.Profile.OwnerId` - the single admitted Lead to Contact transfer, and a record-access fact rather
+than a profile fact, because a null owner would make the new Contact invisible to every `OWN`-scoped
+member including the one who qualified it. Consent and every do-not-contact flag are **not**
+transferred (gate `G-1`, which blocks public exposure of the three operations but not the participant
+implementation). Qualification deletes nothing: the Lead row, profile, audit, outbox and idempotency
+records are all retained.
+
+**Contacts participant boundary.** A narrow Contacts-owned internal application boundary, not public
+HTTP and not an admitted C# interface name. It accepts trusted Workspace context, the resolution
+intent, `selectedId` or contact facts, the resolved `ownerId` and the conversion key; it returns
+`CREATED | LINKED | REPLAYED | REJECTED` plus the authoritative `contactId` and `version`. Contacts
+assigns `contactId` (LAW-08). Workflows never opens `ContactsDbContext` and Contacts never opens
+`LeadsDbContext` (LAW-04, LAW-05). `LINKED` **never mutates the Contact** - no field, no version, no
+`updatedAt` - which is what keeps the workflow clear of the `BLOCKED` `updateContact` surface,
+including the `contact` object the schema requires even in `EXISTING` mode. Contacts writes its own
+command audit and stages its own `CONTACT_CREATED` outbox message in its own transaction;
+`contacts.AuditRecords` and a Contacts outbox table do not exist today and creating them is admitted
+Contacts-owned work.
+
+**Capabilities.** `leads.qualify` alone authorizes the command. `contacts.create` is **not** required
+- it is `BLOCKED`, is absent from the server-owned `InitialWorkspaceAccessPolicy`, and requiring it
+would make positive qualification permanently unreachable; the Contact is a server-owned consequence
+of an authorized qualification, on the `provisionInitialWorkspace` precedent. `contacts.read` **is**
+required for the `EXISTING` path so that a caller cannot probe Contact existence or link to a record
+outside their record scope; its failure reports `LEAD_QUALIFICATION_RELATIONSHIP_INVALID`, not
+`ACCESS_DENIED`, so denied and unknown stay indistinguishable.
+`LEAD_QUALIFICATION_DOWNSTREAM_CAPABILITY_REQUIRED` stays reserved for the Quote/Order legs the
+contract names.
+
+**Coordination is DETERMINISTIC CONVERGENT, not atomic.** The pinned
+`x-transaction-boundary: BACKEND_ORCHESTRATED_TRANSACTION_*` and the "Atomically" summaries are not
+achievable and are not claimed: the CommercialEvidence Owner-Boundary Frozen Authority forbids a
+foreign owner participating in a cross-DbContext transaction and requires each owner to commit only
+its own state; every owner has its own `DbContext` with no ambient or distributed transaction
+primitive admitted; WF-10's own `executionClassification` is `ATOMIC_OR_OWNER_LOCAL_AS_DECLARED`; and
+`provisionInitialWorkspace`, the one implemented multi-owner workflow, is durable-convergent. The
+frozen model commits the **Contact first**, writes a durable conversion anchor keyed by
+`(trustedWorkspaceId, operationId, leadId, Idempotency-Key)` holding the resolved `contactId`, then
+closes the Lead in a separate owner-local transaction. Contact-first is the only order in which every
+individually committed state is valid, because a Lead closed first would carry a `relationshipRef`
+pointing at a `contactId` that does not exist. Recovery is forward-only with **no compensation and no
+Contact deletion**; a retry under the same idempotency key adopts the same `contactId`. An abandoned
+attempt leaves an orphan Contact, which is accepted and named (`R-2`), not compensated. `If-Match`
+applies to `Lead.version` only; no Contact version is required or asserted. Replay returns the same
+`contactId` and `createdResources` with `outcome: "REPLAYED"` and does not advance `Lead.version`,
+and the idempotency check precedes the lifecycle check so a replay is served even though the Lead is
+now `CLOSED`. Each owner writes its own audit and stages only its own outbox leg; every step is
+confined to the one trusted Workspace.
+
+**Not closed by this freeze.** The Task, Deal, Quote and Order participants; the
+`ORGANIZATION_ACCOUNT` relationship kind (`createOrganization`, `linkContactToOrganization` and WF-02
+are `BLOCKED`); consent transfer (`G-1`); server-side duplicate detection, which would need a
+filterable Contacts read, a typed ambiguity error and an indexed identity column; `qualifiedAt` /
+`qualifiedBy` as Lead fields; and the `qualifiedDealId` versus `dealRef` redundancy. Two contract
+divergences are recorded and not reconciled: `LeadRelationshipRef.type` is `CONTACT | ORGANIZATION`
+while `RelationshipRef.type` is `CONTACT | ORGANIZATION_ACCOUNT` (harmless for the Contact leg), and
+`operation-registry.json` plus `owner-context-map.json` still classify the Contacts reads as not
+implemented although Contacts Read Core is implemented and runtime-verified.
+
+Therefore `LEAD TO CONTACT QUALIFICATION AUTHORITY: FROZEN`,
+`CONTACT IDENTITY RESOLUTION: FROZEN`,
+`LEAD TO CONTACT DATA TRANSFER: FROZEN`,
+`CONTACT PARTICIPANT BOUNDARY: FROZEN`,
+`WORKFLOW / IDEMPOTENCY / CONCURRENCY: FROZEN`,
+`CONSENT TRANSFER: AUTHORITY_GAP`,
+`EMAIL / PHONE EQUALITY SEMANTICS: AUTHORITY_GAP`, and
+`WF-10 PUBLIC OPERATIONS: ADMITTED_NOT_IMPLEMENTED`. This is an authority freeze only; no runtime
+behavior was implemented or verified, and it is not a Control 1.2 independent-review attestation or a
+release freeze.
+
+### Amendment 2026-09-02 - Contact duplicate policy and minimum executable path
+
+`DEC-LEAD-CONTACT-DUPLICATE-POLICY` closes the two gaps the freeze above left open. It is recorded in
+`lead-contact-qualification-authority.md` sections 9 and 10, amends its sections 4.2, 4.3, 4.4 and 8,
+and reopens none of the accepted decisions. It admits no operation, no route, no wire field and no
+error code.
+
+**Contact duplicate policy for `mode=NEW`.** Before Contacts creates a Contact it evaluates one
+predicate inside its own owner-local `SERIALIZABLE` transaction: `normalize(e) = e.Trim().ToUpperInvariant()`,
+compared for exact ordinal equality against the union of the Contact's normalized `workEmail` and
+`personalEmail`, `WorkspaceId`-scoped and **record-scope-independent**. Absent email means no key.
+**Zero matches create; one or more matches reject** with 422 `LEAD_QUALIFICATION_RELATIONSHIP_INVALID`
+at field `relationship.contact.email`. One match and several matches are **indistinguishable**, and the
+response carries no matched `contactId`, no count and no Contact field value - the scan deliberately
+sees Contacts outside the caller's record scope, so any of those would be a disclosure channel, and
+withholding them follows the no-result-cardinality rule already frozen in
+`PROJECT_EXTENSION_READ_AUDIT_SEMANTICS`. Detection **never** resolves an identity: it cannot link,
+cannot convert `NEW` into `EXISTING`, and never appears in a 2xx. `EXISTING` + `selectedId` is
+untouched. Fuzzy matching of any kind is prohibited, and delivery/idempotency identity remains
+excluded from the key.
+
+The normalization is **not invented** - it is the rule IdentityAuth already uses as its account
+uniqueness and lookup key (`IdentityAccount.NormalizedEmail`, `Trim().ToUpperInvariant()`, unique
+index, runtime-verified across registration, sign-in and email verification). Adopting a second
+email-equality rule in the same system would have been the invention. Case folding therefore covers
+the whole address including the local part; no plus-address stripping, dot removal, IDN folding or
+alias expansion is admitted.
+
+**Smallest persistence requirement.** Detection cannot run against the single JSON profile column.
+Admitted, Contacts-owned, `contacts` schema only: two persisted projection columns
+`NormalizedWorkEmail` and `NormalizedPersonalEmail` (`nvarchar(254)`, nullable) plus non-unique
+indexes `(WorkspaceId, NormalizedWorkEmail)` and `(WorkspaceId, NormalizedPersonalEmail)`. They are
+derived state kept in step with the profile and never an independent fact - the same rule and the
+same reason already applied to `Lead.ScopeOwnerId`. No wire contract, schema, operation, capability or
+admission row changes, and `ContactDocument` never projects them. A **UNIQUE** constraint is **not**
+admitted: no authority makes email a Contact uniqueness invariant, the field is optional so many
+keyless Contacts must coexist, and a constraint would bind every future Contact path. The concurrent-
+create race is closed instead by evaluating the predicate and inserting in the same Contacts-owned
+`SERIALIZABLE` transaction, whose range lock blocks a concurrent insert into the same key range. This
+is owner-local and does not affect the convergence model.
+
+**Phone is excluded from the duplicate key - `AUTHORITY_GAP`, requirement stated.** No phone
+normalization precedent exists anywhere in the repository. Digits-only is deterministic but splits
+`0912345678` from `+84912345678`, missing the most common real duplicate; E.164 requires a default
+calling region that no authority supplies, and inferring one from free-text `Lead.Country` would
+fabricate business truth. Admitting phone requires all three of: a Workspace-owned default calling
+region (blocked today behind `RC-STUDIO-WORKSPACE-CONFIG`); a frozen canonical form plus extension and
+parse-failure behaviour, where parse failure must mean *no key*; and the projection-column shape above
+repeated over `mobilePhone`, `workPhone` and `otherPhone`. Until then a phone-only person is not
+duplicate-checked. Residual `R-1` is otherwise largely retired: it now survives only where no email is
+supplied on either side, or where the same person uses two different addresses.
+
+**Minimum executable path.** `qualifyLeadForNurture` (`POST /workflows/lead-qualification/{leadId}/nurture`).
+`qualifyLeadForOpportunity` requires `interestedProductIds` against the open `AG-PRODUCT-SNAPSHOT`
+gap, which both Leads and Deals already record as fail-closed; `qualifyLeadForDirectSale` requires
+Quotes or Orders, every operation of which is `ADMITTED_NOT_IMPLEMENTED`. The NURTURE follow-up Task
+is **required, not optional** - `x-transaction-boundary: ..._RELATIONSHIP_TASK_AND_LEAD`,
+`x-event-outbox-expectation: LEAD_QUALIFIED_FOR_NURTURE_AND_FOLLOW_UP_TASK_CREATED`, and required
+`revisitAt` + `reason` have no other consumer. `taskId` is optional in the result only because that
+result type is shared by all three outcomes.
+
+**Participants on the minimum path.** `Leads: REQUIRED`, `Contacts: REQUIRED`, `Tasks: REQUIRED`;
+`Deals: NOT REQUIRED`, `Quotes: NOT REQUIRED`, `Orders: NOT REQUIRED`, `Organizations: NOT REQUIRED`.
+Four of the seven historical WF-10 participants are not required. Tasks Core is `ADMITTED_IMPLEMENTED`
+and runtime-verified (B04) and `CreateTaskRequest` already carries `relationshipRef` (`BuyerRef`,
+admits `CONTACT`) and `sourceRef` as scalar evidence, so the Contact and the source Lead are
+expressible with no new schema; only a narrow Tasks-owned create participant is needed.
+
+**Capability split.** `tasks.create` **is** required of the caller at the Tasks participant boundary,
+reported as `LEAD_QUALIFICATION_DOWNSTREAM_CAPABILITY_REQUIRED` (403); `contacts.create` remains **not**
+required. The distinction is **grantability**: `tasks.create` is `ADMITTED_IMPLEMENTED` and is in the
+frozen `InitialWorkspaceAccessPolicy` set, so requiring it deadlocks nothing and is exactly the case
+that error code exists to express, whereas `contacts.create` is `BLOCKED` and appears in no role. The
+duplicate scan is an internal Contacts predicate that discloses nothing, so it neither requires nor
+consumes `contacts.read`.
+
+**Frozen implementation order.** Each step is owner-local, independently committable and leaves the
+system releasable: (1) Contacts identity projection columns and indexes; (2) Contacts conversion
+participant with its first command-audit and outbox tables, enforcing the duplicate predicate;
+(3) Leads terminal-qualification aggregate state, close command and durable conversion anchor;
+(4) Tasks conversion participant; (5) Workflows nurture coordinator and route. Steps 1-4 are mutually
+independent except that 2 depends on 1. Step 5 is the only step that needs all of them and the only
+one that creates a public surface. Gate `G-1`, the consent-transfer decision, still blocks public
+exposure at step 5 and blocks nothing in steps 1-4.
+
+Therefore `CONTACT DUPLICATE POLICY: FROZEN`, `EMAIL NORMALIZATION: FROZEN`,
+`PHONE IN DUPLICATE KEY: AUTHORITY_GAP`, `CONTACTS IDENTITY PROJECTION: ADMITTED`,
+`MINIMUM EXECUTABLE PATH: FROZEN - qualifyLeadForNurture`, and `IMPLEMENTATION ORDER: FROZEN`. No
+runtime behavior was implemented or verified by this amendment.
+
+## Contacts Lead qualification participant implementation authority
+
+Implemented 2026-09-03. This slice implements steps 1 and 2 of the frozen implementation order in
+`lead-contact-qualification-authority.md` section 10.4: the Contacts identity projection and the
+Contacts-owned conversion participant. It introduces **no public Contact mutation surface**.
+`createContact` and `updateContact` remain `BLOCKED` and route-less, the public Contacts surface
+remains exactly `listContacts` and `getContact`, and the three `qualifyLeadFor*` operations remain
+`ADMITTED_NOT_IMPLEMENTED` because their coordinator does not exist yet.
+
+### Internal boundary
+
+Contacts exposes one narrow internal application boundary, `IContactQualificationParticipant`, in
+`Contacts/Contracts`. It is a public C# type because the Workflows coordinator is a different
+assembly; it is not public HTTP and maps no route. It accepts the trusted Workspace context, the
+caller-declared mode, `SelectedContactId` or the four caller-supplied Contact facts, the resolved
+`OwnerId`, a coordinator-supplied conversion key, and the request/correlation identifiers. It returns
+only `CREATED | LINKED | REPLAYED | REJECTED` plus the authoritative `contactId` and version. It
+exposes no `ContactsDbContext`, no persistence type and no Contact document.
+
+`EXISTING` validates and returns; it writes nothing. The `contact` object the wire schema requires
+even in `EXISTING` mode is ignored for identity and is deliberately never applied, because applying
+it would be the BLOCKED `updateContact` mutation under another name. `NEW` creates. Neither mode ever
+becomes the other.
+
+Authorization follows the frozen split. `EXISTING` requires `contacts.read`, evaluated through the
+canonical `IRecordAccessEvaluator` at this owner's boundary, followed by the record decision using
+the existing Contacts fact provider; ownership and record-access semantics are unchanged. `NEW`
+requires no `contacts.create` - it is BLOCKED, ungrantable and absent from
+`InitialWorkspaceAccessPolicy`, so requiring it would make positive qualification permanently
+unreachable; the Contact is a server-owned consequence of an authorized qualification. The
+participant additionally fails closed if an ambient trusted Workspace is resolved and disagrees with
+the one the coordinator supplied.
+
+Every `EXISTING` failure - unknown identifier, foreign Workspace, record-scope denial, missing
+capability - collapses into one indistinguishable rejection carrying no identifier and no version,
+so the boundary is never an existence oracle. The `ContactQualificationRejection` enum is diagnostic
+only and is documented as never projectable onto the wire: all values map to the single admitted
+public error `LEAD_QUALIFICATION_RELATIONSHIP_INVALID`.
+
+### Persistence
+
+`contacts.Contacts` gains two nullable derived projections, `NormalizedWorkEmail` and
+`NormalizedPersonalEmail` (`nvarchar(320)`), computed by the frozen rule
+`value.Trim().ToUpperInvariant()` - the same normalization IdentityAuth already uses as its account
+uniqueness key. They are derived state kept in step with the profile, never independent facts, and
+are never projected onto the wire: `ContactDocument` is unchanged. This is the same reason and the
+same rule as `Lead.ScopeOwnerId`. Two non-unique Workspace-scoped detection indexes are added. **No
+UNIQUE constraint is created**, as frozen.
+
+Three Contacts-owned tables are added: `contacts.AuditRecords` (immutable command evidence, distinct
+from the existing `contacts.ReadAuditRecords`), `contacts.OutboxMessages`, and
+`contacts.ConversionRecords`, the owner-local map from a conversion key to the Contact this owner
+produced for it. The migration backfills the two projections for pre-existing rows through
+`JSON_VALUE`; T-SQL `UPPER()` is collation-sensitive while the runtime rule is `ToUpperInvariant()`,
+which is recorded in the migration as an accepted one-time difference for rows written before the
+projection existed.
+
+### Duplicate guard and concurrency
+
+For `NEW`, replay lookup, duplicate scan and insert run inside one Contacts-owned `SERIALIZABLE`
+transaction. Replay is evaluated first, so a re-drive of a conversion this owner already completed
+returns the same Contact instead of being rejected as a duplicate of itself.
+
+The guard compares the normalized candidate against the union of `NormalizedWorkEmail` and
+`NormalizedPersonalEmail` for the trusted Workspace, and applies **no record-scope predicate**:
+uniqueness is a Workspace fact, and a scope-filtered scan would let an `OWN`-scoped member create
+exactly the duplicate the guard exists to prevent. It is implemented as two single-column seeks
+rather than one `OR`, and both always execute, so both key-range locks are always taken; an `OR`
+could be satisfied by a scan and would make the locking behaviour depend on the optimizer.
+Zero matches create; one or more reject. The persistence contract returns only a boolean, so no
+identifier, field value or cardinality of an unreadable Contact can reach the caller.
+
+Concurrency is closed by the SERIALIZABLE range lock rather than a constraint. Two concurrent creates
+of the same address contend on the same key range; SQL Server resolves the lock-upgrade cycle by
+choosing a deadlock victim, which committed nothing. That victim re-drives once, observes the
+winner's committed row, and rejects cleanly. The retry is bounded at one attempt and a deadlock is
+never itself read as proof of a duplicate - key-range locks cover gaps, so adjacent keys can contend -
+which is why the decision is left to the re-drive rather than inferred from the exception.
+
+### Verification
+
+`scripts/verify-contact-qualification-participant.ps1` with
+`scripts/ContactQualificationParticipantVerifier` applies the real Contacts and AccessControl
+migrations to an isolated LocalDB database, provisions real initial Workspace access through the
+production `IInitialWorkspaceAccessProvisioning` contract, and drives the internal boundary through
+production DI. It reported `PASS=75 FAIL=0`.
+
+It proves: the physical model including both projections, both detection indexes, the absence of any
+non-primary unique index, and all three new tables; `EXISTING` links only within the trusted
+Workspace and mutates neither name nor version and writes neither audit nor outbox; unknown and
+foreign-Workspace identifiers are byte-identical rejections disclosing nothing; `NEW` creates exactly
+one Contact with `fullName` from the trimmed `displayName`, `workEmail` from `email`, `mobilePhone`
+from `phone`, `jobTitle` from `title`, `ownerId` from the Lead owner and `status` `active`, with
+consent, do-not-contact and source absent; the normalized projection uses the frozen rule; an exact
+normalized duplicate blocks `NEW` and commits nothing; a duplicate owned by another member blocks
+identically and indistinguishably; a `personalEmail` match blocks a `workEmail` candidate; a
+plus-addressed variant is **not** treated as a duplicate; two Contacts without an email do not
+collide; the same address in another Workspace does not block; replay is deterministic across three
+calls with no second Contact, audit or outbox message, while a different conversion key does not
+replay; two concurrent `NEW` conversions of one address yield exactly one commit, one clean rejection,
+one row and no escaped concurrency failure; and a static scan proves no HTTP mutation verb, no
+foreign DbContext and no Workflows reference inside the Contacts owner, with exactly the two admitted
+`MapGet` reads. The wrapper additionally proves no pending Contacts EF model change and no public
+Contact mutation route.
+
+Regressions on 2026-09-03: `verify-contacts-read-core.ps1` `passed=67 failed=0`, unchanged from its
+recorded figure; `verify-access-control-record-access.ps1` `PASS=404 FAIL=0`;
+`verify-inbound-lead-webhook.ps1` passed; the full solution builds with zero warnings and zero errors.
+
+### Pre-existing verifier drift observed, not introduced
+
+`verify-contacts-read-core.ps1` failed before this change for a reason unrelated to it:
+`RoleDataScopePolicy` and `RoleFieldSecurityPolicy` gained a required `WorkspaceId` with composite
+foreign keys to `access.Roles(RoleId, WorkspaceId)`, and the script's three fixture inserts predate
+that model change. Its inserts were corrected to supply `WorkspaceId`; no assertion was changed,
+removed or weakened, and the suite returns its original `67/0`.
+
+The same drift remains in the fixture inserts of `verify-customers-read-core.ps1`,
+`verify-orders-read-core.ps1`, `verify-organizations-read-core.ps1`, `verify-quotes-read-core.ps1`,
+`verify-payments-read-core.ps1`, `verify-payment-intents-read-core.ps1`,
+`verify-payment-records-read-core.ps1`, `verify-payments-read-audit.ps1`,
+`verify-invoices-read-core.ps1` and `verify-invoices-read-audit.ps1`. Those owners are outside this
+slice and were not modified.
+
+Separately, `verify-initial-workspace-provisioning.ps1` fails at its
+`appsettings.Development.json` assertion because that file legitimately contains `//` comments for
+.NET configuration while Windows PowerShell 5.1 `ConvertFrom-Json` rejects them. The failure is in
+the script's own configuration read, not in provisioning, and predates this change. Both drifts are
+recorded here and left for a separate verifier-reconciliation task.
+
+Therefore `CONTACTS IDENTITY PROJECTION: PASS`, `CONTACT QUALIFICATION PARTICIPANT: PASS`,
+`CONTACT DUPLICATE GUARD: PASS`, `CONTACT CONVERSION CONCURRENCY: PASS`,
+`CONTACT PARTICIPANT REPLAY: PASS`, and `PUBLIC CONTACT MUTATIONS: NONE / STILL BLOCKED`. This is
+task-specific executable evidence, not a Control 1.2 independent-review attestation or a release
+freeze.
+
 ## Never-invent rule
 
 A missing or conflicting business contract is recorded as `AUTHORITY_GAP`. It is never repaired by convention, frontend behavior, folder names, common CRM behavior, or a speculative abstraction.

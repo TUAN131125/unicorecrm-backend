@@ -165,8 +165,8 @@ function Set-ContactScope {
     param([string] $RoleId, [string] $Scope)
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 DELETE FROM access.RoleDataScopes WHERE PolicyId = 'scope_contacts_read_core';
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
-VALUES ('scope_contacts_read_core', '$RoleId', 'contacts', '$Scope', '[]');
+INSERT INTO access.RoleDataScopes (PolicyId, WorkspaceId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_contacts_read_core', '$($script:WorkspaceId)', '$RoleId', 'contacts', '$Scope', '[]');
 "@
 }
 
@@ -381,12 +381,12 @@ VALUES
     Set-ContactScope -RoleId $roleId -Scope 'Workspace'
     Clear-ContactFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
-('field_contacts_read_email', '$roleId', 'contacts', 'workEmail', 'Hidden'),
-('field_contacts_read_phone', '$roleId', 'CONTACTS', 'mobilePhone', 'Masked'),
-('field_contacts_read_notes', '$roleId', 'contacts', 'notes', 'ReadOnly'),
-('field_contacts_read_source', '$roleId', 'contacts', 'source', 'ReadWrite'),
-('field_contacts_read_unknown', '$roleId', 'contacts', 'ghostField', 'ReadWrite');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_contacts_read_email', '$($script:WorkspaceId)', '$roleId', 'contacts', 'workEmail', 'Hidden'),
+('field_contacts_read_phone', '$($script:WorkspaceId)', '$roleId', 'CONTACTS', 'mobilePhone', 'Masked'),
+('field_contacts_read_notes', '$($script:WorkspaceId)', '$roleId', 'contacts', 'notes', 'ReadOnly'),
+('field_contacts_read_source', '$($script:WorkspaceId)', '$roleId', 'contacts', 'source', 'ReadWrite'),
+('field_contacts_read_unknown', '$($script:WorkspaceId)', '$roleId', 'contacts', 'ghostField', 'ReadWrite');
 "@
     $fieldDetail = Invoke-Contact -Method 'GET' -Path "/contacts/$contactA"
     Add-Result 'optional HIDDEN field omitted' 'True' ($fieldDetail.Raw -notmatch '"workEmail"').ToString()
@@ -417,8 +417,8 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
 
     Clear-ContactFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_contacts_read_required', '$roleId', 'contacts', 'fullName', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_contacts_read_required', '$($script:WorkspaceId)', '$roleId', 'contacts', 'fullName', 'Hidden');
 "@
     $requiredRestricted = Invoke-Contact -Method 'GET' -Path "/contacts/$contactA"
     Add-Result 'required-field restriction fails operation closed' '403' $requiredRestricted.Status

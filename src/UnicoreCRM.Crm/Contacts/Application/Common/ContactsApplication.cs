@@ -18,6 +18,11 @@ internal sealed record ContactOperationResult<T>(T? Value, ContactOperationError
     internal static ContactOperationResult<T> Failure(ContactOperationError error) => new(default, error);
 }
 
+internal interface IContactsTransaction : IAsyncDisposable
+{
+    Task CommitAsync(CancellationToken cancellationToken);
+}
+
 internal interface IContactsPersistence
 {
     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
@@ -27,6 +32,25 @@ internal interface IContactsPersistence
         CancellationToken cancellationToken);
     void AddReadAudit(ContactReadAuditRecord audit);
     Task SaveChangesAsync(CancellationToken cancellationToken);
+
+    Task<IContactsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Workspace-wide duplicate guard. It deliberately applies no record-scope predicate:
+    /// uniqueness is a Workspace fact, and a scope-filtered scan would let an OWN-scoped member
+    /// create exactly the duplicate this guard exists to prevent. It returns only a boolean, so no
+    /// identifier, field value or cardinality of an unreadable Contact can reach the caller.
+    /// </summary>
+    Task<bool> AnyContactWithNormalizedEmailAsync(
+        string workspaceId,
+        string normalizedEmail,
+        CancellationToken cancellationToken);
+
+    Task<ContactConversionRecord?> FindConversionAsync(string scopeKey, CancellationToken cancellationToken);
+    void AddContact(Contact contact);
+    void AddConversion(ContactConversionRecord record);
+    void AddAudit(ContactAuditRecord audit);
+    void AddOutbox(ContactOutboxMessage message);
 }
 
 internal static class ContactErrors
