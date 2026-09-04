@@ -268,7 +268,11 @@ $hostProcess = $null
 try {
     Initialize-Database
 
-    $developmentSettings = Get-Content -Raw (Join-Path $solutionRoot 'src/UnicoreCRM.ApiHost/appsettings.Development.json') | ConvertFrom-Json
+    # .NET configuration admits full-line JSON comments; Windows PowerShell 5.1 ConvertFrom-Json
+    # does not. Remove only those comment lines so the verifier reads the same configuration values.
+    $developmentSettingsJson = (Get-Content (Join-Path $solutionRoot 'src/UnicoreCRM.ApiHost/appsettings.Development.json') |
+        Where-Object { $_ -notmatch '^\s*//' }) -join "`n"
+    $developmentSettings = $developmentSettingsJson | ConvertFrom-Json
     $developmentCapabilities = @($developmentSettings.DevelopmentDemoBootstrap.Capabilities)
     Assert-True ((($developmentCapabilities | Sort-Object) -join ',') -eq (($expectedInitialCapabilities | Sort-Object) -join ',')) 'Static: Development demo capabilities mirror the canonical initial role'
     $developmentModuleKeys = @($developmentSettings.DevelopmentDemoBootstrap.Workspace.EnabledModuleKeys)

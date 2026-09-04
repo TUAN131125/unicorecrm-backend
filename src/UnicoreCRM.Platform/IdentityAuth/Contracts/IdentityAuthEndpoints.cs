@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
@@ -25,15 +26,20 @@ public static class IdentityAuthEndpoints
 
     private static async Task<IResult> RegisterAccountAsync(
         HttpContext httpContext,
+        IIdentityAbuseProtector abuseProtector,
         Application.RegisterAccount.Handler handler,
         CancellationToken cancellationToken)
     {
+        if (IdentityHttp.EnforceOriginLimit(httpContext, abuseProtector, IdentityAbuseOperation.RegisterAccount) is { } originLimit)
+            return originLimit;
         if (!IdentityHttp.TryMetadata(httpContext, true, out var metadata, out var headerError))
             return headerError!;
         var body = await IdentityHttp.ReadBodyAsync<RegisterAccountRequest>(httpContext, cancellationToken);
         if (body.Error is not null)
             return body.Error;
         var request = body.Value!;
+        if (IdentityHttp.EnforceEmailSubjectLimit(httpContext, abuseProtector, IdentityAbuseOperation.RegisterAccount, request.Email) is { } subjectLimit)
+            return subjectLimit;
         var result = await handler.HandleAsync(new Application.RegisterAccount.Command(request.Email, request.Password, request.DisplayName, metadata!), cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value, statusCode: StatusCodes.Status201Created)
@@ -42,14 +48,19 @@ public static class IdentityAuthEndpoints
 
     private static async Task<IResult> RequestEmailVerificationAsync(
         HttpContext httpContext,
+        IIdentityAbuseProtector abuseProtector,
         Application.RequestEmailVerification.Handler handler,
         CancellationToken cancellationToken)
     {
+        if (IdentityHttp.EnforceOriginLimit(httpContext, abuseProtector, IdentityAbuseOperation.RequestEmailVerification) is { } originLimit)
+            return originLimit;
         if (!IdentityHttp.TryMetadata(httpContext, true, out var metadata, out var headerError))
             return headerError!;
         var body = await IdentityHttp.ReadBodyAsync<RequestEmailVerificationRequest>(httpContext, cancellationToken);
         if (body.Error is not null)
             return body.Error;
+        if (IdentityHttp.EnforceEmailSubjectLimit(httpContext, abuseProtector, IdentityAbuseOperation.RequestEmailVerification, body.Value!.Email) is { } subjectLimit)
+            return subjectLimit;
         var result = await handler.HandleAsync(new Application.RequestEmailVerification.Command(body.Value!.Email, metadata!), cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value, statusCode: StatusCodes.Status202Accepted)
@@ -58,15 +69,20 @@ public static class IdentityAuthEndpoints
 
     private static async Task<IResult> VerifyEmailAsync(
         HttpContext httpContext,
+        IIdentityAbuseProtector abuseProtector,
         Application.VerifyEmail.Handler handler,
         CancellationToken cancellationToken)
     {
+        if (IdentityHttp.EnforceOriginLimit(httpContext, abuseProtector, IdentityAbuseOperation.VerifyEmail) is { } originLimit)
+            return originLimit;
         if (!IdentityHttp.TryMetadata(httpContext, true, out var metadata, out var headerError))
             return headerError!;
         var body = await IdentityHttp.ReadBodyAsync<VerifyEmailRequest>(httpContext, cancellationToken);
         if (body.Error is not null)
             return body.Error;
         var request = body.Value!;
+        if (IdentityHttp.EnforceEmailSubjectLimit(httpContext, abuseProtector, IdentityAbuseOperation.VerifyEmail, request.Email) is { } subjectLimit)
+            return subjectLimit;
         var result = await handler.HandleAsync(new Application.VerifyEmail.Command(request.Email, request.Code, metadata!), cancellationToken);
         return result.IsSuccess
             ? Results.Json(result.Value, statusCode: StatusCodes.Status200OK)
@@ -75,15 +91,20 @@ public static class IdentityAuthEndpoints
 
     private static async Task<IResult> SignInAsync(
         HttpContext httpContext,
+        IIdentityAbuseProtector abuseProtector,
         Application.SignIn.Handler handler,
         CancellationToken cancellationToken)
     {
+        if (IdentityHttp.EnforceOriginLimit(httpContext, abuseProtector, IdentityAbuseOperation.SignIn) is { } originLimit)
+            return originLimit;
         if (!IdentityHttp.TryMetadata(httpContext, true, out var metadata, out var headerError))
             return headerError!;
         var body = await IdentityHttp.ReadBodyAsync<SignInRequest>(httpContext, cancellationToken);
         if (body.Error is not null)
             return body.Error;
         var request = body.Value!;
+        if (IdentityHttp.EnforceEmailSubjectLimit(httpContext, abuseProtector, IdentityAbuseOperation.SignIn, request.Email) is { } subjectLimit)
+            return subjectLimit;
         var result = await handler.HandleAsync(new Application.SignIn.Command(request.Email, request.Password, request.DeviceLabel, metadata!), cancellationToken);
         if (!result.IsSuccess)
             return IdentityHttp.Error(result.Error!, metadata!.CorrelationId);
@@ -108,9 +129,12 @@ public static class IdentityAuthEndpoints
 
     private static async Task<IResult> RefreshSessionAsync(
         HttpContext httpContext,
+        IIdentityAbuseProtector abuseProtector,
         Application.RefreshSession.Handler handler,
         CancellationToken cancellationToken)
     {
+        if (IdentityHttp.EnforceOriginLimit(httpContext, abuseProtector, IdentityAbuseOperation.RefreshSession) is { } originLimit)
+            return originLimit;
         if (!IdentityHttp.TryMetadata(httpContext, true, out var metadata, out var headerError))
             return headerError!;
         var body = await IdentityHttp.ReadBodyAsync<RefreshSessionRequest>(httpContext, cancellationToken);
@@ -118,6 +142,8 @@ public static class IdentityAuthEndpoints
             return body.Error;
         if (!httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken) || string.IsNullOrEmpty(refreshToken))
             return IdentityHttp.Error(IdentityErrors.SessionInvalid(), metadata!.CorrelationId);
+        if (IdentityHttp.EnforceRefreshSubjectLimit(httpContext, abuseProtector, refreshToken) is { } subjectLimit)
+            return subjectLimit;
         var result = await handler.HandleAsync(new Application.RefreshSession.Command(refreshToken, metadata!), cancellationToken);
         if (!result.IsSuccess)
             return IdentityHttp.Error(result.Error!, metadata!.CorrelationId);
@@ -166,6 +192,29 @@ public static class IdentityAuthEndpoints
 
 internal static class IdentityHttp
 {
+    internal static IResult? EnforceOriginLimit(
+        HttpContext context,
+        IIdentityAbuseProtector abuseProtector,
+        IdentityAbuseOperation operation)
+    {
+        var remoteAddress = context.Connection.RemoteIpAddress;
+        var origin = remoteAddress is null ? "unknown" : remoteAddress.MapToIPv6().ToString();
+        return RateLimitResult(context, abuseProtector.CheckOrigin(operation, origin));
+    }
+
+    internal static IResult? EnforceEmailSubjectLimit(
+        HttpContext context,
+        IIdentityAbuseProtector abuseProtector,
+        IdentityAbuseOperation operation,
+        string? email) =>
+        RateLimitResult(context, abuseProtector.CheckEmailSubject(operation, email));
+
+    internal static IResult? EnforceRefreshSubjectLimit(
+        HttpContext context,
+        IIdentityAbuseProtector abuseProtector,
+        string refreshToken) =>
+        RateLimitResult(context, abuseProtector.CheckRefreshSubject(refreshToken));
+
     internal static bool TryMetadata(HttpContext context, bool requireIdempotency, out RequestMetadata? metadata, out IResult? error)
     {
         metadata = null;
@@ -220,6 +269,22 @@ internal static class IdentityHttp
 
     internal static IResult Error(OperationError error, string correlationId) =>
         Results.Json(Problem(error.Code, error.Status, error.Title, correlationId, error.Retryable, error.Detail, error.FieldErrors), statusCode: error.Status, contentType: "application/problem+json");
+
+    private static IResult? RateLimitResult(HttpContext context, IdentityAbuseDecision decision)
+    {
+        if (decision.IsAllowed)
+            return null;
+
+        var retryAfterSeconds = Math.Max(1, (int)Math.Ceiling(decision.RetryAfter.TotalSeconds));
+        var correlationId = CorrelationId(context);
+        context.Response.Headers["Retry-After"] = retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+        context.Response.Headers["Cache-Control"] = "no-store";
+        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        return Results.Json(
+            Problem("RATE_LIMITED", StatusCodes.Status429TooManyRequests, "Too many requests", correlationId, true),
+            statusCode: StatusCodes.Status429TooManyRequests,
+            contentType: "application/problem+json");
+    }
 
     internal static IdentityProblemDetails Problem(
         string code,

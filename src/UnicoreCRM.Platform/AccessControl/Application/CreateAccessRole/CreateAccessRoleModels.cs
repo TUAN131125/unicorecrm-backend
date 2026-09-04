@@ -4,7 +4,7 @@ using UnicoreCRM.Platform.AccessControl.Domain;
 namespace UnicoreCRM.Platform.AccessControl.Application.CreateAccessRole;
 
 internal sealed record Command(
-    string RawBody,
+    AdministrativeRequestBody Body,
     string RequestId,
     string CorrelationId,
     string SuppliedCorrelationId,
