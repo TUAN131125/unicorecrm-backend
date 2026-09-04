@@ -173,6 +173,24 @@ internal sealed class Handler(
             return Error("WORKSPACE_MISMATCH", 403);
         }
 
+        // Tasks owns assignee validity. Ask its narrow participant boundary before the first Contact
+        // mutation, but only while no Contact has committed. An already-partial workflow must retain
+        // its durable forward-recovery behavior and is re-driven through the ordinary Task creation
+        // path below.
+        if (anchor?.ContactId is null)
+        {
+            var assigneeValidation = await tasks.ValidateNurtureAssigneeAsync(
+                command.TaskOwnerId ?? prepared.OwnerId!,
+                cancellationToken);
+            if (!assigneeValidation.IsSuccess)
+            {
+                return Error(
+                    assigneeValidation.ErrorCode!,
+                    assigneeValidation.ErrorStatus!.Value,
+                    assigneeValidation.FieldErrors);
+            }
+        }
+
         anchor ??= await StartAsync(scopeKey, trusted, command, fingerprint, prepared.OwnerId!, cancellationToken);
 
         // A concurrent request carrying the same key may have won the insert and already advanced.

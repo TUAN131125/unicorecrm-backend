@@ -198,7 +198,8 @@ function New-NurtureBody {
         [string] $Email,
         [string] $Phone = '0900000001',
         [string] $Title = 'Manager',
-        [string] $Reason = 'Revisit after budget cycle'
+        [string] $Reason = 'Revisit after budget cycle',
+        [string] $OwnerId
     )
     $contact = @{ displayName = $DisplayName }
     if ($Email) { $contact.email = $Email }
@@ -206,11 +207,13 @@ function New-NurtureBody {
     if ($Title) { $contact.title = $Title }
     $relationship = @{ kind = 'CONTACT'; mode = $Mode; contact = $contact }
     if ($SelectedId) { $relationship.selectedId = $SelectedId }
-    return (@{
+    $body = @{
         relationship = $relationship
         revisitAt    = '2026-10-01T09:00:00.0000000Z'
         reason       = $Reason
-    } | ConvertTo-Json -Depth 6 -Compress)
+    }
+    if ($OwnerId) { $body.ownerId = $OwnerId }
+    return ($body | ConvertTo-Json -Depth 6 -Compress)
 }
 
 # Creates a Lead through the public API and advances it to VERIFYING, optionally with restrictions.
@@ -664,6 +667,52 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         Add-Result "contract: $($case.Name) performs zero owner effects" $effectsBefore `
             (Get-Scalar -Database $DatabaseName -Query $contractEffectsQuery)
     }
+
+    # A syntactically valid but nonexistent Task owner is deterministic Tasks-owned validation.
+    # It must run before the coordinator starts an anchor or calls Contacts. Reusing the same key
+    # immediately with the real member proves the refusal poisoned no owner state or workflow state.
+    $invalidOwnerLead = New-VerifyingLead -DisplayName 'API Invalid Task Owner Lead' -Email 'api.invalid.task.owner.lead@example.test'
+    $invalidOwnerKey = 'idem-nurture-invalid-owner'
+    $invalidOwnerEmail = 'api.invalid.task.owner.person@example.test'
+    $invalidOwnerBefore = Get-Scalar -Database $DatabaseName -Query $contractEffectsQuery
+    $invalidOwnerLeadVersion = [long](Get-Scalar -Database $DatabaseName -Query "SELECT [Version] FROM leads.Leads WHERE LeadId='$invalidOwnerLead'")
+    $invalidOwnerContactCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts')
+    $invalidOwnerTaskCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks')
+    $invalidOwnerReceiptCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.ConversionRecords')
+    $invalidOwnerAnchorCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM workflow.LeadQualificationAnchors')
+    $invalidOwner = Invoke-Nurture -LeadId $invalidOwnerLead -IdempotencyKey $invalidOwnerKey -ExpectedVersion $invalidOwnerLeadVersion `
+        -Body (New-NurtureBody -DisplayName 'API Invalid Task Owner Person' -Email $invalidOwnerEmail -OwnerId 'member_nurture_missing')
+    Add-Result 'invalid Task owner is refused before mutation' '422|VALIDATION_FAILED' "$($invalidOwner.Status)|$($invalidOwner.Body.code)"
+    Add-Result 'invalid Task owner names assigneeId' 'assigneeId' (Get-FieldErrorKeys -Response $invalidOwner)
+    Add-Result 'invalid Task owner leaves all owner effects unchanged' $invalidOwnerBefore `
+        (Get-Scalar -Database $DatabaseName -Query $contractEffectsQuery)
+    Add-Result 'invalid Task owner creates no workflow anchor' '0' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM workflow.LeadQualificationAnchors WHERE LeadId='$invalidOwnerLead'"))
+    Add-Result 'invalid Task owner creates no Contact' '0' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.Contacts WHERE NormalizedWorkEmail='$($invalidOwnerEmail.ToUpperInvariant())'"))
+
+    $validAfterInvalid = Invoke-Nurture -LeadId $invalidOwnerLead -IdempotencyKey $invalidOwnerKey -ExpectedVersion $invalidOwnerLeadVersion `
+        -Body (New-NurtureBody -DisplayName 'API Invalid Task Owner Person' -Email $invalidOwnerEmail -OwnerId $script:MemberId)
+    Add-Result 'valid NURTURE immediately after invalid owner commits' '200|COMMITTED' "$($validAfterInvalid.Status)|$($validAfterInvalid.Body.outcome)"
+    Add-Result 'valid NURTURE creates exactly one intended Contact' ([string]($invalidOwnerContactCount + 1)) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts'))
+    Add-Result 'valid NURTURE creates exactly one intended Task' ([string]($invalidOwnerTaskCount + 1)) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'))
+    Add-Result 'valid NURTURE creates exactly one Contact receipt' ([string]($invalidOwnerReceiptCount + 1)) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.ConversionRecords'))
+    Add-Result 'valid NURTURE creates exactly one workflow anchor' ([string]($invalidOwnerAnchorCount + 1)) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM workflow.LeadQualificationAnchors'))
+    Add-Result 'valid NURTURE closes Lead once after invalid owner' ([string]($invalidOwnerLeadVersion + 1)) `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT [Version] FROM leads.Leads WHERE LeadId='$invalidOwnerLead'"))
+    Add-Result 'valid NURTURE closes Lead after invalid owner' '3' `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT WorkState FROM leads.Leads WHERE LeadId='$invalidOwnerLead'"))
+    Add-Result 'valid NURTURE completes anchor after invalid owner' 'Completed' `
+        (Get-Scalar -Database $DatabaseName -Query "SELECT Stage FROM workflow.LeadQualificationAnchors WHERE LeadId='$invalidOwnerLead'")
+
+    $validAfterInvalidEffects = Get-Scalar -Database $DatabaseName -Query $contractEffectsQuery
+    $validAfterInvalidReplay = Invoke-Nurture -LeadId $invalidOwnerLead -IdempotencyKey $invalidOwnerKey -ExpectedVersion $invalidOwnerLeadVersion `
+        -Body (New-NurtureBody -DisplayName 'API Invalid Task Owner Person' -Email $invalidOwnerEmail -OwnerId $script:MemberId)
+    Add-Result 'valid NURTURE after invalid owner replays' '200|REPLAYED' "$($validAfterInvalidReplay.Status)|$($validAfterInvalidReplay.Body.outcome)"
+    Add-Result 'replay after invalid owner increases no counts' $validAfterInvalidEffects `
+        (Get-Scalar -Database $DatabaseName -Query $contractEffectsQuery)
 
     # The wire schema is additionalProperties:false, so an undeclared member is refused as a body
     # that does not match the contract - never accepted and silently dropped.

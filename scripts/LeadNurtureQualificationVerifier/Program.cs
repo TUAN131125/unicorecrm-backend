@@ -104,6 +104,7 @@ internal sealed class LeadNurtureQualificationVerifier(string connectionString)
                 await VerifyStaleVersionAsync();
                 await VerifyLeadBoundaryAsync();
                 await VerifyRequestContractAsync();
+                await VerifyInvalidTaskOwnerAsync();
                 await VerifyContactRejectionAsync();
                 await VerifyMissingTaskCapabilityAsync();
                 await VerifyWorkspaceIsolationAsync();
@@ -508,6 +509,51 @@ internal sealed class LeadNurtureQualificationVerifier(string connectionString)
             await ScalarLongAsync($"SELECT COUNT(*) FROM workflow.LeadQualificationAnchors WHERE LeadId=N'{leadId}'"),
             await ScalarLongAsync($"SELECT [Version] FROM leads.Leads WHERE LeadId=N'{leadId}'"),
             await ScalarLongAsync($"SELECT WorkState FROM leads.Leads WHERE LeadId=N'{leadId}'"));
+
+    private async Task VerifyInvalidTaskOwnerAsync()
+    {
+        var leadId = await SeedLeadAsync(
+            WorkspaceA,
+            MemberA,
+            "Invalid Task owner Lead",
+            "invalid.task.owner.lead@example.com");
+        var command = Command(
+            leadId,
+            NewContact("Invalid Task owner Person", "invalid.task.owner.person@example.com"));
+        var rejectedCommand = command with { TaskOwnerId = "member_nurture_missing" };
+        var effectsBefore = await OwnerEffectsAsync(leadId);
+
+        var rejected = await ExecuteAsync(WorkspaceA, MemberA, rejectedCommand);
+
+        Check("invalid Task owner is refused", "VALIDATION_FAILED", rejected.ErrorCode);
+        Check("invalid Task owner is 422", 422, rejected.ErrorStatus);
+        Check("invalid Task owner names assigneeId", "assigneeId",
+            string.Join(",", rejected.FieldErrors?.Keys ?? []));
+        Check("invalid Task owner performs zero owner effects", effectsBefore,
+            await OwnerEffectsAsync(leadId));
+        Check("invalid Task owner leaves no Contact qualification receipt", 0L,
+            await ScalarLongAsync(
+                $"SELECT COUNT(*) FROM contacts.ConversionRecords WHERE WorkspaceId=N'{WorkspaceA}' AND ConversionKey=N'{WorkflowScopeKey(WorkspaceA, leadId, command.IdempotencyKey)}'"));
+
+        var committed = await ExecuteAsync(WorkspaceA, MemberA, command with { TaskOwnerId = MemberA });
+        Check("valid NURTURE after invalid Task owner commits", "COMMITTED", committed.Outcome);
+        Check("valid NURTURE after invalid Task owner creates one intended Contact", 1L,
+            await ScalarLongAsync(
+                "SELECT COUNT(*) FROM contacts.Contacts WHERE WorkspaceId=N'" + WorkspaceA
+                + "' AND NormalizedWorkEmail=N'INVALID.TASK.OWNER.PERSON@EXAMPLE.COM'"));
+        Check("valid NURTURE after invalid Task owner creates one intended Task", 1L,
+            await ScalarLongAsync($"SELECT COUNT(*) FROM tasks.Tasks WHERE SourceId=N'{leadId}'"));
+        Check("valid NURTURE after invalid Task owner closes Lead once", 1L,
+            await ScalarLongAsync($"SELECT [Version] FROM leads.Leads WHERE LeadId=N'{leadId}'"));
+        Check("valid NURTURE after invalid Task owner completes workflow", "Completed",
+            await ScalarStringAsync($"SELECT Stage FROM workflow.LeadQualificationAnchors WHERE LeadId=N'{leadId}'"));
+
+        var committedEffects = await OwnerEffectsAsync(leadId);
+        var replayed = await ExecuteAsync(WorkspaceA, MemberA, command with { TaskOwnerId = MemberA });
+        Check("valid NURTURE after invalid Task owner replays", "REPLAYED", replayed.Outcome);
+        Check("valid NURTURE replay after invalid Task owner changes no counts", committedEffects,
+            await OwnerEffectsAsync(leadId));
+    }
 
     private async Task VerifyContactRejectionAsync()
     {
@@ -1328,6 +1374,10 @@ internal sealed class CountingContactParticipant(IContactQualificationParticipan
 internal sealed class CountingTaskParticipant(ILeadQualificationTaskParticipant inner, ParticipantCalls calls)
     : ILeadQualificationTaskParticipant
 {
+    public Task<LeadNurtureTaskAssigneeValidationResult> ValidateNurtureAssigneeAsync(
+        string assigneeId, CancellationToken cancellationToken) =>
+        inner.ValidateNurtureAssigneeAsync(assigneeId, cancellationToken);
+
     public async Task<LeadNurtureTaskResult> CreateNurtureFollowUpAsync(
         LeadNurtureTaskCommand command, CancellationToken cancellationToken)
     {

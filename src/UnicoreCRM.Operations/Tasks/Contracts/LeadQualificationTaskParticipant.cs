@@ -13,10 +13,20 @@ namespace UnicoreCRM.Operations.Tasks.Contracts;
 /// </summary>
 public interface ILeadQualificationTaskParticipant
 {
+    Task<LeadNurtureTaskAssigneeValidationResult> ValidateNurtureAssigneeAsync(
+        string assigneeId,
+        CancellationToken cancellationToken);
+
     Task<LeadNurtureTaskResult> CreateNurtureFollowUpAsync(
         LeadNurtureTaskCommand command,
         CancellationToken cancellationToken);
 }
+
+public sealed record LeadNurtureTaskAssigneeValidationResult(
+    bool IsSuccess,
+    string? ErrorCode,
+    int? ErrorStatus,
+    IReadOnlyDictionary<string, string[]>? FieldErrors);
 
 /// <param name="RevisitAt">The frozen NURTURE revisit instant; it becomes the Task due date.</param>
 /// <param name="Reason">

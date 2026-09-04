@@ -1,5 +1,6 @@
 using UnicoreCRM.Operations.Tasks.Application.Common;
 using UnicoreCRM.Operations.Tasks.Contracts;
+using UnicoreCRM.Platform.Workspace.Contracts;
 
 namespace UnicoreCRM.Operations.Tasks.Application.CreateLeadNurtureFollowUp;
 
@@ -8,10 +9,34 @@ namespace UnicoreCRM.Operations.Tasks.Application.CreateLeadNurtureFollowUp;
 /// execution, so authorization, validation, idempotency, audit and outbox behaviour are exactly the
 /// public operation's and are not re-implemented or relaxed here.
 /// </summary>
-internal sealed class Handler(CreateTask.Handler createTask) : ILeadQualificationTaskParticipant
+internal sealed class Handler(
+    CreateTask.Handler createTask,
+    ICurrentWorkspace currentWorkspace,
+    IWorkspaceMemberReferenceValidator memberValidator) : ILeadQualificationTaskParticipant
 {
     private const int MaxTitleLength = 300;
     private const string LeadSourceType = "LEAD";
+
+    public async Task<LeadNurtureTaskAssigneeValidationResult> ValidateNurtureAssigneeAsync(
+        string assigneeId,
+        CancellationToken cancellationToken)
+    {
+        if (!currentWorkspace.IsResolved)
+            return new LeadNurtureTaskAssigneeValidationResult(false, "ACCESS_DENIED", 403, null);
+
+        var trusted = currentWorkspace.Require();
+        if (await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, assigneeId, cancellationToken))
+            return new LeadNurtureTaskAssigneeValidationResult(true, null, null, null);
+
+        return new LeadNurtureTaskAssigneeValidationResult(
+            false,
+            "VALIDATION_FAILED",
+            422,
+            new Dictionary<string, string[]>
+            {
+                ["assigneeId"] = ["assigneeId must reference an active member of the trusted workspace."]
+            });
+    }
 
     public async Task<LeadNurtureTaskResult> CreateNurtureFollowUpAsync(
         LeadNurtureTaskCommand command,
