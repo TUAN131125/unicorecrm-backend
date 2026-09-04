@@ -227,13 +227,19 @@ tasks.assign, tasks.complete, tasks.create, tasks.read, tasks.update
 workspace.context.resolve
 ```
 
-`access.read`, `access.configure`, `studio.*` and `audit.*` are deliberately excluded: their
-administrative operations remain fail-closed and have no callable route, so granting them would
-invent authority and would advertise a People or Studio product space that is not implemented. No
-role data-scope or field-security policy is created; defining those remains the deferred
-AccessControl administrative surface. With no data-scope policy the implemented owner readers
-already treat resource access as workspace-scoped, which is the pre-existing behavior and is not
-changed here.
+`access.read`, `access.configure`, `studio.*` and `audit.*` remain deliberately excluded from this
+server-owned initial role. The earlier reason that AccessControl administrative operations had no
+callable route is superseded: `getWorkspaceAccessDirectory`, role create/replace/archive, and member
+role-assignment replacement are now implemented. This extension nevertheless does not retroactively
+widen its frozen seed, and whether initial Workspace provisioning should grant `access.read` and/or
+`access.configure` requires a separate project-owner governance decision. `studio.*` and `audit.*`
+remain outside the implemented product surface described here.
+
+Initial provisioning still creates no role data-scope or field-security policy. That is a bounded
+seed choice, not evidence that policy administration is deferred: `createAccessRole` and
+`replaceAccessRole` now own and persist those policy collections. With no seeded data-scope policy,
+implemented owner readers continue to default the resource to Workspace scope; this extension does
+not change that pre-existing behavior.
 
 An exact current capability set is already converged. The one admitted historical exception is the
 exact immediately preceding server-owned pre-Contacts snapshot, and only when the creator

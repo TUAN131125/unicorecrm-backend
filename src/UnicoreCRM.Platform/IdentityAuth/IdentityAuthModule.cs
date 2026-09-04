@@ -25,6 +25,7 @@ internal static class IdentityAuthModule
             .Bind(configuration.GetSection(IdentityAuthOptions.SectionName))
             .ValidateDataAnnotations()
             .Validate(options => options.Session.AbsoluteDays >= options.Session.IdleDays, "Absolute session lifetime must be at least the idle lifetime.")
+            .Validate(options => options.AbuseProtection.IsValid(), "Every IdentityAuth abuse-protection limit and window must be within its supported range.")
             .ValidateOnStart();
 
         var connectionString = configuration.GetConnectionString("UnicoreCRM");
@@ -42,6 +43,7 @@ internal static class IdentityAuthModule
         services.AddSingleton<IRefreshTokenProtector, HmacRefreshTokenProtector>();
         services.AddSingleton<IIdentityRequestFingerprinter, HmacIdentityRequestFingerprinter>();
         services.AddSingleton<IIdentitySessionPolicy, ConfiguredIdentitySessionPolicy>();
+        services.AddSingleton<IIdentityAbuseProtector, InMemoryIdentityAbuseProtector>();
         services.AddSingleton<IIdentityVerificationCodeProtector, HmacIdentityVerificationCodeProtector>();
         services.AddSingleton<IIdentityEmailVerificationPolicy, ConfiguredIdentityEmailVerificationPolicy>();
         services.AddSingleton<IIdentityEmailPayloadProtector, AesGcmIdentityEmailPayloadProtector>();

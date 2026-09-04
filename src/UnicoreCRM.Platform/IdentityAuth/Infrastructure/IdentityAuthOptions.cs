@@ -13,6 +13,7 @@ internal sealed class IdentityAuthOptions
 
     public SessionOptions Session { get; init; } = new();
     public EmailVerificationOptions EmailVerification { get; init; } = new();
+    public IdentityAbuseProtectionOptions AbuseProtection { get; init; } = new();
     public DevelopmentBootstrapOptions DevelopmentBootstrap { get; init; } = new();
 }
 
@@ -56,6 +57,37 @@ internal sealed class EmailVerificationOptions
 
     public EmailSenderOptions Sender { get; init; } = new();
     public EmailOutboxOptions Outbox { get; init; } = new();
+}
+
+internal sealed class IdentityAbuseProtectionOptions
+{
+    public IdentityAbuseLimitOptions Registration { get; init; } = new(20, 5, 600);
+    public IdentityAbuseLimitOptions VerificationRequest { get; init; } = new(30, 5, 600);
+    public IdentityAbuseLimitOptions VerificationSubmission { get; init; } = new(60, 10, 600);
+    public IdentityAbuseLimitOptions PasswordSignIn { get; init; } = new(60, 10, 300);
+    public IdentityAbuseLimitOptions SessionRefresh { get; init; } = new(300, 60, 60);
+
+    internal bool IsValid() =>
+        Registration.IsValid()
+        && VerificationRequest.IsValid()
+        && VerificationSubmission.IsValid()
+        && PasswordSignIn.IsValid()
+        && SessionRefresh.IsValid();
+}
+
+internal sealed record IdentityAbuseLimitOptions(
+    [property: Range(1, 100_000)] int OriginPermitLimit,
+    [property: Range(1, 100_000)] int SubjectPermitLimit,
+    [property: Range(1, 86_400)] int WindowSeconds)
+{
+    public IdentityAbuseLimitOptions() : this(1, 1, 60)
+    {
+    }
+
+    internal bool IsValid() =>
+        OriginPermitLimit is >= 1 and <= 100_000
+        && SubjectPermitLimit is >= 1 and <= 100_000
+        && WindowSeconds is >= 1 and <= 86_400;
 }
 
 internal sealed class EmailSenderOptions

@@ -50,10 +50,12 @@ internal sealed class Handler(
             out var expectedVersion);
         if (metadataErrors.Count != 0)
             return AccessOperationResult<AccessMutationResponse>.Failure(AccessErrors.Validation(metadataErrors));
+        if (command.Body.ExceededLimit)
+            return AccessOperationResult<AccessMutationResponse>.Failure(AccessErrors.PayloadTooLarge());
         if (!ArchiveAccessRoleNormalizer.TryNormalize(
                 command.RoleId,
                 expectedVersion,
-                command.RawBody,
+                command.Body.Value,
                 out var request,
                 out var requestErrors))
         {

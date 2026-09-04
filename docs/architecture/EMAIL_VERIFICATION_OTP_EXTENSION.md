@@ -116,6 +116,7 @@ account ID, is not a verification credential and cannot be submitted anywhere.
 | Status | Code | Cause |
 |---|---|---|
 | 422 | `VALIDATION_FAILED` | missing/invalid header or body |
+| 429 | `RATE_LIMITED` | the PLAT-SEC-01 origin or email-subject request quota is exhausted; no account-state detail is disclosed and `Retry-After` is returned |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | the key was already used with a different address |
 | 503 | `INTEGRATION_UNAVAILABLE` | this host has no usable email sender configured. A *transient* provider failure does not appear here: the message is queued and retried |
 | 500 | `INTERNAL_ERROR` | unexpected server failure |
@@ -157,7 +158,7 @@ The canonical `UserAccountDocument`, with `status = "ACTIVE"` and `emailVerified
 | 422 | `VALIDATION_FAILED` | missing/invalid header or body, or a code that is not exactly six digits |
 | 401 | `TOKEN_INVALID` | unknown address, an account not awaiting verification, no outstanding challenge, a superseded or consumed challenge, or a wrong code |
 | 401 | `TOKEN_EXPIRED` | the outstanding code has expired |
-| 429 | `RATE_LIMITED` | the attempt ceiling for the outstanding code is spent |
+| 429 | `RATE_LIMITED` | the attempt ceiling for the outstanding code is spent, or the PLAT-SEC-01 origin/email-subject request quota is exhausted; request throttling returns `Retry-After` without account-state detail |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | the key was already used with a different address or code |
 | 500 | `INTERNAL_ERROR` | unexpected server failure |
 

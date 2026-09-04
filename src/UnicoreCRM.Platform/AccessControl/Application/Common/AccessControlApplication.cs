@@ -61,6 +61,8 @@ internal static class AccessErrors
     internal static AccessOperationError WorkspaceMismatch() => new("WORKSPACE_MISMATCH", 403, "Workspace context mismatch");
     internal static AccessOperationError Validation(IReadOnlyDictionary<string, string[]> fieldErrors) =>
         new("VALIDATION_FAILED", 422, "Validation failed", fieldErrors);
+    internal static AccessOperationError PayloadTooLarge() =>
+        new("PAYLOAD_TOO_LARGE", 413, "Payload too large");
     internal static AccessOperationError RoleNameConflict() => new("ROLE_NAME_CONFLICT", 409, "Role name conflict");
     internal static AccessOperationError IdempotencyKeyReused(string key) =>
         new("IDEMPOTENCY_KEY_REUSED", 409, "Idempotency key reused", IdempotencyKey: key);

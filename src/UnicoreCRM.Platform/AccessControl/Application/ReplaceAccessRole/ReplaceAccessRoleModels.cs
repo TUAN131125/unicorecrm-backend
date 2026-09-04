@@ -5,7 +5,7 @@ namespace UnicoreCRM.Platform.AccessControl.Application.ReplaceAccessRole;
 
 internal sealed record Command(
     string RoleId,
-    string RawBody,
+    AdministrativeRequestBody Body,
     string RequestId,
     string CorrelationId,
     string SuppliedCorrelationId,

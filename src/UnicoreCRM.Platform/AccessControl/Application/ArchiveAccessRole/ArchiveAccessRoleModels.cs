@@ -1,10 +1,11 @@
+using UnicoreCRM.Platform.AccessControl.Application.Common;
 using UnicoreCRM.Platform.AccessControl.Domain;
 
 namespace UnicoreCRM.Platform.AccessControl.Application.ArchiveAccessRole;
 
 internal sealed record Command(
     string RoleId,
-    string RawBody,
+    AdministrativeRequestBody Body,
     string RequestId,
     string CorrelationId,
     string SuppliedCorrelationId,

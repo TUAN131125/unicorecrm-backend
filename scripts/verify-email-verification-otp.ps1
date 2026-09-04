@@ -119,6 +119,14 @@ function Start-ApiHost([string] $senderKind = 'DevelopmentLog', [string] $enviro
     $env:Development__ApplyMigrations = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = 'false'
 
+    # This harness isolates persisted OTP challenge semantics. Keep the separate PLAT-SEC-01
+    # request boundary above the number of calls made here; its own verifier proves those limits.
+    foreach ($operation in @('Registration', 'VerificationRequest', 'VerificationSubmission', 'PasswordSignIn', 'SessionRefresh')) {
+        Set-Item "Env:IdentityAuth__AbuseProtection__$($operation)__OriginPermitLimit" '10000'
+        Set-Item "Env:IdentityAuth__AbuseProtection__$($operation)__SubjectPermitLimit" '10000'
+        Set-Item "Env:IdentityAuth__AbuseProtection__$($operation)__WindowSeconds" '60'
+    }
+
     # Applied last, so a section can override one of the defaults above rather than only add to them.
     if ($null -ne $extraEnvironment) {
         foreach ($entry in $extraEnvironment.GetEnumerator()) {

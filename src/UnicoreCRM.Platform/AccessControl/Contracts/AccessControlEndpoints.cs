@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -122,11 +123,10 @@ public static class AccessControlEndpoints
             ? suppliedCorrelationId
             : context.TraceIdentifier;
         context.Response.Headers["X-Correlation-Id"] = correlationId;
-        using var reader = new StreamReader(context.Request.Body);
-        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var body = await AccessHttp.ReadAdministrativeBodyAsync(context.Request, cancellationToken);
         var result = await handler.HandleAsync(
             new Application.CreateAccessRole.Command(
-                rawBody,
+                body,
                 context.Request.Headers["X-Request-Id"].ToString(),
                 correlationId,
                 suppliedCorrelationId,
@@ -154,8 +154,7 @@ public static class AccessControlEndpoints
             ? suppliedCorrelationId
             : context.TraceIdentifier;
         context.Response.Headers["X-Correlation-Id"] = correlationId;
-        using var reader = new StreamReader(context.Request.Body);
-        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var body = await AccessHttp.ReadAdministrativeBodyAsync(context.Request, cancellationToken);
         // The raw header value is used rather than the parsed typed header so a weak validator, a
         // wildcard, an unquoted value and a multi-value header all reach the frozen If-Match syntax
         // rule instead of being silently normalized away.
@@ -163,7 +162,7 @@ public static class AccessControlEndpoints
         var result = await handler.HandleAsync(
             new Application.ReplaceAccessRole.Command(
                 roleId,
-                rawBody,
+                body,
                 context.Request.Headers["X-Request-Id"].ToString(),
                 correlationId,
                 suppliedCorrelationId,
@@ -191,13 +190,12 @@ public static class AccessControlEndpoints
             ? suppliedCorrelationId
             : context.TraceIdentifier;
         context.Response.Headers["X-Correlation-Id"] = correlationId;
-        using var reader = new StreamReader(context.Request.Body);
-        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var body = await AccessHttp.ReadAdministrativeBodyAsync(context.Request, cancellationToken);
         var ifMatch = context.Request.Headers["If-Match"];
         var result = await handler.HandleAsync(
             new Application.ArchiveAccessRole.Command(
                 roleId,
-                rawBody,
+                body,
                 context.Request.Headers["X-Request-Id"].ToString(),
                 correlationId,
                 suppliedCorrelationId,
@@ -245,13 +243,12 @@ public static class AccessControlEndpoints
             ? suppliedCorrelationId
             : context.TraceIdentifier;
         context.Response.Headers["X-Correlation-Id"] = correlationId;
-        using var reader = new StreamReader(context.Request.Body);
-        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var body = await AccessHttp.ReadAdministrativeBodyAsync(context.Request, cancellationToken);
         var ifMatch = context.Request.Headers["If-Match"];
         var result = await handler.HandleAsync(
             new Application.ReplaceWorkspaceMemberAccess.Command(
                 membershipId,
-                rawBody,
+                body,
                 context.Request.Headers["X-Request-Id"].ToString(),
                 correlationId,
                 suppliedCorrelationId,
@@ -272,6 +269,33 @@ public static class AccessControlEndpoints
 
 internal static class AccessHttp
 {
+    /// <summary>
+    /// Access administration payloads are bounded by raw bytes, not decoded characters, so
+    /// multibyte UTF-8 input cannot consume more request-buffer memory than single-byte input.
+    /// </summary>
+    internal const int MaximumAdministrativeRequestBodyBytes = 65_536;
+
+    internal static async Task<AdministrativeRequestBody> ReadAdministrativeBodyAsync(
+        HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.ContentLength > MaximumAdministrativeRequestBodyBytes)
+            return AdministrativeRequestBody.TooLarge;
+
+        var buffer = new byte[MaximumAdministrativeRequestBodyBytes + 1];
+        var read = await request.Body.ReadAtLeastAsync(
+            buffer,
+            buffer.Length,
+            throwOnEndOfStream: false,
+            cancellationToken);
+        if (read > MaximumAdministrativeRequestBodyBytes)
+            return AdministrativeRequestBody.TooLarge;
+
+        using var stream = new MemoryStream(buffer, 0, read, writable: false, publiclyVisible: true);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return new AdministrativeRequestBody(await reader.ReadToEndAsync(cancellationToken), false);
+    }
+
     internal static IResult Error(AccessOperationError error, string correlationId) =>
         Results.Json(
             new AccessProblemDetails(

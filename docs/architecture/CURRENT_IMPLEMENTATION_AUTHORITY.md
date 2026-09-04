@@ -87,13 +87,11 @@ The following remain `AUTHORITY_GAP` and are not implemented or semantically def
 - any provider/live-conformance behavior that requires external evidence not present in the repository;
 - Support SLA semantics: deadline rules, first-response event, breach, at-risk, pause, terminal behavior and the meaning of `not_applicable`, none of which current authority proves;
 - the member display name that the optional Support activity and comment documents require. See the Support Core section for all three;
-- team ownership and team membership: no owner records a team for a record and no module records a member's teams, so the `TEAM` data scope has no semantics and fails closed wherever it is evaluated;
-- `CUSTOM` data-scope semantics: `RoleDataScopePolicy.AllowedOwnerIdsJson` exists in the AccessControl model but no authority defines how an allowed-owner list is written or interpreted, so the scope fails closed;
-- administrative writes for AccessControl data-scope and field-security policy: the policies are read and enforced, but no admitted operation creates or changes one, and no policy revision or version is admitted either;
+- `TEAM` record-access semantics: Workspace can project direct membership-team identifiers, but no authoritative relationship connects both a record and the requesting member to a team for AccessControl evaluation, so `TEAM` remains unresolved and fails closed wherever it is evaluated;
+- `CUSTOM` record-access semantics: `createAccessRole` and `replaceAccessRole` admit and persist the normalized `allowedOwnerIds` representation, including an empty explicit deny-all set, but no authority admits an evaluator interpretation that could grant record access from that representation, so `CUSTOM` remains fail-closed;
 - `TaskActivity` record-access semantics: no authority settles whether an Activity belongs to the `tasks` record scope or is an independent Workspace-scoped record with its own resource descriptor, so `listActivities` and `logActivity` fail closed outside `WORKSPACE` scope;
-- `MASKED` field representation: the policy value exists and is enforced by withholding the value, but no authority defines a masked representation, so none is produced;
+- `MASKED` field representation: the policy value is admitted for role creation/replacement and is persisted, but no authority defines a masked rendering; enforcement therefore withholds the value and reports the effective field result as `HIDDEN` rather than producing invented masked content;
 - delegated inbound-Lead field security: current authority admits only the delegated `leads.create` capability evaluation for that path and defines no field-security concern for it, so interactive field policy is neither applied nor declared inapplicable;
-- a masked representation: `MASKED` is a declared field-access value with no admitted rendering, so it is enforced by withholding the value and reported as `HIDDEN` rather than being invented;
 - the mapping between the frontend field vocabulary (`subject`, `assigneeId`, `queueId`, `slaPolicyId`) and the Support wire field names. A field-security policy written against the frontend spelling cannot be enforced and fails the operation closed;
 - an authoritative member-owner concept for Product. The aggregate carries no member reference of any kind, so `OWN` scope denies every Product record rather than ownership being invented for it.
 
@@ -125,6 +123,27 @@ On 2026-08-23 the actual ApiHost started successfully against the isolated `Unic
 
 Refresh cookies remain `SameSite=Strict`. B09 must verify cookie behavior against the actual frontend/backend deployment origins before connected integration is accepted.
 
+### PLAT-SEC-01 IdentityAuth abuse protection
+
+`registerAccount`, `requestEmailVerification`, `verifyEmail`, password `signIn`, and
+`refreshSession` now enforce independent fixed-window quotas for network origin and authentication
+subject before their business handlers run. Email-subject partitioning is identical for existing and
+nonexistent accounts. Refresh subject partitioning remains stable across token rotation by using the
+credential's session identifier, while malformed credentials receive an opaque keyed partition.
+
+Throttle responses use the admitted `429` / `RATE_LIMITED` ProblemDetails contract, set
+`retryable = true`, include a positive integer `Retry-After`, disclose no account or credential
+state, and are marked `Cache-Control: no-store`. Partition identifiers are HMAC protected and no
+email, address, password, OTP, refresh credential, or partition digest is logged by the control.
+Existing password, OTP-challenge, refresh rotation/hashing, session validation, idempotency, and
+generic failure behavior remain unchanged.
+
+The exact limits, configuration contract, and deployment boundary are recorded in
+`IDENTITY_AUTH_ABUSE_PROTECTION.md`. Limiter state is process-local. Multi-instance production
+deployment therefore requires equivalent or stricter aggregate controls at a trusted ingress or in
+a distributed limiter and trustworthy client-origin propagation; this application change does not
+claim those external controls already exist.
+
 ## B02 Workspace implementation authority
 
 B02 admits and implements the two independently complete Workspace context reads:
@@ -148,7 +167,28 @@ AccessControl owns workspace-scoped roles, canonical capability assignments, mem
 
 `WorkspaceAccessRecord` remains a Workspace/bootstrap read projection and is not authorization truth. The Workspace bootstrap capability projection now consumes the approved AccessControl application boundary after trusted Workspace resolution; AccessControl does not derive permission truth from the Workspace projection. `ICurrentWorkspace` remains limited to trusted Workspace/membership identity.
 
-The current contracts mark `getWorkspaceAccessDirectory`, `createAccessRole`, `replaceAccessRole`, `archiveAccessRole`, and `replaceWorkspaceMemberAccess` as ready administrative operations. They are intentionally not part of the minimal B03 core implementation and have no callable backend route yet. Their absence is fail-closed and does not authorize inferred behavior.
+The following AccessControl administrative operations are admitted, callable, implemented, and runtime-verified. This current-state declaration supersedes the earlier minimal-B03 statement that they had no callable backend route:
+
+| Operation | Route | Current authority |
+|---|---|---|
+| `createAccessRole` | `POST /access/roles` | AccessControl creates an active version-0 Workspace role and the submitted capability, data-scope, and field-security state in one owner-local serializable transaction. It requires `access.configure` and `Idempotency-Key`; creation is serialized by the Workspace directory-revision anchor. |
+| `replaceAccessRole` | `PUT /access/roles/{roleId}` | AccessControl fully replaces an active role's mutable definition, capabilities, data scopes, and field security. It requires `access.configure`, `Idempotency-Key`, and strong quoted `If-Match` over `AccessRole.Version`; it never changes lifecycle state. |
+| `archiveAccessRole` | `POST /access/roles/{roleId}/archive` | AccessControl exclusively owns `active -> inactive`. It requires `access.configure`, `Idempotency-Key`, and strong quoted `If-Match` over `AccessRole.Version`; no reactivation operation is admitted. Capabilities, policies, and assignments remain persisted but an inactive role grants no effective authority. |
+| `replaceWorkspaceMemberAccess` | `POST /access/members/{membershipId}/access` | AccessControl fully replaces its `MembershipRoleAssignment` set for the Workspace-owned membership reference. It requires `access.configure`, `Idempotency-Key`, and strong quoted `If-Match` over AccessControl-owned `MemberAccessVersion`. Workspace-owned team links are not mutated; the currently admitted `teamIds` value is only `[]`. |
+| `getWorkspaceAccessDirectory` | `GET /access/directory` | AccessControl returns the composed Workspace directory under `access.read`, after Trusted Workspace resolution, and appends AccessControl-owned read evidence only after a successful composition. It performs no business-state mutation and has no idempotency or `If-Match` requirement. |
+
+Role create/replace owns role capability assignment and role data-scope/field-security policy persistence. Member-access replacement owns membership-role assignment only. Each fresh successful mutation writes one immutable `ACCESS_GOVERNANCE_COMMAND` audit, one operation-specific durable outbox event, and increments the AccessControl Workspace directory revision exactly once; committed replay writes none of those effects again. Role replace/archive use role version concurrency, while member-access replacement uses its distinct AccessControl-owned version. These operations access Workspace and IdentityAuth facts only through admitted read-only contracts and never through foreign persistence.
+
+The four administrative mutations above also implement the narrow transport-security amendment
+`PROJECT_EXTENSION_ACCESS_CONTROL_ADMIN_REQUEST_BODY_LIMITS`, frozen in
+`ACCESS_CONTROL_ADMIN_REQUEST_BODY_LIMITS.md`. Each body is limited to 65,536 raw bytes and an
+authorized oversized request returns `413 PAYLOAD_TOO_LARGE`. The boundary reads at most one byte
+beyond the limit and does not expose the size result until after the handler's existing
+application-level `access.configure` decision; required metadata and `If-Match` retain response
+precedence over that result. The adopted OpenAPI's omission of 413 is superseded only for these four
+operations. No AccessControl business semantic is broadened by this amendment.
+
+Admitting policy persistence does not invent policy meaning. `TEAM` and `CUSTOM` remain denied by the evaluator, and `MASKED` remains enforced by withholding/reporting `HIDDEN` because no masked rendering is authoritative. `OWN` and `WORKSPACE` retain their already admitted evaluator behavior. Data-scope and field-security policies have no independent revision; the enclosing role version and Workspace directory revision are the controlling versions.
 
 The following operations remain fail-closed `AUTHORITY_GAP`:
 
@@ -160,11 +200,11 @@ The following operations remain fail-closed `AUTHORITY_GAP`:
 
 `evaluateEffectiveRecordAccess` is no longer an authority gap. The missing business-owner record-fact contract that blocked it now exists and the operation is implemented; see *AccessControl record access implementation authority* below.
 
-Development bootstrap is configuration-only, Development-only, idempotent, and disabled by default. It creates no public provisioning endpoint and does not define production role names. Runtime verification on 2026-08-23 used isolated LocalDB databases and proved authorized context resolution, denial for an active member without the required capability, rejection of caller-supplied role/capability spoofing, foreign-Workspace isolation, and B01/B02 regressions. Therefore `B03 ACCESS CONTROL FOUNDATION: PASS`; the listed administrative omissions and authority gaps remain unimplemented and must not be invented.
+Development bootstrap is configuration-only, Development-only, idempotent, and disabled by default. It creates no public provisioning endpoint and does not define production role names. Runtime verification on 2026-08-23 used isolated LocalDB databases and proved authorized context resolution, denial for an active member without the required capability, rejection of caller-supplied role/capability spoofing, foreign-Workspace isolation, and B01/B02 regressions. Later focused verification proves the five administrative operations above. The invitation, membership-lifecycle/session, member-provisioning, and managed-credential authority gaps remain unimplemented and must not be invented. No claim of a complete or production-ready AccessControl module follows from these narrower results.
 
 ## AccessControl record access implementation authority
 
-AccessControl admits and implements `evaluateEffectiveRecordAccess`: `POST /access/records/evaluate`, and enforces the same decision at the business application boundary. It is not an administration surface: no other AccessControl administrative operation is implemented by this work, and every one listed as `AUTHORITY_GAP` above remains fail-closed.
+AccessControl admits and implements `evaluateEffectiveRecordAccess`: `POST /access/records/evaluate`, and enforces the same decision at the business application boundary. It is not an administration surface. The later administrative operations are governed by the current B03 reconciliation above; the invitation, membership-lifecycle/session, member-provisioning, and managed-credential operations listed as `AUTHORITY_GAP` remain fail-closed.
 
 The four concerns below are deliberately reported apart, because an earlier revision of this section conflated the first two and overstated what was protected.
 
@@ -234,7 +274,7 @@ Every evaluation and every enforced record decision appends one immutable `acces
 
 The owner member identifier is deliberately not stored: it is foreign business data, and the derived `OwnerMatch` boolean is what the decision turned on. Field keys are policy identifiers, not values; no business field value is recorded.
 
-`AUTHORITY_GAP`: no policy revision or version is admitted anywhere in current authority. The fingerprint is a deterministic digest of the effective capabilities, data scopes and field policies used, which is the minimum that lets two decisions be compared - identical fingerprints mean identical effective policy. It is **not** a policy version and must not be treated as one. Policy administration remains `DEFERRED`.
+No data-scope or field-security row has an independent policy revision. The fingerprint is a deterministic digest of the effective capabilities, data scopes and field policies used, which is the minimum that lets two decisions be compared - identical fingerprints mean identical effective policy. It is **not** a policy version and must not be treated as one. Policy persistence administration is now implemented through role create/replace; concurrency is governed by the enclosing role version and the Workspace access-directory revision.
 
 ### CONNECTED CONSUMER BEHAVIOR — `VERIFIED`, and not load-bearing
 
@@ -640,8 +680,8 @@ first section above. `access.RecordAccessDecisions` is unchanged in shape and ga
 `RECORD_READ_CAPABILITY_DENIED`, distinguishing a record denied for want of the read capability from
 one denied by scope. The distinction exists only in the evidence; the caller sees one answer.
 
-The policy fingerprint remains a digest, **not** a policy version. Policy administration remains
-`DEFERRED`.
+The policy fingerprint remains a digest, **not** a policy version. Policy persistence administration
+is implemented through role create/replace; no independent policy-row version was introduced.
 
 ### QUERY PERFORMANCE — `IMPLEMENTED`
 
@@ -706,8 +746,10 @@ policy behind and the next run fails on that residue rather than on a real defec
 - Product `OWN` scope remains `AUTHORITY_GAP`: the Product aggregate carries no member reference and
   none was invented, so `OWN` denies every Product.
 - `TaskActivity` record-access semantics remain `AUTHORITY_GAP`, failing closed.
-- Policy administration remains `DEFERRED`: data-scope and field-security policies are read and
-  enforced, and no admitted operation creates or changes one.
+- Policy persistence administration is implemented through `createAccessRole` and
+  `replaceAccessRole`: both can create normalized data-scope and field-security state, and replace
+  can change/remove it under the enclosing role version. This does not resolve `TEAM`, `CUSTOM`, or
+  `MASKED` rendering semantics; those remain fail-closed exactly as stated above.
 - No claim of `ACCESSCONTROL FULL MODULE: PASS` is made. The claim supported by this evidence is
   narrower: **AccessControl system-wide enforcement for the currently implemented business modules —
   AccessControl, Tasks, Leads, Deals, Products and Support — is `PASS`.**
@@ -990,7 +1032,7 @@ zero warnings under `-warnaserror`.
 | TaskActivity field-security semantics | `AUTHORITY_GAP` - field enforcement `NOT IMPLEMENTED`, fails closed |
 | Delegated Lead ingress field security | `AUTHORITY_GAP` - capability-only admission preserved, now typed |
 | Frontend/backend field-vocabulary mapping | `AUTHORITY_GAP` - unmapped keys fail closed |
-| AccessControl policy administration | `DEFERRED` - policies are read and enforced; no admitted operation creates or changes one |
+| AccessControl policy persistence administration | `IMPLEMENTED` through `createAccessRole` and `replaceAccessRole`; `TEAM`, `CUSTOM`, and masked-rendering semantics remain unresolved and fail-closed |
 
 ### H. WHAT MAY AND MAY NOT BE CLAIMED
 

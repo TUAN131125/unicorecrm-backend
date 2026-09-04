@@ -30,7 +30,9 @@ internal sealed class Handler(
         var metadataErrors = MetadataErrors(command);
         if (metadataErrors.Count != 0)
             return AccessOperationResult<AccessMutationResponse>.Failure(AccessErrors.Validation(metadataErrors));
-        if (!CreateAccessRoleNormalizer.TryNormalize(command.RawBody, out var request, out var requestErrors))
+        if (command.Body.ExceededLimit)
+            return AccessOperationResult<AccessMutationResponse>.Failure(AccessErrors.PayloadTooLarge());
+        if (!CreateAccessRoleNormalizer.TryNormalize(command.Body.Value, out var request, out var requestErrors))
             return AccessOperationResult<AccessMutationResponse>.Failure(AccessErrors.Validation(requestErrors));
 
         var trusted = currentWorkspace.Require();
