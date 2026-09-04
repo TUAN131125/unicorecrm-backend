@@ -1557,6 +1557,9 @@ VALUES ('field_gate_01', '$($script:WorkspaceId)', '$roleId', '$Resource', '$Fie
     Add-Result 'replace: unchanged READ_ONLY value is not refused' '200' $leadReplaceUnchanged.Status
     Clear-GateField
 
+    # Maintained Lead lifecycle and effective verification-profile write-set regression suite.
+    . (Join-Path $PSScriptRoot 'verify-lead-lifecycle.ps1')
+
     $gateDealVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM deals.Deals WHERE DealId = '$dealOwnId'"
     Set-GateField -Resource 'deals' -Field 'notes' -Access 'ReadOnly'
     $dealReplaceDenied = Invoke-Support -Method 'POST' -Path "/deals/$dealOwnId/update" -IdempotencyKey 'idem-gate-deal-replace-denied' `

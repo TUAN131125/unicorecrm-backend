@@ -1,0 +1,364 @@
+{
+  "schemaVersion": "4.2.1",
+  "kind": "UnicoreCRMBackendTaskPacket",
+  "identity": {
+    "taskId": "LEAD-NURTURE-FREEZE-10B",
+    "operationId": "qualifyLeadForNurture",
+    "canonicalOwner": "leads",
+    "area": "CRM",
+    "status": "PRODUCTION_CONTRACT_READY",
+    "primaryWriter": "claude-opus-5-implementer",
+    "reviewer": "pending-independent-reviewer",
+    "baseCommit": "d3b1c117ef5c03d6ae12d8d214ba86a03797ac6e",
+    "baseline": {
+      "canonicalDesignVersion": "1.0",
+      "openApiVersion": "0.23.20-contract.0",
+      "openApiSha256": "8278547df0fd4be9a9af9b8a6d5f3e15ddad8d005d804c99a7c9248e0f402757"
+    }
+  },
+  "risk": {
+    "tier": "CRITICAL",
+    "score": 8,
+    "reasons": [
+      "mutation",
+      "idempotency",
+      "concurrency",
+      "security/tenancy",
+      "event/outbox"
+    ],
+    "specialists": [
+      "CONTRACT_API",
+      "PERSISTENCE_RELIABILITY",
+      "SECURITY_TENANCY"
+    ]
+  },
+  "scope": {
+    "inScope": [
+      "qualifyLeadForNurture vertical slice (WF-10 NURTURE coordinator)",
+      "Leads qualification participant, relationship reference projection, interested-product resolution",
+      "Contacts qualification participant, conversion result receipt, canonical name bound",
+      "Tasks NURTURE follow-up participant and idempotency scope actor",
+      "Products owner-local snapshot reader consumed by Lead interested products",
+      "Maintained Lead verification harnesses"
+    ],
+    "outOfScope": [
+      "qualifyLeadForOpportunity",
+      "qualifyLeadForDirectSale",
+      "Customer creation",
+      "Deals",
+      "Quotes",
+      "Orders",
+      "commercial Product snapshots",
+      "phone identity matching",
+      "AI",
+      "frontend feature behaviour",
+      "Task 8B legacy workflow data reconciliation"
+    ],
+    "allowedWritePaths": [
+      "src/UnicoreCRM.Crm/Leads/**",
+      "src/UnicoreCRM.Crm/Contacts/**",
+      "src/UnicoreCRM.Operations/Tasks/**",
+      "src/UnicoreCRM.Sales/Products/**",
+      "src/UnicoreCRM.Workflows/**",
+      "src/UnicoreCRM.ApiHost/Program.cs",
+      "src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj",
+      "scripts/**",
+      "docs/architecture/CURRENT_IMPLEMENTATION_AUTHORITY.md",
+      "backend-work/**"
+    ],
+    "forbiddenWritePaths": [
+      "design-authority/**",
+      "roles/backend-execution/**",
+      "backend-design/frozen/**",
+      "architecture/**"
+    ]
+  },
+  "authorityEvidence": [
+    {
+      "claimId": "AUTH-OPERATION",
+      "classification": "CANONICAL_FACT",
+      "claim": "operation admission/wire metadata",
+      "sourceFile": "design-authority/contracts/openapi.json",
+      "locator": "#/paths/~1workflows~1lead-qualification~1{leadId}~1nurture/post",
+      "sourceSha256": "8278547df0fd4be9a9af9b8a6d5f3e15ddad8d005d804c99a7c9248e0f402757",
+      "derivedFrom": [],
+      "value": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "claimId": "CONTRACT-LIVE-OPENAPI",
+      "classification": "OBSERVED_FACT",
+      "claim": "The controlling live public wire contract the implementation was built and verified against. npm run api:check reports PASS (270 operations; 236 ready; 34 explicitly blocked).",
+      "sourceFile": "frontend/unicorecrm-web/docs/api/openapi.json",
+      "locator": "#/paths/~1workflows~1lead-qualification~1{leadId}~1nurture/post",
+      "sourceSha256": "d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57",
+      "derivedFrom": [],
+      "value": {
+        "committed": false,
+        "frontendHeadCommit": "c12a182f4df86976b018b09d2d9080d0ab46b722"
+      }
+    },
+    {
+      "claimId": "CONTRACT-LIVE-ARTIFACTS",
+      "classification": "OBSERVED_FACT",
+      "claim": "Generated contract artifacts required by api:check, pinned by content hash because the frontend contract subject could not be committed without unrelated in-flight product work.",
+      "sourceFile": "frontend/unicorecrm-web/docs/api/openapi.sha256",
+      "locator": "whole-file",
+      "sourceSha256": "2809a45e964a20b31ac12e7b8011917cb404ad2269c14919126bd07b93a5cb78",
+      "derivedFrom": [
+        "CONTRACT-LIVE-OPENAPI"
+      ],
+      "value": {
+        "docs/api/openapi.json": "d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57",
+        "docs/api/openapi.sha256": "2809a45e964a20b31ac12e7b8011917cb404ad2269c14919126bd07b93a5cb78",
+        "docs/api/openapi-breaking-baseline.json": "3ba13ae22f4d6747d5fc8f657b30b0fdbbb899dba18e46b4fb1119b670fb4a32",
+        "docs/api/api-operation-catalog.json": "56bf8257a52278f31965ef4b75173ac0bcf6e3df4607ebe04fbb22b25958c6f8",
+        "docs/api/generated-client-manifest.json": "43260375f33a2a9c98f5509ecc9fb819eec19c4e39852290746e89ad3fcf0ba5",
+        "docs/api/operation-coverage-ledger.json": "e93143f6260d44bb2ad93e45c10354663f95331acfc3e88ec2fe1dc896732b0d",
+        "src/platform/api/contracts/generatedOpenApiRuntimeContract.ts": "da0fa9cd0183c4aaad96515b282695457441b3c6c8f817c8a3c2c694351e9ef7",
+        "src/platform/api/catalog/generatedApiOperationCatalog.ts": "cf8d6ce9f1a2b670a455004f11ba944a9323fa343e27d00b2ef6a5d2a30c315f"
+      }
+    },
+    {
+      "claimId": "AUTHORITY-LEAD-QUALIFICATION",
+      "classification": "CANONICAL_FACT",
+      "claim": "The frozen Lead/Contact qualification authority controlling this operation.",
+      "sourceFile": "design-authority/canonical-design/authority/lead-contact-qualification-authority.md",
+      "locator": "sections 9-10",
+      "sourceSha256": "c9fcde99969ff169dd60345019a56e41563eae847185e51e584ca328c51cb274",
+      "derivedFrom": [],
+      "value": "FROZEN"
+    },
+    {
+      "claimId": "AUTHORITY-PINSET",
+      "classification": "OBSERVED_FACT",
+      "claim": "Content-hash pin set for every authority artifact controlling this freeze subject. design-authority is not a git repository, so its identity is cryptographic content hash only.",
+      "sourceFile": "design-authority/canonical-design/BASELINE.json",
+      "locator": "whole-file",
+      "sourceSha256": "16d7104bfd3ccb363fe5c680c16ccac8e46222538dbcf0afb190b270f913cdcf",
+      "derivedFrom": [
+        "AUTHORITY-LEAD-QUALIFICATION"
+      ],
+      "value": {
+        "design-authority/contracts/openapi.json": "8278547df0fd4be9a9af9b8a6d5f3e15ddad8d005d804c99a7c9248e0f402757",
+        "design-authority/contracts/openapi.sha256": "3bcaa918e0f94cc26bf6ee3fb331d0955d7a733bbfed6bd5115e86da6ebe6cff",
+        "design-authority/canonical-design/BASELINE.json": "16d7104bfd3ccb363fe5c680c16ccac8e46222538dbcf0afb190b270f913cdcf",
+        "design-authority/canonical-design/authority/lead-contact-qualification-authority.md": "c9fcde99969ff169dd60345019a56e41563eae847185e51e584ca328c51cb274",
+        "design-authority/canonical-design/authority/products-lead-snapshot-authority.md": "e0f0ea5540d64877cd2dfcb9e19152b01e7603c21bc2f987f5cd5e49e834031c",
+        "design-authority/canonical-design/authority/workflow-registry.json": "246ceb4eacd86542dad10d909b3b6301a134709dfb39bb1c694b1deb9b145852",
+        "design-authority/canonical-design/authority/operation-registry.json": "0867663e3590e690f83c42eb1635987fb11b2c3abb286fbfa0370c83fc4d40c1",
+        "design-authority/canonical-design/authority/supersession-ledger.json": "08894efe6ac3db7609ff351ff77002aa41c476cc3ad1aeef533ba718adbed5e4",
+        "design-authority/canonical-design/authority/domain-invariants.md": "d1b936274642ccba3cbf90e4a8651f38a4b3371cbab143cf267c6e24a1dec262",
+        "design-authority/canonical-design/authority/error-catalog.json": "777ba3468aa28338a30a52e8a08308aa1eaaf5a196091c277af3e044bbb3d2d4",
+        "design-authority/canonical-design/authority/file-inventory.json": "597257f28774e059b8c3f86b818df562b6496d698356cb5c965ac5aea9c86572",
+        "design-authority/canonical-design/contracts/contract-authority.md": "16d74d4f269052f1e47ec9ea5771afc5ca0827fe9c118706edd938595dd2dc11",
+        "backend/docs/architecture/CURRENT_IMPLEMENTATION_AUTHORITY.md": "a149b6dafc21868863a02c75aa96b82450e5f333616c0be6b0d1a67e9e004e31"
+      }
+    },
+    {
+      "claimId": "CONTRACT-PROVENANCE-SUPERSESSION",
+      "classification": "CANONICAL_FACT",
+      "claim": "Supersedes the Task 10B claim GAP-CONTRACT-PIN-DIVERGENCE, which classified the difference between design-authority/contracts/openapi.json (8278547d) and the live contract (d98462) as an open AUTHORITY_GAP. It is not open. supersession-ledger.json records DEC-LEAD-CONTACT-NAME-BOUND: the Contact canonical name bound is 200, LeadQualificationContactInput.displayName adopts it, the live contract and its generated artifacts were regenerated to d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57, and \"design-authority/contracts/openapi.json stays unedited as dated PINNED_FRONTEND_WIRE_EVIDENCE\". The divergence is an intended provenance freeze, not drift. The 256 it still carries was an internal contradiction inside that same document, which already declared ContactDocument.fullName and ContactDocument.displayName at 200; narrowing the input reconciled the document with a bound it had already stated canonically and introduced no new business rule. identity.baseline.openApiSha256 therefore correctly names the pinned provenance baseline while CONTRACT-LIVE-OPENAPI separately pins the controlling live contract; neither is substituted for the other.",
+      "sourceFile": "design-authority/canonical-design/authority/supersession-ledger.json",
+      "locator": "changes[] where source == DEC-LEAD-CONTACT-NAME-BOUND",
+      "sourceSha256": "08894efe6ac3db7609ff351ff77002aa41c476cc3ad1aeef533ba718adbed5e4",
+      "derivedFrom": [
+        "CONTRACT-LIVE-OPENAPI",
+        "AUTHORITY-PINSET"
+      ],
+      "value": {
+        "supersedes": "GAP-CONTRACT-PIN-DIVERGENCE",
+        "resolvedBy": "DEC-LEAD-CONTACT-NAME-BOUND",
+        "pinnedProvenanceSha256": "8278547df0fd4be9a9af9b8a6d5f3e15ddad8d005d804c99a7c9248e0f402757",
+        "pinnedProvenanceStatus": "PINNED_FRONTEND_WIRE_EVIDENCE",
+        "controllingLiveSha256": "d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57",
+        "contactCanonicalNameBound": 200
+      }
+    }
+  ],
+  "architecture": {
+    "domainFiles": [],
+    "applicationSlice": "qualifyLeadForNurture",
+    "infrastructureFiles": [],
+    "apiFiles": [],
+    "crossOwnerEdges": [
+      {
+        "from": "UnicoreCRM.Workflows.Atomic.Application",
+        "to": "UnicoreCRM.Crm.Leads.Contracts",
+        "type": "CROSS_OWNER_CONTRACT"
+      },
+      {
+        "from": "UnicoreCRM.Workflows.Atomic.Application",
+        "to": "UnicoreCRM.Crm.Contacts.Contracts",
+        "type": "CROSS_OWNER_CONTRACT"
+      },
+      {
+        "from": "UnicoreCRM.Workflows.Atomic.Application",
+        "to": "UnicoreCRM.Operations.Tasks.Contracts",
+        "type": "CROSS_OWNER_CONTRACT"
+      },
+      {
+        "from": "UnicoreCRM.Crm.Leads.Application",
+        "to": "UnicoreCRM.Sales.Products.Contracts",
+        "type": "CROSS_OWNER_CONTRACT"
+      }
+    ],
+    "persistence": {
+      "owner": "leads",
+      "dbContext": "",
+      "schema": "",
+      "migrationRoot": ""
+    }
+  },
+  "policies": {
+    "authorization": "leads.qualify",
+    "additionalCapabilities": [],
+    "workspaceRequired": true,
+    "actorRequired": true,
+    "credentialsPolicy": null,
+    "resourceScope": "RESOURCE",
+    "dataScope": "WORKSPACE",
+    "workspaceDataScope": "WORKSPACE",
+    "idempotency": "REQUIRED",
+    "concurrency": "IF_MATCH_REQUIRED",
+    "transactionBoundary": "BACKEND_ORCHESTRATED_TRANSACTION_RELATIONSHIP_TASK_AND_LEAD",
+    "audit": "IMMUTABLE_COMMAND_AUDIT_AND_WORKFLOW_EVIDENCE",
+    "eventOutbox": "LEAD_QUALIFIED_FOR_NURTURE_AND_FOLLOW_UP_TASK_CREATED",
+    "workflow": null,
+    "provider": null,
+    "retentionPrivacy": null
+  },
+  "implementationFreedom": {
+    "allowedChoices": [],
+    "approvalRequired": []
+  },
+  "verification": {
+    "unit": [],
+    "integration": [
+      "TEST-IDEM-SAME",
+      "TEST-IDEM-INPROGRESS",
+      "TEST-CONC-STALE",
+      "TEST-TX-ROLLBACK",
+      "TEST-AUDIT",
+      "TEST-OUTBOX-ATOMIC"
+    ],
+    "contract": [
+      "TEST-CONTRACT-EXACT"
+    ],
+    "architecture": [],
+    "negative": [
+      "TEST-AUTH-DENY",
+      "TEST-IDEM-REUSE"
+    ],
+    "twoWorkspaceIsolation": [
+      "TEST-TENANT-CROSS"
+    ],
+    "providerConformance": [],
+    "externalConformance": {
+      "required": false
+    }
+  },
+  "stopConditions": [
+    "AUTHORITY_GAP",
+    "BLOCKED_OPERATION",
+    "UNAPPROVED_CROSS_OWNER_DEPENDENCY",
+    "FOREIGN_PERSISTENCE_REQUIRED",
+    "PERSISTENCE_OWNER_UNASSIGNED",
+    "CANONICAL_CONFLICT",
+    "BASELINE_DRIFT",
+    "WRITE_SCOPE_VIOLATION",
+    "AUTHORITY_UNVERIFIED"
+  ],
+  "completion": {
+    "changedFiles": [
+      "docs/architecture/CURRENT_IMPLEMENTATION_AUTHORITY.md",
+      "scripts/ContactQualificationParticipantVerifier/Program.cs",
+      "scripts/LeadNurtureQualificationVerifier/Program.cs",
+      "scripts/LeadNurtureQualificationVerifier/UnicoreCRM.Workflows.NurtureVerifier.csproj",
+      "scripts/verify-access-control-record-access.ps1",
+      "scripts/verify-lead-interested-products.ps1",
+      "scripts/verify-lead-lifecycle.ps1",
+      "scripts/verify-lead-nurture-qualification-api.ps1",
+      "scripts/verify-lead-nurture-qualification.ps1",
+      "src/UnicoreCRM.ApiHost/Program.cs",
+      "src/UnicoreCRM.Crm/Contacts/Application/ResolveQualificationContact/Handler.cs",
+      "src/UnicoreCRM.Crm/Contacts/Contracts/ContactQualificationParticipant.cs",
+      "src/UnicoreCRM.Crm/Contacts/Domain/ContactEvidence.cs",
+      "src/UnicoreCRM.Crm/Contacts/Domain/ContactNameBound.cs",
+      "src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/ContactsDbContext.cs",
+      "src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs",
+      "src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/Migrations/20260903070156_ContactQualificationResultReceipt.Designer.cs",
+      "src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/Migrations/20260903070156_ContactQualificationResultReceipt.cs",
+      "src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/Migrations/ContactsDbContextModelSnapshot.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/AdvanceLeadWorkState/Handler.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/Common/LeadCommandSupport.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/Common/LeadInterestedProductResolution.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/Common/LeadProjection.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/Common/LeadRecordAccess.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/Common/LeadValidation.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/Common/LeadsApplication.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/CreateLead/LeadCreateAdmission.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/CreateLead/LeadCreateExecution.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/QualifyLeadForNurture/Handler.cs",
+      "src/UnicoreCRM.Crm/Leads/Application/ReplaceLeadProfile/Handler.cs",
+      "src/UnicoreCRM.Crm/Leads/Contracts/LeadContracts.cs",
+      "src/UnicoreCRM.Crm/Leads/Contracts/LeadQualificationParticipant.cs",
+      "src/UnicoreCRM.Crm/Leads/Domain/Lead.cs",
+      "src/UnicoreCRM.Crm/Leads/Domain/LeadProfile.cs",
+      "src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/LeadsDbContext.cs",
+      "src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/Migrations/20260903020311_LeadQualificationRelationship.Designer.cs",
+      "src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/Migrations/20260903020311_LeadQualificationRelationship.cs",
+      "src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/Migrations/LeadsDbContextModelSnapshot.cs",
+      "src/UnicoreCRM.Crm/Leads/LeadsModule.cs",
+      "src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj",
+      "src/UnicoreCRM.Operations/Tasks/Application/Common/TaskCommandSupport.cs",
+      "src/UnicoreCRM.Operations/Tasks/Application/Common/TasksApplication.cs",
+      "src/UnicoreCRM.Operations/Tasks/Application/CreateLeadNurtureFollowUp/Handler.cs",
+      "src/UnicoreCRM.Operations/Tasks/Application/CreateTask/Handler.cs",
+      "src/UnicoreCRM.Operations/Tasks/Contracts/LeadQualificationTaskParticipant.cs",
+      "src/UnicoreCRM.Operations/Tasks/TasksModule.cs",
+      "src/UnicoreCRM.Sales/Products/Application/Common/ProductsApplication.cs",
+      "src/UnicoreCRM.Sales/Products/Application/ReadProductSnapshots/Handler.cs",
+      "src/UnicoreCRM.Sales/Products/Contracts/ProductSnapshotReader.cs",
+      "src/UnicoreCRM.Sales/Products/Infrastructure/Persistence/EfProductsPersistence.cs",
+      "src/UnicoreCRM.Sales/Products/ProductsModule.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Application/QualifyLeadForNurture/Handler.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Application/QualifyLeadForNurture/NurtureRequestValidation.cs",
+      "src/UnicoreCRM.Workflows/Atomic/AtomicModule.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Contracts/LeadQualificationEndpoints.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Contracts/LeadQualificationWireContracts.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Contracts/LeadQualificationWorkflow.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Domain/LeadQualificationAnchor.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/20260903020308_LeadQualificationAnchor.Designer.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/20260903020308_LeadQualificationAnchor.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/20260903023638_LeadQualificationAnchorResponse.Designer.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/20260903023638_LeadQualificationAnchorResponse.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/20260903070156_NurtureRecoveryFacts.Designer.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/20260903070156_NurtureRecoveryFacts.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/WorkflowsDbContextModelSnapshot.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/WorkflowsDbContext.cs",
+      "src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/WorkflowsDbContextFactory.cs",
+      "src/UnicoreCRM.Workflows/UnicoreCRM.Workflows.csproj",
+      "src/UnicoreCRM.Workflows/WorkflowsModule.cs"
+    ],
+    "migrations": [
+      "20260903020308_LeadQualificationAnchor",
+      "20260903020311_LeadQualificationRelationship",
+      "20260903023638_LeadQualificationAnchorResponse",
+      "20260903070156_ContactQualificationResultReceipt",
+      "20260903070156_NurtureRecoveryFacts"
+    ],
+    "testsExecuted": [],
+    "deviations": [
+      "No adopted gate registry: build/architecture/contract/integration/negative/two-workspace gate argv all target dotnet test projects that do not exist in this repository.",
+      "Cross-owner contract edges required by this slice are not present in approvedCrossOwnerEdges (empty by design).",
+      "Task 10C: B4 (GAP-CONTRACT-PIN-DIVERGENCE) closed through existing authority and reclassified as CONTRACT-PROVENANCE-SUPERSESSION. Governance admission remains blocked on the architecture and contract gate definitions, which cannot be made executable without rebasing this subject (IMMUTABLE_SUBJECT_REBIND_REQUIRED).",
+      "Task 10C: allowedWritePaths declares backend-work/** because validate_diff_scope counts untracked files and hardening-policy.json machineManagedRuntimePaths omits backend-work/handoffs/** and backend-work/diagnostics/**, though transition_task.py requires handoffs/ to exist. Reported to the governance owner; the shipped manifest was not edited."
+    ],
+    "remainingRisks": [
+      "DEPLOYMENT_PREREQUISITE: legacy workflow anchors with IntentVersion != 1 are refused, never reconstructed.",
+      "DEPLOYMENT_PREREQUISITE: legacy Contact conversion receipts with a null ResultJson stay fail-closed.",
+      "AUTHORITY_FOLLOW_UP: exhausted internal contention ends as the admitted INTERNAL_ERROR/500; the public taxonomy has no correctly classified retriable internal-contention code.",
+      "DOC: AtomicModule comment still states the NURTURE coordinator maps no route; ApiHost maps it. Not corrected here so the freeze subject stays byte-identical to the reviewed source."
+    ]
+  }
+}

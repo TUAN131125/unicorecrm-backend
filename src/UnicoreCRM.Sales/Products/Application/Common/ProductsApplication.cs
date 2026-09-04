@@ -47,6 +47,16 @@ internal interface IProductsPersistence
     /// non-null value can never match and the query correctly returns nothing.
     /// </param>
     Task<IReadOnlyList<Product>> ReadProductsAsync(string workspaceId, string? scopeOwnerMemberId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One batch read backing the snapshot reader. The trusted Workspace is a query predicate, so a
+    /// Product of another Workspace is simply never returned and is indistinguishable from an
+    /// unknown identifier.
+    /// </summary>
+    Task<IReadOnlyList<Product>> ReadProductSnapshotsAsync(
+        string workspaceId,
+        IReadOnlyCollection<string> productIds,
+        CancellationToken cancellationToken);
     /// <summary>
     /// Loads the explicitly named Products of one batch, scoped by trusted Workspace in the query.
     /// A named Product belonging to another Workspace is simply not returned, so the batch cannot

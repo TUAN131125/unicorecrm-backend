@@ -37,7 +37,7 @@ internal sealed partial class Handler(
     /// locks cover gaps, so adjacent keys can contend - which is exactly why the decision is left to
     /// the re-drive rather than inferred from the exception.
     /// </summary>
-    private const int MaxCreateAttempts = 2;
+    private const int MaxResolutionAttempts = 2;
 
     public async Task<ResolveQualificationContactResult> ResolveAsync(
         ResolveQualificationContactCommand command,
@@ -46,12 +46,28 @@ internal sealed partial class Handler(
         if (!IsTrustedWorkspaceConsistent(command.TrustedWorkspace))
             return Reject(ContactQualificationRejection.InvalidInput);
 
-        return command.Mode switch
+        for (var attempt = 1; attempt <= MaxResolutionAttempts; attempt++)
         {
-            ContactQualificationMode.Existing => await LinkExistingAsync(command, cancellationToken),
-            ContactQualificationMode.New => await CreateNewAsync(command, cancellationToken),
-            _ => Reject(ContactQualificationRejection.InvalidInput)
-        };
+            try
+            {
+                return command.Mode switch
+                {
+                    ContactQualificationMode.Existing => await LinkExistingAsync(command, cancellationToken),
+                    ContactQualificationMode.New => await CreateNewAsync(command, cancellationToken),
+                    _ => Reject(ContactQualificationRejection.InvalidInput)
+                };
+            }
+            catch (Exception exception) when (IsConcurrencyFailure(exception) && attempt < MaxResolutionAttempts)
+            {
+                // The owner transaction has rolled back and discarded its tracked writes. EF may
+                // wrap a deadlock raised during SaveChanges, so classify the underlying SQL error.
+            }
+            catch (Exception exception) when (IsConcurrencyFailure(exception))
+            {
+                return Reject(ContactQualificationRejection.ConcurrentConflict);
+            }
+        }
+        return Reject(ContactQualificationRejection.ConcurrentConflict);
     }
 
     /// <summary>
@@ -64,7 +80,7 @@ internal sealed partial class Handler(
             || string.Equals(currentWorkspace.Require().WorkspaceId, supplied.WorkspaceId, StringComparison.Ordinal));
 
     /// <summary>
-    /// EXISTING. Validates and returns; it never writes. The supplied <c>Contact</c> object is
+    /// EXISTING. Validates and records a resolution receipt; it never mutates the Contact. The supplied <c>Contact</c> object is
     /// ignored for identity and is deliberately not applied, because applying it would be the
     /// BLOCKED <c>updateContact</c> mutation under another name.
     /// </summary>
@@ -91,6 +107,13 @@ internal sealed partial class Handler(
             return Reject(ContactQualificationRejection.ContactNotResolvable);
         }
 
+        if (string.IsNullOrWhiteSpace(command.ConversionKey))
+            return Reject(ContactQualificationRejection.InvalidInput);
+
+        await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+        var scopeKey = ConversionScopeKey(command.TrustedWorkspace.WorkspaceId, command.ConversionKey);
+        var receipt = await persistence.FindConversionAsync(scopeKey, cancellationToken);
+
         var contact = await persistence.ReadContactAsync(
             command.TrustedWorkspace.WorkspaceId,
             selectedContactId,
@@ -102,13 +125,24 @@ internal sealed partial class Handler(
         if (denied is not null)
             return Reject(ContactQualificationRejection.ContactNotResolvable);
 
-        // No mutation, so no command audit and no outbox message. No read audit either: this is an
-        // internal identity validation, not a public Contact disclosure, and writing a getContact
-        // read record would attribute a disclosure that did not happen.
-        return new ResolveQualificationContactResult(
+        if (receipt is not null)
+        {
+            var replay = Replay(receipt, wasCreated: false);
+            return replay.ContactId == selectedContactId ? replay : Reject(ContactQualificationRejection.InvalidInput);
+        }
+
+        // A durable resolution receipt preserves the exact owner-returned name/version if the
+        // coordinator loses this acknowledgment. It changes no Contact, command audit or outbox.
+        var result = new ResolveQualificationContactResult(
             ContactQualificationDecision.Linked,
             contact.ContactId,
-            contact.Version);
+            contact.Version,
+            DisplayName: contact.FullName);
+        persistence.AddConversion(new ContactConversionRecord(scopeKey, command.TrustedWorkspace.WorkspaceId,
+            command.ConversionKey, contact.ContactId, JsonSerializer.Serialize(result), timeProvider.GetUtcNow()));
+        await persistence.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     /// <summary>
@@ -119,9 +153,13 @@ internal sealed partial class Handler(
         ResolveQualificationContactCommand command,
         CancellationToken cancellationToken)
     {
+        // 200 is the Contact canonical name bound frozen by DEC-LEAD-CONTACT-NAME-BOUND: it is what
+        // ContactDocument.fullName declares and what this owner's column holds. The coordinator now
+        // enforces the same bound on the qualification input, so reaching this branch means a caller
+        // bypassed the public route; it stays as this owner's own last word on its own aggregate.
         if (command.Contact is not { } input
             || string.IsNullOrWhiteSpace(input.DisplayName)
-            || input.DisplayName.Trim().Length > 200
+            || input.DisplayName.Trim().Length > ContactNameBound.MaxLength
             || string.IsNullOrWhiteSpace(command.OwnerId)
             || string.IsNullOrWhiteSpace(command.ConversionKey))
         {
@@ -131,24 +169,7 @@ internal sealed partial class Handler(
         var scopeKey = ConversionScopeKey(command.TrustedWorkspace.WorkspaceId, command.ConversionKey);
         var normalizedEmail = ContactEmailIdentity.Normalize(input.Email);
 
-        for (var attempt = 1; attempt <= MaxCreateAttempts; attempt++)
-        {
-            try
-            {
-                return await AttemptCreateAsync(command, input, scopeKey, normalizedEmail, cancellationToken);
-            }
-            catch (SqlException exception) when (IsConcurrencyFailure(exception) && attempt < MaxCreateAttempts)
-            {
-                // Nothing was committed by this attempt. Re-drive so the guard can observe whatever
-                // the winning transaction committed and reach a determinate decision.
-            }
-            catch (SqlException exception) when (IsConcurrencyFailure(exception))
-            {
-                return Reject(ContactQualificationRejection.ConcurrentConflict);
-            }
-        }
-
-        return Reject(ContactQualificationRejection.ConcurrentConflict);
+        return await AttemptCreateAsync(command, input, scopeKey, normalizedEmail, cancellationToken);
     }
 
     private async Task<ResolveQualificationContactResult> AttemptCreateAsync(
@@ -165,17 +186,8 @@ internal sealed partial class Handler(
         var existingConversion = await persistence.FindConversionAsync(scopeKey, cancellationToken);
         if (existingConversion is not null)
         {
-            var replayed = await persistence.ReadContactAsync(
-                command.TrustedWorkspace.WorkspaceId,
-                existingConversion.ContactId,
-                cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return replayed is null
-                ? Reject(ContactQualificationRejection.ContactNotResolvable)
-                : new ResolveQualificationContactResult(
-                    ContactQualificationDecision.Replayed,
-                    replayed.ContactId,
-                    replayed.Version);
+            return Replay(existingConversion, wasCreated: true);
         }
 
         if (normalizedEmail is not null
@@ -203,17 +215,28 @@ internal sealed partial class Handler(
                 WorkEmail = Trimmed(input.Email),
                 MobilePhone = Trimmed(input.Phone),
                 JobTitle = Trimmed(input.Title),
+                // The frozen consent transfer: restriction-only and true-only. A false or absent
+                // Lead flag omits the field, because writing false would assert an affirmative
+                // permission that nobody granted. Nothing else crosses: no consent ledger, no
+                // lawfulBasis, no preferredChannel, no SMS or Zalo restriction - the Lead carries no
+                // such value to transfer.
+                DoNotCall = Restriction(command.DoNotCall),
+                DoNotEmail = Restriction(command.DoNotEmail),
                 // A declared read-only projection of fullName, not an independent fact.
                 DisplayName = fullName
             },
             now);
 
         persistence.AddContact(contact);
+        var result = new ResolveQualificationContactResult(
+            ContactQualificationDecision.Created, contact.ContactId, contact.Version,
+            DisplayName: contact.FullName, WasCreated: true);
         persistence.AddConversion(new ContactConversionRecord(
             scopeKey,
             command.TrustedWorkspace.WorkspaceId,
             command.ConversionKey,
             contact.ContactId,
+            JsonSerializer.Serialize(result),
             now));
         persistence.AddAudit(new ContactAuditRecord(
             Operation,
@@ -241,21 +264,33 @@ internal sealed partial class Handler(
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return new ResolveQualificationContactResult(
-            ContactQualificationDecision.Created,
-            contact.ContactId,
-            contact.Version);
+        return result;
+    }
+
+    private static ResolveQualificationContactResult Replay(ContactConversionRecord receipt, bool wasCreated)
+    {
+        // Legacy receipts lack the original name/version. Never fabricate them from current rows.
+        var original = receipt.ResultJson is null ? null
+            : JsonSerializer.Deserialize<ResolveQualificationContactResult>(receipt.ResultJson);
+        return original is not { IsSuccess: true, ContactVersion: not null, DisplayName: not null }
+            || original.ContactId != receipt.ContactId || original.WasCreated != wasCreated
+            ? Reject(ContactQualificationRejection.ContactNotResolvable)
+            : original with { Decision = wasCreated ? ContactQualificationDecision.Replayed : ContactQualificationDecision.Linked };
     }
 
     private static string? Trimmed(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    /// <summary>Only a restriction survives. Unknown and "not restricted" are both unset.</summary>
+    private static bool? Restriction(bool? value) => value == true ? true : null;
+
     private static ResolveQualificationContactResult Reject(ContactQualificationRejection rejection) =>
         new(ContactQualificationDecision.Rejected, null, null, rejection);
 
     // 1205 deadlock victim; 1222 lock request timeout. Both mean this attempt committed nothing.
-    private static bool IsConcurrencyFailure(SqlException exception) =>
-        exception.Number is 1205 or 1222;
+    private static bool IsConcurrencyFailure(Exception exception) => exception is SqlException sql
+        ? sql.Number is 1205 or 1222
+        : exception.InnerException is not null && IsConcurrencyFailure(exception.InnerException);
 
     private static string ConversionScopeKey(string workspaceId, string conversionKey)
     {

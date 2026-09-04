@@ -102,6 +102,14 @@ public sealed record DisqualifyLeadRequest(string? Reason, string? Evidence);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ReopenDisqualifiedLeadRequest;
 
+/// <summary>
+/// The adopted <c>LeadRelationshipRef</c>. Its declared vocabulary is <c>CONTACT | ORGANIZATION</c>,
+/// which differs from the platform-wide <c>RelationshipRef</c> vocabulary
+/// (<c>CONTACT | ORGANIZATION_ACCOUNT</c>). Only <c>CONTACT</c> is produced today, where the two
+/// agree; the divergence is a recorded contract fact, not a defect to normalize here.
+/// </summary>
+public sealed record LeadRelationshipRefDocument(string Type, string Id);
+
 public sealed record LeadDocument(
     string Id,
     string DisplayName,
@@ -121,6 +129,13 @@ public sealed record LeadDocument(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Email { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Phone { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? QualificationOutcome { get; init; }
+
+    /// <summary>
+    /// The adopted <c>LeadDocument.relationshipRef</c>. It is the conversion reference for a
+    /// positively qualified Lead; the contract declares no <c>contactId</c> field on the Lead.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public LeadRelationshipRefDocument? RelationshipRef { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? NextFollowUpAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Priority { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<string>? Tags { get; init; }

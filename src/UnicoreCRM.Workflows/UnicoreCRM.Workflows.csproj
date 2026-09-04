@@ -5,7 +5,15 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
     <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+    <!-- Workflows consumes owner participant contracts only. It opens no foreign DbContext. -->
+    <ProjectReference Include="../UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
   </ItemGroup>
 </Project>

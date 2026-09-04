@@ -29,9 +29,9 @@ Implementation phase identifiers such as B00-B09 are planning and history metada
 
 For every operation it declares, `frontend/unicorecrm-web/docs/api/openapi.json` controls the exact current HTTP wire contract. Its currently generated SHA-256 is:
 
-`fd079b2f6e189ffe391d555cee1d2acaa735cf532346cc74a02070862bd78792`
+`d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57`
 
-This matches `frontend/unicorecrm-web/docs/api/openapi.sha256`. It supersedes `f3a0273e9d8847b5bcd8c673810e2a9e8d0e70031da12b4dc2a8dd338a2354b6`, which was current until the Support customer-enrichment amendment recorded below. The amendment was applied through the repository generator pipeline (`npm run api:generate`), which rewrote the contract hash and every derived artifact, and the `quality.api-contract` gate passes on the result. The verified file declares 270 operations: 236 contain a 2xx response contract and 34 contain no 2xx response contract. Operations without an admitted success contract remain fail-closed and must not be implemented as callable success paths.
+This matches `frontend/unicorecrm-web/docs/api/openapi.sha256`. It supersedes `fd079b2f6e189ffe391d555cee1d2acaa735cf532346cc74a02070862bd78792`, which was current until the Lead qualification Contact name-bound amendment (`DEC-LEAD-CONTACT-NAME-BOUND`; `LeadQualificationContactInput.displayName` `maxLength` 256 -> 200, recorded below), which in turn superseded `f3a0273e9d8847b5bcd8c673810e2a9e8d0e70031da12b4dc2a8dd338a2354b6`, current until the Support customer-enrichment amendment. The amendment was applied through the repository generator pipeline (`npm run api:generate`), which rewrote the contract hash and every derived artifact, and the `quality.api-contract` gate passes on the result. The verified file declares 270 operations: 236 contain a 2xx response contract and 34 contain no 2xx response contract. Operations without an admitted success contract remain fail-closed and must not be implemented as callable success paths.
 
 Presence of a 2xx OpenAPI response contract does **not**, by itself, authorize backend implementation. OpenAPI controls the exact HTTP wire contract for declared operations; implementation readiness must still be reconciled with:
 
@@ -1073,7 +1073,11 @@ Quoted `If-Match` is required on `getProductAvailability` and `getProductPricePr
 
 ### Product Commercial Reference / Snapshot Authority
 
-Classification: `PARTIALLY_RESOLVED`. Current evidence resolves ownership, live-reference identity, lifecycle use, and historical-immutability rules. It does not admit a cross-owner Products application contract or an exact Product-supplied commercial snapshot field set. The machine-readable `AG-PRODUCT-SNAPSHOT` / Product snapshot-reference `AUTHORITY_GAP` therefore remains correct and fail-closed.
+Classification: `PARTIALLY_RESOLVED`. Current evidence resolves ownership, live-reference identity, lifecycle use, and historical-immutability rules.
+
+**Amended 2026-09-03 by `DEC-PRODUCTS-LEAD-INTERESTED-PRODUCT-SNAPSHOT`.** The **Leads** leg is now closed: a narrow Products-owned reader supplies exactly `productId`, `name`, `sku`, `productType`, `status` and `version` for a set of distinct identifiers in one owner-local batch read, and Leads captures them as an immutable snapshot. The full record is `design-authority/canonical-design/authority/products-lead-snapshot-authority.md`. It closed because the open questions in this section are entirely commercial - which price, tax and billing fields a command captures, and how `pricingVersion` binds them - and the Lead contract requires none of them: `LeadInterestedProductReadModel` requires only `productNameSnapshot`, declares no price, tax or billing field, and its one `Money` field is the caller-supplied `expectedBudget` echoed from the request rather than a Product price.
+
+The **Deals, Quotes and direct Order** legs are unchanged and remain fail-closed, so `AG-PRODUCT-SNAPSHOT` stays open for them and Deals continues to reject non-empty `lineItems`. No Products, Quotes or Orders behavior is changed, and no runtime integration is implemented by that record.
 
 #### LIVE PRODUCT REFERENCE
 
@@ -1097,7 +1101,7 @@ Once captured by its owning commercial command, a Quote or Order snapshot is not
 
 #### DOWNSTREAM OWNERSHIP
 
-Quotes owns Quote roots, versions, line snapshots, adjustments, pricing results, approval evidence, and delivery evidence. Orders owns Order roots, line and adjustment snapshots, payment-agreement snapshots, and Order lifecycle evidence. Products remains the sole owner of Product master/catalog truth and exposes no persistence implementation. Leads and Deals may continue storing scalar Product identifiers where their admitted contracts already allow them, but their populated Product-name/pricing snapshot paths remain blocked: Leads rejects non-empty `interestedProducts`, and Deals rejects non-empty `lineItems`, until an admitted Products-owned contract supplies the required current facts. No Leads, Deals, Quotes, or Orders behavior is changed by this authority decision.
+Quotes owns Quote roots, versions, line snapshots, adjustments, pricing results, approval evidence, and delivery evidence. Orders owns Order roots, line and adjustment snapshots, payment-agreement snapshots, and Order lifecycle evidence. Products remains the sole owner of Product master/catalog truth and exposes no persistence implementation. Deals may continue storing scalar Product identifiers where its admitted contracts already allow them, but its populated Product-name/pricing snapshot path remains blocked: Deals rejects non-empty `lineItems` until an admitted Products-owned commercial contract supplies the required current facts. The Leads `interestedProducts` path is no longer blocked as authority - `DEC-PRODUCTS-LEAD-INTERESTED-PRODUCT-SNAPSHOT` admits its reader - though the Leads runtime still refuses non-empty input until that integration is implemented. No Leads, Deals, Quotes, or Orders behavior is changed by this authority decision.
 
 #### ARCHIVED PRODUCT BEHAVIOR
 
@@ -1105,7 +1109,9 @@ Historical Quote and Order snapshots remain readable and unchanged after Product
 
 #### REMAINING AUTHORITY GAPS
 
-The following decisions remain unresolved and block a safe Products-to-commercial-owner contract: the intent-specific contract operation and approved consumers; the exact Product-owned fields supplied for Leads, Deals, Quotes, and direct Orders; whether capture is one atomic Products read or a composed availability-plus-pricing read; the required expected-version input and snapshot Product-version evidence; whether and how `pricingVersion` binds historical price inputs; treatment of concurrent Product changes during capture; and reconciliation of caller-supplied Quote/Order name, price, tax, type, description, billing, and fulfillment fields with Product authority. Until those decisions are closed, no Products-owned snapshot DTO is introduced and no foreign module may access Products persistence or fabricate Product-owned facts.
+The following decisions remain unresolved and block a safe Products-to-**commercial**-owner contract: the exact Product-owned fields supplied for Deals, Quotes and direct Orders; whether and how `pricingVersion` binds historical price inputs; and reconciliation of caller-supplied Quote/Order name, price, tax, type, description, billing, and fulfillment fields with Product authority. Until those decisions are closed, no Products-owned commercial snapshot DTO is introduced and no foreign module may access Products persistence or fabricate Product-owned facts.
+
+Four items previously listed here are now closed **for the Leads consumer only** by `DEC-PRODUCTS-LEAD-INTERESTED-PRODUCT-SNAPSHOT`: the intent-specific contract operation and its approved consumer; the exact Product-owned field set for Leads; that capture is one owner-local batch read rather than a composed availability-plus-pricing read; and the version evidence, which is captured and persisted owner-locally with no caller-supplied expected version, because the pinned Lead input declares no field for one. Concurrent Product change during capture is likewise resolved for that leg: a single batch read, the read version recorded as provenance, an accepted and named capture window, and explicitly no distributed transaction.
 
 Quotes has many independently admitted owner-local operations and owns the commercial terms that Orders later consume, while accepted Quote conversion explicitly copies immutable Quote truth into an Order. Orders additionally depends on Quote conversion, payment agreement/confirmation, fulfillment and invoice eligibility, credit approval, and workflow authority; `WF-12` Order Closing still requires reconciliation and `WF-14` generic Order Creation remains blocked. Nevertheless, current connected Quote and direct-Order inputs can carry Product-shaped names/prices/tax/type data without an admitted Products source or Product-version binding. Therefore neither a complete Product-backed Quotes Core nor a complete direct-Order Core can safely be selected next. The dependency decision is `NEITHER — AUTHORITY/DEPENDENCY GAP FIRST`: close the narrow Products commercial-facts/version/pricing capture contract before implementing either core. Once closed, Quotes precedes Orders because Quotes owns the accepted commercial terms copied by the Quote-to-Order workflow.
 
@@ -3723,6 +3729,632 @@ Therefore `CONTACTS IDENTITY PROJECTION: PASS`, `CONTACT QUALIFICATION PARTICIPA
 `CONTACT PARTICIPANT REPLAY: PASS`, and `PUBLIC CONTACT MUTATIONS: NONE / STILL BLOCKED`. This is
 task-specific executable evidence, not a Control 1.2 independent-review attestation or a release
 freeze.
+
+## NURTURE Lead Qualification workflow core implementation authority
+
+Implemented 2026-09-03. This slice implements steps 3, 4 and 5 of the frozen implementation order in
+`lead-contact-qualification-authority.md` section 10.4: the Leads terminal-qualification state and
+close participant, the Tasks conversion participant, and the Workflows NURTURE coordinator with its
+durable anchor. It reopens none of the frozen decisions.
+
+**No public qualification route exists.** `qualifyLeadForNurture`, `qualifyLeadForOpportunity` and
+`qualifyLeadForDirectSale` remain `ADMITTED_NOT_IMPLEMENTED` as public operations, the retired
+generic `qualifyLead` still has no route, and public exposure remains blocked by gate `G-1`, the
+consent-transfer decision. The workflow is reachable only through an internal application boundary.
+
+### Leads
+
+`LeadQualificationOutcome` gains `Nurture`. `Opportunity` and `DirectSale` are deliberately **not**
+added: their workflows have no implemented downstream participant, and an unreachable member would
+misrepresent what this owner can produce. `Lead` gains the scalar `RelationshipType` /
+`RelationshipId` pair projected as the adopted `LeadDocument.relationshipRef`; they create no EF
+navigation, no foreign key and no Contacts persistence access. **No `QualifiedAt`, `QualifiedBy` or
+`ContactId` column was added**, as frozen - qualification time and actor stay authoritative in the
+Leads command audit record, and the verifier asserts the absence of all three columns.
+
+`Lead.QualifyForNurture` is the terminal transition: it requires `VERIFYING` and re-evaluates
+`HasProgressiveProfile()` rather than inferring completeness from the work state, because
+`replaceLeadProfile` can leave a `VERIFYING` Lead incomplete. It is terminal - `Lead.Reopen` still
+admits only a DISQUALIFIED closed Lead - so a positively qualified Lead can never be reopened.
+
+`ILeadQualificationParticipant` exposes two operations. `PrepareAsync` validates every frozen
+precondition - `leads.qualify`, the record decision, existence, exact `If-Match`, `VERIFYING` and the
+progressive profile - and mutates nothing; it exists so an unknown, foreign, scope-denied, stale or
+incomplete Lead can never leave a Contact behind. `CloseForNurtureAsync` runs through the ordinary
+`LeadMutationExecution`, so the owner's idempotency, record guard, `If-Match` check, immutable
+command audit and atomic outbox staging apply unchanged; the resolved `contactId` is part of the
+command fingerprint, so replaying a key against a different relationship is a genuine idempotency
+conflict rather than a silent re-point. The event type is `LEAD_QUALIFIED_FOR_NURTURE`.
+`relationshipRef` is added to the Leads field-security vocabulary and is now projected.
+
+### Tasks
+
+`ILeadQualificationTaskParticipant` accepts only the facts the frozen NURTURE contract carries and
+composes the follow-up Task itself; it is not a generic Task creation gateway and Tasks authority is
+not broadened. It delegates to the existing `createTask` execution, so `tasks.create` is enforced at
+the Tasks application boundary and Tasks' own validation, idempotency, audit and outbox are reused
+rather than re-implemented. `revisitAt` becomes the due date; the Contact and the source Lead are
+carried as the scalar `relationshipRef` and `sourceRef` the public `createTask` contract already
+admits, so no new Task schema was needed. The NURTURE `reason` is recorded by
+`DEC-LEAD-NURTURE-REASON-HOME`, below, and supersedes the earlier statement that an over-long reason
+is truncated to the Task title limit.
+
+### Workflows
+
+Workflows gains its first persistence: `WorkflowsDbContext` over the `workflow` logical schema,
+holding only `workflow.LeadQualificationAnchors`. It holds no business state of any owner, and the
+assembly opens no foreign `DbContext` and no foreign Domain or Infrastructure type - proven by a
+static scan in the verifier.
+
+The anchor's primary key **is** the frozen workflow identity: a hash of the trusted `WorkspaceId`,
+the workflow operation, the `leadId` and the caller's `Idempotency-Key`. Two concurrent requests
+carrying the same key therefore contend on the insert rather than both starting an execution. It
+retains the effective-intent `Fingerprint`, the `ExpectedLeadVersion`, a forward-only `Stage`
+(`Started -> ContactResolved -> TaskCreated -> Completed`), and the resolved `ContactId`, `TaskId`
+and terminal `LeadVersion`. A stage is entered only after the participant commit it names has
+actually committed, so an interrupted coordinator leaves a stage that is true rather than optimistic.
+The anchor is Workflows-owned coordination state and is explicitly **not** the Contacts participant's
+conversion record: Contacts owns its own replay state for its own aggregate and neither substitutes
+for the other.
+
+Progression is: validate and authorize the Lead gate, resolve the Contact, persist the anchor with
+the resolved `contactId`, create the follow-up Task, persist the `taskId`, close the Lead, mark the
+anchor complete. The order is forced - closing the Lead first would commit a Lead whose
+`relationshipRef` points at a Contact that does not exist, violating the frozen lifecycle invariant,
+so Contact-first is the only order in which every individually committed state is independently
+valid. Intent is compared before anything runs, so replaying a key with a changed intent can never
+resolve a second Contact or create a second Task. A completed workflow is answered from the anchor,
+never from Lead state, because after a successful close the Lead is legitimately CLOSED and would
+fail its own precondition.
+
+The Contact conversion key and the Task idempotency key are both derived from the anchor identity, so
+each participant's own idempotency converges independently of whether the anchor update survived.
+There is **no distributed transaction and no compensation**: a committed Contact or Task is never
+deleted, and recovery only moves the anchor forward. Concurrent duplicates that lose a deadlock
+committed nothing in the step they lost, so the coordinator re-drives up to three times and resumes
+from durable state; exhaustion returns the admitted `INTERNAL_ERROR`. Every reported error uses an
+already-declared code: no new code was minted.
+
+### Verification
+
+`scripts/verify-lead-nurture-qualification.ps1` with `scripts/LeadNurtureQualificationVerifier`
+applies the real Workspace, AccessControl, Leads, Contacts, Tasks and Workflows migrations to an
+isolated LocalDB database, seeds real Workspace and active-membership rows, provisions real access
+through the production `IInitialWorkspaceAccessProvisioning` contract, and drives the coordinator
+through production DI. It reported `PASS=125 FAIL=0`.
+
+Proven: the anchor physical model and that its primary key is the workflow identity; VERIFYING + NEW
+contact yields one Contact owned by the Lead owner, one Task, and a Lead that is CLOSED / NURTURE /
+`relationshipRef` CONTACT with exactly one version advance, one command audit and one
+`LEAD_QUALIFIED_FOR_NURTURE` outbox message; VERIFYING + EXISTING contact creates no Contact, does not
+advance the Contact version or change its name, and still produces one Task and a closed Lead;
+replay across three executions returns `REPLAYED` with the same Contact, Task and Lead version and
+creates no second anything; recovery when the Contact committed but no anchor was ever written adopts
+that Contact through the conversion key; recovery when Task and close committed but completion was not
+recorded converges through the Leads idempotency record; recovery when the anchor holds a Contact but
+the Task was refused converges once the capability is restored; changed intent under the same key is
+`IDEMPOTENCY_KEY_REUSED` and creates nothing; a stale `If-Match` is `VERSION_CONFLICT` and creates no
+Contact or Task; a NEW-state Lead and a profile-incomplete VERIFYING Lead are both
+`LEAD_INVALID_TRANSITION` with nothing created; unknown and foreign-Workspace Leads are
+`RESOURCE_NOT_FOUND` and byte-identical to each other; a duplicate address and an unresolvable
+`selectedId` both collapse to `LEAD_QUALIFICATION_RELATIONSHIP_INVALID` and are indistinguishable;
+missing `tasks.create` returns `LEAD_QUALIFICATION_DOWNSTREAM_CAPABILITY_REQUIRED` while the
+already-committed Contact survives undeleted and the Lead stays open; the same address in another
+Workspace qualifies independently; three concurrent duplicates produce one Contact, one Task, one
+anchor and one Lead version advance with every caller agreeing on the identifiers; no `deals`,
+`customers`, `quotes` or `orders` row is written; and static scans prove Workflows touches no foreign
+persistence type and that no lead-qualification or generic qualify route is mapped anywhere.
+
+One defect was found and fixed by this verification: under three concurrent duplicates a SQL deadlock
+escaped the coordinator as an unhandled `DbUpdateException`. The bounded contention re-drive
+described above was added in response, and the concurrency case then converged.
+
+Regressions on 2026-09-03: `verify-contacts-read-core.ps1` `passed=67 failed=0`;
+`verify-contact-qualification-participant.ps1` `PASS=75 FAIL=0`;
+`verify-access-control-record-access.ps1` `PASS=404 FAIL=0`; `verify-inbound-lead-webhook.ps1`
+passed; the full solution builds with zero warnings and zero errors; and
+`dotnet ef migrations has-pending-model-changes` reports none for `WorkflowsDbContext`,
+`LeadsDbContext` or `ContactsDbContext`. No existing assertion was changed, removed or weakened.
+
+Therefore `LEADS TERMINAL QUALIFICATION STATE: PASS`, `LEAD QUALIFICATION PARTICIPANT: PASS`,
+`TASKS NURTURE PARTICIPANT: PASS`, `WORKFLOW DURABLE ANCHOR: PASS`,
+`NURTURE COORDINATOR CONVERGENCE: PASS`, `CRASH RECOVERY: PASS`, `CONCURRENCY: PASS`,
+`PUBLIC QUALIFICATION ROUTE: NONE`, and `G-1 CONSENT TRANSFER: STILL BLOCKED`. This is task-specific
+executable evidence, not a Control 1.2 independent-review attestation or a release freeze.
+
+## Consent transfer closure and NURTURE qualification public exposure
+
+Implemented 2026-09-03. Phase A closed gate `G-1` as `DEC-LEAD-CONTACT-CONSENT-TRANSFER`, recorded in
+`lead-contact-qualification-authority.md` section 11. Phase B exposed the admitted operation
+`qualifyLeadForNurture` at `POST /workflows/lead-qualification/{leadId}/nurture`. The workflow core
+was not redesigned.
+
+### Consent authority
+
+The implemented Lead carries exactly three communication facts: `DoNotCall`, `DoNotEmail` and
+`PreferredChannel`. `LeadProfile` has no consent ledger, no `DoNotSms` and no `DoNotZalo`, and
+`recordLeadConsent` has no implementation anywhere, so there is no consent ledger and no SMS or Zalo
+restriction to transfer - not by rule, but because no such value exists. The channel and decision
+vocabularies are in fact **identical** across the two owners (`CALL | EMAIL | SMS | ZALO` and
+`GRANTED | DENIED | WITHDRAWN | UNKNOWN`), so a ledger transfer would be expressible; it is not
+performed only because the source is never populated.
+
+**The frozen rule, for `mode=NEW` only:** `Lead.doNotCall == true` writes `Contact.doNotCall = true`
+and `Lead.doNotEmail == true` writes `Contact.doNotEmail = true`. A `false` or absent flag **omits**
+the Contact field rather than writing `false`, because `doNotEmail: false` asserts that this person
+may be emailed and deriving that from a Lead-stage default would fabricate affirmative consent.
+Absence is unknown. Only a restriction is ever written, so qualification is monotone by construction
+and has no expressible way to widen a permission. `preferredChannel`, `doNotSms`, `doNotZalo`,
+`doNotContact`, `doNotContactReason`, `lawfulBasis` and the whole consent ledger are not transferred,
+and no ledger entry is synthesized - a `CommunicationConsentLedgerEntry` would have to assert a
+channel, a decision, a source and an instant for a consent event that never occurred. Provenance is
+the existing Leads and Contacts command audit records, correlated by `correlationId`.
+
+**`mode=EXISTING` mutates the Contact in no way at all** - no consent field, no restriction, no
+version, no `updatedAt`. `updateContact` is BLOCKED and no consent-mutation contract is admitted.
+
+`G-1` is closed. The narrower residual **`R-3`** replaces it and does not block exposure: a
+restriction newly learned at Lead stage does not propagate onto an existing Contact, because writing
+it would be an unadmitted Contact mutation. That is a non-propagation, not a weakening - the existing
+Contact keeps every restriction it already held - so the security invariant holds.
+
+### Public operation
+
+`POST /workflows/lead-qualification/{leadId}/nurture`, `operationId` `qualifyLeadForNurture`, mapped
+by Workflows with `RequireAuthorization()` and `RequireTrustedWorkspace()`. It conforms to the pinned
+contract exactly: the adopted `QualifyLeadNurtureRequest` in, a single 200
+`LeadQualificationWorkflowResponse` out, `X-Workspace-Id`, `X-Request-Id`, `X-Correlation-Id`,
+`Idempotency-Key` and `If-Match` all required, and only already-declared error codes. No wire field,
+success shape, error code or header was added. `qualifyLeadForOpportunity`,
+`qualifyLeadForDirectSale` and the retired generic `qualifyLead` remain unmapped, and `createContact`
+and `updateContact` remain BLOCKED.
+
+The endpoint is a thin transport adapter. It parses headers and the body, maps the closed
+relationship vocabulary, and delegates; it takes no precondition, authorization, idempotency,
+concurrency or convergence decision, so no second authority is created. Both `COMMITTED` and
+`REPLAYED` are 200, with the distinction carried in the response body as the contract declares. An
+unadmitted `kind` - including `ORGANIZATION_ACCOUNT`, whose owner has no admitted mutation contract -
+is a clean `LEAD_QUALIFICATION_RELATIONSHIP_INVALID` rather than a parse failure.
+
+Everything else is reuse: authentication, trusted Workspace resolution, `leads.qualify`, Lead record
+access, the caller's `Idempotency-Key` and `If-Match`, the workflow durable anchor, and the Contacts,
+Tasks and Leads participants, all unchanged.
+
+### Participant changes
+
+Minimal and consent-driven. `LeadQualificationPreparation` now returns the Lead's two restriction
+flags, because only Leads may read Lead state; the coordinator forwards them and never interprets
+them. `ResolveQualificationContactCommand` takes them as server-derived parameters kept deliberately
+separate from the caller-supplied contact content, and Contacts writes only `true`.
+`LeadQualificationClosure` now surfaces the Leads command identity, instant and evidence identifiers
+so the wire response reports what that owner actually committed rather than anything the coordinator
+composed; `ResolveQualificationContactResult` returns the Contact display name and
+`LeadNurtureTaskResult` the Task version, both required by the wire result. The anchor gained a
+`ResponseJson` column so a replay returns the original response verbatim with only its outcome
+relabelled, rather than one recomposed from partial state. The request-level `ownerId` assigns the
+follow-up Task; the Contact's record owner is always the Lead owner.
+
+### Verification
+
+`scripts/verify-lead-nurture-qualification-api.ps1` drives the real route over HTTP against a real
+ApiHost and an isolated database, building Lead fixtures through the public Leads API and Contact
+fixtures with controlled SQL. It reported `passed=95 failed=0`.
+
+Proven end to end: unauthenticated refusal; NEW qualification returning 200 COMMITTED with the Lead as
+`aggregateId`, `NURTURE`, a CONTACT `relationshipRef`, both created resources, a real `commandId` and
+an emitted Lead event; exactly one Contact, one NURTURE Task and one Lead terminal transition; the
+qualified Lead reading back CLOSED/NURTURE with `relationshipRef` and with **no** `contactId`,
+`qualifiedAt` or `qualifiedBy` field on the wire; `doNotCall` and `doNotEmail` transferring for a
+restricted Lead while no consent ledger, `doNotSms`, `doNotZalo` or `preferredContactChannel` is
+invented; an unrestricted Lead leaving both flags unset rather than `false`; EXISTING linking without
+creating a Contact and leaving the stored Contact byte-identical; replay returning REPLAYED with the
+same Contact and Task and no second Task or version advance; changed intent under the same key as
+`IDEMPOTENCY_KEY_REUSED`; a missing `Idempotency-Key` refused; stale `If-Match` as `VERSION_CONFLICT`
+with nothing created; a NEW-state Lead and a profile-incomplete VERIFYING Lead both
+`LEAD_INVALID_TRANSITION` with nothing created; a duplicate address refused without disclosing any
+Contact identity; unknown and foreign-Workspace Leads indistinguishable at 404; a lost completion
+resuming over the public route and converging on the same Contact and Task; missing `leads.qualify`
+denied with nothing created; missing `tasks.create` returning
+`LEAD_QUALIFICATION_DOWNSTREAM_CAPABILITY_REQUIRED` with the committed Contact undeleted and the Lead
+still open, then converging on the same Contact once restored; no `deals`, `customers`, `quotes`,
+`orders` or `products` row written; and the sibling qualification operations, the retired generic
+operation and `createContact` all still unexposed.
+
+Regressions on 2026-09-03: `verify-lead-nurture-qualification.ps1` `PASS=128 FAIL=0`;
+`verify-contact-qualification-participant.ps1` `PASS=75 FAIL=0`; `verify-contacts-read-core.ps1`
+`passed=67 failed=0`; `verify-access-control-record-access.ps1` `PASS=404 FAIL=0`;
+`verify-inbound-lead-webhook.ps1` passed; the full solution builds with zero warnings and zero
+errors.
+
+One assertion in the internal workflow verifier was **strengthened**, not weakened. It previously
+asserted that no lead-qualification route existed anywhere, which encoded the pre-exposure state. It
+now asserts that exactly one such route exists, that it is the nurture route, and that the
+opportunity, direct-sale and generic-qualify routes are all still absent.
+
+Therefore `CONSENT TRANSFER: FROZEN`, `G-1: CLOSED`,
+`NURTURE PUBLIC QUALIFICATION: IMPLEMENTED_AND_RUNTIME_VERIFIED`,
+`qualifyLeadForNurture: ADMITTED_IMPLEMENTED`,
+`qualifyLeadForOpportunity / qualifyLeadForDirectSale: ADMITTED_NOT_IMPLEMENTED`, and
+`createContact / updateContact: BLOCKED`. This is task-specific executable evidence, not a Control
+1.2 independent-review attestation or a release freeze.
+
+## Lead interested products implementation authority
+
+Implemented 2026-09-03. This slice implements the runtime admitted by
+`DEC-PRODUCTS-LEAD-INTERESTED-PRODUCT-SNAPSHOT` (`products-lead-snapshot-authority.md`). Non-empty
+`interestedProducts` is now accepted on `createLead` and `replaceLeadProfile`; the previous
+fail-closed branch is gone. No wire contract changed, and no Lead qualification, Customer, Deal,
+Quote, Order or AI behaviour changed.
+
+### The Products-owned reader
+
+Products exposes `IProductSnapshotReader` in `Products/Contracts`. It is public C# because Leads is a
+different assembly; it maps no route and widens no public Products surface. It takes a set of
+identifiers and returns, per identifier, `Resolved` with the frozen six-field projection - `productId`,
+`name`, `sku`, `productType`, `status`, `version` - or `NotResolvable`, or `NotEligible`. It returns
+no `ProductDocument` and no price, tax, billing, description, category, unit, tag or archive fact.
+
+Products decides eligibility, not Leads: only `ACTIVE` is capturable, reusing the frozen availability
+predicate. Leads never inspects a Product status and never opens `ProductsDbContext`.
+
+`products.read` is evaluated once at the Products application boundary through the canonical
+evaluator. A refusal returns no entry at all, so a denied consumer learns nothing about any Product -
+not even whether the identifiers it supplied exist. The record scope is applied once as a set-level
+decision with zero per-row evaluations; because Products has no member-owner fact, a restrictive
+scope resolves uniformly to "no Product visible" and every identifier becomes indistinguishably
+unresolvable. The backing read is one batch query whose trusted-Workspace predicate is in the query
+itself, so a foreign-Workspace Product is never materialised and unknown and foreign are the same
+outcome by construction rather than by a comparison that could drift.
+
+### Leads
+
+`LeadInterestedProduct` gains `SkuSnapshot`, `ProductTypeSnapshot` and `ProductVersionSnapshot`. The
+first two populate the already-declared optional `skuSnapshot` and `productTypeSnapshot` wire fields;
+the version is **persisted but never projected**, because `LeadInterestedProductReadModel` is
+`additionalProperties: false` and declares no version field. No migration was needed - the Lead
+profile is persisted as JSON. No Product price, tax or billing fact is persisted.
+
+`LeadValidation.TryProfile` now returns caller **intents** rather than snapshots, and validates
+structure only: entity-id shape, interest level, quantity range, note length, budget shape, the
+500-entry cap, and duplicate `productId` rejection. Duplicates are refused because `productId` is the
+entry identity that decides preserve-versus-recapture on replace, so a duplicate would make that rule
+non-deterministic. Product existence and eligibility are left to Products.
+
+**Create.** After the idempotency replay branch, the interactive admission captures every entry
+through the reader, then the field-write guard and the active-member check run against the captured
+profile. One unresolvable or ineligible entry fails the whole command and writes no Lead: there is no
+partial commit and no silently dropped entry.
+
+**Replace.** The submitted collection is the desired state. An identifier the Lead already carries
+keeps its captured snapshot - same entry id, name, SKU, type, version and `createdAt` - and takes only
+the caller's own `interestLevel`, `estimatedQuantity`, `expectedBudget` and `note`. An identifier the
+Lead did not carry is a fresh capture at the current Product version with a new entry id. An
+identifier no longer submitted is dropped. A retained entry is never revalidated, so archiving a
+Product after capture cannot make an unrelated Lead edit fail, and no captured name is ever silently
+refreshed. Resolution runs in the command's own precondition hook, inside its serializable
+transaction and after its replay branch.
+
+**Delegated inbound ingress stays fail-closed.** `LeadCreateAdmission` now carries the capture
+decision, because capture reads Products-owned facts and is therefore an authorization question. The
+interactive model captures normally; the delegated Integrations ingress refuses a non-empty
+collection, since its admitted authorization concern is exactly one delegated `leads.create`
+evaluation and no delegated `products.read` is admitted for that path. An empty or omitted collection
+is unaffected, so webhook behaviour is unchanged.
+
+### Idempotency and concurrency
+
+The command fingerprint covers the caller's **intents**, never the resolved snapshots. Binding
+snapshots into the key would make a replay after a Product rename compute a different fingerprint and
+conflict against its own original command - the same reason the frozen Products rule excludes current
+database state from create/replace fingerprints. A replay is therefore answered from stored evidence
+alone and calls Products not at all, so a Product renamed or archived after commit cannot turn a
+replay into a failure. A changed interested-product intent under the same key still returns
+`IDEMPOTENCY_KEY_REUSED`. `If-Match`, audit, outbox and Workspace isolation are untouched, and no
+cross-DbContext transaction exists: Products reads in its own pass and Leads commits in its own
+owner-local transaction.
+
+### Errors and disclosure
+
+Only the already-admitted `VALIDATION_FAILED` (422) and `ACCESS_DENIED` (403) are used; no error code
+was minted. Unknown, foreign-Workspace and structurally invalid identifiers produce one identical
+message. `NotEligible` produces a different message, which discloses nothing new because the caller
+holds `products.read` and could read the status through `getProduct` anyway. Field errors are indexed
+to the caller's own entry, which reveals only what the caller sent.
+
+### Verification
+
+`scripts/verify-lead-interested-products.ps1` drives Lead create and replace over HTTP against a real
+ApiHost and an isolated database, using real Products created through the public Products API. It
+reported `passed=52 failed=0`.
+
+Proven: create with one and with several interested Products, with name, SKU and type snapshots and
+the caller's own fields preserved; the capture version persisted owner-locally and absent from the
+wire; no Product price, tax, billing or cycle fact anywhere in the Lead response; duplicate
+`productId` rejected naming the offending entry; unknown Product rejected disclosing no Product fact;
+a real foreign-Workspace Product rejected byte-identically to an unknown one; an archived Product
+rejected as ineligible, with a message distinct from unresolvable; a mixed-validity batch rejected
+all-or-nothing with no Lead written by any rejection path; missing `products.read` denied with no Lead
+written and no Product fact disclosed, while a Lead without interested products still succeeds without
+that capability; replace removing an omitted Product; replace preserving a retained entry's id and
+name while taking its new interest level, quantity and note; a Product rename after capture leaving
+both the stored Lead and the original create response unchanged; an archived retained Product not
+blocking an unrelated Lead edit; a re-added Product capturing a fresh snapshot with a new entry id; a
+newly added archived Product refused; replay after a Product rename returning the original snapshot
+with `REPLAYED` and no second Lead; changed interested-product intent under the same key returning
+`IDEMPOTENCY_KEY_REUSED`; stale `If-Match` still `412`; and no Lead operation - create, rejection,
+replay, conflict or stale command - moving the Products command-audit count.
+
+Regressions on 2026-09-03: `verify-products-core.ps1` passed; `verify-lead-nurture-qualification.ps1`
+`PASS=128 FAIL=0`; `verify-access-control-record-access.ps1` `PASS=404 FAIL=0`;
+`verify-inbound-lead-webhook.ps1` passed; the full solution builds with zero warnings and zero errors.
+
+Therefore `LEAD INTERESTED PRODUCTS: PASS`, `PRODUCTS SNAPSHOT READER: PASS`,
+`LEAD SNAPSHOT IMMUTABILITY: PASS`, `REPLACE PRESERVE SEMANTICS: PASS`,
+`COMMERCIAL PRODUCT FACTS: NOT INCLUDED`, and `AG-PRODUCT-SNAPSHOT (Leads leg): IMPLEMENTED`. The
+Deals, Quotes and Orders legs remain fail-closed and unchanged. This is task-specific executable
+evidence, not a Control 1.2 independent-review attestation or a release freeze.
+
+## Lead qualification contract closure - Contact name bound and complete request validation
+
+Closes the last two defects the independent Lead final review raised against the NURTURE
+qualification operation. Authority: `DEC-LEAD-CONTACT-NAME-BOUND`
+(`lead-contact-qualification-authority.md` section 12) and `DEC-LEAD-CONTACT-DUPLICATE-POLICY`
+section 9.4. No route, operation, capability, error code or admission row was added, and Task 8A
+authorization ordering and Task 8B recovery semantics are unchanged.
+
+### G1 - the Contact canonical name bound
+
+`LeadQualificationContactInput.displayName` declared `maxLength` 256 while `ContactDocument.fullName`
+and its read-only `displayName` projection, both BLOCKED Contacts mutation requests, and the
+`contacts.Contacts.FullName` column all declared 200. The frozen transfer stores the qualification
+display name **verbatim after trimming** into `Contact.fullName`, so a 201-256 character input had no
+lossless destination; the runtime already refused it, as a relationship error, by a bound the public
+contract never published.
+
+**Frozen: the qualification input adopts the Contact bound - `minLength` 1, `maxLength` 200.**
+Widening Contact to 256 was not available: `fullName` is a *required* field of the response schema of
+the implemented, runtime-verified `getContact` and `listContacts`, so a longer name would make those
+operations emit contract-invalid responses, and closing that would mean rewriting a Contacts-owned
+schema, both BLOCKED Contacts requests and Contacts persistence for a capacity no authority asks for.
+Exactly one rule leaves every existing frozen statement true, so this is a derivation rather than a
+preference. `LeadQualificationOrganizationInput.displayName` stays at 256; the ORGANIZATION_ACCOUNT
+leg remains out of scope and BLOCKED.
+
+The live contract was amended through the repository generator pipeline
+(`npm run api:generate -- --accept-breaking-baseline`), which rewrote the contract hash and every
+derived artifact and recorded the tightening in the reviewed breaking-change baseline;
+`quality.api-contract` passes on the result. The contract SHA-256 is now
+`d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57`.
+`design-authority/contracts/openapi.json` is deliberately unedited: `contract-authority.md` declares
+it dated `PINNED_FRONTEND_WIRE_EVIDENCE`, already one amendment behind, and rewriting provenance to
+match a later decision would destroy the evidence it exists to preserve.
+
+The number now has one home per owner. `ContactNameBound.MaxLength` is the Contacts-owned constant
+used by both the qualification participant and the EF column configuration;
+`NurtureRequestValidation.DisplayNameMaxLength` is the coordinator's copy of the same published wire
+bound. Contacts keeps its own identical last word on its own aggregate, because an owner must not
+depend on a coordinator to protect its invariant.
+
+### F6 - the complete request contract, enforced before the first owner mutation
+
+The coordinator is **deterministic convergent and never compensates**: it commits Contact, then Task,
+then the Lead close in three owner-local transactions, and a committed Contact is never deleted to
+tidy up a later refusal. A field admitted by a partial check could therefore only be refused after a
+Contact already existed. The review proved exactly that: a 1001-character `reason` committed, because
+the Tasks participant truncates the reason into the follow-up Task title, and an invalid `revisitAt`
+failed only at the Tasks boundary, after the Contact.
+
+**Prevention, not compensation.** `NurtureRequestValidation` is the single authority for the adopted
+`QualifyLeadNurtureRequest` and runs as the coordinator's first statement, before Workspace
+resolution, before the `leads.qualify` gate, before the anchor is read and before any participant is
+called. It is purely request-shaped - it reads no Lead, Contact or anchor state - so running it ahead
+of the Task 8A gate discloses nothing. It accumulates every field error rather than short-circuiting.
+
+Enforced, all from the pinned schema: `relationship.contact` is required for **both** modes, because
+the schema requires it and accepting a contract-invalid body merely because EXISTING ignores that
+object would make the wire contract advisory; `relationship.organization` is refused on a CONTACT
+relationship, since it is declared only for the unadmitted ORGANIZATION_ACCOUNT kind and discarding it
+would silently drop a caller assertion; EXISTING requires a `selectedId` that is a valid `EntityId`,
+and NEW requires its **absence**, because NEW asserts the person does not exist and naming an existing
+Contact in the same breath is a contradiction the backend may not resolve by picking a limb;
+`displayName` 1-200, `email` `maxLength` 320 under the same `MailAddress` round-trip rule Leads
+already applies to its own `format: email` fields, `phone` 1-64, `title` 0-160, `reason` 1-1000,
+`note` 0-4000, `ownerId` as an `EntityId`, and `revisitAt` as a UTC date-time ending in `Z` under the
+identical rule Tasks applies to `dueAt` - so a value that passes here cannot fail there after a
+Contact has committed. Bounds are applied to the trimmed value, because the trimmed value is what is
+stored. The wire record types remain `JsonUnmappedMemberHandling.Disallow`, so an undeclared member is
+still a closed-schema refusal.
+
+To make this checkable the intent record now carries whether the body declared a `contact` object and
+whether it declared an `organization` object. Neither fact survives a projection to nullable strings,
+and without them the coordinator could not validate the contract it enforces. The transport adapter
+stays a mapper: it sets the two flags and takes no decision. The idempotency fingerprint is unchanged
+- it enumerates its fields explicitly - so Task 8B intent identity is untouched.
+
+Every structural refusal is `VALIDATION_FAILED` (422) with the exact field pointer, which is the code
+already used for this operation's header and relationship-shape refusals and is `fieldLevelApplicable`
+in the error catalog. `LEAD_QUALIFICATION_RELATIONSHIP_INVALID` keeps its existing meaning: an
+unadmitted `kind`/`mode` vocabulary, and Contacts-owned resolution failures.
+
+### Error mapping - the frozen duplicate pointer
+
+`DEC-LEAD-CONTACT-DUPLICATE-POLICY` section 9.4 freezes `LEAD_QUALIFICATION_RELATIONSHIP_INVALID`,
+422, field pointer `relationship.contact.email` for a duplicate address. That pointer had been lost:
+every Contacts rejection collapsed into one pointer-less error. It is restored for `DuplicateEmail`
+only; every other rejection stays pointer-less, so an unresolvable EXISTING identifier remains
+indistinguishable from a record the caller may not read. This discloses nothing new - on a NEW request
+the caller already learns duplicate-versus-created from the refusal itself, which is what section 9.1
+froze - and it still carries no `contactId`, no match count and no Contact field value. The source
+comment that forbade projecting *any* rejection detail was written before section 9.4 and is corrected
+in place.
+
+### Authority reconciliation
+
+Two stale statements from the earlier tasks are narrowed, neither reopening an implementation.
+`workflow-registry.json` WF-10 said `ADMITTED_NOT_IMPLEMENTED` / `NOT_IMPLEMENTED` for the whole
+workflow; it now records `ADMITTED_PARTIALLY_IMPLEMENTED` with a per-operation breakdown -
+`qualifyLeadForNurture` implemented, `qualifyLeadForOpportunity` and `qualifyLeadForDirectSale`
+not - matching `operation-registry.json`, which was already correct. No generic or commercial
+qualification outcome is admitted by that change. `products-lead-snapshot-authority.md` section 7 said
+`products.read` was required for *any* command carrying a non-empty `interestedProducts`; it now says
+what sections 5.2 and 6.2 already froze and what the code already does - the capability attaches to a
+**new capture**, and a retained entry, a removal, a committed replay and an empty list each perform no
+Products call and require nothing.
+
+### Verification
+
+`scripts/verify-lead-nurture-qualification-api.ps1` `passed=231 failed=0` and
+`scripts/verify-lead-nurture-qualification.ps1` `PASS=334 FAIL=0`, both on 2026-09-03, each against a
+real isolated database and, for the API suite, a real ApiHost over the real route.
+
+The maintained regression cases added by this task, each proving refusal **and** that the global
+owner-effect snapshot - Contacts, Contact audit, Contact outbox, conversion receipts, Tasks, Task
+audit, Task outbox, Lead audit, Lead outbox, workflow anchors, and the summed Lead versions and work
+states - is byte-identical afterwards: invalid email; over-limit and empty `reason`; malformed and
+non-UTC `revisitAt`; over-limit `note`, `title` and `phone`; over-limit `displayName`; malformed NEW
+without a contact object and without a `displayName`; malformed EXISTING without a `selectedId`,
+without a contact object, and with a non-identifier `selectedId`; inconsistent NEW carrying a
+`selectedId`; an unadmitted `organization` on a CONTACT relationship; an invalid `ownerId`; and an
+undeclared request member. The G1 boundary is proven from both sides - a 200-character name qualifies
+and is returned and stored **whole**, which is what rules out a silent truncation, and 201 is refused
+with `relationship.contact.displayName` and zero effects. The duplicate refusal is proven to carry
+`relationship.contact.email` and nothing else, and the unresolvable EXISTING identifier to carry no
+pointer at all while staying indistinguishable in status and code. Valid NEW, valid EXISTING and the
+completed replay all still succeed.
+
+Nothing was weakened. The one fixture change is the internal verifier's unresolvable-EXISTING case,
+which supplied no contact object at all; it now supplies a contract-valid one, so it still proves the
+unresolvable identifier rather than a malformed body, which is proven separately.
+
+Task 8A and Task 8B regressions all pass unchanged: 57 of 57 `8A:`/`8B:` assertions in the public
+suite, covering current `leads.qualify` before anchor disclosure, byte-for-byte replay and conflict
+non-disclosure under revoked capability and under OWN/TEAM/CUSTOM scope, canonical Lead record access,
+`TaskOwnerId` in the immutable intent, `If-Match` excluded from the intent fingerprint,
+refreshed-token partial recovery, durable participant result adoption, stable Contact and Task
+identities and the convergent completed response.
+
+Adjacent regressions on 2026-09-03: `verify-contact-qualification-participant.ps1` passed;
+`verify-lead-interested-products.ps1` `passed=52 failed=0`;
+`verify-access-control-record-access.ps1`, which hosts the maintained Lead lifecycle and field-write
+suite, `PASS=556 FAIL=0`; `verify-inbound-lead-webhook.ps1` passed with no failed check; the
+`quality.api-contract` gate PASS on the amended contract (270 operations, 236 ready, 34 blocked); the
+full solution builds with zero warnings and zero errors; and `WorkflowsDbContext`, `LeadsDbContext`,
+`ContactsDbContext`, `DealsDbContext` and `ProductsDbContext` each report no pending EF model changes.
+**No migration was created**: the only persistence touch replaced the literal `200` with the constant
+that already equals it, so the model is unchanged.
+
+### Named residuals
+
+**The Task follow-up owner is validated for shape here and for membership at the Tasks boundary.** An
+`ownerId` that is a well-formed `EntityId` but is not an active member of the trusted Workspace is
+refused by Tasks after the Contact has committed. That is a state-dependent business validation owned
+by Tasks, evaluated only on a genuinely new command so a replay cannot be retroactively invalidated,
+and re-deciding it in the coordinator would duplicate Tasks' authority over its own aggregate. Task
+8B's forward-only recovery already covers exactly this shape - the same partial state the
+`tasks.create` capability case produces - and a re-drive converges on the same Contact. Recorded, not
+silently accepted.
+
+**`file-inventory.json` remains a dated fingerprint, not a maintained integrity ledger.** Eleven
+authority artifacts already diverged from it before this task, including `operation-registry.json` and
+`supersession-ledger.json`; `workflow-registry.json`, `lead-contact-qualification-authority.md` and
+`products-lead-snapshot-authority.md` now join them. Re-hashing it is a registry-reconciliation task
+of its own and is deliberately not done here, on the same reasoning that keeps the pinned OpenAPI
+provenance unedited.
+
+Therefore `G1: CLOSED`, `F6: FIXED`, `NURTURE REQUEST CONTRACT: ENFORCED PRE-EFFECT`,
+`DUPLICATE FIELD POINTER: RESTORED`, `TASK 8A: NO REGRESSION` and `TASK 8B: NO REGRESSION`. This is
+task-specific executable evidence, not a Control 1.2 independent-review attestation or a release
+freeze.
+
+
+## NURTURE final correctness - reason preservation and transient contention semantics
+
+Two correctness defects found by the independent review of the completed NURTURE implementation. Both
+are narrow corrections to already-implemented behaviour; no Lead feature is added and the Task 8A,
+8B and 8C closures are unchanged.
+
+### FN-1 - `DEC-LEAD-NURTURE-REASON-HOME`: where the qualification reason lives
+
+**The defect.** `QualifyLeadNurtureRequest.reason` is admitted at `minLength` 1 / `maxLength` 1000.
+The Tasks participant derived the follow-up Task title from it and `createTask.title` stops at 300, so
+every accepted reason of 301-1000 characters was silently cut to 300: the caller received 200, the
+Lead closed, and part of an admitted business fact was destroyed with no refusal, no warning and no
+other copy. The Lead qualification aggregate retains no reason of its own, so nothing recovered it.
+
+**The bounds do not permit a free choice.** The admitted sinks in `CreateTaskRequest` are `title`
+(1-300), `description` (0-4000) and `sourceRef.evidence` (0-1000). The admitted sources are `reason`
+(1-1000) and `note` (0-4000). `description` already carries `note` and cannot also hold `reason`:
+4000 + 1000 exceeds the one field's declared bound, so composing them would reintroduce the same
+silent loss under a different name. `sourceRef.evidence` is bounded at exactly the reason's own 1000
+and is already written by this participant, whose `sourceRef` carries the source Lead as declared
+provenance evidence.
+
+**Frozen.** The complete accepted `reason` is written to the Lead source reference's
+`sourceRef.evidence`; the Task **title** is a *bounded derived summary* of it. Both are already
+admitted fields of the pinned `createTask` contract and both are projected by `TaskReadModel`, so:
+
+1. no public contract is widened - `reason` keeps its 1-1000 bound and `title` keeps its 300;
+2. no persistence field is invented - `tasks.Tasks.SourceEvidence` is `nvarchar(1000)` since
+   `InitialTasks`, and `dotnet ef migrations has-pending-model-changes` reports none;
+3. no business fact is duplicated - the reason has exactly one home, and the title is a declared
+   derivation of it, not a second copy of the fact;
+4. no cross-owner Lead copy is introduced - Leads persists nothing new;
+5. `sourceRef` is already one field-security key covering evidence, so no new write is unguarded.
+
+The derivation is a pure function of immutable caller intent, so a re-drive after a lost
+acknowledgment composes byte-identical Task input, reaches the Tasks idempotency record and returns
+the originally committed Task. The workflow fingerprint is unchanged - it already enumerated
+`Reason` - so Task 8B intent identity and the F3/F4/F5 closures are untouched.
+
+This supersedes the earlier recorded statement that "an over-long reason is truncated to the Task
+title limit". That statement described a lossy derivation with no canonical basis; the canonical
+design authority nowhere authorises discarding an admitted caller fact, and the bound conflict is the
+same shape as `G1`, which was resolved by reconciling the contracts rather than by silent truncation.
+
+### FN-2 - transient Contacts contention is not a relationship verdict
+
+**The defect.** Contacts already classifies its own conditions correctly: exhausting its bounded
+deadlock retry returns the typed `ContactQualificationRejection.ConcurrentConflict`, deliberately
+distinct from `DuplicateEmail`, `ContactNotResolvable` and `InvalidInput`. The coordinator collapsed
+*every* unsuccessful resolution into `LEAD_QUALIFICATION_RELATIONSHIP_INVALID` (422), so a transient
+database contention was reported to the caller as permanent invalid input - a `retryable: false`
+validation verdict on a command that was valid and would have succeeded on a retry. The coordinator's
+own bounded contention retry is exception-driven and therefore never observed the condition at all.
+
+**Frozen owner boundary.** Contacts classifies; Workflows recognises only *that* the classification
+was transient. The coordinator raises its own `ParticipantContentionException` on that one typed
+outcome and feeds it into the single bounded retry it already runs for provider contention. Workflows
+parses no SQL error owned by Contacts, and Contacts exposes no provider detail: the exception is
+Workflows-owned, carries the participant name only, and is never thrown for a permanent duplicate,
+unresolvable or invalid outcome, which stay answered rather than retried.
+
+**Bounded behaviour.** `MaxAttempts` stays 3 in the coordinator and `MaxResolutionAttempts` stays 2
+inside Contacts, so a request performs at most six Contact resolutions and terminates. Exhausting the
+bound answers with `INTERNAL_ERROR` (500) - the code this operation already returns for exhausted
+contention and an admitted member of its `x-error-codes` - never with the 422 relationship refusal.
+No new public error code is introduced: of the admitted codes for this operation only `RATE_LIMITED`
+and `INTEGRATION_UNAVAILABLE` are catalogued `retryable: true`, and neither is true of this
+condition - nothing throttled the caller and Contacts is not an integration. Whether a distinct
+retriable public code should be admitted for internal owner contention is a contract question for the
+authority owner and is recorded here rather than answered by picking a status.
+
+**Forward-only recovery is preserved.** Contention before a Contact commit leaves the anchor at
+`Started` with no `ContactId`, so a retry resolves through the same conversion key and cannot create a
+second Contact; Contacts' audit and outbox rows are written exactly once, by the attempt that
+committed. A committed Contact is still never deleted or compensated, and the
+`Contact -> Task -> Lead close` order is unchanged.
+
+### Error mapping - still distinct
+
+| Condition | Result |
+|---|---|
+| Duplicate email on NEW | `LEAD_QUALIFICATION_RELATIONSHIP_INVALID` 422, pointer `relationship.contact.email` |
+| Unknown / inaccessible EXISTING Contact | `LEAD_QUALIFICATION_RELATIONSHIP_INVALID` 422, no pointer |
+| Malformed request | `VALIDATION_FAILED` 422 from F6, before any effect |
+| Transient Contacts contention | bounded retry; on exhaustion `INTERNAL_ERROR` 500 |
+
+No Contact identifier, match count, database error or foreign-resource fact appears in any of them.
+
 
 ## Never-invent rule
 

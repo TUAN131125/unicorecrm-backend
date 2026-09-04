@@ -32,11 +32,18 @@ public enum ContactQualificationDecision
 /// <summary>
 /// Diagnostic detail for a <see cref="ContactQualificationDecision.Rejected"/> outcome.
 ///
-/// It exists for this owner's audit and for coordinator logging. It MUST NOT be projected onto the
-/// wire in any form: the duplicate guard deliberately sees Contacts outside the caller's record
-/// scope, so distinguishing "this address already exists" from "that identifier is not resolvable"
-/// would leak the existence of records the caller cannot read. Every value maps to the single
-/// admitted public error <c>LEAD_QUALIFICATION_RELATIONSHIP_INVALID</c>.
+/// It exists for this owner's audit and for the coordinator's error mapping. No value is ever
+/// projected onto the wire, and every value maps to the single admitted public error
+/// <c>LEAD_QUALIFICATION_RELATIONSHIP_INVALID</c>: the duplicate guard deliberately sees Contacts
+/// outside the caller's record scope, so naming the matched record, counting matches, or returning
+/// any of its fields would leak the existence of records the caller cannot read.
+///
+/// One field pointer, and only one, is frozen on top of that by
+/// <c>DEC-LEAD-CONTACT-DUPLICATE-POLICY</c> section 9.4: <see cref="DuplicateEmail"/> reports
+/// <c>relationship.contact.email</c>. It discloses nothing the frozen duplicate rule does not - a
+/// NEW request already learns duplicate-versus-created from the refusal - and it names only the
+/// caller's own input. <see cref="ContactNotResolvable"/> stays pointer-less precisely because there
+/// the refusal itself is the thing that must not become an existence oracle.
 /// </summary>
 public enum ContactQualificationRejection
 {
@@ -93,7 +100,15 @@ public sealed record ResolveQualificationContactCommand(
     string OwnerId,
     string ConversionKey,
     string RequestId,
-    string CorrelationId);
+    string CorrelationId,
+    /// <summary>
+    /// Server-derived Lead communication restrictions, deliberately separate from the caller-supplied
+    /// <paramref name="Contact"/> content. Only <c>true</c> is ever carried and only <c>true</c> is
+    /// ever written: a restriction can be transferred, a permission can never be fabricated. Null
+    /// means unknown and leaves the Contact field unset.
+    /// </summary>
+    bool? DoNotCall = null,
+    bool? DoNotEmail = null);
 
 /// <summary>
 /// The minimum the coordinator needs: what happened, and the authoritative Contact identity.
@@ -103,7 +118,10 @@ public sealed record ResolveQualificationContactResult(
     ContactQualificationDecision Decision,
     string? ContactId,
     long? ContactVersion,
-    ContactQualificationRejection Rejection = ContactQualificationRejection.None)
+    ContactQualificationRejection Rejection = ContactQualificationRejection.None,
+    /// <summary>The Contact's own display name, required by the qualification wire result.</summary>
+    string? DisplayName = null,
+    bool WasCreated = false)
 {
     public bool IsSuccess => Decision != ContactQualificationDecision.Rejected;
 }

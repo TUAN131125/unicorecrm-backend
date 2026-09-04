@@ -10,7 +10,8 @@ internal sealed record LeadCommandMetadata(
     string ActorType = "Member",
     string? ActorId = null,
     string? DelegatedSubjectId = null,
-    string? SourceReference = null);
+    string? SourceReference = null,
+    string? IdempotencyScopeActorId = null);
 
 internal sealed record LeadOperationError(
     string Code,

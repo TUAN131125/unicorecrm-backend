@@ -29,12 +29,22 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
             command.LeadId,
             command.Metadata,
             fingerprint,
-            (lead, now) => lead.Advance(target, verification, now) switch
+            (lead, now) =>
             {
-                LeadTransitionResult.Succeeded => null,
-                LeadTransitionResult.ProfileIncomplete => LeadErrors.ProgressiveProfile(
-                    AdvanceLeadWorkStateValidation.ProgressiveProfileErrors(lead.Profile.WithVerification(verification))),
-                _ => LeadErrors.InvalidTransition(lead.LeadId)
+                // Compare the effective profile, using the same merge as the domain transition.
+                // Supplied but unchanged protected values are not writes under canonical policy.
+                var nextProfile = target == LeadWorkState.Verifying ? lead.Profile.WithVerification(verification) : lead.Profile;
+                var fieldError = LeadFieldSecurity.GuardProfileWrite(access.Value!.Authorization, lead.Profile, nextProfile);
+                if (fieldError is not null)
+                    return fieldError;
+
+                return lead.Advance(target, verification, now) switch
+                {
+                    LeadTransitionResult.Succeeded => null,
+                    LeadTransitionResult.ProfileIncomplete => LeadErrors.ProgressiveProfile(
+                        AdvanceLeadWorkStateValidation.ProgressiveProfileErrors(lead.Profile.WithVerification(verification))),
+                    _ => LeadErrors.InvalidTransition(lead.LeadId)
+                };
             },
             null,
             (recordAccess, record) => authorization.EnforceRecordAsync(

@@ -16,7 +16,7 @@ internal static class LeadCommandSupport
         string operation,
         string targetId,
         LeadCommandMetadata metadata) =>
-        Hash($"{trusted.WorkspaceId}\n{operation}\n{metadata.ActorId ?? trusted.MemberId}\n{targetId}\n{metadata.IdempotencyKey}");
+        Hash($"{trusted.WorkspaceId}\n{operation}\n{metadata.IdempotencyScopeActorId ?? metadata.ActorId ?? trusted.MemberId}\n{targetId}\n{metadata.IdempotencyKey}");
 
     internal static string Fingerprint<T>(T value) => Hash(JsonSerializer.Serialize(value, JsonOptions));
 

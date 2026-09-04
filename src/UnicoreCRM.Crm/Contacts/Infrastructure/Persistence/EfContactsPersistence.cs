@@ -12,7 +12,7 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
 
     public async Task<IContactsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new ContactsTransaction(
-            await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
+            await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
 
     // Two single-column seeks rather than one OR predicate: each seek is guaranteed to take a
     // SERIALIZABLE key-range lock on its own index, which is what actually blocks a concurrent
@@ -72,9 +72,21 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
             .ToArrayAsync(cancellationToken);
     }
 
-    private sealed class ContactsTransaction(IDbContextTransaction transaction) : IContactsTransaction
+    private sealed class ContactsTransaction(IDbContextTransaction transaction, ContactsDbContext context) : IContactsTransaction
     {
-        public Task CommitAsync(CancellationToken cancellationToken) => transaction.CommitAsync(cancellationToken);
-        public ValueTask DisposeAsync() => transaction.DisposeAsync();
+        private bool committed;
+
+        public async Task CommitAsync(CancellationToken cancellationToken)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            committed = true;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await transaction.DisposeAsync();
+            if (!committed)
+                context.ChangeTracker.Clear();
+        }
     }
 }

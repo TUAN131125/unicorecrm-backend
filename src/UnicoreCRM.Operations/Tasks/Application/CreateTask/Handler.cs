@@ -25,7 +25,8 @@ internal sealed class Handler(
         var trusted = access.Value!.Trusted;
         var fingerprint = TaskCommandSupport.Fingerprint(input!);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
-        var scopeKey = TaskCommandSupport.ScopeKey(trusted, "createTask", "WORKSPACE", command.Metadata.IdempotencyKey);
+        var scopeKey = TaskCommandSupport.ScopeKey(trusted, "createTask", "WORKSPACE", command.Metadata.IdempotencyKey,
+            command.Metadata.IdempotencyScopeActorId);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {

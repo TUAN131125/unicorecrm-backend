@@ -7,7 +7,8 @@ internal sealed record TaskCommandMetadata(
     string RequestId,
     string CorrelationId,
     string IdempotencyKey,
-    long? ExpectedVersion);
+    long? ExpectedVersion,
+    string? IdempotencyScopeActorId = null);
 
 internal sealed record TaskOperationError(
     string Code,

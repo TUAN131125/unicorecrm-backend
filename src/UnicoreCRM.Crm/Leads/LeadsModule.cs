@@ -26,6 +26,7 @@ internal static class LeadsModule
         services.AddScoped<Contracts.IInboundLeadIngress, Application.CreateLead.InboundLeadIngress>();
         services.AddScoped<Contracts.ILeadSummaryReader, Application.ReadLeadSummary.LeadSummaryReader>();
         services.AddScoped<LeadMutationExecution>();
+        services.AddScoped<LeadInterestedProductResolution>();
         services.AddScoped<Application.ListLeads.Handler>();
         services.AddScoped<Application.GetLead.Handler>();
         services.AddScoped<Application.CreateLead.Handler>();
@@ -33,6 +34,10 @@ internal static class LeadsModule
         services.AddScoped<Application.AdvanceLeadWorkState.Handler>();
         services.AddScoped<Application.DisqualifyLead.Handler>();
         services.AddScoped<Application.ReopenDisqualifiedLead.Handler>();
+        // The Lead Qualification participant. Positive qualification is reachable only through the
+        // Workflows coordinator; the generic qualifyLead operation stays retired and route-less.
+        services.AddScoped<Contracts.ILeadQualificationParticipant,
+            Application.QualifyLeadForNurture.Handler>();
         // Leads publishes its own record-access facts to AccessControl. AccessControl never reaches
         // into LeadsDbContext; it resolves this owner-owned contract instead.
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();

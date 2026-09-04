@@ -23,7 +23,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.Property(item => item.ContactId).HasMaxLength(128);
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
             entity.Property(item => item.OwnerId).HasMaxLength(128);
-            entity.Property(item => item.FullName).HasMaxLength(200);
+            entity.Property(item => item.FullName).HasMaxLength(ContactNameBound.MaxLength);
             entity.Property(item => item.Status).HasMaxLength(40);
             entity.Property(item => item.Version);
             entity.Property(item => item.UpdatedAt);
@@ -82,6 +82,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.Property(item => item.WorkspaceId).HasMaxLength(128).IsRequired();
             entity.Property(item => item.ConversionKey).HasMaxLength(256).IsRequired();
             entity.Property(item => item.ContactId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.ResultJson).HasColumnType("nvarchar(max)");
             entity.Property(item => item.CreatedAt).HasPrecision(7);
             entity.HasIndex(item => new { item.WorkspaceId, item.CreatedAt });
         });

@@ -19,6 +19,15 @@ internal sealed class EfProductsPersistence(ProductsDbContext dbContext) : IProd
         dbContext.Products.SingleOrDefaultAsync(
             item => item.WorkspaceId == workspaceId && item.ProductId == productId, cancellationToken);
 
+    public async Task<IReadOnlyList<Product>> ReadProductSnapshotsAsync(
+        string workspaceId,
+        IReadOnlyCollection<string> productIds,
+        CancellationToken cancellationToken) =>
+        await dbContext.Products
+            .AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && productIds.Contains(item.ProductId))
+            .ToArrayAsync(cancellationToken);
+
     public Task<Product?> ReadProductAsync(string workspaceId, string productId, CancellationToken cancellationToken) =>
         dbContext.Products.AsNoTracking().SingleOrDefaultAsync(
             item => item.WorkspaceId == workspaceId && item.ProductId == productId, cancellationToken);

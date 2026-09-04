@@ -26,6 +26,10 @@ internal static class TasksModule
         services.AddScoped<Application.GetTask.Handler>();
         services.AddScoped<Application.ListActivities.Handler>();
         services.AddScoped<Application.CreateTask.Handler>();
+        // The Lead Qualification participant. Internal owner boundary; it maps no route and adds no
+        // generic Task creation surface.
+        services.AddScoped<Contracts.ILeadQualificationTaskParticipant,
+            Application.CreateLeadNurtureFollowUp.Handler>();
         services.AddScoped<Application.CompleteTask.Handler>();
         services.AddScoped<Application.CancelTask.Handler>();
         services.AddScoped<Application.AssignTask.Handler>();
