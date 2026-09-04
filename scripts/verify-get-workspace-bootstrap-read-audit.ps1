@@ -69,7 +69,7 @@ function Assert-True([bool] $condition, [string] $name) {
 
 function Invoke-Api([string] $method, [string] $path, [string] $body, [hashtable] $headers) {
     $message = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new($method), "$baseUrl$path")
-    if ($null -ne $body) {
+    if (-not [string]::IsNullOrEmpty($body)) {
         $message.Content = [System.Net.Http.StringContent]::new($body, [Text.Encoding]::UTF8, 'application/json')
     }
     if ($null -ne $headers) {
@@ -144,16 +144,22 @@ function Start-Host {
     $env:AI__Provider__Kind = 'DevelopmentDeterministic'
 
     $process = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput $standardOutput -RedirectStandardError $standardError -PassThru
+    $lastProbe = 'no response'
     for ($attempt = 0; $attempt -lt $ReadyTimeoutSeconds; $attempt++) {
         if ($process.HasExited) { throw "ApiHost exited during startup. See $standardOutput and $standardError" }
         try {
             $probe = Invoke-Api 'GET' '/workspaces' $null $null
+            $lastProbe = "HTTP $($probe.Status)"
             if ($probe.Status -eq 401) { return $process }
         }
-        catch { }
+        catch { $lastProbe = $_.Exception.Message }
         Start-Sleep -Seconds 1
     }
-    throw "ApiHost did not become ready. See $standardOutput and $standardError"
+    if (-not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force
+        $process.WaitForExit(10000) | Out-Null
+    }
+    throw "ApiHost did not become ready. Last probe: $lastProbe. See $standardOutput and $standardError"
 }
 
 function Sign-In {

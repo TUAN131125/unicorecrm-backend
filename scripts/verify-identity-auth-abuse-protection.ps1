@@ -107,7 +107,7 @@ function Assert-RateLimited([object] $response, [string] $name, [string[]] $secr
     $retrySeconds = 0
     Assert-True ([int]::TryParse([string] $response.RetryAfter, [ref] $retrySeconds) -and $retrySeconds -gt 0) "$name has usable Retry-After"
     foreach ($secret in $secrets) {
-        Assert-True (-not $response.Body.Contains($secret, [StringComparison]::Ordinal)) "$name does not echo sensitive input"
+        Assert-True ($response.Body.IndexOf($secret, [StringComparison]::Ordinal) -lt 0) "$name does not echo sensitive input"
     }
     return $problem
 }
@@ -263,7 +263,7 @@ try {
 
     $logs = (Get-Content -LiteralPath $standardOutput -Raw) + (Get-Content -LiteralPath $standardError -Raw)
     foreach ($secret in @($bootstrapPassword, $invalidPassword, 'Registration-Test!2026', 'Pending-Test!2026', 'invalid-secret-value')) {
-        Assert-True (-not $logs.Contains($secret, [StringComparison]::Ordinal)) 'Host logs contain no tested password, OTP, or refresh secret'
+        Assert-True ($logs.IndexOf($secret, [StringComparison]::Ordinal) -lt 0) 'Host logs contain no tested password, OTP, or refresh secret'
     }
 
     Stop-Process -Id $hostProcess.Id -Force
@@ -277,7 +277,7 @@ try {
     Assert-True $invalidHostExited 'Invalid abuse-protection configuration fails host startup'
     if ($invalidHostExited) {
         $invalidLogs = (Get-Content -LiteralPath $invalidOutput -Raw) + (Get-Content -LiteralPath $invalidError -Raw)
-        Assert-True ($invalidLogs.Contains('Every IdentityAuth abuse-protection limit and window must be within its supported range.', [StringComparison]::Ordinal)) 'Invalid configuration reports the bounded validation error'
+        Assert-True ($invalidLogs.IndexOf('Every IdentityAuth abuse-protection limit and window must be within its supported range.', [StringComparison]::Ordinal) -ge 0) 'Invalid configuration reports the bounded validation error'
         $hostProcess = $null
     }
 
