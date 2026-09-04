@@ -675,7 +675,9 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
     $invalidOwnerKey = 'idem-nurture-invalid-owner'
     $invalidOwnerEmail = 'api.invalid.task.owner.person@example.test'
     $invalidOwnerBefore = Get-Scalar -Database $DatabaseName -Query $contractEffectsQuery
+    $invalidOwnerLeadCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM leads.Leads')
     $invalidOwnerLeadVersion = [long](Get-Scalar -Database $DatabaseName -Query "SELECT [Version] FROM leads.Leads WHERE LeadId='$invalidOwnerLead'")
+    $invalidOwnerLeadState = [long](Get-Scalar -Database $DatabaseName -Query "SELECT WorkState FROM leads.Leads WHERE LeadId='$invalidOwnerLead'")
     $invalidOwnerContactCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts')
     $invalidOwnerTaskCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks')
     $invalidOwnerReceiptCount = [long](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.ConversionRecords')
@@ -686,6 +688,20 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
     Add-Result 'invalid Task owner names assigneeId' 'assigneeId' (Get-FieldErrorKeys -Response $invalidOwner)
     Add-Result 'invalid Task owner leaves all owner effects unchanged' $invalidOwnerBefore `
         (Get-Scalar -Database $DatabaseName -Query $contractEffectsQuery)
+    Add-Result 'invalid Task owner leaves Lead count unchanged' ([string]$invalidOwnerLeadCount) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM leads.Leads'))
+    Add-Result 'invalid Task owner leaves Lead version unchanged' ([string]$invalidOwnerLeadVersion) `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT [Version] FROM leads.Leads WHERE LeadId='$invalidOwnerLead'"))
+    Add-Result 'invalid Task owner leaves Lead state unchanged' ([string]$invalidOwnerLeadState) `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT WorkState FROM leads.Leads WHERE LeadId='$invalidOwnerLead'"))
+    Add-Result 'invalid Task owner leaves Contact count unchanged' ([string]$invalidOwnerContactCount) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts'))
+    Add-Result 'invalid Task owner leaves Task count unchanged' ([string]$invalidOwnerTaskCount) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'))
+    Add-Result 'invalid Task owner leaves Contact receipt count unchanged' ([string]$invalidOwnerReceiptCount) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.ConversionRecords'))
+    Add-Result 'invalid Task owner leaves workflow anchor count unchanged' ([string]$invalidOwnerAnchorCount) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM workflow.LeadQualificationAnchors'))
     Add-Result 'invalid Task owner creates no workflow anchor' '0' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM workflow.LeadQualificationAnchors WHERE LeadId='$invalidOwnerLead'"))
     Add-Result 'invalid Task owner creates no Contact' '0' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.Contacts WHERE NormalizedWorkEmail='$($invalidOwnerEmail.ToUpperInvariant())'"))
 
