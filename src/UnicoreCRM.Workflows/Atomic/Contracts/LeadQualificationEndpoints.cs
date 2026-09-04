@@ -12,13 +12,16 @@ public static class LeadQualificationEndpoints
 {
     public static IEndpointRouteBuilder MapLeadQualificationEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // The single admitted positive-qualification operation. qualifyLeadForOpportunity and
-        // qualifyLeadForDirectSale stay unmapped: neither has an implemented downstream participant.
-        // The retired generic qualifyLead remains route-less.
+        // Typed admitted operations only. Direct Sale and the retired generic qualifyLead remain
+        // route-less.
         endpoints.MapPost("/workflows/lead-qualification/{leadId}/nurture", QualifyLeadForNurtureAsync)
             .RequireAuthorization()
             .RequireTrustedWorkspace()
             .WithName("qualifyLeadForNurture");
+        endpoints.MapPost("/workflows/lead-qualification/{leadId}/opportunity", QualifyLeadForOpportunityAsync)
+            .RequireAuthorization()
+            .RequireTrustedWorkspace()
+            .WithName("qualifyLeadForOpportunity");
         return endpoints;
     }
 
@@ -74,6 +77,55 @@ public static class LeadQualificationEndpoints
 
         // Both COMMITTED and REPLAYED are 200 on this operation: the adopted contract declares a
         // single 200 success and carries the distinction in the response body's outcome.
+        return Results.Json(result.Response, LeadQualificationHttp.ResponseJson, statusCode: StatusCodes.Status200OK);
+    }
+
+    private static async Task<IResult> QualifyLeadForOpportunityAsync(
+        string leadId,
+        HttpContext context,
+        ILeadOpportunityQualificationWorkflow workflow,
+        CancellationToken cancellationToken)
+    {
+        if (!LeadQualificationHttp.TryMetadata(context, out var metadata, out var metadataError))
+            return metadataError!;
+        var body = await LeadQualificationHttp.ReadBodyAsync<QualifyLeadOpportunityRequest>(
+            context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null)
+            return body.Error;
+        if (!LeadQualificationHttp.TryIntent(body.Value!.Relationship, out var intent, out var intentError))
+            return LeadQualificationHttp.Error(intentError!, metadata.CorrelationId);
+
+        var deal = body.Value.Deal;
+        var result = await workflow.ExecuteAsync(
+            new LeadOpportunityQualificationCommand(
+                leadId,
+                intent!,
+                deal?.Name ?? string.Empty,
+                deal?.NeedSummary,
+                deal?.OwnerId ?? string.Empty,
+                deal?.ExpectedCloseDate,
+                deal?.InterestedProductIds ?? [],
+                deal?.EstimatedValue,
+                deal?.DecisionProcess,
+                deal?.BuyingWindow,
+                deal?.FollowUpTask,
+                metadata.RequestId,
+                metadata.CorrelationId,
+                metadata.IdempotencyKey,
+                metadata.ExpectedVersion),
+            cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return LeadQualificationHttp.Error(
+                new LeadQualificationHttp.Failure(
+                    result.ErrorCode!,
+                    result.ErrorStatus!.Value,
+                    result.FieldErrors,
+                    result.ExpectedVersion,
+                    result.CurrentVersion,
+                    result.IdempotencyKey),
+                metadata.CorrelationId);
+        }
         return Results.Json(result.Response, LeadQualificationHttp.ResponseJson, statusCode: StatusCodes.Status200OK);
     }
 }
@@ -143,11 +195,15 @@ internal static class LeadQualificationHttp
     internal static bool TryIntent(
         QualifyLeadNurtureRequest request,
         out LeadNurtureContactIntent? intent,
+        out Failure? error) => TryIntent(request.Relationship, out intent, out error);
+
+    internal static bool TryIntent(
+        LeadQualificationRelationshipRequest? relationship,
+        out LeadNurtureContactIntent? intent,
         out Failure? error)
     {
         intent = null;
         error = null;
-        var relationship = request.Relationship;
         if (relationship is null
             || !string.Equals(relationship.Kind, "CONTACT", StringComparison.Ordinal)
             || relationship.Mode is not ("NEW" or "EXISTING"))
@@ -225,6 +281,8 @@ internal static class LeadQualificationHttp
         "LEAD_QUALIFICATION_RELATIONSHIP_INVALID" => "Lead qualification relationship is invalid",
         "LEAD_QUALIFICATION_DOWNSTREAM_CAPABILITY_REQUIRED" => "Downstream capability required",
         "LEAD_QUALIFICATION_DOWNSTREAM_MODULE_DISABLED" => "Downstream module disabled",
+        "LEAD_OPPORTUNITY_INPUT_INVALID" => "Lead opportunity input is invalid",
+        "LIFECYCLE_CONFLICT" => "Lifecycle conflict",
         _ => "Internal error"
     };
 

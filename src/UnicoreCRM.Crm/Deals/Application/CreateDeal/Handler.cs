@@ -57,7 +57,12 @@ internal sealed class Handler(
             nextActionTaskId
         });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
-        var scopeKey = DealCommandSupport.ScopeKey(trusted, "createDealCommand", "WORKSPACE", command.Metadata.IdempotencyKey);
+        var scopeKey = DealCommandSupport.ScopeKey(
+            trusted,
+            "createDealCommand",
+            "WORKSPACE",
+            command.Metadata.IdempotencyKey,
+            command.Metadata.IdempotencyScopeActorId);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
@@ -67,6 +72,15 @@ internal sealed class Handler(
             return replayError is null
                 ? DealOperationResult<DealMutationResponse>.Success(Project(DealCommandSupport.Replay(existing), access.Value!))
                 : DealOperationResult<DealMutationResponse>.Failure(replayError);
+        }
+
+        if (command.Metadata.QualificationSourceLeadId is { } sourceLeadId)
+        {
+            var existingQualificationDeal = await persistence.ReadQualificationDealBySourceLeadAsync(
+                trusted.WorkspaceId, sourceLeadId, cancellationToken);
+            if (existingQualificationDeal is not null)
+                return DealOperationResult<DealMutationResponse>.Failure(
+                    DealErrors.LifecycleConflict(existingQualificationDeal.DealId));
         }
 
         // Creation is a resource-level question, so no record scope applies, but field security
@@ -83,7 +97,14 @@ internal sealed class Handler(
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.OwnerNotAssignable());
 
         var now = timeProvider.GetUtcNow();
-        var deal = new Deal(trusted.WorkspaceId, profile, stage.Code, stage.Category, forecastCategory, now);
+        var deal = new Deal(
+            trusted.WorkspaceId,
+            profile,
+            stage.Code,
+            stage.Category,
+            forecastCategory,
+            now,
+            command.Metadata.QualificationSourceLeadId);
         deal.InitializeNextAction(nextActionAt, nextActionSummary, nextActionTaskId);
         persistence.AddDeal(deal);
         var response = DealCommandSupport.RecordCommit(

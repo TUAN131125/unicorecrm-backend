@@ -36,7 +36,10 @@ internal static class WorkspaceModule
         services.AddScoped<IInitialWorkspaceProvisioning, Application.ProvisionInitialWorkspace.InitialWorkspaceProvisioningService>();
         services.AddScoped<Application.ListMyWorkspaces.Handler>();
         services.AddScoped<Application.GetWorkspaceBootstrap.Handler>();
-        services.AddHostedService<DevelopmentWorkspaceBootstrap>();
+        services.AddScoped<DevelopmentWorkspaceBootstrap>();
+        services.AddDevelopmentBootstrapAction(
+            "workspace",
+            (provider, cancellationToken) => provider.GetRequiredService<DevelopmentWorkspaceBootstrap>().RunAsync(cancellationToken));
         return services;
     }
 }

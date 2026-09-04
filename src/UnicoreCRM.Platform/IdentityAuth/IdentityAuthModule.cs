@@ -75,7 +75,10 @@ internal static class IdentityAuthModule
         services.AddScoped<Application.GetCurrentSession.Handler>();
         services.AddScoped<Application.SignOut.Handler>();
         services.AddHostedService<IdentityEmailOutboxDispatcher>();
-        services.AddHostedService<DevelopmentIdentityBootstrap>();
+        services.AddScoped<DevelopmentIdentityBootstrap>();
+        services.AddDevelopmentBootstrapAction(
+            "identity-auth",
+            (provider, cancellationToken) => provider.GetRequiredService<DevelopmentIdentityBootstrap>().RunAsync(cancellationToken));
 
         services.ConfigureHttpJsonOptions(options =>
         {

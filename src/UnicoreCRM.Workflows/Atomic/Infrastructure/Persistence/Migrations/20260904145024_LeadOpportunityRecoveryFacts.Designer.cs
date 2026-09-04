@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 namespace UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WorkflowsDbContext))]
-    partial class WorkflowsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904145024_LeadOpportunityRecoveryFacts")]
+    partial class LeadOpportunityRecoveryFacts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

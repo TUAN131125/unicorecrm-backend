@@ -7,8 +7,8 @@ namespace UnicoreCRM.Platform.Workspace.Contracts;
 /// only; every aggregate identifier, the Workspace key and the ACTIVE creator membership are
 /// assigned by this owner.
 ///
-/// Workspace also owns the durable provisioning anchor, so it exposes the bounded convergence and
-/// outstanding-work queries plus the completion transition the durable workflow needs.
+/// Workspace also owns the durable provisioning anchor, so it exposes the bounded outstanding-work
+/// query plus the completion transition the durable workflow needs.
 /// </summary>
 public interface IInitialWorkspaceProvisioning
 {
@@ -22,15 +22,6 @@ public interface IInitialWorkspaceProvisioning
     /// never derived from a login event, a client flag or a Workspace membership count.
     /// </summary>
     Task<IReadOnlyList<PendingInitialWorkspaceProvisioning>> ListAccessPendingAsync(
-        int limit,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Returns a bounded page of server-owned initial provisioning anchors for an AccessControl
-    /// policy convergence pass. Completed state is not changed by this read.
-    /// </summary>
-    Task<IReadOnlyList<InitialWorkspaceAccessAnchor>> ListAccessConvergenceAnchorsAsync(
-        int offset,
         int limit,
         CancellationToken cancellationToken);
 
@@ -99,7 +90,3 @@ public sealed record PendingInitialWorkspaceProvisioning(
     string WorkspaceId,
     string MembershipId,
     DateTimeOffset ProvisionedAt);
-
-public sealed record InitialWorkspaceAccessAnchor(
-    string WorkspaceId,
-    string MembershipId);

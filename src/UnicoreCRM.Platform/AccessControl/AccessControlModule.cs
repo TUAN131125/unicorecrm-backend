@@ -21,9 +21,14 @@ internal static class AccessControlModule
         services.AddDbContext<AccessControlDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "access")));
         services.AddScoped<IAccessControlPersistence, EfAccessControlPersistence>();
+        services.AddScoped<AccessRoleLegacyNormalizationCorrectionService>();
         services.AddDevelopmentSchemaMigration(
             "access-control",
-            (provider, cancellationToken) => provider.GetRequiredService<AccessControlDbContext>().Database.MigrateAsync(cancellationToken));
+            async (provider, cancellationToken) =>
+            {
+                await provider.GetRequiredService<AccessControlDbContext>().Database.MigrateAsync(cancellationToken);
+                await provider.GetRequiredService<AccessRoleLegacyNormalizationCorrectionService>().RunAsync(cancellationToken);
+            });
         services.AddScoped<CurrentAuthorizationContextAccessor>();
         services.AddScoped<ICurrentAuthorizationContext>(provider => provider.GetRequiredService<CurrentAuthorizationContextAccessor>());
         services.AddScoped<IResolvedAuthorizationContextSetter>(provider => provider.GetRequiredService<CurrentAuthorizationContextAccessor>());
@@ -51,8 +56,10 @@ internal static class AccessControlModule
         services.AddScoped<RecordAccessEvaluator>();
         services.AddScoped<IRecordAccessEvaluator>(provider => provider.GetRequiredService<RecordAccessEvaluator>());
         services.AddScoped<Application.EvaluateEffectiveRecordAccess.Handler>();
-        services.AddHostedService<AccessRoleLegacyNormalizationCorrectionService>();
-        services.AddHostedService<DevelopmentAccessControlBootstrap>();
+        services.AddScoped<DevelopmentAccessControlBootstrap>();
+        services.AddDevelopmentBootstrapAction(
+            "access-control",
+            (provider, cancellationToken) => provider.GetRequiredService<DevelopmentAccessControlBootstrap>().RunAsync(cancellationToken));
         return services;
     }
 }

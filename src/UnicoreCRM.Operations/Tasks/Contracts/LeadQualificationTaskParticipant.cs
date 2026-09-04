@@ -2,8 +2,8 @@ namespace UnicoreCRM.Operations.Tasks.Contracts;
 
 /// <summary>
 /// The Tasks-owned Lead Qualification participant. It is deliberately not a generic Task creation
-/// gateway: it accepts only the facts the frozen NURTURE contract carries, composes the follow-up
-/// Task itself, and assigns Task identity inside Tasks (LAW-08). Workflows opens no
+/// gateway: it accepts only the facts the typed NURTURE or OPPORTUNITY contracts carry, composes the
+/// follow-up Task itself, and assigns Task identity inside Tasks (LAW-08). Workflows opens no
 /// <c>TasksDbContext</c> and cannot choose a Task identifier, status or priority.
 ///
 /// It runs the ordinary <c>createTask</c> execution, so <c>tasks.create</c> is enforced at the Tasks
@@ -19,6 +19,14 @@ public interface ILeadQualificationTaskParticipant
 
     Task<LeadNurtureTaskResult> CreateNurtureFollowUpAsync(
         LeadNurtureTaskCommand command,
+        CancellationToken cancellationToken);
+
+    Task<LeadNurtureTaskAssigneeValidationResult> ValidateOpportunityFollowUpAsync(
+        LeadOpportunityTaskCommand command,
+        CancellationToken cancellationToken);
+
+    Task<LeadNurtureTaskResult> CreateOpportunityFollowUpAsync(
+        LeadOpportunityTaskCommand command,
         CancellationToken cancellationToken);
 }
 
@@ -62,3 +70,15 @@ public sealed record LeadNurtureTaskResult(
     IReadOnlyDictionary<string, string[]>? FieldErrors,
     /// <summary>The Task's own resource version, required by the qualification wire result.</summary>
     long? TaskVersion = null);
+
+public sealed record LeadOpportunityTaskCommand(
+    string LeadId,
+    string ContactId,
+    string AssigneeId,
+    string DueAt,
+    string Title,
+    string? Description,
+    string RequestId,
+    string CorrelationId,
+    string IdempotencyKey,
+    string? IdempotencyScopeActorId = null);

@@ -20,6 +20,12 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
     public async Task<IReadOnlyList<Lead>> ListLeadsAsync(
         string workspaceId,
         string? scopeOwnerMemberId,
+        string? ownerId,
+        LeadWorkState? workState,
+        string? normalizedSearch,
+        DateTimeOffset? cursorUpdatedAt,
+        string? cursorLeadId,
+        int take,
         CancellationToken cancellationToken)
     {
         IQueryable<Lead> query = dbContext.Leads.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
@@ -27,10 +33,37 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         // never materialised and never reach the ordering or the projection.
         if (scopeOwnerMemberId is not null)
             query = query.Where(item => item.ScopeOwnerId == scopeOwnerMemberId);
+        if (ownerId is not null)
+            query = query.Where(item => item.ScopeOwnerId == ownerId);
+        if (workState is not null)
+            query = query.Where(item => item.WorkState == workState);
+        if (normalizedSearch is not null)
+            query = query.Where(item => item.SearchText.Contains(normalizedSearch));
+        if (cursorUpdatedAt is not null && cursorLeadId is not null)
+        {
+            query = query.Where(item => item.UpdatedAt < cursorUpdatedAt
+                || (item.UpdatedAt == cursorUpdatedAt && string.Compare(item.LeadId, cursorLeadId) < 0));
+        }
         return await query
             .OrderByDescending(item => item.UpdatedAt)
             .ThenByDescending(item => item.LeadId)
+            .Take(take)
             .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<long?> ReadCurrentVersionAsync(
+        string workspaceId,
+        string leadId,
+        CancellationToken cancellationToken)
+    {
+        // A failed optimistic write leaves attempted values tracked. Clear them before asking the
+        // database for the version that actually won the race.
+        dbContext.ChangeTracker.Clear();
+        return await dbContext.Leads
+            .AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && item.LeadId == leadId)
+            .Select(item => (long?)item.Version)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public Task<LeadIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) =>

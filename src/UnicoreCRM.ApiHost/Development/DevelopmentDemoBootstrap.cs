@@ -7,9 +7,9 @@ namespace UnicoreCRM.ApiHost.Development;
 /// record is still written by its canonical owner.
 ///
 /// Everything here is a <em>default</em>. A value that is already configured - by environment
-/// variable, user secret, command line or an appsettings file - is never overwritten, so the local
-/// one-click experience never fights an explicit configuration. The whole composition is skipped
-/// outside the Development environment, so no non-Development host can pick up a demo credential.
+/// variable, user secret, command line or an appsettings file - is never overwritten. ApiHost calls
+/// this composition only for the explicit <c>--seed-demo</c> command, and it is skipped outside the
+/// Development environment, so normal startup cannot pick up or create a demo credential.
 /// </summary>
 internal static class DevelopmentDemoBootstrap
 {
@@ -22,7 +22,8 @@ internal static class DevelopmentDemoBootstrap
     {
         if (!builder.Environment.IsDevelopment())
             return builder;
-        // The fixture is on by default in Development. An explicit opt-out still wins.
+        // Reaching this method already requires the explicit --seed-demo command. An explicit
+        // configuration opt-out still wins for scripted environments.
         if (builder.Configuration[EnabledVariable] is { } enabled && !IsEnabled(enabled))
             return builder;
 

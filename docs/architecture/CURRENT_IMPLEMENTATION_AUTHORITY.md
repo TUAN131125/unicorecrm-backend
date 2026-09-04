@@ -1352,13 +1352,12 @@ enforced. A uniqueness collision is treated only as a concurrent convergence sig
 attempt rolls back, state is re-read, and retry reaches the same role, assignment and exact capability
 set. Re-runs create no role, assignment or capability duplicate, and custom roles are unchanged.
 
-Existing completed Workspaces are not left dependent on a client replay. When durable provisioning
-recovery is enabled, its hosted service performs a bounded, account-ordered startup scan of the
-Workspace-owned initial provisioning anchors and asks AccessControl to converge each corresponding
-server-owned role. This scan changes no Workspace anchor state or completion time; pending-anchor
-completion remains the separate periodic recovery path. Multiple hosts may scan concurrently because
-AccessControl convergence and its uniqueness handling are idempotent. A drifted role is logged and
-left unchanged while the scan continues to other Workspaces.
+Completed Workspace provisioning anchors are established business state and are not inputs to
+normal-runtime policy convergence. When durable provisioning recovery is enabled, its hosted service
+selects only bounded `AccessPending` anchors and asks AccessControl to finish those genuinely
+incomplete operations. Multiple hosts may resume the same pending anchor concurrently because the
+AccessControl participant and its uniqueness handling are convergent. An ambiguous role encountered
+during an actual pending operation still fails closed and leaves the anchor outstanding.
 
 The Development demo operator remains a local fixture rather than production authority. Its mirrored
 capability list now includes only the admitted Contacts addition `contacts.read`, its admitted module
@@ -1408,11 +1407,11 @@ longer match, while a different valid key still replays the stored Workspace and
 values. No compatibility rule silently treats changed server-owned intent as identical.
 
 No authority admits WorkspaceConfig mutation or configuration convergence for completed Workspaces.
-The AccessControl startup convergence pass may add the separately admitted `contacts.read` capability,
-but it does not rewrite `WorkspaceBootstrapProjection.EnabledModuleKeysJson`, its configuration
-version, or the stored provisioning fingerprint. Upgrade fixtures prove that pre-Contacts
-`["leads","deals","tasks"]` bootstraps and stored fingerprints remain unchanged while access
-capability convergence completes. Therefore
+Normal startup does not scan completed anchors or upgrade their AccessControl definitions. The exact
+pre-Contacts capability snapshot may add the separately admitted `contacts.read` capability only
+while completing an authoritatively `AccessPending` provisioning operation; it does not rewrite
+`WorkspaceBootstrapProjection.EnabledModuleKeysJson`, its configuration version, or the stored
+provisioning fingerprint. Therefore
 `ACCESSCONTROL INITIAL ROLE CAPABILITY UPGRADE: PASS FOR ADMITTED PROVISIONING-ANCHORED HISTORICAL SNAPSHOT`,
 `NEW WORKSPACE CONTACTS MODULE ENABLEMENT: PASS`, and
 `EXISTING WORKSPACE CONTACTS MODULE CONFIGURATION UPGRADE: NOT IMPLEMENTED / AUTHORITY_GAP`.
@@ -3067,13 +3066,13 @@ The adopted frontend OpenAPI declares no Workspace-creation operation and the De
 
 `listMyWorkspaces` remains the sole lifecycle authority: zero active memberships admit Initial Setup, one or more active memberships require restore/select and forbid provisioning. Registration and sign-in create no Workspace. Initial Setup draft state is frontend-only, and abandoning it before Finish or Skip creates nothing. Finish and explicit Skip send the same canonical intent; Skip is exactly the request that omits every optional value. No first-login flag, local storage value, product-space count, foreign entity count, `404` or setup-screen state participates, and no persisted "current workspace" is added to IdentityAuth or the session.
 
-The mutation is multi-owner, so it is implemented in Workflows and calls approved owner contracts only; it holds no foreign DbContext, repository, Infrastructure type or EF entity. It writes through two owner-specific DbContexts and therefore cannot commit or roll back in one local transaction, so per `ARCHITECTURE_SKELETON.md` it is a `Durable` workflow and not an `Atomic` one. It is implemented in `UnicoreCRM.Workflows/Durable` and is the first implemented workflow in the system. IdentityAuth owns `IAuthenticatedIdentityReferenceLookup` and fails the workflow closed unless the authenticated account is currently active. Workspace owns `IInitialWorkspaceProvisioning` and assigns the Workspace identifier, the server-derived Workspace key, the ACTIVE creator membership identifier, the configuration seed and the account-scoped provisioning anchor. AccessControl owns `IInitialWorkspaceAccessProvisioning` and creates the one server-owned `Workspace Owner` role plus the creator assignment; the workflow can neither name the role nor choose a capability. The current admitted initial capability set contains only canonical capabilities already admitted for implemented operations - `workspace.context.resolve`, `contacts.read`, the five `tasks.*`, the four `leads.*`, the seven `deals.*`, the four `products.*` and the four `support.*`. `access.*`, `studio.*`, `audit.*` and every unsupported Contacts capability are excluded because their administrative or mutation operations remain fail-closed, and no data-scope or field-security policy is created. Exact pre-Contacts roles converge only under the narrow identity and snapshot rules recorded in *CONTACTS READ CORE INTEGRATION HARDENING*; all other drift still fails closed.
+The mutation is multi-owner, so it is implemented in Workflows and calls approved owner contracts only; it holds no foreign DbContext, repository, Infrastructure type or EF entity. It writes through two owner-specific DbContexts and therefore cannot commit or roll back in one local transaction, so per `ARCHITECTURE_SKELETON.md` it is a `Durable` workflow and not an `Atomic` one. It is implemented in `UnicoreCRM.Workflows/Durable` and is the first implemented workflow in the system. IdentityAuth owns `IAuthenticatedIdentityReferenceLookup` and fails the workflow closed unless the authenticated account is currently active. Workspace owns `IInitialWorkspaceProvisioning` and assigns the Workspace identifier, the server-derived Workspace key, the ACTIVE creator membership identifier, the configuration seed and the account-scoped provisioning anchor. AccessControl owns `IInitialWorkspaceAccessProvisioning` and creates the one server-owned `Workspace Owner` role plus the creator assignment; the workflow can neither name the role nor choose a capability. The current admitted initial capability set contains only canonical capabilities already admitted for implemented operations - `workspace.context.resolve`, `contacts.read`, the five `tasks.*`, the four `leads.*`, the seven `deals.*`, the four `products.*` and the four `support.*`. `access.*`, `studio.*`, `audit.*` and every unsupported Contacts capability are excluded because their administrative or mutation operations remain fail-closed, and no data-scope or field-security policy is created. During an actual `AccessPending` completion, an exact pre-Contacts role may converge only under the narrow identity and snapshot rules recorded in *CONTACTS READ CORE INTEGRATION HARDENING*; completed anchors are not scanned and all other drift still fails closed.
 
 The caller supplies optional `name`, `logoText`, `locale`, `timeZone` and `baseCurrency` values matching the shapes the current OpenAPI already declares for `WorkspaceMembershipSummary` and `WorkspaceRuntimeConfiguration`. The request body is read strictly by the endpoint's own serializer options rather than by ambient host configuration: unknown members are rejected, the body is read from the stream instead of being inferred from a declared `Content-Length` so a chunked body is validated identically, and bodies above 8192 bytes are rejected. An absent, empty, whitespace-only or JSON-`null` body is the Skip path. It cannot supply the creator account, creator member, membership status, Workspace aggregate ID, membership aggregate ID, Workspace key, role, capability, enabled module set or product-space set. Server-owned deterministic defaults are `My Workspace`, derived logo initials, `en`, `UTC`, `USD`, `["contacts","leads","deals","tasks"]` and `["crm"]`.
 
 WorkspaceConfig remains a `DEFERRED` Platform owner and `WorkspaceBootstrapProjection` is **not** promoted to configuration authority. The extension admits only the minimal `InitialWorkspaceConfigurationSeed` creation-time contract, written once inside the Workspace-owned transaction because the projection is Workspace-owned persistence that the Workspace-owned bootstrap read structurally requires. It has no endpoint and no mutation surface, existing values are never rewritten, and the legacy `CapabilitiesJson` column is seeded empty because B03 made the AccessControl application boundary the bootstrap capability authority. Configuration change after provisioning remains an authority gap until a WorkspaceConfig contract is admitted.
 
-The Workspace write and the AccessControl write are separate owner-local transactions, so the workflow is deliberately **not** claimed to be one atomic commit; owner-specific DbContexts are preserved and no distributed transaction, event bus, saga or microservice is introduced. Correctness comes from durable progress plus convergence. `workspace.InitialProvisioningRecords` keys on `AccountId`, so at most one initial Workspace can ever exist per account. Step one commits the Workspace, the ACTIVE membership, the configuration seed and the anchor in the `AccessPending` state in one transaction, and rolls all of them back on conflict. Step two runs the AccessControl participant and then advances the anchor to `Completed`; both are convergent. A completed anchor is never returned to pending or rewritten by policy expansion, but its corresponding AccessControl-owned initial role may be reconciled by the bounded server-start policy scan recorded in *CONTACTS READ CORE INTEGRATION HARDENING*.
+The Workspace write and the AccessControl write are separate owner-local transactions, so the workflow is deliberately **not** claimed to be one atomic commit; owner-specific DbContexts are preserved and no distributed transaction, event bus, saga or microservice is introduced. Correctness comes from durable progress plus convergence. `workspace.InitialProvisioningRecords` keys on `AccountId`, so at most one initial Workspace can ever exist per account. Step one commits the Workspace, the ACTIVE membership, the configuration seed and the anchor in the `AccessPending` state in one transaction, and rolls all of them back on conflict. Step two runs the AccessControl participant and then advances the anchor to `Completed`; both are convergent. A completed anchor is never returned to pending, scanned for policy convergence, or rewritten because the application process started.
 
 The only non-atomic window is a committed Workspace whose access assignment did not complete. That state is not self-correcting from the client, because the account then lists an active membership, legitimately skips Initial Setup and never resends the intent, while bootstrap denies authorization. Recovery is therefore server-driven: the `AccessPending` anchor is the authoritative outstanding-work record, and `InitialWorkspaceProvisioningResumeService` in `Workflows/Durable` finishes outstanding anchors through the same owner contracts at host start and then on a server-owned interval. The request path converges as well. Recovery never creates a second Workspace, membership, configuration seed, role or assignment and never mutates membership status. It introduces no first-login flag, no persisted current workspace and no client-held lifecycle state, and `listMyWorkspaces` and `getWorkspaceBootstrap` are unchanged and gained no recovery logic.
 
@@ -3092,6 +3091,15 @@ A published migration is immutable: once a migration ID may exist in any `__EFMi
 `InitialWorkspaceProvisioningRecovery` added `State` and `CompletedAt` and backfilled every pre-existing anchor as `State = 'Completed', CompletedAt = ProvisionedAt`. That backfill was wrong: the version that wrote those anchors committed the Workspace, membership, configuration seed and anchor in one transaction and only then created the AccessControl assignment, so such an anchor proves nothing about whether the assignment exists, and any account whose assignment was in fact missing would have been left permanently unable to bootstrap. That migration is preserved exactly as published. The data-only `InitialWorkspaceProvisioningRecoveryCorrection` repairs the rows it fabricated, rewriting only `State = 'Completed' AND CompletedAt = ProvisionedAt` to `State = 'AccessPending', CompletedAt = NULL`. It introduces no model change and leaves the snapshot untouched, its `Down` is deliberately empty because reverting would re-fabricate the removed completion fact, and it is idempotent: repaired rows no longer match, genuine completions carry a later completion time, already-outstanding anchors carry a `NULL` completion time, and a fresh database has no rows at all. The Workspace migration never inspects AccessControl persistence; it only returns ambiguous rows to outstanding work, and the durable resume path decides completion through the approved AccessControl contract.
 
 Upgrade verification on 2026-08-24 used three isolated LocalDB databases. `UnicoreCRM_ProvisioningCorrection_20260824_Fresh` proved the whole chain applies to an empty database, produces the current anchor schema and leaves no anchors. `UnicoreCRM_ProvisioningCorrection_20260824` was built at the schema state that had already applied the faulty migration and seeded three accounts: a legacy fabricated anchor with an existing `Workspace Owner` role and creator assignment, a legacy fabricated anchor with no AccessControl assignment, and a genuinely completed anchor whose completion time is later than its provisioning time. Applying only the corrective migration returned both legacy anchors to `AccessPending` with no completion time and left the genuine anchor `Completed` with its completion time intact. Starting the current host with the resume pass enabled and no client action completed both corrected anchors while never replaying the genuine one; the pre-existing role and assignment identities were preserved rather than replaced or duplicated, the missing assignment was created exactly once against the creator membership, all three accounts passed list, bootstrap, authorization-context and workspace-required Tasks/Leads/Deals reads, a further resume window changed nothing, and each account retained exactly one Workspace, membership, configuration seed, role, assignment and anchor. `UnicoreCRM_ProvisioningCorrection_20260824_Chain` proved the path for a database that never applied the faulty migration: a pre-recovery anchor upgraded across the whole chain ends as outstanding work, converges to `Completed`, and reaches the same single-record runtime state. Reproducible upgrade checks are retained in `backend/scripts/verify-initial-workspace-provisioning-upgrade.ps1`. Therefore `INITIAL WORKSPACE PROVISIONING: PASS`; the deferred WorkspaceConfig, invitation, member-administration and Studio gaps above remain fail-closed. Reproducible runtime checks are retained in `backend/scripts/verify-initial-workspace-provisioning.ps1`.
+
+Runtime correction on 2026-09-04 supersedes the former normal-startup completed-anchor policy
+scan. `InitialWorkspaceProvisioningResumeService` now queries only `AccessPending` records on its
+startup and interval passes. The Workspace cross-owner contract and persistence surface no longer
+expose completed anchors for convergence. Consequently normal startup cannot invoke initial
+AccessControl provisioning for an established Workspace, while an actually incomplete durable
+operation still completes through the same owner contracts. `InitialWorkspaceAccessProvisioningService`
+and its exact current/known-previous capability checks are unchanged and continue to fail closed
+when a pending provisioning operation encounters ambiguous role state.
 
 ## Email Verification OTP implementation authority
 
@@ -4031,6 +4039,53 @@ Therefore `CONSENT TRANSFER: FROZEN`, `G-1: CLOSED`,
 `qualifyLeadForOpportunity / qualifyLeadForDirectSale: ADMITTED_NOT_IMPLEMENTED`, and
 `createContact / updateContact: BLOCKED`. This is task-specific executable evidence, not a Control
 1.2 independent-review attestation or a release freeze.
+
+## Lead acquisition and OPPORTUNITY qualification runtime authority
+
+Implemented 2026-09-04. This section supersedes earlier current-state statements that
+`qualifyLeadForOpportunity` is unmapped or has no Deals participant. It does not admit Direct Sale,
+Customer creation, organization relationship mutation, or the retired generic `qualifyLead` route.
+
+### Lead working set
+
+`GET /leads` retains the pinned `LeadList` array response and adds the optional query parameters
+`limit` (default 50, maximum 250), `cursor`, `search`, `workState`, and `ownerId`. Continuation is an
+opaque `X-Next-Cursor` response header. Ordering is the stable descending tuple
+`(UpdatedAt, LeadId)`, and continuation is keyset-based over that tuple. Workspace, AccessControl
+OWN scope, requested owner, work state, search, cursor, ordering, and `limit + 1` are all applied in
+the Leads-owned EF query before materialization. Search covers Lead ID, display name, and source -
+the required readable identity fields - and deliberately excludes optional protected fields so it
+cannot become a field-security existence oracle.
+
+### OPPORTUNITY qualification
+
+`POST /workflows/lead-qualification/{leadId}/opportunity` is implemented through the Workflows
+coordinator and narrow Contacts, Tasks, Deals, and Leads participant contracts. It is deterministic
+convergent across owner-local transactions, not a distributed database transaction. Durable order
+is Contact, optional Task, Deal, Lead close. A completed response is stored on the Workflows anchor
+and replayed with the same Contact, optional Task, and Deal identifiers.
+
+Only `relationship.kind=CONTACT` is implemented. `ORGANIZATION_ACCOUNT` remains fail-closed because
+its owner mutation surface is still blocked. Deals owns Deal validation and assignment, creates the
+Deal at `DISCOVERY` with its stage-default 10 percent score, uses the request estimated value or the
+versioned Lead estimate, and uses the request expected close date or the versioned Lead `UpdatedAt`
+business date plus 30 days. `needSummary` is compatible with and becomes Deal notes;
+`decisionProcess` and `buyingWindow` are accepted workflow intent but are not copied because the
+current Deal contract has no semantically equivalent fields. An optional follow-up Task is assigned
+to the Deal owner and becomes the Deal next-action reference.
+
+The Lead closes as `CLOSED / OPPORTUNITY`, retains the resolved Contact in `relationshipRef`, and
+writes the canonical `dealRef`. The Deal retains `sourceLeadId`. The older redundant
+`qualifiedDealId` remains unwritten. Deals stores a workflow-only `QualificationSourceLeadId`
+projection under a filtered Workspace-scoped unique index, so racing workflow commands cannot
+create more than one qualification Deal while independent Deal creation semantics remain unchanged.
+Direct Sale and Customer creation remain absent.
+
+### Concurrency correction
+
+When EF reports an optimistic Lead write conflict, Leads clears attempted tracked values and reads
+the winning persisted version before producing `VERSION_CONFLICT.currentVersion`. The locally
+incremented attempted version is never reported as authoritative.
 
 ## Lead interested products implementation authority
 

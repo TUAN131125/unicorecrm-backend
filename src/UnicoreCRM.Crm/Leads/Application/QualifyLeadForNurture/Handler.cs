@@ -5,22 +5,23 @@ using UnicoreCRM.Crm.Leads.Domain;
 namespace UnicoreCRM.Crm.Leads.Application.QualifyLeadForNurture;
 
 /// <summary>
-/// The Leads half of WF-10 NURTURE. It maps no route: positive qualification is reachable only
-/// through the Workflows coordinator, and the generic <c>qualifyLead</c> operation stays retired.
+/// The Leads-owned terminal participant for the typed NURTURE and OPPORTUNITY WF-10 coordinators.
+/// The generic <c>qualifyLead</c> operation stays retired.
 /// </summary>
 internal sealed class Handler(
     LeadAuthorization authorization,
     ILeadsPersistence persistence,
-    LeadMutationExecution execution) : ILeadQualificationParticipant
+    LeadMutationExecution execution) : ILeadQualificationParticipant, ILeadOpportunityQualificationParticipant
 {
     internal const string Operation = "qualifyLeadForNurture";
+    internal const string OpportunityOperation = "qualifyLeadForOpportunity";
     private const string EventType = "LEAD_QUALIFIED_FOR_NURTURE";
 
     public async Task<LeadQualificationAuthorization> AuthorizeAsync(
         LeadQualificationAccessQuery query,
         CancellationToken cancellationToken)
     {
-        var authorized = await ReadAuthorizedLeadAsync(query, cancellationToken);
+        var authorized = await ReadAuthorizedLeadAsync(query, Operation, cancellationToken);
         return authorized.IsSuccess
             ? new(true, authorized.Value.Access.Trusted, null, null)
             : new(false, null, authorized.Error!.Code, authorized.Error.Status);
@@ -31,7 +32,7 @@ internal sealed class Handler(
         CancellationToken cancellationToken)
     {
         var authorized = await ReadAuthorizedLeadAsync(
-            new(command.LeadId, command.RequestId, command.CorrelationId), cancellationToken);
+            new(command.LeadId, command.RequestId, command.CorrelationId), Operation, cancellationToken);
         if (!authorized.IsSuccess)
             return Failed(authorized.Error!);
         var (access, lead) = authorized.Value;
@@ -44,6 +45,10 @@ internal sealed class Handler(
         // replaceLeadProfile can leave a VERIFYING Lead incomplete.
         if (lead.WorkState != LeadWorkState.Verifying || !lead.Profile.HasProgressiveProfile())
             return Failed(LeadErrors.InvalidTransition(lead.LeadId));
+        var fieldWriteError = LeadAuthorization.EnforceFieldWrite(
+            access, "leadWorkState", "qualificationOutcome", "relationshipRef");
+        if (fieldWriteError is not null)
+            return Failed(fieldWriteError);
 
         return new LeadQualificationPreparation(
             true,
@@ -54,11 +59,58 @@ internal sealed class Handler(
             null,
             null,
             lead.Profile.DoNotCall,
-            lead.Profile.DoNotEmail);
+            lead.Profile.DoNotEmail,
+            lead.UpdatedAt.UtcDateTime.Date.AddDays(30).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            lead.Profile.EstimatedValue.Amount,
+            lead.Profile.EstimatedValue.Currency);
+    }
+
+    public async Task<LeadQualificationAuthorization> AuthorizeOpportunityAsync(
+        LeadQualificationAccessQuery query,
+        CancellationToken cancellationToken)
+    {
+        var authorized = await ReadAuthorizedLeadAsync(query, OpportunityOperation, cancellationToken);
+        return authorized.IsSuccess
+            ? new(true, authorized.Value.Access.Trusted, null, null)
+            : new(false, null, authorized.Error!.Code, authorized.Error.Status);
+    }
+
+    public async Task<LeadQualificationPreparation> PrepareOpportunityAsync(
+        LeadQualificationPrepareCommand command,
+        CancellationToken cancellationToken)
+    {
+        var authorized = await ReadAuthorizedLeadAsync(
+            new(command.LeadId, command.RequestId, command.CorrelationId), OpportunityOperation, cancellationToken);
+        if (!authorized.IsSuccess)
+            return Failed(authorized.Error!);
+        var (access, lead) = authorized.Value;
+        if (lead.Version != command.ExpectedVersion)
+            return Failed(LeadErrors.VersionConflict(lead.LeadId, command.ExpectedVersion, lead.Version));
+        if (lead.WorkState != LeadWorkState.Verifying || !lead.Profile.HasProgressiveProfile())
+            return Failed(LeadErrors.InvalidTransition(lead.LeadId));
+        var fieldWriteError = LeadAuthorization.EnforceFieldWrite(
+            access, "leadWorkState", "qualificationOutcome", "relationshipRef", "dealRef");
+        if (fieldWriteError is not null)
+            return Failed(fieldWriteError);
+
+        return new LeadQualificationPreparation(
+            true,
+            access.Trusted,
+            lead.Profile.OwnerId,
+            lead.Version,
+            null,
+            null,
+            null,
+            lead.Profile.DoNotCall,
+            lead.Profile.DoNotEmail,
+            lead.UpdatedAt.UtcDateTime.Date.AddDays(30).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            lead.Profile.EstimatedValue.Amount,
+            lead.Profile.EstimatedValue.Currency);
     }
 
     private async Task<LeadOperationResult<(LeadAccess Access, Lead Lead)>> ReadAuthorizedLeadAsync(
         LeadQualificationAccessQuery query,
+        string operation,
         CancellationToken cancellationToken)
     {
         var metadata = new LeadRequestMetadata(query.RequestId, query.CorrelationId);
@@ -73,7 +125,7 @@ internal sealed class Handler(
             return LeadOperationResult<(LeadAccess, Lead)>.Failure(LeadErrors.NotFound());
 
         // Reuse the canonical Leads record guard; no lifecycle or version fact is disclosed first.
-        var denied = await authorization.EnforceRecordAsync(access.Value, lead, Operation, metadata, cancellationToken);
+        var denied = await authorization.EnforceRecordAsync(access.Value, lead, operation, metadata, cancellationToken);
         return denied is null
             ? LeadOperationResult<(LeadAccess, Lead)>.Success((access.Value, lead))
             : LeadOperationResult<(LeadAccess, Lead)>.Failure(denied);
@@ -121,6 +173,64 @@ internal sealed class Handler(
                 recordAccess, record, Operation, metadata, cancellationToken),
             recordAccess => LeadAuthorization.EnforceFieldWrite(
                 recordAccess, "leadWorkState", "qualificationOutcome", "relationshipRef"),
+            cancellationToken);
+
+        return result.IsSuccess
+            ? new LeadQualificationClosure(
+                true,
+                result.Value!.Outcome,
+                result.Value.Version,
+                null,
+                null,
+                null,
+                null,
+                null,
+                result.Value.CommandId,
+                result.Value.OccurredAt,
+                result.Value.EmittedEventIds,
+                result.Value.AuditEvidenceIds,
+                result.Value.CorrelationId)
+            : ClosureFailed(result.Error!);
+    }
+
+    public async Task<LeadQualificationClosure> CloseForOpportunityAsync(
+        LeadOpportunityQualificationCloseCommand command,
+        CancellationToken cancellationToken)
+    {
+        var metadata = new LeadRequestMetadata(command.RequestId, command.CorrelationId);
+        var access = await authorization.AuthorizeAsync(LeadCapabilities.Qualify, metadata, cancellationToken);
+        if (!access.IsSuccess)
+            return ClosureFailed(access.Error!);
+
+        var commandMetadata = new LeadCommandMetadata(
+            command.RequestId,
+            command.CorrelationId,
+            command.IdempotencyKey,
+            command.ExpectedVersion,
+            IdempotencyScopeActorId: command.IdempotencyScopeActorId);
+        var fingerprint = LeadCommandSupport.Fingerprint(new
+        {
+            command.LeadId,
+            command.ContactId,
+            command.DealId,
+            Outcome = "OPPORTUNITY"
+        });
+
+        var result = await execution.ExecuteAsync(
+            access.Value!,
+            OpportunityOperation,
+            "LEAD_QUALIFIED_FOR_OPPORTUNITY",
+            command.LeadId,
+            commandMetadata,
+            fingerprint,
+            (lead, now) => lead.QualifyForOpportunity(command.ContactId, command.DealId, now)
+                ? null
+                : LeadErrors.InvalidTransition(lead.LeadId),
+            null,
+            (recordAccess, record) => authorization.EnforceRecordAsync(
+                recordAccess, record, OpportunityOperation, metadata, cancellationToken),
+            recordAccess => LeadAuthorization.EnforceFieldWrite(
+                recordAccess, "leadWorkState", "qualificationOutcome", "relationshipRef", "dealRef"),
             cancellationToken);
 
         return result.IsSuccess

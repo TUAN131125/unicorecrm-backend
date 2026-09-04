@@ -8,7 +8,9 @@ internal sealed record DealCommandMetadata(
     string RequestId,
     string CorrelationId,
     string IdempotencyKey,
-    long? ExpectedVersion);
+    long? ExpectedVersion,
+    string? QualificationSourceLeadId = null,
+    string? IdempotencyScopeActorId = null);
 
 internal sealed record DealOperationError(
     string Code,
@@ -34,6 +36,10 @@ internal interface IDealsPersistence
     Task<IDealsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
     Task<Deal?> LoadDealAsync(string workspaceId, string dealId, CancellationToken cancellationToken);
     Task<Deal?> ReadDealAsync(string workspaceId, string dealId, CancellationToken cancellationToken);
+    Task<Deal?> ReadQualificationDealBySourceLeadAsync(
+        string workspaceId,
+        string sourceLeadId,
+        CancellationToken cancellationToken);
     /// <param name="scopeOwnerMemberId">
     /// The AccessControl-resolved record-scope owner. When set, only deals owned by that member are
     /// in scope, and the predicate is part of the SQL query rather than an in-memory filter, so a

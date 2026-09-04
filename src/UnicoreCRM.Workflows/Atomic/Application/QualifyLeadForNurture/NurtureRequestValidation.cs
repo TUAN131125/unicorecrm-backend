@@ -45,7 +45,7 @@ internal static partial class NurtureRequestValidation
         if (command.ExpectedVersion < 0)
             fields["If-Match"] = ["If-Match must contain a quoted non-negative resource version."];
 
-        Relationship(command.Contact, fields);
+        ValidateRelationship(command.Contact, fields);
 
         Utc(command.RevisitAt, "revisitAt", fields);
         Text(command.Reason, "reason", 1, ReasonMaxLength, true, fields);
@@ -61,7 +61,7 @@ internal static partial class NurtureRequestValidation
     /// accepting a contract-invalid body because this workflow happens to ignore that object would
     /// make the wire contract advisory.
     /// </summary>
-    private static void Relationship(LeadNurtureContactIntent contact, IDictionary<string, string[]> fields)
+    internal static void ValidateRelationship(LeadNurtureContactIntent contact, IDictionary<string, string[]> fields)
     {
         if (!contact.ContactSupplied)
             fields["relationship.contact"] = ["contact is required."];

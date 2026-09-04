@@ -10,12 +10,14 @@ internal sealed class Deal
         string stageCode,
         DealStageCategory stageCategory,
         DealForecastCategory forecastCategory,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? qualificationSourceLeadId = null)
     {
         DealId = DealIds.New("deal");
         WorkspaceId = workspaceId;
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;
+        QualificationSourceLeadId = qualificationSourceLeadId;
         StageCode = stageCode;
         StageCategory = stageCategory;
         ForecastCategory = forecastCategory;
@@ -36,6 +38,12 @@ internal sealed class Deal
     /// column. It is derived state kept in step with the profile, never an independent fact.
     /// </summary>
     public string ScopeOwnerId { get; private set; } = null!;
+    /// <summary>
+    /// Workflow-only uniqueness projection. Public Deal creation may carry sourceLeadId as ordinary
+    /// provenance; only WF-10 sets this column, allowing one authoritative qualification Deal per
+    /// Lead without changing the semantics of pre-existing independently created Deals.
+    /// </summary>
+    public string? QualificationSourceLeadId { get; private set; }
     public string StageCode { get; private set; } = null!;
     public DealStageCategory StageCategory { get; private set; }
     public DealForecastCategory ForecastCategory { get; private set; }
@@ -68,6 +76,9 @@ internal sealed class Deal
     internal bool ReplaceProfile(DealProfile profile, DateTimeOffset now)
     {
         if (IsArchived)
+            return false;
+        if (QualificationSourceLeadId is not null
+            && !string.Equals(profile.SourceLeadId, QualificationSourceLeadId, StringComparison.Ordinal))
             return false;
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;

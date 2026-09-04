@@ -2,8 +2,6 @@ using System.Data;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence;
@@ -14,16 +12,14 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence;
 /// and cannot establish parity with string.Trim().ToUpperInvariant().
 /// </summary>
 internal sealed class AccessRoleLegacyNormalizationCorrectionService(
-    IServiceScopeFactory scopeFactory,
-    ILogger<AccessRoleLegacyNormalizationCorrectionService> logger) : IHostedService
+    AccessControlDbContext dbContext,
+    ILogger<AccessRoleLegacyNormalizationCorrectionService> logger)
 {
     private const int RequiredColumnCount = 7;
     private const int ApplicationLockTimeoutMilliseconds = 60_000;
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    internal async Task RunAsync(CancellationToken cancellationToken)
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AccessControlDbContext>();
         if (!await EnsureCorrectedStorageIsPresentAsync(dbContext, cancellationToken))
         {
             logger.LogDebug("AccessControl Roles persistence is absent; no legacy role normalization correction is required.");
@@ -152,8 +148,6 @@ internal sealed class AccessRoleLegacyNormalizationCorrectionService(
             throw;
         }
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private static Task<LegacyRole[]> ReadWorkspaceRolesAsync(
         AccessControlDbContext dbContext,

@@ -24,6 +24,7 @@ internal sealed class DealsDbContext(DbContextOptions<DealsDbContext> options) :
             entity.Property(item => item.DealId).HasMaxLength(128);
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
             entity.Property(item => item.ScopeOwnerId).HasMaxLength(128);
+            entity.Property(item => item.QualificationSourceLeadId).HasMaxLength(128);
             entity.Property(item => item.Profile).HasConversion<DealProfileValueConverter>().HasColumnType("nvarchar(max)");
             entity.Property(item => item.StageCode).HasMaxLength(120);
             entity.Property(item => item.StageCategory).HasConversion<string>().HasMaxLength(16);
@@ -52,6 +53,9 @@ internal sealed class DealsDbContext(DbContextOptions<DealsDbContext> options) :
             // are what makes the security predicate a seek instead of a Workspace scan.
             entity.HasIndex(item => new { item.WorkspaceId, item.ScopeOwnerId, item.UpdatedAt, item.DealId });
             entity.HasIndex(item => new { item.WorkspaceId, item.StageCategory, item.StageCode });
+            entity.HasIndex(item => new { item.WorkspaceId, item.QualificationSourceLeadId })
+                .IsUnique()
+                .HasFilter("[QualificationSourceLeadId] IS NOT NULL");
         });
 
         modelBuilder.Entity<DealIdempotencyRecord>(entity =>

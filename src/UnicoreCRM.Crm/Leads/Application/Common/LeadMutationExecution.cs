@@ -93,7 +93,12 @@ internal sealed class LeadMutationExecution(
         }
         catch (LeadsPersistenceConcurrencyException)
         {
-            return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.VersionConflict(lead.LeadId, expectedVersion, lead.Version));
+            var currentVersion = await persistence.ReadCurrentVersionAsync(
+                trusted.WorkspaceId, lead.LeadId, cancellationToken);
+            return currentVersion is null
+                ? LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.NotFound())
+                : LeadOperationResult<LeadMutationResponse>.Failure(
+                    LeadErrors.VersionConflict(lead.LeadId, expectedVersion, currentVersion.Value));
         }
         await transaction.CommitAsync(cancellationToken);
         return LeadOperationResult<LeadMutationResponse>.Success(Project(response, access));

@@ -9,7 +9,6 @@ internal sealed class AccessControlOptions
 internal sealed class DevelopmentAccessControlBootstrapOptions
 {
     public bool Enabled { get; init; }
-    public bool ApplyMigrations { get; init; }
     public string IdentityEmail { get; init; } = string.Empty;
     public string WorkspaceKey { get; init; } = string.Empty;
     public string RoleName { get; init; } = "Development Bootstrap";

@@ -26,9 +26,9 @@ internal static class LeadFieldSecurity
     /// field required. These are the <c>LeadDocument</c> property names, generated from that record
     /// so the vocabulary cannot drift from what Leads actually projects.
     ///
-    /// <para><c>relationshipRef</c> is now projected, because positive qualification writes the
-    /// conversion reference. The wire schema still declares further properties (<c>notes</c>,
-    /// <c>dealRef</c>, <c>qualifiedDealId</c>, <c>archivedAt</c> and the merge/consent family) that
+    /// <para><c>relationshipRef</c> and <c>dealRef</c> are projected because positive qualification
+    /// writes them. The wire schema still declares further properties (<c>notes</c>,
+    /// <c>qualifiedDealId</c>, <c>archivedAt</c> and the merge/consent family) that
     /// Leads does not project at all. A policy naming one of them fails closed as an unknown key.</para>
     ///
     /// <para>Two rules, frozen and distinct. A policy naming a key <b>outside</b> this vocabulary is
@@ -59,6 +59,7 @@ internal static class LeadFieldSecurity
             ["phone"] = false,
             ["qualificationOutcome"] = false,
             ["relationshipRef"] = false,
+            ["dealRef"] = false,
             ["nextFollowUpAt"] = false,
             ["priority"] = false,
             ["tags"] = false,
@@ -110,6 +111,7 @@ internal static class LeadFieldSecurity
             Phone = access.CanRead("phone") ? model.Phone : null,
             QualificationOutcome = access.CanRead("qualificationOutcome") ? model.QualificationOutcome : null,
             RelationshipRef = access.CanRead("relationshipRef") ? model.RelationshipRef : null,
+            DealRef = access.CanRead("dealRef") ? model.DealRef : null,
             NextFollowUpAt = access.CanRead("nextFollowUpAt") ? model.NextFollowUpAt : null,
             Priority = access.CanRead("priority") ? model.Priority : null,
             Tags = access.CanRead("tags") ? model.Tags : null,

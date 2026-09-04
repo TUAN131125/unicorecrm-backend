@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,26 +12,21 @@ namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence;
 
 internal sealed class DevelopmentAccessControlBootstrap(
     IHostEnvironment environment,
-    IServiceScopeFactory scopeFactory,
+    AccessControlDbContext dbContext,
+    IDevelopmentIdentityReferenceLookup identityLookup,
+    IDevelopmentWorkspaceReferenceLookup workspaceLookup,
     IOptions<AccessControlOptions> options,
-    ILogger<DevelopmentAccessControlBootstrap> logger) : IHostedService
+    ILogger<DevelopmentAccessControlBootstrap> logger)
 {
-    public async Task StartAsync(CancellationToken cancellationToken)
+    internal async Task RunAsync(CancellationToken cancellationToken)
     {
         var bootstrap = options.Value.DevelopmentBootstrap;
         if (!environment.IsDevelopment() || !bootstrap.Enabled)
             return;
         var capabilities = Validate(bootstrap);
 
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AccessControlDbContext>();
-        if (bootstrap.ApplyMigrations)
-            await dbContext.Database.MigrateAsync(cancellationToken);
-
-        var identityLookup = scope.ServiceProvider.GetRequiredService<IDevelopmentIdentityReferenceLookup>();
         var identity = await identityLookup.FindActiveByEmailAsync(bootstrap.IdentityEmail, cancellationToken)
             ?? throw new InvalidOperationException("The Development AccessControl bootstrap identity must already be an active IdentityAuth account.");
-        var workspaceLookup = scope.ServiceProvider.GetRequiredService<IDevelopmentWorkspaceReferenceLookup>();
         var workspace = await workspaceLookup.FindActiveMembershipAsync(
                 bootstrap.WorkspaceKey,
                 identity.AccountId,
@@ -103,8 +97,6 @@ internal sealed class DevelopmentAccessControlBootstrap(
             workspace.WorkspaceId,
             workspace.MembershipId);
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private static string[] Validate(DevelopmentAccessControlBootstrapOptions options)
     {

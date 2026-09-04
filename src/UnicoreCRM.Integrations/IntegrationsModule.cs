@@ -25,7 +25,10 @@ public static class IntegrationsModule
             "integrations",
             (provider, cancellationToken) => provider.GetRequiredService<IntegrationsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddSingleton<IWebhookSecretProvider, ConfigurationWebhookSecretProvider>();
-        services.AddHostedService<DevelopmentInboundBindingBootstrap>();
+        services.AddScoped<DevelopmentInboundBindingBootstrap>();
+        services.AddDevelopmentBootstrapAction(
+            "integrations",
+            (provider, cancellationToken) => provider.GetRequiredService<DevelopmentInboundBindingBootstrap>().RunAsync(cancellationToken));
         services.AddInboundModule();
         services.AddOutboundModule();
         services.AddProvidersModule();

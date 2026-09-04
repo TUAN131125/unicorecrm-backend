@@ -11,7 +11,17 @@ internal interface ILeadsPersistence
     /// The AccessControl-resolved record-scope owner. When set, only leads owned by that member are
     /// in scope, and the predicate is part of the query rather than a post-filter.
     /// </param>
-    Task<IReadOnlyList<Lead>> ListLeadsAsync(string workspaceId, string? scopeOwnerMemberId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Lead>> ListLeadsAsync(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        string? ownerId,
+        LeadWorkState? workState,
+        string? normalizedSearch,
+        DateTimeOffset? cursorUpdatedAt,
+        string? cursorLeadId,
+        int take,
+        CancellationToken cancellationToken);
+    Task<long?> ReadCurrentVersionAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
     Task<LeadIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddLead(Lead lead);
     void AddIdempotency(LeadIdempotencyRecord record);

@@ -23,12 +23,14 @@ internal sealed class LeadsDbContext(DbContextOptions<LeadsDbContext> options) :
             entity.Property(item => item.LeadId).HasMaxLength(128);
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
             entity.Property(item => item.ScopeOwnerId).HasMaxLength(128);
+            entity.Property(item => item.SearchText).HasMaxLength(512);
             entity.Property(item => item.Profile).HasConversion<LeadProfileValueConverter>().HasColumnType("nvarchar(max)");
             entity.Property(item => item.DisqualifiedBy).HasMaxLength(128);
             entity.Property(item => item.DisqualificationReason).HasMaxLength(2000);
             entity.Property(item => item.DisqualificationEvidence).HasMaxLength(4000);
             entity.Property(item => item.RelationshipType).HasMaxLength(32);
             entity.Property(item => item.RelationshipId).HasMaxLength(128);
+            entity.Property(item => item.DealRef).HasMaxLength(128);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.LeadId });
             // The enforced OWN-scope predicate. ListLeads narrows by WorkspaceId and the
