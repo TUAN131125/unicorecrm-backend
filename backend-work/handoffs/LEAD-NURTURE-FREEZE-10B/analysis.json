@@ -1,0 +1,187 @@
+{
+  "schemaVersion": "1.2",
+  "kind": "UnicoreCRMAnalysisRecord",
+  "taskId": "LEAD-NURTURE-FREEZE-10B",
+  "claims": [
+    {
+      "claimId": "A-SUBJECT",
+      "classification": "OBSERVED_FACT",
+      "statement": "The immutable functional subject is backend commit ff5047f997854935ce7fe2271dcc893ca6cce987, tree f81f8b9e7684cbc51954a2456a2bbbebb1f78170, base d3b1c117ef5c03d6ae12d8d214ba86a03797ac6e, diffSha256 ce85eae24e32a626b13d61ec3513c9cc89e1f30152c6b05d3d6c383e17ecf1c7. It is unchanged by this governance task.",
+      "evidence": [
+        "git rev-parse HEAD",
+        "git rev-parse HEAD^{tree}",
+        "_subject.current_subject(require_clean=True)"
+      ],
+      "derivedFrom": []
+    },
+    {
+      "claimId": "A-B4-RESOLVED",
+      "classification": "CANONICAL_FACT",
+      "statement": "GAP-CONTRACT-PIN-DIVERGENCE (Task 10B 'B4') is not an open business question. supersession-ledger.json records DEC-LEAD-CONTACT-NAME-BOUND: the Contact canonical name bound is 200, LeadQualificationContactInput.displayName adopts it, the live contract was regenerated to d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57, and 'design-authority/contracts/openapi.json stays unedited as dated PINNED_FRONTEND_WIRE_EVIDENCE'. The divergence is therefore an intended provenance freeze, not drift.",
+      "evidence": [
+        "design-authority/canonical-design/authority/supersession-ledger.json changes[] source=DEC-LEAD-CONTACT-NAME-BOUND",
+        "design-authority/canonical-design/authority/operation-registry.json qualifyLeadForNurture note naming d98462... as the live contract",
+        "design-authority/canonical-design/authority/lead-contact-qualification-authority.md AMENDMENT 2026-09-03"
+      ],
+      "derivedFrom": []
+    },
+    {
+      "claimId": "A-B4-INTERNAL-CONTRADICTION",
+      "classification": "OBSERVED_FACT",
+      "statement": "The pinned provenance contract (8278547d) already declares ContactDocument.fullName and ContactDocument.displayName at maxLength 200 while declaring LeadQualificationContactInput.displayName at 256. The 256 was an internal contradiction inside that same document, so narrowing it to 200 reconciled the document with a bound it already stated canonically; it introduced no new business rule.",
+      "evidence": [
+        "design-authority/contracts/openapi.json #/components/schemas/ContactDocument and #/components/schemas/LeadQualificationContactInput"
+      ],
+      "derivedFrom": [
+        "A-B4-RESOLVED"
+      ]
+    },
+    {
+      "claimId": "A-CONTROL-PACK-VALID",
+      "classification": "OBSERVED_FACT",
+      "statement": "tools/validate_pack.py PASSES. The control system itself is intact; every gate failure below is a repository-integration failure, not a defective control package.",
+      "evidence": [
+        "python .unicore-ai/tools/validate_pack.py -> PASS"
+      ],
+      "derivedFrom": []
+    },
+    {
+      "claimId": "A-REPO-NOT-INTEGRATED",
+      "classification": "OBSERVED_FACT",
+      "statement": "verify_repo_integration.py reports 7 MISSING_PROJECT errors. The repository was never bootstrapped into the control system: it has no architecture/ adopted governance, no tests/ projects, and its module assemblies (UnicoreCRM.Crm, .Operations, .Sales, .Platform, .Workflows, .ApiHost) do not match the layered layout (UnicoreCRM.Domain/.Application/.Infrastructure/.Api) that the shipped gate definitions and wire_architecture_tests.py assume.",
+      "evidence": [
+        "python .unicore-ai/tools/verify_repo_integration.py --repo-root backend",
+        ".unicore-ai/tools/wire_architecture_tests.py CSPROJ ProjectReference list",
+        ".unicore-ai/architecture-tests/LayerDependencyTests.cs Assembly.Load(\"UnicoreCRM.Domain\")"
+      ],
+      "derivedFrom": []
+    },
+    {
+      "claimId": "A-GATE-REBIND",
+      "classification": "DERIVED_FACT",
+      "statement": "Making the architecture and contract gates executable requires an adopted gate registry at backend/architecture/gate-registry.json. That path is hard-denied by protected_write_patterns(), is not in machineManagedRuntimePaths, and an untracked architecture/ directory fails working_tree_clean(). It therefore cannot live in this task's diff range and cannot stay uncommitted: it must be committed before identity.baseCommit, which rebases the implementation subject and invalidates the ff5047f binding of every recorded evidence row.",
+      "evidence": [
+        "_gate_lib.adopted_gate_registry -> repo_root/'architecture/gate-registry.json'",
+        "path_matches('architecture/gate-registry.json', 'architecture/**') is True",
+        "_subject.working_tree_clean whitelists only backend-work/",
+        "validate_diff_scope.py GLOBAL_PROTECTED_PATH"
+      ],
+      "derivedFrom": [
+        "A-REPO-NOT-INTEGRATED"
+      ]
+    },
+    {
+      "claimId": "A-TRUSTED-CI",
+      "classification": "OBSERVED_FACT",
+      "statement": "The canonical trusted-evidence path is repo-integration/github-actions.unicorecrm-ai-gates.yml.example. Its trust model requires the control plane checked out from a separate protected immutable ref (UNICORECRM_CONTROL_REPOSITORY/UNICORECRM_CONTROL_REF), a repository secret UNICORECRM_CI_ATTESTATION_KEY, and a passing 'verify_repo_integration --execute' step. None of the three exists: .unicore-ai is a local unversioned directory, no secret is configured, and repo integration fails.",
+      "evidence": [
+        ".unicore-ai/repo-integration/github-actions.unicorecrm-ai-gates.yml.example",
+        ".unicore-ai/tools/_attestation.py sign()/verify()",
+        "backend/.github does not exist"
+      ],
+      "derivedFrom": [
+        "A-REPO-NOT-INTEGRATED"
+      ]
+    },
+    {
+      "claimId": "A-LOCAL-EVIDENCE",
+      "classification": "OBSERVED_FACT",
+      "statement": "Seven maintained suites plus npm run api:check were rerun against ff5047f and all pass; they are recorded as diagnostics, not governance evidence, because run_and_record_evidence.py is disabled by design. Only the build gate has a genuine governance evidence row, at trust level LOCAL.",
+      "evidence": [
+        "backend-work/diagnostics/LEAD-NURTURE-FREEZE-10B/manifest.json",
+        "backend-work/evidence/LEAD-NURTURE-FREEZE-10B/build.json"
+      ],
+      "derivedFrom": [
+        "A-SUBJECT"
+      ]
+    }
+  ],
+  "invariants": [
+    "The immutable functional subject ff5047f is never amended, rebased or cherry-picked by governance work.",
+    "LOCAL evidence is never relabelled TRUSTED_CI or EXTERNAL_CONFORMANCE.",
+    "No attestation key is invented, forged or committed.",
+    "design-authority/** and architecture/** remain hard-denied write paths for task diffs.",
+    "The controlling wire contract is the live d98462... document; the design-authority copy is dated provenance evidence by explicit ledger decision."
+  ],
+  "conflicts": [
+    {
+      "id": "C-BASELINE-VS-LIVE",
+      "statement": "identity.baseline.openApiSha256 must equal the operation shard's 8278547d for check_baseline_drift to pass, while the controlling contract is d98462.",
+      "resolution": "Not a conflict once A-B4-RESOLVED is applied: the ledger designates 8278547d as PINNED_FRONTEND_WIRE_EVIDENCE (the baseline reference) and d98462 as the live contract, which the packet pins separately in authorityEvidence[CONTRACT-LIVE-OPENAPI]. Both identities are carried; neither is substituted for the other."
+    }
+  ],
+  "gaps": [
+    {
+      "id": "G-ARCH-GATE",
+      "status": "BLOCKING_GOVERNANCE_GAP",
+      "statement": "No repository-wide architecture gate exists. The registry gate names tests/UnicoreCRM.ArchitectureTests, which does not exist; the canonical wiring tool generates a project referencing UnicoreCRM.Domain/.Application/.Infrastructure/.Api, none of which exist here. The only real architecture assertions in the repository are Lead-specific and embedded in verify-lead-nurture-qualification.ps1, which must not be promoted to a general gate.",
+      "requiredActor": "governance owner / architect"
+    },
+    {
+      "id": "G-CONTRACT-GATE",
+      "status": "BLOCKING_GOVERNANCE_GAP",
+      "statement": "No backend contract gate exists. The registry gate names tests/UnicoreCRM.ContractTests, which does not exist. The repository's real contract mechanism is npm run api:check in frontend/unicorecrm-web, which run_gate.py can only execute from the backend repo root and which binds to content-hashed, uncommitted frontend artifacts rather than to the backend subject.",
+      "requiredActor": "governance owner / architect"
+    },
+    {
+      "id": "G-SUBJECT-REBIND",
+      "status": "BLOCKING_GOVERNANCE_GAP",
+      "statement": "Closing G-ARCH-GATE and G-CONTRACT-GATE requires committing adopted governance under backend/architecture/, which rebases the implementation subject off ff5047f. Task 10C is forbidden from doing this and must report IMMUTABLE_SUBJECT_REBIND_REQUIRED.",
+      "requiredActor": "governance owner"
+    },
+    {
+      "id": "G-CROSS-OWNER-EDGES",
+      "status": "BLOCKING_GOVERNANCE_GAP",
+      "statement": "approvedCrossOwnerEdges is empty by design. The four edges this slice needs (Workflows.Atomic.Application -> Leads/Contacts/Tasks Contracts, Leads.Application -> Products.Contracts) are frozen as REQUIRED participants by lead-contact-qualification-authority.md section 10.2 but were never transcribed into the allowlist. Recording them is reserved to an approved architecture decision.",
+      "requiredActor": "governor / architect"
+    },
+    {
+      "id": "G-PERSISTENCE-OWNERSHIP",
+      "status": "BLOCKING_GOVERNANCE_GAP",
+      "statement": "persistence-ownership.json marks leads, contacts, tasks and products IMPLEMENTATION_MAPPING_REQUIRED although all four already have durable writes. The manifest's own rule reserves the assignment to Governor/Architect before the first durable write.",
+      "requiredActor": "governor / architect"
+    },
+    {
+      "id": "G-TRUSTED-EVIDENCE",
+      "status": "BLOCKING_GOVERNANCE_GAP",
+      "statement": "Freeze-grade PASS requires TRUSTED_CI or EXTERNAL_CONFORMANCE attestation. No trusted runner, control-plane ref or attestation key exists, and the canonical workflow's own verify_repo_integration --execute step would fail today.",
+      "requiredActor": "governance owner / CI administrator"
+    },
+    {
+      "id": "G-LEGACY-ANCHORS",
+      "status": "ACCEPTED_DEPLOYMENT_PREREQUISITE",
+      "statement": "Workflow anchors with IntentVersion != 1 predate Task owner intent and are refused rather than reconstructed. Existing rows must be reconciled before deployment.",
+      "requiredActor": "deployment owner"
+    },
+    {
+      "id": "G-LEGACY-RECEIPTS",
+      "status": "ACCEPTED_DEPLOYMENT_PREREQUISITE",
+      "statement": "Contact conversion receipts with a null ResultJson stay fail-closed; the original owner-returned name and version are never rebuilt from current mutable Contact rows.",
+      "requiredActor": "deployment owner"
+    },
+    {
+      "id": "G-FN2-TAXONOMY",
+      "status": "AUTHORITY_FOLLOW_UP_NON_BLOCKING",
+      "statement": "Exhausted internal contention terminates as the admitted INTERNAL_ERROR / HTTP 500 rather than a false relationship-invalid 422. The operation's admitted taxonomy has no correctly classified retriable internal-contention code: only RATE_LIMITED and INTEGRATION_UNAVAILABLE are catalogued retryable:true and neither describes this condition. No canonical authority makes resolving this a freeze precondition.",
+      "requiredActor": "contract authority owner"
+    },
+    {
+      "id": "G-ATOMICMODULE-COMMENT",
+      "status": "AUTHORITY_FOLLOW_UP_NON_BLOCKING",
+      "statement": "AtomicModule.cs still comments that the NURTURE coordinator maps no route while ApiHost maps it. Left uncorrected so the freeze subject stays byte-identical to the reviewed source.",
+      "requiredActor": "implementation owner, separate task"
+    },
+    {
+      "id": "G-B4",
+      "status": "RESOLVED",
+      "statement": "GAP-CONTRACT-PIN-DIVERGENCE resolved through existing authority; see A-B4-RESOLVED and A-B4-INTERNAL-CONTRADICTION. Reclassified from AUTHORITY_GAP to an intended provenance freeze recorded in the supersession ledger.",
+      "requiredActor": "none"
+    }
+  ],
+  "decisionsRequired": [
+    "Governance owner: bootstrap the repository into the control system (adopted architecture/ governance and runnable gate definitions matched to the modular-monolith layout), accepting that the implementation subject must be rebased onto that governance commit.",
+    "Architect: record the four frozen cross-owner participant edges in approvedCrossOwnerEdges.",
+    "Governor/Architect: assign and freeze persistence ownership for leads, contacts, tasks and products.",
+    "CI administrator: publish the control plane at a protected immutable ref and configure UNICORECRM_CI_ATTESTATION_KEY before any freeze-grade evidence can exist."
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "4.2.1",
+  "kind": "UnicoreCRMEvidenceRecord",
+  "taskId": "LEAD-NURTURE-FREEZE-10B",
+  "gateId": "contract",
+  "category": "contract",
+  "status": "FAIL",
+  "command": "dotnet test tests/UnicoreCRM.ContractTests/UnicoreCRM.ContractTests.csproj --no-build",
+  "commandArgv": [
+    "dotnet",
+    "test",
+    "tests/UnicoreCRM.ContractTests/UnicoreCRM.ContractTests.csproj",
+    "--no-build"
+  ],
+  "gateDefinitionSha256": "5013088843b1fae658667fa2ea8ab8d8f78f8ea0bc61af7860f44263a7e92399",
+  "startedAt": "2026-09-03T12:52:46.628291+00:00",
+  "finishedAt": "2026-09-03T12:52:46.873371+00:00",
+  "exitCode": 1,
+  "artifactPaths": [
+    "backend-work/evidence/LEAD-NURTURE-FREEZE-10B/contract.log"
+  ],
+  "summary": "",
+  "environment": {},
+  "sha256": {
+    "backend-work/evidence/LEAD-NURTURE-FREEZE-10B/contract.log": "14960c97a6b30ea7605cd344705445e75a2981aeeae592015887bb61ce00cd68"
+  },
+  "producer": {
+    "mode": "LOCAL_EXECUTION",
+    "actorRole": "verifier"
+  },
+  "subject": {
+    "commitSha": "ff5047f997854935ce7fe2271dcc893ca6cce987",
+    "treeSha": "f81f8b9e7684cbc51954a2456a2bbbebb1f78170",
+    "diffSha256": "ce85eae24e32a626b13d61ec3513c9cc89e1f30152c6b05d3d6c383e17ecf1c7",
+    "taskPacketSha256": "3d1fc2a2a9e7ff4171d341863212148b67595b11d16102d9eea8563cc8319d28"
+  },
+  "trust": {
+    "level": "LOCAL",
+    "runnerId": "local-task10c"
+  },
+  "attestation": null,
+  "recordSha256": "968bced1f2abe232c6f36a2dc68300029cfa96e72aa191c0044788f7b5b20c13"
+}

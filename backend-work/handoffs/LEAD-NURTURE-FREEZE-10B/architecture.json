@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.2",
+  "kind": "UnicoreCRMArchitectureRecord",
+  "taskId": "LEAD-NURTURE-FREEZE-10B",
+  "decision": "Governance architecture only; no runtime architecture is admitted or changed by this record. The review subject is a four-part binding: (1) the immutable backend implementation commit ff5047f997854935ce7fe2271dcc893ca6cce987 / tree f81f8b9e7684cbc51954a2456a2bbbebb1f78170 / base d3b1c117ef5c03d6ae12d8d214ba86a03797ac6e / diffSha256 ce85eae24e32a626b13d61ec3513c9cc89e1f30152c6b05d3d6c383e17ecf1c7; (2) the contract subject, pinned by content hash because it lives in a separate repository whose working tree carries unrelated in-flight product work - live openapi.json d98462853a5c529ce1695978d35541a8bc000dc25b2781a62fd8bf5e91cd6a57 plus seven generated artifacts, held in authorityEvidence[CONTRACT-LIVE-OPENAPI, CONTRACT-LIVE-ARTIFACTS]; (3) the authority pinset of 13 content-hashed files in authorityEvidence[AUTHORITY-PINSET], design-authority being unversioned; and (4) the task packet hash 0a8cb080cf57a2bfbbd5ecb86bb5b4bbc3753678f5ea45a72d3c8ab853c70d85. freeze_task.py binds commitSha, treeSha, diffSha256 and taskPacketSha256; parts (2) and (3) are carried as authority evidence because the freeze record has no field for them, so the backend SHA alone must never be read as identifying the public wire contract.",
+  "affectedBoundaries": [
+    "Governance workspace backend/backend-work/ only (tasks, evidence, diagnostics, handoffs, state).",
+    "No owner module boundary is touched. No src/ file is modified by this task.",
+    "Adopted governance under backend/architecture/ is NOT created here: it is hard-denied to task diffs and would rebase the subject."
+  ],
+  "dependencyDirection": "Unchanged from the reviewed implementation: Workflows depends only on owner Contracts (Leads, Contacts, Tasks) and Leads depends only on Products.Contracts. No governance artifact introduces, approves or widens a dependency; the four edges remain unrecorded in approvedCrossOwnerEdges and are reported as gap G-CROSS-OWNER-EDGES.",
+  "persistenceOwnership": "No persistence is created, moved or assigned by this task. The five migrations in the subject (LeadQualificationAnchor, LeadQualificationRelationship, LeadQualificationAnchorResponse, ContactQualificationResultReceipt, NurtureRecoveryFacts) are pinned by treeSha. persistence-ownership.json still marks leads, contacts, tasks and products IMPLEMENTATION_MAPPING_REQUIRED; assigning them is reserved to Governor/Architect and is reported as gap G-PERSISTENCE-OWNERSHIP.",
+  "transactionBoundary": "Unchanged and out of scope: BACKEND_ORCHESTRATED_TRANSACTION_RELATIONSHIP_TASK_AND_LEAD, deterministic convergent with forward-only recovery. This governance task performs no runtime transaction.",
+  "securityImplications": [
+    "Evidence trust model is preserved exactly: LOCAL evidence is recorded as LOCAL and is refused by validate_evidence --for-freeze.",
+    "No attestation key is created, guessed, committed or referenced; sanitized_child_env keeps signing credentials out of gate child processes.",
+    "Role separation is preserved: primaryWriter claude-opus-5-implementer, reviewer pending-independent-reviewer, gatekeeper unassigned. No role is self-attested and no fake actor name is introduced to satisfy a string comparison.",
+    "No secret, credential or personal datum enters the governance workspace."
+  ],
+  "backwardCompatibility": "Fully backward compatible: no source file, contract, schema, migration or manifest outside backend/backend-work/ is modified. The immutable subject and all previously recorded evidence bindings remain valid and verifiable.",
+  "rejectedAlternatives": [
+    "Creating backend/architecture/gate-registry.json to make the architecture and contract gates runnable - rejected: architecture/** is hard-denied to task diffs and an untracked architecture/ fails working_tree_clean, so it forces a subject rebase (IMMUTABLE_SUBJECT_REBIND_REQUIRED).",
+    "Running wire_architecture_tests.py --apply - rejected: its generated project references UnicoreCRM.Domain/.Application/.Infrastructure/.Api, which do not exist in this modular monolith, so it would produce a non-compiling placeholder rather than a real gate.",
+    "Binding the architecture gate to verify-lead-nurture-qualification.ps1 - rejected: that verifier is Lead-specific and database-bound; promoting it would special-case Lead to pass the freeze and would leave every other module ungated.",
+    "Editing .unicore-ai/manifests/dependency-allowlist.json or persistence-ownership.json - rejected: both reserve the decision to Governor/Architect, and neither change would make the task admissible while the gate gaps stand.",
+    "Re-pinning design-authority/contracts/openapi.json or operation-integrity.json to d98462 - rejected: the supersession ledger explicitly freezes that file as dated PINNED_FRONTEND_WIRE_EVIDENCE.",
+    "Installing the GitHub Actions template - rejected as speculative: its own verify_repo_integration --execute step fails today and its control-plane ref and attestation secret do not exist.",
+    "Correcting the stale AtomicModule.cs comment - rejected: it would alter the byte-identical reviewed subject for a documentation-only defect."
+  ],
+  "outOfScope": [
+    "All Lead, NURTURE, Contacts, Tasks and Products runtime behaviour.",
+    "F1-F6, G1, FN-1 and FN-2 implementations.",
+    "Opportunity, DirectSale, Customer, Deals, Quotes, Orders.",
+    "Legacy-data reconciliation for workflow anchors and Contact conversion receipts.",
+    "Independent review and freeze, which belong to the reviewer and gatekeeper principals."
+  ]
+}

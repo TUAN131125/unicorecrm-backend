@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "4.2.1",
+  "kind": "UnicoreCRMEvidenceRecord",
+  "taskId": "LEAD-NURTURE-FREEZE-10B",
+  "gateId": "build",
+  "category": "build",
+  "status": "PASS",
+  "command": "dotnet build --no-restore",
+  "commandArgv": [
+    "dotnet",
+    "build",
+    "--no-restore"
+  ],
+  "gateDefinitionSha256": "ae67012a3d5b02d03601798831ea28e529331568a9db4e3e0dbb2b7acef1eb7c",
+  "startedAt": "2026-09-03T12:52:37.022100+00:00",
+  "finishedAt": "2026-09-03T12:52:45.544396+00:00",
+  "exitCode": 0,
+  "artifactPaths": [
+    "backend-work/evidence/LEAD-NURTURE-FREEZE-10B/build.log"
+  ],
+  "summary": "",
+  "environment": {},
+  "sha256": {
+    "backend-work/evidence/LEAD-NURTURE-FREEZE-10B/build.log": "97168d694c83b84cfcaf1a142f389039762b76425dabade718f4981a9f7f85ad"
+  },
+  "producer": {
+    "mode": "LOCAL_EXECUTION",
+    "actorRole": "verifier"
+  },
+  "subject": {
+    "commitSha": "ff5047f997854935ce7fe2271dcc893ca6cce987",
+    "treeSha": "f81f8b9e7684cbc51954a2456a2bbbebb1f78170",
+    "diffSha256": "ce85eae24e32a626b13d61ec3513c9cc89e1f30152c6b05d3d6c383e17ecf1c7",
+    "taskPacketSha256": "3d1fc2a2a9e7ff4171d341863212148b67595b11d16102d9eea8563cc8319d28"
+  },
+  "trust": {
+    "level": "LOCAL",
+    "runnerId": "local-task10c"
+  },
+  "attestation": null,
+  "recordSha256": "f03f5c7219e62e0e21e5a234961d114ec5e91b7ef7234eb4ae35ddf84b0dc4f6"
+}
