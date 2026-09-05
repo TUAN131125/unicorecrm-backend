@@ -49,9 +49,10 @@ public static class LeadsEndpoints
             cancellationToken);
         if (!result.IsSuccess)
             return LeadsHttp.Error(result.Error!, metadata.CorrelationId);
-        if (result.Value!.NextCursor is { } nextCursor)
-            context.Response.Headers["X-Next-Cursor"] = nextCursor;
-        return Results.Json(result.Value.Items);
+        var page = result.Value!;
+        return Results.Json(new LeadListResponse(
+            page.Items,
+            new LeadPageInfo(page.HasNextPage, page.NextCursor, page.TotalCount)));
     }
 
     private static async Task<IResult> CreateLeadAsync(

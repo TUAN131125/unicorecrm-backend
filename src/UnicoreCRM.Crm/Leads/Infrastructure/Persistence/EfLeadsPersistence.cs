@@ -23,10 +23,44 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         string? ownerId,
         LeadWorkState? workState,
         string? normalizedSearch,
+        bool includePhoneSearch,
         DateTimeOffset? cursorUpdatedAt,
         string? cursorLeadId,
         int take,
         CancellationToken cancellationToken)
+    {
+        var query = FilteredLeads(
+            workspaceId, scopeOwnerMemberId, ownerId, workState, normalizedSearch, includePhoneSearch);
+        if (cursorUpdatedAt is not null && cursorLeadId is not null)
+        {
+            query = query.Where(item => item.UpdatedAt < cursorUpdatedAt
+                || (item.UpdatedAt == cursorUpdatedAt && string.Compare(item.LeadId, cursorLeadId) < 0));
+        }
+        return await query
+            .OrderByDescending(item => item.UpdatedAt)
+            .ThenByDescending(item => item.LeadId)
+            .Take(take)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public Task<long> CountLeadsAsync(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        string? ownerId,
+        LeadWorkState? workState,
+        string? normalizedSearch,
+        bool includePhoneSearch,
+        CancellationToken cancellationToken) =>
+        FilteredLeads(workspaceId, scopeOwnerMemberId, ownerId, workState, normalizedSearch, includePhoneSearch)
+            .LongCountAsync(cancellationToken);
+
+    private IQueryable<Lead> FilteredLeads(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        string? ownerId,
+        LeadWorkState? workState,
+        string? normalizedSearch,
+        bool includePhoneSearch)
     {
         IQueryable<Lead> query = dbContext.Leads.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
         // The AccessControl record scope is part of the query, not a post-filter, so hidden rows are
@@ -38,17 +72,13 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         if (workState is not null)
             query = query.Where(item => item.WorkState == workState);
         if (normalizedSearch is not null)
-            query = query.Where(item => item.SearchText.Contains(normalizedSearch));
-        if (cursorUpdatedAt is not null && cursorLeadId is not null)
         {
-            query = query.Where(item => item.UpdatedAt < cursorUpdatedAt
-                || (item.UpdatedAt == cursorUpdatedAt && string.Compare(item.LeadId, cursorLeadId) < 0));
+            query = includePhoneSearch
+                ? query.Where(item => item.SearchText.Contains(normalizedSearch)
+                    || item.PhoneSearchText.Contains(normalizedSearch))
+                : query.Where(item => item.SearchText.Contains(normalizedSearch));
         }
-        return await query
-            .OrderByDescending(item => item.UpdatedAt)
-            .ThenByDescending(item => item.LeadId)
-            .Take(take)
-            .ToArrayAsync(cancellationToken);
+        return query;
     }
 
     public async Task<long?> ReadCurrentVersionAsync(

@@ -16,7 +16,11 @@ internal sealed record Query(
     string RequestId,
     string CorrelationId);
 
-internal sealed record LeadListPage(IReadOnlyList<LeadDocument> Items, string? NextCursor);
+internal sealed record LeadListPage(
+    IReadOnlyList<LeadDocument> Items,
+    string? NextCursor,
+    bool HasNextPage,
+    long TotalCount);
 
 internal sealed class Handler(
     LeadAuthorization authorization,
@@ -54,17 +58,32 @@ internal sealed class Handler(
         // denied scope returns nothing rather than a filtered view of everything.
         var scope = access.Value!.Authorization.ScopeFilter;
         if (scope == RecordAccessScopeFilter.Denied)
-            return LeadOperationResult<LeadListPage>.Success(new([], null));
+            return LeadOperationResult<LeadListPage>.Success(new([], null, false, 0));
+
+        var scopeOwnerId = scope == RecordAccessScopeFilter.OwnedByMember
+            ? access.Value!.Authorization.ScopeOwnerMemberId
+            : null;
+        var normalizedSearch = search?.ToUpperInvariant();
+        var includePhoneSearch = access.Value!.Authorization.CanRead("phone");
 
         var leads = await persistence.ListLeadsAsync(
             trusted.WorkspaceId,
-            scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null,
+            scopeOwnerId,
             query.OwnerId,
             workState,
-            search?.ToUpperInvariant(),
+            normalizedSearch,
+            includePhoneSearch,
             cursorUpdatedAt,
             cursorLeadId,
             limit + 1,
+            cancellationToken);
+        var totalCount = await persistence.CountLeadsAsync(
+            trusted.WorkspaceId,
+            scopeOwnerId,
+            query.OwnerId,
+            workState,
+            normalizedSearch,
+            includePhoneSearch,
             cancellationToken);
         persistence.AddAudit(new LeadAuditRecord(
             "listLeads",
@@ -83,7 +102,9 @@ internal sealed class Handler(
         var nextCursor = hasNextPage ? LeadListCursor.Encode(page[^1]) : null;
         return LeadOperationResult<LeadListPage>.Success(new(
             page.Select(lead => LeadFieldSecurity.Project(LeadProjection.Document(lead), access.Value!.Authorization)).ToArray(),
-            nextCursor));
+            nextCursor,
+            hasNextPage,
+            totalCount));
     }
 
     private static LeadWorkState? ParseWorkState(string? value, IDictionary<string, string[]> fields) => value switch

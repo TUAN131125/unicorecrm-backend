@@ -43,12 +43,12 @@ internal static class LeadFieldSecurity
         {
             ["id"] = true,
             ["displayName"] = true,
-            ["estimatedValue"] = true,
+            ["estimatedValue"] = false,
             ["version"] = true,
             ["createdAt"] = true,
             ["updatedAt"] = true,
             ["leadWorkState"] = true,
-            ["source"] = true,
+            ["source"] = false,
             ["score"] = true,
             ["ownerId"] = true,
             ["interestedProducts"] = true,
@@ -105,6 +105,8 @@ internal static class LeadFieldSecurity
     internal static LeadDocument Project(LeadDocument model, RecordAccessAuthorization access) =>
         model with
         {
+            EstimatedValue = access.CanRead("estimatedValue") ? model.EstimatedValue : null,
+            Source = access.CanRead("source") ? model.Source : null,
             Title = access.CanRead("title") ? model.Title : null,
             CompanyName = access.CanRead("companyName") ? model.CompanyName : null,
             Email = access.CanRead("email") ? model.Email : null,
@@ -213,10 +215,10 @@ internal static class LeadFieldSecurity
     /// <summary>
     /// The create-contract fields a Lead always carries a value for. A non-writable required create
     /// field fails the creation closed: there is no admitted representation of a Lead created
-    /// without a display name, source, owner or estimated value.
+    /// without a display name or owner.
     /// </summary>
     private static readonly string[] RequiredCreateFields =
-        ["displayName", "source", "ownerId", "estimatedValue"];
+        ["displayName", "ownerId"];
 
     /// <summary>
     /// The profile as its wire field vocabulary, each value reduced to a canonical string so a

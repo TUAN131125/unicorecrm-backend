@@ -29,7 +29,13 @@ internal sealed class LeadCreateExecution(
     {
         ArgumentNullException.ThrowIfNull(admission);
         var trusted = admission.Trusted;
-        if (!LeadValidation.TryProfile(request, out var profile, out var productIntents, out var fields))
+        if (!LeadValidation.TryProfile(
+                request,
+                admission.ResolveOwnerId(request.OwnerId),
+                true,
+                out var profile,
+                out var productIntents,
+                out var fields))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(fields));
 
         // The fingerprint covers the caller's interested-product intent, never the resolved

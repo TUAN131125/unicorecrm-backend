@@ -17,9 +17,18 @@ internal interface ILeadsPersistence
         string? ownerId,
         LeadWorkState? workState,
         string? normalizedSearch,
+        bool includePhoneSearch,
         DateTimeOffset? cursorUpdatedAt,
         string? cursorLeadId,
         int take,
+        CancellationToken cancellationToken);
+    Task<long> CountLeadsAsync(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        string? ownerId,
+        LeadWorkState? workState,
+        string? normalizedSearch,
+        bool includePhoneSearch,
         CancellationToken cancellationToken);
     Task<long?> ReadCurrentVersionAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
     Task<LeadIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);

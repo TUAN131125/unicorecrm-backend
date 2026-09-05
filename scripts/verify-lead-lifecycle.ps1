@@ -19,6 +19,28 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
 "@
 }
 
+# Interactive acquisition accepts only the information available at first contact. Owner is
+# resolved from the trusted Workspace member; unknown enrichment stays absent rather than becoming
+# a fabricated default. The same records exercise the authoritative search and cursor contract.
+$minimalOne = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-lead-runtime-minimal-1' `
+    -Body (@{ displayName = 'Runtime pagination alpha'; phone = '09077770001' } | ConvertTo-Json -Compress)
+$minimalTwo = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-lead-runtime-minimal-2' `
+    -Body (@{ displayName = 'Runtime pagination beta'; phone = '09077770002' } | ConvertTo-Json -Compress)
+Add-Result 'runtime: name and phone create succeeds' '201|201' "$($minimalOne.Status)|$($minimalTwo.Status)"
+Add-Result 'runtime: interactive owner is the trusted member' $callerMemberId ([string]$minimalOne.Body.result.ownerId)
+$minimalStored = (Get-Scalar -Database $DatabaseName -Query "SELECT Profile AS Value FROM leads.Leads WHERE LeadId='$($minimalOne.Body.aggregateId)'") | ConvertFrom-Json
+Add-Result 'runtime: unknown source remains absent' '' ([string]$minimalStored.source)
+Add-Result 'runtime: unknown estimated value remains absent' '' ([string]$minimalStored.estimatedValue)
+
+$firstPage = Invoke-Support -Method 'GET' -Path '/leads?search=Runtime%20pagination&limit=1'
+Add-Result 'runtime: first page is bounded' '1' ([string]$firstPage.Body.items.Count)
+Add-Result 'runtime: continuation is authoritative' 'True' ([string]($firstPage.Body.pageInfo.hasNextPage -and $firstPage.Body.pageInfo.nextCursor))
+$secondPage = Invoke-Support -Method 'GET' -Path "/leads?search=Runtime%20pagination&limit=1&cursor=$($firstPage.Body.pageInfo.nextCursor)"
+Add-Result 'runtime: continuation returns a distinct Lead' 'True' ([string]($secondPage.Body.items[0].id -ne $firstPage.Body.items[0].id))
+Add-Result 'runtime: stable traversal reports both matching Leads' '2' ([string]$firstPage.Body.pageInfo.totalCount)
+$phoneSearch = Invoke-Support -Method 'GET' -Path '/leads?search=09077770002&limit=1'
+Add-Result 'runtime: server phone search finds a Lead beyond page one' $minimalTwo.Body.aggregateId ([string]$phoneSearch.Body.items[0].id)
+
 $lifecycleOriginal = @{
     companyName = 'Original company'
     painPoint = 'Original pain'

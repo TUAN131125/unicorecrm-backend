@@ -290,6 +290,11 @@ CREATE DATABASE [$DatabaseName];
     $env:DevelopmentDemoBootstrap__Email = $demoEmail
     $env:DevelopmentDemoBootstrap__Password = $demoPassword
 
+    & dotnet run --no-launch-profile --project $hostProject -- --migrate
+    if ($LASTEXITCODE -ne 0) { throw "Owner schema migration failed with exit code $LASTEXITCODE." }
+    & dotnet run --no-launch-profile --project $hostProject -- --seed-demo
+    if ($LASTEXITCODE -ne 0) { throw "Development bootstrap failed with exit code $LASTEXITCODE." }
+
     $hostProcess = Start-Process -FilePath 'dotnet' `
         -ArgumentList @('run', '--no-launch-profile', '--project', $hostProject) `
         -PassThru -NoNewWindow -RedirectStandardOutput $logPath -RedirectStandardError "$logPath.err"
@@ -1019,11 +1024,11 @@ INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'con
     $taskOtherId = $taskOther.Body.aggregateId
 
     $leadOwn = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-retro-lead-own' `
-        -Body (@{ displayName = 'Retro lead own'; ownerId = $callerMemberId; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+        -Body (@{ displayName = 'Retro lead own'; phone = '0900000101'; ownerId = $callerMemberId; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
     Add-Result 'leads: fixture owned by caller created' '201' $leadOwn.Status
     $leadOwnId = $leadOwn.Body.aggregateId
     $leadOther = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-retro-lead-other' `
-        -Body (@{ displayName = 'Retro lead other'; ownerId = $otherOwnerId; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+        -Body (@{ displayName = 'Retro lead other'; phone = '0900000102'; ownerId = $otherOwnerId; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
     $leadOtherId = $leadOther.Body.aggregateId
 
     $dealOwn = Invoke-Support -Method 'POST' -Path '/deals' -IdempotencyKey 'idem-retro-deal-own' `
@@ -1162,8 +1167,8 @@ VALUES
         ((Invoke-Support -Method 'GET' -Path '/tasks?limit=1').Body.pageInfo.hasNextPage).ToString()
 
     $leadList = Invoke-Support -Method 'GET' -Path '/leads'
-    Add-Result 'leads: OWN list excludes the hidden lead' 'False' ($leadList.Body.id -contains $leadOtherId).ToString()
-    Add-Result 'leads: OWN list returns only the caller own lead' '1' ([int]$leadList.Body.Count)
+    Add-Result 'leads: OWN list excludes the hidden lead' 'False' ($leadList.Body.items.id -contains $leadOtherId).ToString()
+    Add-Result 'leads: OWN list returns only the caller own lead' '1' ([int]$leadList.Body.items.Count)
 
     $contactList = Invoke-Support -Method 'GET' -Path '/contacts'
     Add-Result 'contacts: OWN list excludes the hidden Contact' 'False' `

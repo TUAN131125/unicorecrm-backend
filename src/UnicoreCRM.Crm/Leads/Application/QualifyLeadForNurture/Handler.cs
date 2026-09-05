@@ -61,8 +61,8 @@ internal sealed class Handler(
             lead.Profile.DoNotCall,
             lead.Profile.DoNotEmail,
             lead.UpdatedAt.UtcDateTime.Date.AddDays(30).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-            lead.Profile.EstimatedValue.Amount,
-            lead.Profile.EstimatedValue.Currency);
+            lead.Profile.EstimatedValue?.Amount,
+            lead.Profile.EstimatedValue?.Currency);
     }
 
     public async Task<LeadQualificationAuthorization> AuthorizeOpportunityAsync(
@@ -104,8 +104,8 @@ internal sealed class Handler(
             lead.Profile.DoNotCall,
             lead.Profile.DoNotEmail,
             lead.UpdatedAt.UtcDateTime.Date.AddDays(30).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-            lead.Profile.EstimatedValue.Amount,
-            lead.Profile.EstimatedValue.Currency);
+            lead.Profile.EstimatedValue?.Amount,
+            lead.Profile.EstimatedValue?.Currency);
     }
 
     private async Task<LeadOperationResult<(LeadAccess Access, Lead Lead)>> ReadAuthorizedLeadAsync(

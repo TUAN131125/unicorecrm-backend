@@ -83,6 +83,10 @@ function Start-ApiHost([bool] $enableIntegration, [string] $workspaceId = '', [s
     $env:Integrations__DevelopmentBootstrap__DelegatedMemberId = $memberId
     $env:Integrations__DevelopmentBootstrap__SecretReference = 'inbound_webhook_smoke'
     $env:Integrations__DevelopmentBootstrap__BindingEnabled = 'true'
+    if ($enableIntegration) {
+        & dotnet $hostDll --seed-demo | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Integration bootstrap failed with exit code $LASTEXITCODE." }
+    }
     $standardOutput = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.out.log')
     $standardError = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.err.log')
     $process = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput $standardOutput -RedirectStandardError $standardError -PassThru
@@ -236,6 +240,13 @@ Assert-SourceGuard ($coordinatorSource -match 'binding\.WorkspaceId' `
 
 $hostProcess = $null
 try {
+    & sqlcmd -S $server -d master -b -Q "IF DB_ID('$DatabaseName') IS NOT NULL BEGIN ALTER DATABASE [$DatabaseName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DatabaseName]; END; CREATE DATABASE [$DatabaseName];" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to provision the isolated webhook database.' }
+    Set-BaseEnvironment
+    & dotnet $hostDll --migrate
+    if ($LASTEXITCODE -ne 0) { throw "Owner schema migration failed with exit code $LASTEXITCODE." }
+    & dotnet $hostDll --seed-demo
+    if ($LASTEXITCODE -ne 0) { throw "Development bootstrap failed with exit code $LASTEXITCODE." }
     $hostProcess = Start-ApiHost $false
     Stop-ApiHost $hostProcess
     $hostProcess = $null

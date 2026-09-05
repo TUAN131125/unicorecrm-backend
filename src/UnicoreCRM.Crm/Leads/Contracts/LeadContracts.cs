@@ -113,12 +113,12 @@ public sealed record LeadRelationshipRefDocument(string Type, string Id);
 public sealed record LeadDocument(
     string Id,
     string DisplayName,
-    Money EstimatedValue,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Money? EstimatedValue,
     long Version,
     string CreatedAt,
     string UpdatedAt,
     string LeadWorkState,
-    string Source,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Source,
     int Score,
     string OwnerId,
     IReadOnlyList<LeadInterestedProductReadModel> InterestedProducts,
@@ -176,6 +176,15 @@ public sealed record LeadDocument(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DisqualificationReason { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DisqualificationNote { get; init; }
 }
+
+public sealed record LeadListResponse(
+    IReadOnlyList<LeadDocument> Items,
+    LeadPageInfo PageInfo);
+
+public sealed record LeadPageInfo(
+    bool HasNextPage,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? NextCursor,
+    long TotalCount);
 
 public sealed record LeadInterestedProductReadModel(
     string Id,

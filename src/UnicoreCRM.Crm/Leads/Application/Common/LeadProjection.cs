@@ -79,7 +79,7 @@ internal static class LeadProjection
         value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string? OptionalUtc(DateTimeOffset? value) => value is null ? null : Utc(value.Value);
-    private static Money Money(LeadMoney value) => new(value.Amount, value.Currency);
+    private static Money? Money(LeadMoney? value) => value is null ? null : new(value.Amount, value.Currency);
     private static LeadInterestedProductReadModel Product(LeadInterestedProduct value) => new(
         value.Id,
         value.ProductId,

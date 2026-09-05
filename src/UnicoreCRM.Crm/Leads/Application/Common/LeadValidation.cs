@@ -30,12 +30,21 @@ internal static partial class LeadValidation
         out LeadProfile? profile,
         out IReadOnlyList<LeadInterestedProductIntent> interestedProductIntents,
         out IReadOnlyDictionary<string, string[]> errors)
+        => TryProfile(request, request.OwnerId, false, out profile, out interestedProductIntents, out errors);
+
+    internal static bool TryProfile(
+        LeadProfileRequest request,
+        string? resolvedOwnerId,
+        bool requireContactChannel,
+        out LeadProfile? profile,
+        out IReadOnlyList<LeadInterestedProductIntent> interestedProductIntents,
+        out IReadOnlyDictionary<string, string[]> errors)
     {
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
         var displayName = Text(request.DisplayName, "displayName", 1, 200, true, fields);
-        var source = Text(request.Source, "source", 1, 120, true, fields);
-        var ownerId = Entity(request.OwnerId, "ownerId", true, fields);
-        var estimatedValue = Money(request.EstimatedValue, "estimatedValue", true, fields);
+        var source = Text(request.Source, "source", 0, 120, false, fields);
+        var ownerId = Entity(resolvedOwnerId, "ownerId", true, fields);
+        var estimatedValue = Money(request.EstimatedValue, "estimatedValue", false, fields);
         var nextFollowUpAt = Utc(request.NextFollowUpAt, "nextFollowUpAt", false, fields);
         var email = Email(request.Email, "email", fields);
         var personalEmail = Email(request.PersonalEmail, "personalEmail", fields);
@@ -48,9 +57,9 @@ internal static partial class LeadValidation
         var salutation = Text(request.Salutation, "salutation", 0, 40, false, fields);
         var title = Text(request.Title, "title", 0, 200, false, fields);
         var department = Text(request.Department, "department", 0, 160, false, fields);
-        var phone = Text(request.Phone, "phone", 0, 80, false, fields);
-        var workPhone = Text(request.WorkPhone, "workPhone", 0, 80, false, fields);
-        var otherPhone = Text(request.OtherPhone, "otherPhone", 0, 80, false, fields);
+        var phone = Phone(request.Phone, "phone", fields);
+        var workPhone = Phone(request.WorkPhone, "workPhone", fields);
+        var otherPhone = Phone(request.OtherPhone, "otherPhone", fields);
         var zaloId = Text(request.ZaloId, "zaloId", 0, 160, false, fields);
         var facebook = Text(request.Facebook, "facebook", 0, 500, false, fields);
         var companyName = Text(request.CompanyName, "companyName", 0, 240, false, fields);
@@ -73,6 +82,12 @@ internal static partial class LeadValidation
         var followUpNote = Text(request.FollowUpNote, "followUpNote", 0, 4000, false, fields);
         var description = Text(request.Description, "description", 0, 8000, false, fields);
         var internalNotes = Text(request.InternalNotes, "internalNotes", 0, 8000, false, fields);
+
+        if (requireContactChannel && new[] { phone, workPhone, otherPhone, email, personalEmail, zaloId, facebook }
+            .All(string.IsNullOrWhiteSpace))
+        {
+            fields["contactChannel"] = ["At least one contact channel is required."];
+        }
 
         errors = fields;
         if (fields.Count != 0)
@@ -109,7 +124,7 @@ internal static partial class LeadValidation
             district,
             ward,
             contactAddress,
-            source!,
+            source,
             campaignId,
             ownerId!,
             assignedTeam,
@@ -118,7 +133,7 @@ internal static partial class LeadValidation
             // Filled by the command after its replay branch, from preserved snapshots plus a single
             // Products batch resolution of the identifiers the Lead does not already carry.
             [],
-            estimatedValue!,
+            estimatedValue,
             budgetRange,
             purchaseTimeline,
             painPoint,
@@ -279,6 +294,23 @@ internal static partial class LeadValidation
         return value;
     }
 
+    private static string? Phone(string? input, string field, IDictionary<string, string[]> fields)
+    {
+        var value = Text(input, field, 0, 80, false, fields);
+        if (value is null)
+            return null;
+        var plusCount = value.Count(character => character == '+');
+        var normalized = string.Concat(value.Where(char.IsDigit));
+        if (!PhoneFormattingPattern().IsMatch(value)
+            || plusCount > 1
+            || (plusCount == 1 && value[0] != '+')
+            || normalized.Length is < 8 or > 15)
+        {
+            fields[field] = [$"{field} must contain 8 to 15 digits and may use spaces, parentheses, periods, dashes, or a leading plus sign."];
+        }
+        return value;
+    }
+
     private static string? Enum(string? input, string field, string[] values, IDictionary<string, string[]> fields)
     {
         if (input is null)
@@ -341,4 +373,7 @@ internal static partial class LeadValidation
 
     [GeneratedRegex("^[A-Z]{3}$", RegexOptions.CultureInvariant)]
     private static partial Regex CurrencyPattern();
+
+    [GeneratedRegex("^[+0-9\\s().-]+$", RegexOptions.CultureInvariant)]
+    private static partial Regex PhoneFormattingPattern();
 }

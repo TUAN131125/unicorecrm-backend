@@ -19,6 +19,9 @@ internal abstract class LeadCreateAdmission
 
     internal TrustedWorkspaceContext Trusted { get; }
 
+    /// <summary>Resolves the owner used by this admission model before profile validation.</summary>
+    internal abstract string? ResolveOwnerId(string? requestedOwnerId);
+
     /// <summary>Refuses the creation when the admitted model applies field-write policy and the request writes a field the caller may not write.</summary>
     internal abstract LeadOperationError? GuardCreateWrite(Domain.LeadProfile profile);
 
@@ -52,6 +55,9 @@ internal abstract class LeadCreateAdmission
     /// </summary>
     private sealed class InteractiveAdmission(LeadAccess access) : LeadCreateAdmission(access.Trusted)
     {
+        internal override string? ResolveOwnerId(string? requestedOwnerId) =>
+            string.IsNullOrWhiteSpace(requestedOwnerId) ? Trusted.MemberId : requestedOwnerId;
+
         internal override LeadOperationError? GuardCreateWrite(Domain.LeadProfile profile) =>
             LeadFieldSecurity.GuardCreateWrite(access.Authorization, profile);
 
@@ -90,6 +96,8 @@ internal abstract class LeadCreateAdmission
     private sealed class DelegatedIngressAdmission(DelegatedLeadIngressAuthorization authorization)
         : LeadCreateAdmission(authorization.Trusted)
     {
+        internal override string? ResolveOwnerId(string? requestedOwnerId) => requestedOwnerId;
+
         internal override LeadOperationError? GuardCreateWrite(Domain.LeadProfile profile) => null;
 
         internal override LeadOperationError? GuardExecutionBinding(

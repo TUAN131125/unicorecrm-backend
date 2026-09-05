@@ -11,6 +11,7 @@ internal sealed class Lead
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;
         SearchText = BuildSearchText(LeadId, profile);
+        PhoneSearchText = BuildPhoneSearchText(profile);
         WorkState = LeadWorkState.New;
         Score = 0;
         CreatedAt = now;
@@ -29,11 +30,16 @@ internal sealed class Lead
     /// </summary>
     public string ScopeOwnerId { get; private set; } = null!;
     /// <summary>
-    /// A normalized query projection containing only fields that are required on every Lead read:
-    /// the Lead identifier, display name and source. Optional protected fields are deliberately not
-    /// copied here, so list search cannot become a field-security existence oracle.
+    /// A normalized query projection containing the Lead identifier and display name. Optional
+    /// protected fields are deliberately not copied here, so list search cannot become a
+    /// field-security existence oracle.
     /// </summary>
     public string SearchText { get; private set; } = null!;
+    /// <summary>
+    /// A separate normalized primary-phone projection. The list query includes it only when the
+    /// caller may read the phone field, preserving field-security while keeping phone search in SQL.
+    /// </summary>
+    public string PhoneSearchText { get; private set; } = string.Empty;
     public LeadWorkState WorkState { get; private set; }
     public LeadQualificationOutcome? QualificationOutcome { get; private set; }
     public int Score { get; private set; }
@@ -69,6 +75,7 @@ internal sealed class Lead
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;
         SearchText = BuildSearchText(LeadId, profile);
+        PhoneSearchText = BuildPhoneSearchText(profile);
         Touch(now);
     }
 
@@ -177,7 +184,12 @@ internal sealed class Lead
     }
 
     private static string BuildSearchText(string leadId, LeadProfile profile) =>
-        string.Join('\n', leadId, profile.DisplayName, profile.Source).ToUpperInvariant();
+        string.Join('\n', leadId, profile.DisplayName).ToUpperInvariant();
+
+    private static string BuildPhoneSearchText(LeadProfile profile) =>
+        profile.Phone is null
+            ? string.Empty
+            : string.Join('\n', profile.Phone, string.Concat(profile.Phone.Where(char.IsDigit))).ToUpperInvariant();
 }
 
 internal enum LeadWorkState { New, Contacting, Verifying, Closed }
