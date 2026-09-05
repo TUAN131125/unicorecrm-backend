@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,23 +11,18 @@ namespace UnicoreCRM.Platform.Workspace.Infrastructure.Persistence;
 
 internal sealed partial class DevelopmentWorkspaceBootstrap(
     IHostEnvironment environment,
-    IServiceScopeFactory scopeFactory,
+    WorkspaceDbContext dbContext,
+    IDevelopmentIdentityReferenceLookup identityLookup,
     IOptions<WorkspaceOptions> options,
-    ILogger<DevelopmentWorkspaceBootstrap> logger) : IHostedService
+    ILogger<DevelopmentWorkspaceBootstrap> logger)
 {
-    public async Task StartAsync(CancellationToken cancellationToken)
+    internal async Task RunAsync(CancellationToken cancellationToken)
     {
         var bootstrap = options.Value.DevelopmentBootstrap;
         if (!environment.IsDevelopment() || !bootstrap.Enabled)
             return;
         Validate(bootstrap);
 
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<WorkspaceDbContext>();
-        if (bootstrap.ApplyMigrations)
-            await dbContext.Database.MigrateAsync(cancellationToken);
-
-        var identityLookup = scope.ServiceProvider.GetRequiredService<IDevelopmentIdentityReferenceLookup>();
         var identity = await identityLookup.FindActiveByEmailAsync(bootstrap.IdentityEmail, cancellationToken)
             ?? throw new InvalidOperationException("The Development Workspace bootstrap identity must already be an active IdentityAuth account.");
         var now = TimeProvider.System.GetUtcNow();
@@ -47,8 +41,6 @@ internal sealed partial class DevelopmentWorkspaceBootstrap(
             memberWorkspace.WorkspaceId,
             nonMemberWorkspace.WorkspaceId);
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private static async Task<WorkspaceDefinition> EnsureWorkspaceAsync(
         WorkspaceDbContext dbContext,

@@ -17,6 +17,14 @@ internal sealed class EfDealsPersistence(DealsDbContext dbContext) : IDealsPersi
     public Task<Deal?> ReadDealAsync(string workspaceId, string dealId, CancellationToken cancellationToken) =>
         dbContext.Deals.AsNoTracking().SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.DealId == dealId, cancellationToken);
 
+    public Task<Deal?> ReadQualificationDealBySourceLeadAsync(
+        string workspaceId,
+        string sourceLeadId,
+        CancellationToken cancellationToken) =>
+        dbContext.Deals.SingleOrDefaultAsync(
+            item => item.WorkspaceId == workspaceId && item.QualificationSourceLeadId == sourceLeadId,
+            cancellationToken);
+
     public async Task<IReadOnlyList<Deal>> ReadDealsAsync(
         string workspaceId,
         string? scopeOwnerMemberId,

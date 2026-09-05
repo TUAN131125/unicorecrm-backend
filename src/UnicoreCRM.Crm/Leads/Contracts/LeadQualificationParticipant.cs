@@ -37,6 +37,25 @@ public interface ILeadQualificationParticipant
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The Leads-owned OPPORTUNITY participant. It is separate from the NURTURE surface so the
+/// coordinator cannot accidentally close a Lead under the wrong admitted operation.
+/// </summary>
+public interface ILeadOpportunityQualificationParticipant
+{
+    Task<LeadQualificationAuthorization> AuthorizeOpportunityAsync(
+        LeadQualificationAccessQuery query,
+        CancellationToken cancellationToken);
+
+    Task<LeadQualificationPreparation> PrepareOpportunityAsync(
+        LeadQualificationPrepareCommand command,
+        CancellationToken cancellationToken);
+
+    Task<LeadQualificationClosure> CloseForOpportunityAsync(
+        LeadOpportunityQualificationCloseCommand command,
+        CancellationToken cancellationToken);
+}
+
 public sealed record LeadQualificationAccessQuery(string LeadId, string RequestId, string CorrelationId);
 
 public sealed record LeadQualificationAuthorization(
@@ -69,7 +88,10 @@ public sealed record LeadQualificationPreparation(
     /// unchanged and never interprets them.
     /// </summary>
     bool? DoNotCall = null,
-    bool? DoNotEmail = null);
+    bool? DoNotEmail = null,
+    string? SuggestedOpportunityCloseDate = null,
+    string? EstimatedValueAmount = null,
+    string? EstimatedValueCurrency = null);
 
 public sealed record LeadQualificationCloseCommand(
     string LeadId,
@@ -79,6 +101,16 @@ public sealed record LeadQualificationCloseCommand(
     string IdempotencyKey,
     long ExpectedVersion,
     /// <summary>Original workflow member for idempotency identity only; authorization and audit use the current caller.</summary>
+    string? IdempotencyScopeActorId = null);
+
+public sealed record LeadOpportunityQualificationCloseCommand(
+    string LeadId,
+    string ContactId,
+    string DealId,
+    string RequestId,
+    string CorrelationId,
+    string IdempotencyKey,
+    long ExpectedVersion,
     string? IdempotencyScopeActorId = null);
 
 /// <summary>

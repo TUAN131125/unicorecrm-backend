@@ -32,6 +32,11 @@ public static class LeadsEndpoints
         endpoints.MapPut(path, handler).RequireAuthorization().RequireTrustedWorkspace().WithName(name);
 
     private static async Task<IResult> ListLeadsAsync(
+        string? cursor,
+        int? limit,
+        string? search,
+        string? workState,
+        string? ownerId,
         HttpContext context,
         Application.ListLeads.Handler handler,
         CancellationToken cancellationToken)
@@ -39,9 +44,14 @@ public static class LeadsEndpoints
         if (!LeadsHttp.TryMetadata(context, false, false, out var metadata, out var error))
             return error!;
         var result = await handler.HandleAsync(
-            new Application.ListLeads.Query(metadata!.RequestId, metadata.CorrelationId),
+            new Application.ListLeads.Query(
+                cursor, limit, search, workState, ownerId, metadata!.RequestId, metadata.CorrelationId),
             cancellationToken);
-        return LeadsHttp.Result(result, metadata.CorrelationId);
+        if (!result.IsSuccess)
+            return LeadsHttp.Error(result.Error!, metadata.CorrelationId);
+        if (result.Value!.NextCursor is { } nextCursor)
+            context.Response.Headers["X-Next-Cursor"] = nextCursor;
+        return Results.Json(result.Value.Items);
     }
 
     private static async Task<IResult> CreateLeadAsync(

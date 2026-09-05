@@ -15,8 +15,9 @@ internal static class DealCommandSupport
         TrustedWorkspaceContext trusted,
         string operation,
         string targetId,
-        string idempotencyKey) =>
-        Hash($"{trusted.WorkspaceId}\n{operation}\n{trusted.MemberId}\n{targetId}\n{idempotencyKey}");
+        string idempotencyKey,
+        string? idempotencyScopeActorId = null) =>
+        Hash($"{trusted.WorkspaceId}\n{operation}\n{idempotencyScopeActorId ?? trusted.MemberId}\n{targetId}\n{idempotencyKey}");
 
     internal static string Fingerprint<T>(T value) => Hash(JsonSerializer.Serialize(value, JsonOptions));
 

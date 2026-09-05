@@ -241,11 +241,12 @@ seed choice, not evidence that policy administration is deferred: `createAccessR
 implemented owner readers continue to default the resource to Workspace scope; this extension does
 not change that pre-existing behavior.
 
-An exact current capability set is already converged. The one admitted historical exception is the
-exact immediately preceding server-owned pre-Contacts snapshot, and only when the creator
-assignment still anchors the role inside AccessControl; that snapshot may converge by adding
-`contacts.read`. An arbitrary partial set, any unexpected extra capability, or drift in the
-server-owned role identity fails closed instead of being amended.
+An exact current capability set is already converged. While an actual `AccessPending` provisioning
+step is being completed, the one admitted historical exception is the exact immediately preceding
+server-owned pre-Contacts snapshot, and only when the creator assignment still anchors the role
+inside AccessControl; that snapshot may converge by adding `contacts.read`. A completed provisioning
+anchor is not an upgrade signal. An arbitrary partial set, any unexpected extra capability, or drift
+in the server-owned role identity fails closed instead of being amended.
 
 ### Initial configuration
 
@@ -314,9 +315,8 @@ Recovery is server-driven and deterministic:
   not depend on the client retrying, on a login event, or on any client state.
 - The request path converges too: a provisioning intent that finds an `AccessPending` anchor runs
   step two before returning. Replaying a request whose anchor is `Completed` performs no further
-  AccessControl write. Independently, server-owned startup convergence may scan provisioning-
-  anchored completed Workspaces and converge an admitted historical AccessControl role. That scan
-  never rewrites Workspace configuration or the stored effective-value fingerprint.
+  AccessControl write. The hosted recovery service likewise selects only `AccessPending` anchors;
+  it does not enumerate completed provisioning records or treat them as access-policy upgrades.
 - Recovery never creates a second Workspace, membership, configuration seed, role or assignment,
   and it never mutates membership status.
 

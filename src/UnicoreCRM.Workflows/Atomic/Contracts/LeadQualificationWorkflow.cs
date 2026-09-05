@@ -1,14 +1,19 @@
 namespace UnicoreCRM.Workflows.Atomic.Contracts;
 
 /// <summary>
-/// The internal NURTURE Lead Qualification workflow. It has no HTTP route: public exposure of
-/// <c>qualifyLeadForNurture</c> remains blocked by the G-1 consent-transfer gate, and this contract
-/// deliberately admits no transport.
+/// The typed NURTURE Lead Qualification workflow used by its public Workflows route.
 /// </summary>
 public interface ILeadNurtureQualificationWorkflow
 {
     Task<LeadNurtureQualificationResult> ExecuteAsync(
         LeadNurtureQualificationCommand command,
+        CancellationToken cancellationToken);
+}
+
+public interface ILeadOpportunityQualificationWorkflow
+{
+    Task<LeadOpportunityQualificationResult> ExecuteAsync(
+        LeadOpportunityQualificationCommand command,
         CancellationToken cancellationToken);
 }
 
@@ -71,6 +76,40 @@ public sealed record LeadNurtureQualificationResult(
     int? ErrorStatus,
     IReadOnlyDictionary<string, string[]>? FieldErrors,
     /// <summary>The authoritative wire response, composed once and replayed verbatim.</summary>
+    LeadQualificationWorkflowResponse? Response = null,
+    long? ExpectedVersion = null,
+    long? CurrentVersion = null,
+    string? IdempotencyKey = null);
+
+public sealed record LeadOpportunityQualificationCommand(
+    string LeadId,
+    LeadNurtureContactIntent Contact,
+    string Name,
+    string? NeedSummary,
+    string OwnerId,
+    string? ExpectedCloseDate,
+    IReadOnlyList<string> InterestedProductIds,
+    LeadQualificationMoneyInput? EstimatedValue,
+    string? DecisionProcess,
+    string? BuyingWindow,
+    LeadQualificationFollowUpTaskInput? FollowUpTask,
+    string RequestId,
+    string CorrelationId,
+    string IdempotencyKey,
+    long ExpectedVersion);
+
+public sealed record LeadOpportunityQualificationResult(
+    bool IsSuccess,
+    string? Outcome,
+    string? LeadId,
+    long? LeadVersion,
+    string? ContactId,
+    string? TaskId,
+    string? DealId,
+    string? QualificationOutcome,
+    string? ErrorCode,
+    int? ErrorStatus,
+    IReadOnlyDictionary<string, string[]>? FieldErrors,
     LeadQualificationWorkflowResponse? Response = null,
     long? ExpectedVersion = null,
     long? CurrentVersion = null,

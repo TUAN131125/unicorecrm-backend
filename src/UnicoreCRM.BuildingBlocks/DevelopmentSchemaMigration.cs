@@ -3,12 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace UnicoreCRM.BuildingBlocks;
 
 /// <summary>
-/// An owner-supplied schema migration callback for local Development startup.
+/// An owner-supplied schema migration callback for an explicit maintenance command.
 ///
 /// This is an owner-neutral technical primitive: it carries no business concept and no persistence
 /// of its own. Each owner registers a callback that migrates only the owner's own DbContext, so
 /// schema ownership stays exactly where it already is. The composition root decides whether and
-/// when to run the registered callbacks; it never touches an owner DbContext itself.
+/// when to run the registered callbacks; it never touches an owner DbContext itself. Registration
+/// is intentionally inert during normal application startup.
 /// </summary>
 public sealed record DevelopmentSchemaMigration(
     string Owner,
@@ -17,8 +18,8 @@ public sealed record DevelopmentSchemaMigration(
 public static class DevelopmentSchemaMigrationRegistration
 {
     /// <summary>
-    /// Registers the owner's local Development schema migration. Registration is inert on its own:
-    /// nothing runs unless the composition root enables the Development migration pass.
+    /// Registers the owner's schema migration operation. Registration is inert on its own:
+    /// nothing runs unless the composition root receives an explicit migration command.
     /// </summary>
     public static IServiceCollection AddDevelopmentSchemaMigration(
         this IServiceCollection services,

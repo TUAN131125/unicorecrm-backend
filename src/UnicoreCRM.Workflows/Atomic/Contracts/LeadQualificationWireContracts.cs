@@ -18,6 +18,32 @@ public sealed record QualifyLeadNurtureRequest(
     /// </summary>
     string? OwnerId = null);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record QualifyLeadOpportunityRequest(
+    LeadQualificationRelationshipRequest? Relationship,
+    LeadQualificationOpportunityInput? Deal);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record LeadQualificationOpportunityInput(
+    string? Name,
+    string? OwnerId,
+    IReadOnlyList<string>? InterestedProductIds,
+    string? NeedSummary = null,
+    string? ExpectedCloseDate = null,
+    LeadQualificationMoneyInput? EstimatedValue = null,
+    string? DecisionProcess = null,
+    string? BuyingWindow = null,
+    LeadQualificationFollowUpTaskInput? FollowUpTask = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record LeadQualificationMoneyInput(string? Amount, string? Currency);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record LeadQualificationFollowUpTaskInput(
+    string? Title,
+    string? DueAt,
+    string? Description = null);
+
 /// <summary>
 /// The adopted <c>LeadQualificationRelationshipRequest</c>. <c>contact</c> is required by the schema
 /// even for EXISTING, where it is ignored for identity and never applied as an update.
@@ -76,6 +102,7 @@ public sealed record LeadQualificationWorkflowResult(
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ContactId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TaskId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DealId { get; init; }
 }
 
 public sealed record LeadQualificationResolvedRelationship(

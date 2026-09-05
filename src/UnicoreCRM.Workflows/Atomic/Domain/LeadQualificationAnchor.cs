@@ -15,11 +15,12 @@ internal enum LeadQualificationStage
     Started,
     ContactResolved,
     TaskCreated,
-    Completed
+    Completed,
+    DealCreated
 }
 
 /// <summary>
-/// The Workflows-owned durable anchor for one NURTURE Lead qualification.
+/// The Workflows-owned durable anchor for one typed Lead qualification.
 ///
 /// It is the coordinator's convergence record, and it is deliberately **not** the Contacts
 /// participant's replay state: Contacts owns its own conversion record for its own aggregate, and
@@ -27,7 +28,7 @@ internal enum LeadQualificationStage
 /// successful participant commit resumes forward rather than repeating a foreign owner's mutation or
 /// abandoning it.
 ///
-/// There is no compensation. A committed Contact or Task is never deleted; recovery only ever moves
+/// There is no compensation. Committed participant state is never deleted; recovery only ever moves
 /// the anchor forward.
 /// </summary>
 internal sealed class LeadQualificationAnchor
@@ -93,6 +94,8 @@ internal sealed class LeadQualificationAnchor
     internal string? ContactDisplayName { get; private set; }
     internal string? TaskId { get; private set; }
     internal long? TaskVersion { get; private set; }
+    internal string? DealId { get; private set; }
+    internal long? DealVersion { get; private set; }
     internal long? LeadVersion { get; private set; }
     internal string? ResponseJson { get; private set; }
     internal DateTimeOffset CreatedAt { get; private set; }
@@ -115,6 +118,13 @@ internal sealed class LeadQualificationAnchor
         Advance(LeadQualificationStage.TaskCreated, now);
     }
 
+    internal void RecordDeal(string dealId, long version, DateTimeOffset now)
+    {
+        DealId = dealId;
+        DealVersion = version;
+        Advance(LeadQualificationStage.DealCreated, now);
+    }
+
     /// <summary>
     /// Stores the authoritative workflow response alongside completion, so a replay returns exactly
     /// what the original execution returned rather than a response recomposed from partial state.
@@ -129,7 +139,9 @@ internal sealed class LeadQualificationAnchor
     /// <summary>Forward-only. A resumed attempt can never move the anchor backwards.</summary>
     private void Advance(LeadQualificationStage stage, DateTimeOffset now)
     {
-        if (stage <= Stage)
+        if (Stage == LeadQualificationStage.Completed || stage == Stage)
+            return;
+        if (stage != LeadQualificationStage.Completed && stage < Stage)
             return;
         Stage = stage;
         UpdatedAt = now;

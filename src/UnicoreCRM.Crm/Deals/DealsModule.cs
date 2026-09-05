@@ -26,6 +26,8 @@ internal static class DealsModule
         services.AddScoped<Application.GetDeal.Handler>();
         services.AddScoped<Application.GetDealForecastSummary.Handler>();
         services.AddScoped<Application.CreateDeal.Handler>();
+        services.AddScoped<Contracts.ILeadQualificationDealParticipant,
+            Application.CreateLeadOpportunity.Handler>();
         services.AddScoped<Application.ReplaceDealProfile.Handler>();
         services.AddScoped<Application.ChangeDealStage.Handler>();
         services.AddScoped<Application.AssignDealOwner.Handler>();

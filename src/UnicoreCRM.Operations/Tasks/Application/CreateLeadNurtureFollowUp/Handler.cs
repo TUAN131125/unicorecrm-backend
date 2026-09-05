@@ -11,6 +11,7 @@ namespace UnicoreCRM.Operations.Tasks.Application.CreateLeadNurtureFollowUp;
 /// </summary>
 internal sealed class Handler(
     CreateTask.Handler createTask,
+    TaskAuthorization authorization,
     ICurrentWorkspace currentWorkspace,
     IWorkspaceMemberReferenceValidator memberValidator) : ILeadQualificationTaskParticipant
 {
@@ -84,6 +85,78 @@ internal sealed class Handler(
             null,
             response.Result.Task.ResourceVersion);
     }
+
+    public async Task<LeadNurtureTaskAssigneeValidationResult> ValidateOpportunityFollowUpAsync(
+        LeadOpportunityTaskCommand command,
+        CancellationToken cancellationToken)
+    {
+        if (!currentWorkspace.IsResolved)
+            return new(false, "ACCESS_DENIED", 403, null);
+        var access = await authorization.AuthorizeAsync(
+            TaskCapabilities.Create,
+            new TaskRequestMetadata(command.RequestId, command.CorrelationId),
+            cancellationToken);
+        if (!access.IsSuccess)
+            return new(false, access.Error!.Code, access.Error.Status, access.Error.FieldErrors);
+
+        var request = OpportunityRequest(command);
+        if (!CreateTask.CreateTaskValidation.TryCreate(request, out var input, out var fields))
+            return new(false, "VALIDATION_FAILED", 422, fields);
+        var fieldError = TaskFieldSecurity.GuardCreateWrite(
+            access.Value!.Authorization, input!.Description, input.References);
+        if (fieldError is not null)
+            return new(false, fieldError.Code, fieldError.Status, fieldError.FieldErrors);
+        if (!await memberValidator.IsActiveMemberAsync(
+                access.Value.Trusted.WorkspaceId, input.AssigneeId, cancellationToken))
+        {
+            return new(false, "VALIDATION_FAILED", 422, new Dictionary<string, string[]>
+            {
+                ["assigneeId"] = ["assigneeId must reference an active member of the trusted workspace."]
+            });
+        }
+        return new(true, null, null, null);
+    }
+
+    public async Task<LeadNurtureTaskResult> CreateOpportunityFollowUpAsync(
+        LeadOpportunityTaskCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await createTask.HandleAsync(
+            new CreateTask.Command(
+                OpportunityRequest(command),
+                new TaskCommandMetadata(
+                    command.RequestId,
+                    command.CorrelationId,
+                    command.IdempotencyKey,
+                    null,
+                    command.IdempotencyScopeActorId)),
+            cancellationToken);
+        if (!result.IsSuccess)
+        {
+            var error = result.Error!;
+            return new(false, null, null, error.Code, error.Status, error.FieldErrors);
+        }
+        var response = result.Value!;
+        return new(
+            true,
+            response.Result.Task.Id,
+            response.Outcome,
+            null,
+            null,
+            null,
+            response.Result.Task.ResourceVersion);
+    }
+
+    private static CreateTaskRequest OpportunityRequest(LeadOpportunityTaskCommand command) => new(
+        Title: Title(command.Title),
+        AssigneeId: command.AssigneeId,
+        DueAt: command.DueAt,
+        Description: command.Description,
+        Priority: null,
+        RelationshipRef: new BuyerReference("CONTACT", command.ContactId),
+        RecordRef: null,
+        SourceRef: new TaskSourceReference(LeadSourceType, command.LeadId, command.Title.Trim()),
+        DedupeKey: null);
 
     /// <summary>
     /// The follow-up Task's title is a <b>bounded derived summary</b> of the NURTURE reason, not the

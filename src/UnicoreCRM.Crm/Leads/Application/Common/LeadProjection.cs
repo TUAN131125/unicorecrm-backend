@@ -31,6 +31,7 @@ internal static class LeadProjection
                 && lead.RelationshipId is { Length: > 0 } relationshipId
                     ? new LeadRelationshipRefDocument(relationshipType, relationshipId)
                     : null,
+            DealRef = lead.DealRef,
             NextFollowUpAt = OptionalUtc(profile.NextFollowUpAt),
             Priority = profile.Priority,
             Tags = profile.Tags.Count == 0 ? null : profile.Tags,
@@ -113,6 +114,7 @@ internal static class LeadProjection
     {
         LeadQualificationOutcome.Disqualified => "DISQUALIFIED",
         LeadQualificationOutcome.Nurture => "NURTURE",
+        LeadQualificationOutcome.Opportunity => "OPPORTUNITY",
         _ => null
     };
 }

@@ -135,6 +135,7 @@ public sealed record LeadDocument(
     /// positively qualified Lead; the contract declares no <c>contactId</c> field on the Lead.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public LeadRelationshipRefDocument? RelationshipRef { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DealRef { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? NextFollowUpAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Priority { get; init; }

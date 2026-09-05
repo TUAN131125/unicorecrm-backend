@@ -81,6 +81,10 @@ namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("QualificationSourceLeadId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("RecycleDecision")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
@@ -136,6 +140,10 @@ namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(128)");
 
                     b.HasKey("DealId");
+
+                    b.HasIndex("WorkspaceId", "QualificationSourceLeadId")
+                        .IsUnique()
+                        .HasFilter("[QualificationSourceLeadId] IS NOT NULL");
 
                     b.HasIndex("WorkspaceId", "StageCategory", "StageCode");
 

@@ -10,6 +10,7 @@ internal sealed class Lead
         WorkspaceId = workspaceId;
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;
+        SearchText = BuildSearchText(LeadId, profile);
         WorkState = LeadWorkState.New;
         Score = 0;
         CreatedAt = now;
@@ -27,6 +28,12 @@ internal sealed class Lead
     /// column. It is derived state kept in step with the profile, never an independent fact.
     /// </summary>
     public string ScopeOwnerId { get; private set; } = null!;
+    /// <summary>
+    /// A normalized query projection containing only fields that are required on every Lead read:
+    /// the Lead identifier, display name and source. Optional protected fields are deliberately not
+    /// copied here, so list search cannot become a field-security existence oracle.
+    /// </summary>
+    public string SearchText { get; private set; } = null!;
     public LeadWorkState WorkState { get; private set; }
     public LeadQualificationOutcome? QualificationOutcome { get; private set; }
     public int Score { get; private set; }
@@ -49,6 +56,11 @@ internal sealed class Lead
     /// </summary>
     public string? RelationshipType { get; private set; }
     public string? RelationshipId { get; private set; }
+    /// <summary>
+    /// The Deal produced by OPPORTUNITY qualification. This is the canonical LeadDocument.dealRef
+    /// scalar, not an EF navigation and not the older redundant qualifiedDealId property.
+    /// </summary>
+    public string? DealRef { get; private set; }
 
     public long Version { get; private set; }
 
@@ -56,6 +68,7 @@ internal sealed class Lead
     {
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;
+        SearchText = BuildSearchText(LeadId, profile);
         Touch(now);
     }
 
@@ -116,6 +129,21 @@ internal sealed class Lead
         QualificationOutcome = LeadQualificationOutcome.Nurture;
         RelationshipType = LeadRelationshipTypes.Contact;
         RelationshipId = contactId;
+        DealRef = null;
+        Touch(now);
+        return true;
+    }
+
+    internal bool QualifyForOpportunity(string contactId, string dealId, DateTimeOffset now)
+    {
+        if (WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
+            return false;
+
+        WorkState = LeadWorkState.Closed;
+        QualificationOutcome = LeadQualificationOutcome.Opportunity;
+        RelationshipType = LeadRelationshipTypes.Contact;
+        RelationshipId = contactId;
+        DealRef = dealId;
         Touch(now);
         return true;
     }
@@ -135,6 +163,9 @@ internal sealed class Lead
         DisqualifiedBy = null;
         DisqualificationReason = null;
         DisqualificationEvidence = null;
+        RelationshipType = null;
+        RelationshipId = null;
+        DealRef = null;
         Touch(now);
         return true;
     }
@@ -144,16 +175,18 @@ internal sealed class Lead
         UpdatedAt = now;
         Version++;
     }
+
+    private static string BuildSearchText(string leadId, LeadProfile profile) =>
+        string.Join('\n', leadId, profile.DisplayName, profile.Source).ToUpperInvariant();
 }
 
 internal enum LeadWorkState { New, Contacting, Verifying, Closed }
 
 /// <summary>
-/// The admitted terminal outcomes. <c>Opportunity</c> and <c>DirectSale</c> are declared by the
-/// contract but are not added here: their workflows have no implemented downstream participant, and
-/// an unreachable enum member would misrepresent what this owner can actually produce.
+/// The implemented terminal outcomes. Direct Sale remains absent because its downstream workflow is
+/// not implemented.
 /// </summary>
-internal enum LeadQualificationOutcome { Disqualified, Nurture }
+internal enum LeadQualificationOutcome { Disqualified, Nurture, Opportunity }
 
 internal static class LeadRelationshipTypes
 {

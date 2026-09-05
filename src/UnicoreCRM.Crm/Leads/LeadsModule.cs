@@ -38,6 +38,8 @@ internal static class LeadsModule
         // Workflows coordinator; the generic qualifyLead operation stays retired and route-less.
         services.AddScoped<Contracts.ILeadQualificationParticipant,
             Application.QualifyLeadForNurture.Handler>();
+        services.AddScoped<Contracts.ILeadOpportunityQualificationParticipant,
+            Application.QualifyLeadForNurture.Handler>();
         // Leads publishes its own record-access facts to AccessControl. AccessControl never reaches
         // into LeadsDbContext; it resolves this owner-owned contract instead.
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();

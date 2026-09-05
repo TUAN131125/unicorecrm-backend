@@ -9,7 +9,6 @@ internal sealed class IntegrationsOptions
 internal sealed class DevelopmentInboundBindingOptions
 {
     public bool Enabled { get; init; }
-    public bool ApplyMigrations { get; init; }
     public string IntegrationId { get; init; } = string.Empty;
     public string ProviderCode { get; init; } = "generic-signed-json";
     public string WorkspaceId { get; init; } = string.Empty;

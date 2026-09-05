@@ -31,14 +31,21 @@ using UnicoreCRM.AI.Gateway;
 using UnicoreCRM.ApiHost.Development;
 using UnicoreCRM.ApiHost.Serialization;
 
-var builder = WebApplication.CreateBuilder(args);
+const string MigrateCommand = "--migrate";
+const string SeedDemoCommand = "--seed-demo";
+var runMigrations = args.Contains(MigrateCommand, StringComparer.OrdinalIgnoreCase);
+var runDemoBootstrap = args.Contains(SeedDemoCommand, StringComparer.OrdinalIgnoreCase);
+var hostArguments = args
+    .Where(argument => !string.Equals(argument, MigrateCommand, StringComparison.OrdinalIgnoreCase)
+                       && !string.Equals(argument, SeedDemoCommand, StringComparison.OrdinalIgnoreCase))
+    .ToArray();
+
+var builder = WebApplication.CreateBuilder(hostArguments);
 
 builder.AddDevelopmentLocalConfiguration();
 
-builder.AddDevelopmentDemoBootstrap();
-// Registered before the modules so the owner-registered schema migrations run ahead of
-// every owner Development seed. ApiHost invokes owner callbacks only; it holds no DbContext.
-builder.Services.AddHostedService<DevelopmentSchemaMigrationService>();
+if (runDemoBootstrap)
+    builder.AddDevelopmentDemoBootstrap();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new UtcDateTimeOffsetJsonConverter()));
@@ -53,7 +60,8 @@ if (builder.Environment.IsDevelopment())
             policy.WithOrigins(frontendOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
-                .AllowCredentials()));
+                .AllowCredentials()
+                .WithExposedHeaders("X-Next-Cursor")));
     }
 }
 
@@ -70,6 +78,15 @@ builder.Services.AddAIModule(builder.Configuration, builder.Environment);
 builder.Services.AddPlatformOperationsModule(builder.Configuration);
 
 var app = builder.Build();
+
+if (runMigrations || runDemoBootstrap)
+{
+    if (runMigrations)
+        await app.Services.RunOwnerSchemaMigrationsAsync(app.Logger, CancellationToken.None);
+    if (runDemoBootstrap)
+        await app.Services.RunDevelopmentBootstrapAsync(app.Logger, CancellationToken.None);
+    return;
+}
 
 app.UseExceptionHandler(errorApplication => errorApplication.Run(async context =>
 {

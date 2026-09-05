@@ -39,6 +39,8 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
             entity.Property(item => item.ContactDisplayName).HasMaxLength(200);
             entity.Property(item => item.TaskId).HasMaxLength(128);
             entity.Property(item => item.TaskVersion);
+            entity.Property(item => item.DealId).HasMaxLength(128);
+            entity.Property(item => item.DealVersion);
             entity.Property(item => item.LeadVersion);
             entity.Property(item => item.ResponseJson).HasColumnType("nvarchar(max)");
             entity.Property(item => item.CreatedAt).HasPrecision(7);

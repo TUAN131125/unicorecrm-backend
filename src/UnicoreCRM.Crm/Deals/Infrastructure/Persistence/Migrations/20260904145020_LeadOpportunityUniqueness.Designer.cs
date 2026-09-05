@@ -3,81 +3,118 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
+using UnicoreCRM.Crm.Deals.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
+namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(LeadsDbContext))]
-    partial class LeadsDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(DealsDbContext))]
+    [Migration("20260904145020_LeadOpportunityUniqueness")]
+    partial class LeadOpportunityUniqueness
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("leads")
+                .HasDefaultSchema("deals")
                 .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Leads.Domain.Lead", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Deals.Domain.Deal", b =>
                 {
-                    b.Property<string>("LeadId")
+                    b.Property<string>("DealId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateOnly?>("ActualCloseDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ArchiveReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("DealRef")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                    b.Property<string>("ForecastCategory")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
 
-                    b.Property<string>("DisqualificationEvidence")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                    b.Property<string>("ForecastHistory")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("DisqualificationReason")
+                    b.Property<DateTimeOffset?>("LostAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LostReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("LostReasonNote")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<DateTimeOffset?>("DisqualifiedAt")
+                    b.Property<DateTimeOffset?>("NextActionAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("DisqualifiedBy")
+                    b.Property<string>("NextActionId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("NextActionSummary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("NextActionType")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<string>("Profile")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("QualificationOutcome")
-                        .HasColumnType("int");
-
-                    b.Property<string>("RelationshipId")
+                    b.Property<string>("QualificationSourceLeadId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("RelationshipType")
+                    b.Property<string>("RecycleDecision")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
+
+                    b.Property<bool?>("RecycleEligible")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("RevisitAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("ScopeOwnerId")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<int>("Score")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SearchText")
+                    b.Property<string>("StageCategory")
                         .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("StageCode")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTimeOffset>("StageEnteredAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -86,24 +123,41 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
-                    b.Property<int>("WorkState")
-                        .HasColumnType("int");
+                    b.Property<DateTimeOffset?>("WinEvidenceOccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("WinEvidenceSourceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("WinEvidenceType")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset?>("WonAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("WorkspaceId")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.HasKey("LeadId");
+                    b.HasKey("DealId");
 
-                    b.HasIndex("WorkspaceId", "UpdatedAt", "LeadId");
+                    b.HasIndex("WorkspaceId", "QualificationSourceLeadId")
+                        .IsUnique()
+                        .HasFilter("[QualificationSourceLeadId] IS NOT NULL");
 
-                    b.HasIndex("WorkspaceId", "ScopeOwnerId", "UpdatedAt", "LeadId");
+                    b.HasIndex("WorkspaceId", "StageCategory", "StageCode");
 
-                    b.ToTable("Leads", "leads");
+                    b.HasIndex("WorkspaceId", "UpdatedAt", "DealId");
+
+                    b.HasIndex("WorkspaceId", "ScopeOwnerId", "UpdatedAt", "DealId");
+
+                    b.ToTable("Deals", "deals");
                 });
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Leads.Domain.LeadAuditRecord", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Deals.Domain.DealAuditRecord", b =>
                 {
                     b.Property<string>("AuditId")
                         .HasMaxLength(128)
@@ -114,21 +168,12 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("ActorType")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
                     b.Property<string>("AggregateId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("CorrelationId")
                         .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("DelegatedSubjectId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
@@ -156,10 +201,6 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("SourceReference")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
                     b.Property<string>("WorkspaceId")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -171,12 +212,10 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "OccurredAt");
 
-                    b.HasIndex("ActorType", "ActorId", "OccurredAt");
-
-                    b.ToTable("AuditRecords", "leads");
+                    b.ToTable("AuditRecords", "deals");
                 });
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Leads.Domain.LeadIdempotencyRecord", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Deals.Domain.DealIdempotencyRecord", b =>
                 {
                     b.Property<string>("ScopeKey")
                         .HasMaxLength(64)
@@ -223,10 +262,10 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "CreatedAt");
 
-                    b.ToTable("IdempotencyRecords", "leads");
+                    b.ToTable("IdempotencyRecords", "deals");
                 });
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Leads.Domain.LeadOutboxMessage", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Deals.Domain.DealOutboxMessage", b =>
                 {
                     b.Property<string>("EventId")
                         .HasMaxLength(128)
@@ -263,7 +302,7 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "OccurredAt");
 
-                    b.ToTable("OutboxMessages", "leads");
+                    b.ToTable("OutboxMessages", "deals");
                 });
 #pragma warning restore 612, 618
         }

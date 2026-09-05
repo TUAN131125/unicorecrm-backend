@@ -121,21 +121,6 @@ internal sealed partial class InitialWorkspaceProvisioningService(
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<InitialWorkspaceAccessAnchor>> ListAccessConvergenceAnchorsAsync(
-        int offset,
-        int limit,
-        CancellationToken cancellationToken)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(offset);
-        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
-        var records = await persistence.ListAccessConvergenceAnchorsAsync(offset, limit, cancellationToken);
-        return records
-            .Select(record => new InitialWorkspaceAccessAnchor(
-                record.WorkspaceId,
-                record.MembershipId))
-            .ToArray();
-    }
-
     public async Task CompleteInitialWorkspaceAsync(string accountId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);

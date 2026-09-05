@@ -16,10 +16,10 @@ internal static class AtomicModule
         services.AddDevelopmentSchemaMigration(
             "workflow",
             (provider, cancellationToken) => provider.GetRequiredService<WorkflowsDbContext>().Database.MigrateAsync(cancellationToken));
-        // The NURTURE coordinator. It maps no route: public exposure of qualifyLeadForNurture stays
-        // blocked by the G-1 consent-transfer gate.
         services.AddScoped<Contracts.ILeadNurtureQualificationWorkflow,
             Application.QualifyLeadForNurture.Handler>();
+        services.AddScoped<Contracts.ILeadOpportunityQualificationWorkflow,
+            Application.QualifyLeadForOpportunity.Handler>();
         return services;
     }
 }
