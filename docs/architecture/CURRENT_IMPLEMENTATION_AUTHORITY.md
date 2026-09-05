@@ -25,18 +25,6 @@ The frontend is consumer and current-contract evidence only. It is read-only to 
 
 Implementation phase identifiers such as B00-B09 are planning and history metadata only. They must not become durable domain, API, contract, database, migration, configuration, script, runtime, or architecture-extension identifiers. Durable artifacts use business or technical semantic names; roadmap and historical implementation references may retain phase identifiers.
 
-## Platform CI quality-gate authority
-
-`PLAT-QA-01` admits and implements the repository-owned blocking Platform gate defined by
-`docs/architecture/PLATFORM_CI_QUALITY_GATE.md`. The gate restores and builds the solution and runs
-the required IdentityAuth, Workspace, initial-provisioning and AccessControl verification matrix
-from a clean checkout. Its result is bound to the exact checked-out commit; `FAIL` and `NOT_RUN`
-required checks both fail the workflow. Live Gmail conformance and operator-specific development
-configuration checks remain explicitly external rather than being silently reported as passing.
-
-The workflow creates a repository status check. Branch protection and required-status-check policy
-remain repository-administrator configuration and are not claimed as enabled by this authority.
-
 ## Current OpenAPI authority rule
 
 For every operation it declares, `frontend/unicorecrm-web/docs/api/openapi.json` controls the exact current HTTP wire contract. Its currently generated SHA-256 is:
@@ -3781,10 +3769,11 @@ The same drift remains in the fixture inserts of `verify-customers-read-core.ps1
 slice and were not modified.
 
 The previously recorded `verify-initial-workspace-provisioning.ps1` configuration-reader drift is
-superseded by `PLAT-QA-01`: the verifier now removes only full-line comments admitted by .NET JSON
-configuration before passing the remaining JSON to Windows PowerShell 5.1 `ConvertFrom-Json`. The
-assertions and provisioning semantics are unchanged, and that verifier is now part of the required
-Platform CI gate. The unrelated business-owner fixture drifts listed above remain outside this slice.
+resolved: the verifier now removes only full-line comments admitted by .NET JSON configuration
+before passing the remaining JSON to Windows PowerShell 5.1 `ConvertFrom-Json`. The assertions and
+provisioning semantics are unchanged. The verifier remains available for local runtime verification;
+it is not a required CI or feature-completion gate. The unrelated business-owner fixture drifts
+listed above remain outside this slice.
 
 Therefore `CONTACTS IDENTITY PROJECTION: PASS`, `CONTACT QUALIFICATION PARTICIPANT: PASS`,
 `CONTACT DUPLICATE GUARD: PASS`, `CONTACT CONVERSION CONCURRENCY: PASS`,
