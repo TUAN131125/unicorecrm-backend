@@ -14,6 +14,14 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
     public Task<Lead?> LoadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken) =>
         dbContext.Leads.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.LeadId == leadId, cancellationToken);
 
+    public async Task<IReadOnlyList<Lead>> LoadLeadsAsync(
+        string workspaceId,
+        IReadOnlyList<string> leadIds,
+        CancellationToken cancellationToken) =>
+        await dbContext.Leads
+            .Where(item => item.WorkspaceId == workspaceId && leadIds.Contains(item.LeadId))
+            .ToArrayAsync(cancellationToken);
+
     public Task<Lead?> ReadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken) =>
         dbContext.Leads.AsNoTracking().SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.LeadId == leadId, cancellationToken);
 
@@ -62,7 +70,8 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         string? normalizedSearch,
         bool includePhoneSearch)
     {
-        IQueryable<Lead> query = dbContext.Leads.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
+        IQueryable<Lead> query = dbContext.Leads.AsNoTracking().Where(item =>
+            item.WorkspaceId == workspaceId && item.ArchivedAt == null);
         // The AccessControl record scope is part of the query, not a post-filter, so hidden rows are
         // never materialised and never reach the ordering or the projection.
         if (scopeOwnerMemberId is not null)

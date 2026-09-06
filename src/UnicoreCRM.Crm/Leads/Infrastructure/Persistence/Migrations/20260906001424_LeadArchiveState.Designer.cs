@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
 namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(LeadsDbContext))]
-    partial class LeadsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260906001424_LeadArchiveState")]
+    partial class LeadArchiveState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

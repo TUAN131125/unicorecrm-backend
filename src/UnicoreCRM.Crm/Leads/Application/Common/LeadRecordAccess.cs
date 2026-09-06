@@ -28,7 +28,7 @@ internal static class LeadFieldSecurity
     ///
     /// <para><c>relationshipRef</c> and <c>dealRef</c> are projected because positive qualification
     /// writes them. The wire schema still declares further properties (<c>notes</c>,
-    /// <c>qualifiedDealId</c>, <c>archivedAt</c> and the merge/consent family) that
+    /// <c>qualifiedDealId</c> and the merge/consent family) that
     /// Leads does not project at all. A policy naming one of them fails closed as an unknown key.</para>
     ///
     /// <para>Two rules, frozen and distinct. A policy naming a key <b>outside</b> this vocabulary is
@@ -97,7 +97,9 @@ internal static class LeadFieldSecurity
             ["disqualifiedAt"] = false,
             ["disqualifiedBy"] = false,
             ["disqualificationReason"] = false,
-            ["disqualificationNote"] = false
+            ["disqualificationNote"] = false,
+            ["archivedAt"] = false,
+            ["archiveReason"] = false
         };
 
     internal static IReadOnlyList<string> FieldKeys { get; } = EnforceableFields.Keys.Order(StringComparer.Ordinal).ToArray();
@@ -151,7 +153,9 @@ internal static class LeadFieldSecurity
             DisqualifiedAt = access.CanRead("disqualifiedAt") ? model.DisqualifiedAt : null,
             DisqualifiedBy = access.CanRead("disqualifiedBy") ? model.DisqualifiedBy : null,
             DisqualificationReason = access.CanRead("disqualificationReason") ? model.DisqualificationReason : null,
-            DisqualificationNote = access.CanRead("disqualificationNote") ? model.DisqualificationNote : null
+            DisqualificationNote = access.CanRead("disqualificationNote") ? model.DisqualificationNote : null,
+            ArchivedAt = access.CanRead("archivedAt") ? model.ArchivedAt : null,
+            ArchiveReason = access.CanRead("archiveReason") ? model.ArchiveReason : null
         };
 
     /// <summary>

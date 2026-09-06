@@ -19,6 +19,8 @@ public static class LeadsEndpoints
         MapPost(endpoints, "/leads/{leadId}/advance-work-state", AdvanceLeadWorkStateAsync, "advanceLeadWorkState");
         MapPost(endpoints, "/leads/{leadId}/disqualify", DisqualifyLeadAsync, "disqualifyLead");
         MapPost(endpoints, "/leads/{leadId}/reopen", ReopenDisqualifiedLeadAsync, "reopenDisqualifiedLead");
+        MapPost(endpoints, "/leads/{leadId}/archive", ArchiveLeadAsync, "archiveLead");
+        MapPost(endpoints, "/leads/archive-batch", ArchiveLeadBatchAsync, "archiveLeadBatch");
         return endpoints;
     }
 
@@ -114,6 +116,28 @@ public static class LeadsEndpoints
         CancellationToken cancellationToken) =>
         ExecuteCommandAsync<ReopenDisqualifiedLeadRequest>(leadId, context, cancellationToken,
             (request, metadata) => handler.HandleAsync(new(leadId, request, metadata), cancellationToken));
+
+    private static Task<IResult> ArchiveLeadAsync(
+        string leadId,
+        HttpContext context,
+        Application.ArchiveLead.Handler handler,
+        CancellationToken cancellationToken) =>
+        ExecuteCommandAsync<ArchiveLeadRequest>(leadId, context, cancellationToken,
+            (request, metadata) => handler.HandleAsync(new(leadId, request, metadata), cancellationToken));
+
+    private static async Task<IResult> ArchiveLeadBatchAsync(
+        HttpContext context,
+        Application.ArchiveLeadBatch.Handler handler,
+        CancellationToken cancellationToken)
+    {
+        if (!LeadsHttp.TryMetadata(context, true, false, out var metadata, out var error))
+            return error!;
+        var body = await LeadsHttp.ReadBodyAsync<ArchiveLeadBatchRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null)
+            return body.Error;
+        var result = await handler.HandleAsync(new(body.Value!, metadata), cancellationToken);
+        return LeadsHttp.Result(result, metadata.CorrelationId);
+    }
 
     private static async Task<IResult> ExecuteCommandAsync<TRequest>(
         string leadId,

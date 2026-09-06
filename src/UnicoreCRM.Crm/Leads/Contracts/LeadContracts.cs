@@ -9,6 +9,7 @@ public static class LeadCapabilities
     public static AccessRequirement Create { get; } = AccessRequirement.ForCanonicalCapability("leads.create");
     public static AccessRequirement Update { get; } = AccessRequirement.ForCanonicalCapability("leads.update");
     public static AccessRequirement Qualify { get; } = AccessRequirement.ForCanonicalCapability("leads.qualify");
+    public static AccessRequirement Delete { get; } = AccessRequirement.ForCanonicalCapability("leads.delete");
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -102,6 +103,15 @@ public sealed record DisqualifyLeadRequest(string? Reason, string? Evidence);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ReopenDisqualifiedLeadRequest;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ArchiveLeadRequest(string? Reason);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record LeadVersionedTarget(string? LeadId, long? ExpectedVersion);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ArchiveLeadBatchRequest(IReadOnlyList<LeadVersionedTarget>? Items, string? Reason);
+
 /// <summary>
 /// The adopted <c>LeadRelationshipRef</c>. Its declared vocabulary is <c>CONTACT | ORGANIZATION</c>,
 /// which differs from the platform-wide <c>RelationshipRef</c> vocabulary
@@ -175,6 +185,8 @@ public sealed record LeadDocument(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DisqualifiedBy { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DisqualificationReason { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DisqualificationNote { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ArchivedAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ArchiveReason { get; init; }
 }
 
 public sealed record LeadListResponse(
@@ -209,6 +221,21 @@ public sealed record LeadMutationResponse(
     string OccurredAt,
     string Outcome,
     LeadDocument Result,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> EmittedEventIds,
+    IReadOnlyList<string> AuditEvidenceIds);
+
+public sealed record LeadBatchArchiveResult(IReadOnlyList<LeadDocument> Leads);
+
+public sealed record LeadBatchArchiveResponse(
+    string CommandId,
+    string CorrelationId,
+    string AggregateId,
+    string AggregateType,
+    long Version,
+    string OccurredAt,
+    string Outcome,
+    LeadBatchArchiveResult Result,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> EmittedEventIds,
     IReadOnlyList<string> AuditEvidenceIds);

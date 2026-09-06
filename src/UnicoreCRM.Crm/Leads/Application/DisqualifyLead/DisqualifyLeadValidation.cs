@@ -13,7 +13,9 @@ internal static class DisqualifyLeadValidation
     {
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
         reason = LeadValidation.Text(request.Reason, "reason", 1, 1000, true, fields);
-        evidence = LeadValidation.Text(request.Evidence, "evidence", 1, 4000, true, fields);
+        evidence = string.IsNullOrWhiteSpace(request.Evidence)
+            ? null
+            : LeadValidation.Text(request.Evidence, "evidence", 1, 4000, false, fields);
         errors = fields;
         return fields.Count == 0;
     }

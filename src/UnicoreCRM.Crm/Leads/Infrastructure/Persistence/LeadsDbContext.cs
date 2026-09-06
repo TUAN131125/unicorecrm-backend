@@ -26,6 +26,7 @@ internal sealed class LeadsDbContext(DbContextOptions<LeadsDbContext> options) :
             entity.Property(item => item.SearchText).HasMaxLength(512);
             entity.Property(item => item.PhoneSearchText).HasMaxLength(160);
             entity.Property(item => item.Profile).HasConversion<LeadProfileValueConverter>().HasColumnType("nvarchar(max)");
+            entity.Property(item => item.ArchiveReason).HasMaxLength(2000);
             entity.Property(item => item.DisqualifiedBy).HasMaxLength(128);
             entity.Property(item => item.DisqualificationReason).HasMaxLength(2000);
             entity.Property(item => item.DisqualificationEvidence).HasMaxLength(4000);
@@ -33,11 +34,11 @@ internal sealed class LeadsDbContext(DbContextOptions<LeadsDbContext> options) :
             entity.Property(item => item.RelationshipId).HasMaxLength(128);
             entity.Property(item => item.DealRef).HasMaxLength(128);
             entity.Property(item => item.Version).IsConcurrencyToken();
-            entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.LeadId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.ArchivedAt, item.UpdatedAt, item.LeadId });
             // The enforced OWN-scope predicate. ListLeads narrows by WorkspaceId and the
             // AccessControl scope owner and orders by UpdatedAt then LeadId, so this covers the
             // security predicate and the ordering in one seek instead of scanning the Workspace.
-            entity.HasIndex(item => new { item.WorkspaceId, item.ScopeOwnerId, item.UpdatedAt, item.LeadId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.ScopeOwnerId, item.ArchivedAt, item.UpdatedAt, item.LeadId });
         });
 
         modelBuilder.Entity<LeadIdempotencyRecord>(entity =>

@@ -44,10 +44,16 @@ internal static class LeadErrors
         new("LEAD_INVALID_TRANSITION", 409, "Lead transition is not allowed", AggregateId: leadId);
     internal static LeadOperationError ProgressiveProfile(IReadOnlyDictionary<string, string[]> fields) =>
         new("LEAD_PROGRESSIVE_PROFILE_INCOMPLETE", 422, "Lead progressive profile is incomplete", FieldErrors: fields);
-    internal static LeadOperationError DisqualificationEvidence(IReadOnlyDictionary<string, string[]> fields) =>
-        new("LEAD_DISQUALIFICATION_EVIDENCE_REQUIRED", 422, "Lead disqualification evidence is required", FieldErrors: fields);
     internal static LeadOperationError ReopenNotAllowed(string leadId) =>
         new("LEAD_REOPEN_NOT_ALLOWED", 409, "Lead reopen is not allowed", AggregateId: leadId);
+    internal static LeadOperationError ArchiveReasonRequired(IReadOnlyDictionary<string, string[]> fields) =>
+        new("LEAD_RETENTION_REASON_REQUIRED", 422, "Lead archive reason is required", FieldErrors: fields);
+    internal static LeadOperationError AlreadyArchived(string leadId) =>
+        new("LEAD_ALREADY_ARCHIVED", 409, "Lead is already archived", AggregateId: leadId);
+    internal static LeadOperationError BatchEmpty() =>
+        new("LEAD_BATCH_EMPTY", 422, "Lead batch is empty");
+    internal static LeadOperationError BatchVersionConflict(string leadId, long expected, long current) =>
+        new("LEAD_BATCH_VERSION_CONFLICT", 412, "Lead batch version conflict", AggregateId: leadId, ExpectedVersion: expected, CurrentVersion: current);
     internal static LeadOperationError Validation(IReadOnlyDictionary<string, string[]> fields) =>
         new("VALIDATION_FAILED", 422, "Validation failed", FieldErrors: fields);
 }

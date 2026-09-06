@@ -45,6 +45,8 @@ internal sealed class Lead
     public int Score { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+    public DateTimeOffset? ArchivedAt { get; private set; }
+    public string? ArchiveReason { get; private set; }
     public DateTimeOffset? DisqualifiedAt { get; private set; }
     public string? DisqualifiedBy { get; private set; }
     public string? DisqualificationReason { get; private set; }
@@ -105,7 +107,7 @@ internal sealed class Lead
         return LeadTransitionResult.Succeeded;
     }
 
-    internal bool Disqualify(string reason, string evidence, string actorId, DateTimeOffset now)
+    internal bool Disqualify(string reason, string? evidence, string actorId, DateTimeOffset now)
     {
         if (WorkState == LeadWorkState.Closed)
             return false;
@@ -173,6 +175,17 @@ internal sealed class Lead
         RelationshipType = null;
         RelationshipId = null;
         DealRef = null;
+        Touch(now);
+        return true;
+    }
+
+    internal bool Archive(string reason, DateTimeOffset now)
+    {
+        if (ArchivedAt is not null)
+            return false;
+
+        ArchivedAt = now;
+        ArchiveReason = reason;
         Touch(now);
         return true;
     }

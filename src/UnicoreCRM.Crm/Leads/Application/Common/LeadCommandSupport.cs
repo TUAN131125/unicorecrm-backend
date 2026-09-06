@@ -28,6 +28,11 @@ internal static class LeadCommandSupport
             ?? throw new InvalidOperationException("Stored Leads idempotency response is invalid.")) with
         { Outcome = "REPLAYED" };
 
+    internal static LeadBatchArchiveResponse ReplayBatchArchive(LeadIdempotencyRecord record) =>
+        (JsonSerializer.Deserialize<LeadBatchArchiveResponse>(record.ResponseJson, JsonOptions)
+            ?? throw new InvalidOperationException("Stored Leads batch archive idempotency response is invalid.")) with
+        { Outcome = "REPLAYED" };
+
     internal static LeadMutationResponse RecordCommit(
         ILeadsPersistence persistence,
         Lead lead,
@@ -92,4 +97,6 @@ internal static class LeadCommandSupport
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+
+    internal static JsonSerializerOptions SerializationOptions => JsonOptions;
 }

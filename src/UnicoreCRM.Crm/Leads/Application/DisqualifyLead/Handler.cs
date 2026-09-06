@@ -19,7 +19,7 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["leadId"] = ["leadId is not a valid entity identifier."] }));
         if (!DisqualifyLeadValidation.TryDisqualify(command.Request, out var reason, out var evidence, out var fields))
-            return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.DisqualificationEvidence(fields));
+            return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(fields));
         var trusted = access.Value!.Trusted;
         var fingerprint = LeadCommandSupport.Fingerprint(new { command.LeadId, reason, evidence, command.Metadata.ExpectedVersion });
         return await execution.ExecuteAsync(
@@ -29,7 +29,7 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
             command.LeadId,
             command.Metadata,
             fingerprint,
-            (lead, now) => lead.Disqualify(reason!, evidence!, trusted.MemberId, now)
+            (lead, now) => lead.Disqualify(reason!, evidence, trusted.MemberId, now)
                 ? null
                 : LeadErrors.InvalidTransition(lead.LeadId),
             null,

@@ -34,6 +34,8 @@ internal static class LeadsModule
         services.AddScoped<Application.AdvanceLeadWorkState.Handler>();
         services.AddScoped<Application.DisqualifyLead.Handler>();
         services.AddScoped<Application.ReopenDisqualifiedLead.Handler>();
+        services.AddScoped<Application.ArchiveLead.Handler>();
+        services.AddScoped<Application.ArchiveLeadBatch.Handler>();
         // The Lead Qualification participant. Positive qualification is reachable only through the
         // Workflows coordinator; the generic qualifyLead operation stays retired and route-less.
         services.AddScoped<Contracts.ILeadQualificationParticipant,

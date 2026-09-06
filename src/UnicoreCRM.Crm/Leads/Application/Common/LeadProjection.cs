@@ -71,7 +71,9 @@ internal static class LeadProjection
             DisqualifiedAt = OptionalUtc(lead.DisqualifiedAt),
             DisqualifiedBy = lead.DisqualifiedBy,
             DisqualificationReason = lead.DisqualificationReason,
-            DisqualificationNote = lead.DisqualificationEvidence
+            DisqualificationNote = lead.DisqualificationEvidence,
+            ArchivedAt = OptionalUtc(lead.ArchivedAt),
+            ArchiveReason = lead.ArchiveReason
         };
     }
 

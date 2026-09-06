@@ -6,6 +6,7 @@ internal interface ILeadsPersistence
 {
     Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
     Task<Lead?> LoadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Lead>> LoadLeadsAsync(string workspaceId, IReadOnlyList<string> leadIds, CancellationToken cancellationToken);
     Task<Lead?> ReadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
     /// <param name="scopeOwnerMemberId">
     /// The AccessControl-resolved record-scope owner. When set, only leads owned by that member are
