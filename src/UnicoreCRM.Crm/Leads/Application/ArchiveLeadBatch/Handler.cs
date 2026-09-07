@@ -28,10 +28,8 @@ internal sealed class Handler(
         if (command.Request.Items.Count > 100)
             fields["items"] = ["items cannot contain more than 100 Leads."];
 
-        var reason = command.Request.Reason?.Trim();
-        if (string.IsNullOrEmpty(reason))
-            fields["reason"] = ["reason is required."];
-        else if (reason.Length > 2000)
+        var reason = string.IsNullOrWhiteSpace(command.Request.Reason) ? null : command.Request.Reason.Trim();
+        if (reason?.Length > 2000)
             fields["reason"] = ["reason cannot contain more than 2000 characters."];
 
         var normalizedItems = new List<(string LeadId, long ExpectedVersion)>(command.Request.Items.Count);
@@ -48,12 +46,7 @@ internal sealed class Handler(
         if (normalizedItems.Select(item => item.LeadId).Distinct(StringComparer.Ordinal).Count() != normalizedItems.Count)
             fields["items"] = ["items cannot contain duplicate Lead identifiers."];
         if (fields.Count != 0)
-        {
-            var error = fields.Count == 1 && fields.ContainsKey("reason") && string.IsNullOrEmpty(reason)
-                ? LeadErrors.ArchiveReasonRequired(fields)
-                : LeadErrors.Validation(fields);
-            return LeadOperationResult<LeadBatchArchiveResponse>.Failure(error);
-        }
+            return LeadOperationResult<LeadBatchArchiveResponse>.Failure(LeadErrors.Validation(fields));
 
         var trusted = access.Value!.Trusted;
         var fingerprint = LeadCommandSupport.Fingerprint(new { Items = normalizedItems, Reason = reason });
@@ -109,7 +102,7 @@ internal sealed class Handler(
         {
             var lead = byId[item.LeadId];
             var priorVersion = lead.Version;
-            if (!lead.Archive(reason!, now))
+            if (!lead.Archive(reason, now))
                 return LeadOperationResult<LeadBatchArchiveResponse>.Failure(LeadErrors.AlreadyArchived(lead.LeadId));
             var audit = new LeadAuditRecord(
                 "archiveLeadBatch",

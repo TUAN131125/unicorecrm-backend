@@ -19,16 +19,8 @@ internal sealed class Handler(LeadAuthorization authorization, LeadMutationExecu
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["leadId"] = ["leadId is not a valid entity identifier."] }));
 
-        var reason = command.Request.Reason?.Trim();
-        if (string.IsNullOrEmpty(reason))
-        {
-            return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.ArchiveReasonRequired(
-                new Dictionary<string, string[]>
-                {
-                    ["reason"] = ["reason is required."]
-                }));
-        }
-        if (reason.Length > 2000)
+        var reason = string.IsNullOrWhiteSpace(command.Request.Reason) ? null : command.Request.Reason.Trim();
+        if (reason?.Length > 2000)
         {
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["reason"] = ["reason cannot contain more than 2000 characters."] }));

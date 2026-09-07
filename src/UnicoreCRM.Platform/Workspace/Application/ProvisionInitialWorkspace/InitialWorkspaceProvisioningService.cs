@@ -32,7 +32,7 @@ internal sealed partial class InitialWorkspaceProvisioningService(
         var existing = await ReadExistingAsync(request.AccountId, cancellationToken);
         if (existing is not null)
             return existing;
-        if (await persistence.HasActiveMembershipAsync(request.AccountId, cancellationToken))
+        if (await persistence.HasMembershipAsync(request.AccountId, cancellationToken))
             return new InitialWorkspaceProvisioningResult(InitialWorkspaceProvisioningStatus.RejectedExistingWorkspace, null, null);
 
         var now = timeProvider.GetUtcNow();
@@ -52,6 +52,14 @@ internal sealed partial class InitialWorkspaceProvisioningService(
                 JsonSerializer.Serialize(Array.Empty<string>()),
                 JsonSerializer.Serialize(request.Configuration.EnabledModuleKeys.ToArray()),
                 JsonSerializer.Serialize(request.Configuration.AvailableProductSpaces.ToArray()));
+            var studio = StudioDefaults.Create(
+                workspace.WorkspaceId,
+                request.Name,
+                request.Configuration.Locale,
+                request.Configuration.TimeZone,
+                request.Configuration.BaseCurrency,
+                request.Configuration.EnabledModuleKeys,
+                now);
             var provisioning = new InitialWorkspaceProvisioningRecord(
                 request.AccountId,
                 request.MemberId,
@@ -61,7 +69,14 @@ internal sealed partial class InitialWorkspaceProvisioningService(
                 request.RequestFingerprint,
                 now);
 
-            if (await persistence.TryCommitProvisioningAsync(workspace, membership, configuration, provisioning, cancellationToken))
+            if (await persistence.TryCommitProvisioningAsync(
+                    workspace,
+                    membership,
+                    configuration,
+                    studio.Configuration,
+                    studio.QuickSetup,
+                    provisioning,
+                    cancellationToken))
             {
                 return new InitialWorkspaceProvisioningResult(
                     InitialWorkspaceProvisioningStatus.Provisioned,
@@ -83,6 +98,11 @@ internal sealed partial class InitialWorkspaceProvisioningService(
             var converged = await ReadExistingAsync(request.AccountId, cancellationToken);
             if (converged is not null)
                 return converged;
+            if (await persistence.HasMembershipAsync(request.AccountId, cancellationToken))
+                return new InitialWorkspaceProvisioningResult(
+                    InitialWorkspaceProvisioningStatus.RejectedExistingWorkspace,
+                    null,
+                    null);
         }
 
         throw new InvalidOperationException("Initial Workspace provisioning could not reserve a Workspace key.");

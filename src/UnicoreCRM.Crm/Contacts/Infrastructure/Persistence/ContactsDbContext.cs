@@ -12,6 +12,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
     internal DbSet<ContactAuditRecord> AuditRecords => Set<ContactAuditRecord>();
     internal DbSet<ContactOutboxMessage> OutboxMessages => Set<ContactOutboxMessage>();
     internal DbSet<ContactConversionRecord> ConversionRecords => Set<ContactConversionRecord>();
+    internal DbSet<ContactIdempotencyRecord> IdempotencyRecords => Set<ContactIdempotencyRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,7 +26,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.Property(item => item.OwnerId).HasMaxLength(128);
             entity.Property(item => item.FullName).HasMaxLength(ContactNameBound.MaxLength);
             entity.Property(item => item.Status).HasMaxLength(40);
-            entity.Property(item => item.Version);
+            entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.UpdatedAt);
             entity.Property(item => item.Profile).HasConversion<ContactProfileValueConverter>().HasColumnType("nvarchar(max)");
             entity.Property(item => item.NormalizedWorkEmail).HasMaxLength(320);
@@ -40,6 +41,22 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             // seeks take, not by a constraint.
             entity.HasIndex(item => new { item.WorkspaceId, item.NormalizedWorkEmail });
             entity.HasIndex(item => new { item.WorkspaceId, item.NormalizedPersonalEmail });
+        });
+
+        modelBuilder.Entity<ContactIdempotencyRecord>(entity =>
+        {
+            entity.ToTable("IdempotencyRecords");
+            entity.HasKey(item => item.ScopeKey);
+            entity.Property(item => item.ScopeKey).HasMaxLength(64);
+            entity.Property(item => item.WorkspaceId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Operation).HasMaxLength(96).IsRequired();
+            entity.Property(item => item.ActorId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.TargetId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Fingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.ResponseJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(item => item.CreatedAt).HasPrecision(7);
+            entity.HasIndex(item => new { item.WorkspaceId, item.CreatedAt });
         });
 
         modelBuilder.Entity<ContactAuditRecord>(entity =>

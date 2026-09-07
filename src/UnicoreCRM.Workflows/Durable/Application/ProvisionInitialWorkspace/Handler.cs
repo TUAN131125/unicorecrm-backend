@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Workflows.Durable.Application.Common;
@@ -24,7 +25,8 @@ internal sealed class Handler(
     IAuthenticatedIdentityReferenceLookup identities,
     IInitialWorkspaceProvisioning workspaces,
     InitialWorkspaceAccessCompletion completion,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<Handler> logger)
 {
     internal async Task<DurableWorkflowResult<ProvisionInitialWorkspaceResponse>> HandleAsync(
         Command command,
@@ -54,7 +56,12 @@ internal sealed class Handler(
         // The account-scoped lifecycle decision precedes idempotency comparison: an account whose
         // Workspace access did not come from initial provisioning has no anchor to compare against.
         if (provisioning.Status == InitialWorkspaceProvisioningStatus.RejectedExistingWorkspace)
+        {
+            logger.LogInformation(
+                "Initial Workspace provisioning skipped because authoritative membership already exists; correlationId={CorrelationId}.",
+                command.Metadata.CorrelationId);
             return DurableWorkflowResult<ProvisionInitialWorkspaceResponse>.Failure(DurableWorkflowErrors.WorkspaceAlreadyProvisioned());
+        }
 
         var workspace = provisioning.Workspace
             ?? throw new InvalidOperationException("Workspace provisioning succeeded without an authoritative Workspace summary.");
@@ -71,6 +78,23 @@ internal sealed class Handler(
         // business state and is never reinterpreted as an access-policy upgrade signal.
         if (provisioning.AccessPending)
             await completion.CompleteAsync(identity.AccountId, workspace.WorkspaceId, workspace.MembershipId, cancellationToken);
+
+        if (replayed)
+        {
+            logger.LogInformation(
+                "Initial Workspace provisioning replayed workspace {WorkspaceId} for membership {MembershipId}; correlationId={CorrelationId}.",
+                workspace.WorkspaceId,
+                workspace.MembershipId,
+                command.Metadata.CorrelationId);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Initial Workspace provisioning created workspace {WorkspaceId} for membership {MembershipId}; correlationId={CorrelationId}.",
+                workspace.WorkspaceId,
+                workspace.MembershipId,
+                command.Metadata.CorrelationId);
+        }
 
         var response = new ProvisionInitialWorkspaceResponse(
             DurableWorkflowIds.New("command"),

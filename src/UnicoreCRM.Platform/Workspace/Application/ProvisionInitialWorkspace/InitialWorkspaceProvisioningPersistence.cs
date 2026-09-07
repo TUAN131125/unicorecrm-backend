@@ -10,7 +10,7 @@ namespace UnicoreCRM.Platform.Workspace.Application.ProvisionInitialWorkspace;
 internal interface IInitialWorkspaceProvisioningPersistence
 {
     Task<InitialWorkspaceProvisioningRecord?> FindProvisioningRecordAsync(string accountId, CancellationToken cancellationToken);
-    Task<bool> HasActiveMembershipAsync(string accountId, CancellationToken cancellationToken);
+    Task<bool> HasMembershipAsync(string accountId, CancellationToken cancellationToken);
     Task<bool> WorkspaceKeyExistsAsync(string workspaceKey, CancellationToken cancellationToken);
     Task<WorkspaceMembershipReadModel?> FindMembershipAsync(string workspaceId, string membershipId, CancellationToken cancellationToken);
 
@@ -30,6 +30,8 @@ internal interface IInitialWorkspaceProvisioningPersistence
         WorkspaceDefinition workspace,
         WorkspaceMembership membership,
         WorkspaceBootstrapProjection configuration,
+        StudioConfiguration studioConfiguration,
+        StudioQuickSetup studioQuickSetup,
         InitialWorkspaceProvisioningRecord provisioning,
         CancellationToken cancellationToken);
 }

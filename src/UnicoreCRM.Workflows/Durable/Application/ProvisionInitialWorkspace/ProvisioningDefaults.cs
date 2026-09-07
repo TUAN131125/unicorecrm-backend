@@ -8,9 +8,8 @@ using UnicoreCRM.Workflows.Durable.Contracts;
 namespace UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace;
 
 /// <summary>
-/// The server-owned, deterministic and documented defaults for Initial Workspace Provisioning.
-/// The explicit Skip path is exactly the request that omits every optional value, so Skip and
-/// Finish reach the same canonical business intent through the same code path.
+/// The server-owned, deterministic and documented defaults for automatic Initial Workspace
+/// Provisioning. A request that omits every optional value is the canonical bootstrap intent.
 /// </summary>
 internal static partial class ProvisioningDefaults
 {
@@ -21,10 +20,25 @@ internal static partial class ProvisioningDefaults
     internal const string FallbackLogoText = "W";
 
     /// <summary>The server-owned module availability admitted for new CRM Workspaces.</summary>
-    internal static IReadOnlyList<string> EnabledModuleKeys { get; } = ["contacts", "leads", "deals", "tasks"];
+    internal static IReadOnlyList<string> EnabledModuleKeys { get; } =
+    [
+        "leads",
+        "customers",
+        "contacts",
+        "deals",
+        "quotes",
+        "orders",
+        "support",
+        "organizations",
+        "tasks",
+        "payments",
+        "invoices",
+        "shipping",
+        "returns"
+    ];
 
-    /// <summary>Studio and People remain deferred surfaces, so only the CRM product space is enabled.</summary>
-    internal static IReadOnlyList<string> AvailableProductSpaces { get; } = ["crm"];
+    /// <summary>The current Workspace shell surfaces enabled for a newly provisioned Owner.</summary>
+    internal static IReadOnlyList<string> AvailableProductSpaces { get; } = ["crm", "studio", "people"];
 
     private static readonly string[] SupportedLocales = [Locale, "vi"];
 

@@ -19,6 +19,7 @@ internal static class ContactFieldSecurity
             ["version"] = true,
             ["createdAt"] = true,
             ["updatedAt"] = true,
+            ["archivedAt"] = true,
             ["salutation"] = false,
             ["jobTitle"] = false,
             ["department"] = false,
@@ -113,11 +114,12 @@ internal sealed class ContactAuthorization(IRecordAccessEvaluator evaluator)
 
     internal async Task<ContactOperationResult<ContactAccess>> AuthorizeAsync(
         ContactRequestMetadata metadata,
+        AccessRequirement? requirement,
         CancellationToken cancellationToken)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
-            ContactCapabilities.Read.Capability,
+            (requirement ?? ContactCapabilities.Read).Capability,
             ContactFieldSecurity.FieldKeys,
             RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
@@ -138,6 +140,10 @@ internal sealed class ContactAuthorization(IRecordAccessEvaluator evaluator)
             ? ContactOperationResult<ContactAccess>.Success(new ContactAccess(trusted, authorization))
             : ContactOperationResult<ContactAccess>.Failure(unenforceable);
     }
+
+    internal Task<ContactOperationResult<ContactAccess>> AuthorizeAsync(
+        ContactRequestMetadata metadata,
+        CancellationToken cancellationToken) => AuthorizeAsync(metadata, null, cancellationToken);
 
     internal async Task<ContactOperationError?> EnforceRecordAsync(
         ContactAccess access,

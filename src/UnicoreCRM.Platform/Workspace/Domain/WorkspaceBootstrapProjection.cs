@@ -33,4 +33,18 @@ internal sealed class WorkspaceBootstrapProjection
     public string CapabilitiesJson { get; private set; } = null!;
     public string EnabledModuleKeysJson { get; private set; } = null!;
     public string AvailableProductSpacesJson { get; private set; } = null!;
+
+    internal void ApplyStudioLocaleRegion(string locale, string timeZone, string baseCurrency)
+    {
+        Locale = locale;
+        TimeZone = timeZone;
+        BaseCurrency = baseCurrency;
+        ConfigurationVersion++;
+    }
+
+    internal void ApplyStudioFeatures(string enabledModuleKeysJson)
+    {
+        EnabledModuleKeysJson = enabledModuleKeysJson;
+        ConfigurationVersion++;
+    }
 }

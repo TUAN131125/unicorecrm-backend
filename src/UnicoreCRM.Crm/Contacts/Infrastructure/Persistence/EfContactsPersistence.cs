@@ -41,6 +41,9 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
     public void AddConversion(ContactConversionRecord record) => dbContext.ConversionRecords.Add(record);
     public void AddAudit(ContactAuditRecord audit) => dbContext.AuditRecords.Add(audit);
     public void AddOutbox(ContactOutboxMessage message) => dbContext.OutboxMessages.Add(message);
+    public void AddIdempotency(ContactIdempotencyRecord record) => dbContext.IdempotencyRecords.Add(record);
+    public Task<ContactIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) =>
+        dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
@@ -55,6 +58,9 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
                 item => item.WorkspaceId == workspaceId && item.ContactId == contactId,
                 cancellationToken);
 
+    public Task<Contact?> LoadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken) =>
+        dbContext.Contacts.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId, cancellationToken);
+
     public async Task<IReadOnlyList<Contact>> ReadContactsAsync(
         string workspaceId,
         string? scopeOwnerMemberId,
@@ -62,7 +68,7 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
     {
         var query = dbContext.Contacts
             .AsNoTracking()
-            .Where(item => item.WorkspaceId == workspaceId);
+            .Where(item => item.WorkspaceId == workspaceId && item.ArchivedAt == null);
         if (scopeOwnerMemberId is not null)
             query = query.Where(item => item.OwnerId == scopeOwnerMemberId);
 

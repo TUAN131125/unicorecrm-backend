@@ -2,7 +2,7 @@ namespace UnicoreCRM.Workflows.Durable.Contracts;
 
 /// <summary>
 /// The single authenticated Initial Workspace Provisioning intent. Every value is optional:
-/// omitting a value - the explicit Skip path - selects the documented server-owned default.
+/// omitting a value during automatic bootstrap selects the documented server-owned default.
 /// The caller cannot supply an account, member, membership status, Workspace key, aggregate
 /// identifier, role, capability, enabled module or product space.
 /// </summary>

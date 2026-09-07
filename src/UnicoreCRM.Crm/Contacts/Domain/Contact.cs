@@ -1,9 +1,8 @@
 namespace UnicoreCRM.Crm.Contacts.Domain;
 
 /// <summary>
-/// Contacts-owned durable state. The only admitted writer is the Lead qualification participant;
-/// there is still no public Contact mutation surface, and controlled fixtures remain the other way
-/// state enters the table.
+/// Contacts-owned durable state. Public Contact commands and the Lead qualification participant
+/// are the admitted writers; both use the same aggregate and persistence boundary.
 /// </summary>
 internal sealed class Contact
 {
@@ -41,6 +40,7 @@ internal sealed class Contact
     internal long Version { get; private set; }
     internal DateTimeOffset CreatedAt { get; private set; }
     internal DateTimeOffset UpdatedAt { get; private set; }
+    internal DateTimeOffset? ArchivedAt { get; private set; }
     internal ContactProfile Profile { get; private set; } = new();
 
     /// <summary>
@@ -58,6 +58,28 @@ internal sealed class Contact
     {
         NormalizedWorkEmail = ContactEmailIdentity.Normalize(Profile.WorkEmail);
         NormalizedPersonalEmail = ContactEmailIdentity.Normalize(Profile.PersonalEmail);
+    }
+
+    internal void Update(string? ownerId, string fullName, ContactProfile profile, DateTimeOffset now)
+    {
+        if (ArchivedAt is not null)
+            throw new InvalidOperationException("An archived Contact cannot be updated.");
+        OwnerId = ownerId;
+        FullName = fullName;
+        Profile = profile with { OrganizationRelationships = Profile.OrganizationRelationships };
+        UpdatedAt = now;
+        Version++;
+        SyncEmailIdentityProjections();
+    }
+
+    internal void Archive(DateTimeOffset now)
+    {
+        if (ArchivedAt is not null)
+            throw new InvalidOperationException("The Contact is already archived.");
+        ArchivedAt = now;
+        Status = "archived";
+        UpdatedAt = now;
+        Version++;
     }
 }
 

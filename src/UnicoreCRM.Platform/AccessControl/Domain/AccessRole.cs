@@ -59,4 +59,11 @@ internal sealed class AccessRole
         Version = checked(Version + 1);
         UpdatedAt = now;
     }
+
+    internal void MarkAsSystemOwned(string sourceTemplateId, DateTimeOffset now)
+    {
+        SourceTemplateId = sourceTemplateId;
+        Version = checked(Version + 1);
+        UpdatedAt = now;
+    }
 }

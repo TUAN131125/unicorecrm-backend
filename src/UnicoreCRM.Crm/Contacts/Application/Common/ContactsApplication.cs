@@ -3,6 +3,11 @@ using UnicoreCRM.Crm.Contacts.Domain;
 namespace UnicoreCRM.Crm.Contacts.Application.Common;
 
 internal sealed record ContactRequestMetadata(string RequestId, string CorrelationId);
+internal sealed record ContactCommandMetadata(
+    string RequestId,
+    string CorrelationId,
+    string IdempotencyKey,
+    long? ExpectedVersion);
 
 internal sealed record ContactOperationError(
     string Code,
@@ -26,6 +31,7 @@ internal interface IContactsTransaction : IAsyncDisposable
 internal interface IContactsPersistence
 {
     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
+    Task<Contact?> LoadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Contact>> ReadContactsAsync(
         string workspaceId,
         string? scopeOwnerMemberId,
@@ -51,6 +57,8 @@ internal interface IContactsPersistence
     void AddConversion(ContactConversionRecord record);
     void AddAudit(ContactAuditRecord audit);
     void AddOutbox(ContactOutboxMessage message);
+    Task<ContactIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
+    void AddIdempotency(ContactIdempotencyRecord record);
 }
 
 internal static class ContactErrors
@@ -60,4 +68,10 @@ internal static class ContactErrors
     internal static ContactOperationError NotFound() => new("RESOURCE_NOT_FOUND", 404, "Resource not found");
     internal static ContactOperationError Validation(IReadOnlyDictionary<string, string[]> fields, int status = 422) =>
         new("VALIDATION_FAILED", status, "Validation failed", FieldErrors: fields);
+    internal static ContactOperationError VersionConflict(string id, long expected, long current) =>
+        new("RESOURCE_VERSION_CONFLICT", 409, "Resource version conflict", $"Contact {id} expected version {expected} but is version {current}.");
+    internal static ContactOperationError IdempotencyReused() =>
+        new("IDEMPOTENCY_KEY_REUSED", 409, "Idempotency key reused");
+    internal static ContactOperationError AlreadyArchived() =>
+        new("CONTACT_ALREADY_ARCHIVED", 409, "Contact already archived");
 }

@@ -6,7 +6,66 @@ namespace UnicoreCRM.Crm.Contacts.Contracts;
 public static class ContactCapabilities
 {
     public static AccessRequirement Read { get; } = AccessRequirement.ForCanonicalCapability("contacts.read");
+    public static AccessRequirement Create { get; } = AccessRequirement.ForCanonicalCapability("contacts.create");
+    public static AccessRequirement Update { get; } = AccessRequirement.ForCanonicalCapability("contacts.update");
+    // Archive retains the established cross-module capability vocabulary; no hard delete exists.
+    public static AccessRequirement Archive { get; } = AccessRequirement.ForCanonicalCapability("contacts.delete");
 }
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CreateContactRequest(
+    string? FullName,
+    string? OwnerId = null,
+    string? Salutation = null,
+    string? JobTitle = null,
+    string? Department = null,
+    string? RoleAtCompany = null,
+    string? WorkEmail = null,
+    string? PersonalEmail = null,
+    string? MobilePhone = null,
+    string? WorkPhone = null,
+    string? OtherPhone = null,
+    string? ZaloId = null,
+    string? Facebook = null,
+    string? PreferredContactChannel = null,
+    string? Address = null,
+    string? Source = null,
+    string? DecisionRole = null,
+    string? RelationshipLevel = null,
+    string? PainPoint = null,
+    string? NeedSummary = null,
+    string? Notes = null,
+    IReadOnlyList<string>? Tags = null,
+    string? DisplayName = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record UpdateContactRequest(
+    string? FullName,
+    string? OwnerId = null,
+    string? Salutation = null,
+    string? JobTitle = null,
+    string? Department = null,
+    string? RoleAtCompany = null,
+    string? WorkEmail = null,
+    string? PersonalEmail = null,
+    string? MobilePhone = null,
+    string? WorkPhone = null,
+    string? OtherPhone = null,
+    string? ZaloId = null,
+    string? Facebook = null,
+    string? PreferredContactChannel = null,
+    string? Address = null,
+    string? Source = null,
+    string? DecisionRole = null,
+    string? RelationshipLevel = null,
+    string? PainPoint = null,
+    string? NeedSummary = null,
+    string? Notes = null,
+    IReadOnlyList<string>? Tags = null,
+    string? DisplayName = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ArchiveContactRequest;
 
 public sealed record PostalAddressDocument(string Line1)
 {
@@ -66,6 +125,7 @@ public sealed record ContactDocument(
     string CreatedAt,
     string UpdatedAt)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ArchivedAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Salutation { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? JobTitle { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Department { get; init; }
@@ -98,3 +158,18 @@ public sealed record ContactDocument(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<ContactOrganizationRelationshipDocument>? OrganizationRelationships { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DisplayName { get; init; }
 }
+
+public sealed record ContactMutationResult(ContactDocument Contact);
+
+public sealed record ContactMutationResponse(
+    string CommandId,
+    string CorrelationId,
+    string AggregateId,
+    string AggregateType,
+    long Version,
+    string OccurredAt,
+    string Outcome,
+    ContactMutationResult Result,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> EmittedEventIds,
+    IReadOnlyList<string> AuditEvidenceIds);

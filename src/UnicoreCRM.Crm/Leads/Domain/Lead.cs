@@ -179,13 +179,13 @@ internal sealed class Lead
         return true;
     }
 
-    internal bool Archive(string reason, DateTimeOffset now)
+    internal bool Archive(string? reason, DateTimeOffset now)
     {
         if (ArchivedAt is not null)
             return false;
 
         ArchivedAt = now;
-        ArchiveReason = reason;
+        ArchiveReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         Touch(now);
         return true;
     }

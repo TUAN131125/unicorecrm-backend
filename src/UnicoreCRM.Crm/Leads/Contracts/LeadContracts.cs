@@ -104,13 +104,13 @@ public sealed record DisqualifyLeadRequest(string? Reason, string? Evidence);
 public sealed record ReopenDisqualifiedLeadRequest;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record ArchiveLeadRequest(string? Reason);
+public sealed record ArchiveLeadRequest(string? Reason = null);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record LeadVersionedTarget(string? LeadId, long? ExpectedVersion);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record ArchiveLeadBatchRequest(IReadOnlyList<LeadVersionedTarget>? Items, string? Reason);
+public sealed record ArchiveLeadBatchRequest(IReadOnlyList<LeadVersionedTarget>? Items, string? Reason = null);
 
 /// <summary>
 /// The adopted <c>LeadRelationshipRef</c>. Its declared vocabulary is <c>CONTACT | ORGANIZATION</c>,

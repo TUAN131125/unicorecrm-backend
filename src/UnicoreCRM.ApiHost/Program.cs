@@ -33,11 +33,26 @@ using UnicoreCRM.ApiHost.Serialization;
 
 const string MigrateCommand = "--migrate";
 const string SeedDemoCommand = "--seed-demo";
+const string RepairWorkspaceOwnerAuthorityCommand = "--repair-workspace-owner-authority";
+const string WorkspaceTargetPrefix = "--workspace-id=";
 var runMigrations = args.Contains(MigrateCommand, StringComparer.OrdinalIgnoreCase);
 var runDemoBootstrap = args.Contains(SeedDemoCommand, StringComparer.OrdinalIgnoreCase);
+var runWorkspaceOwnerAuthorityRepair = args.Contains(RepairWorkspaceOwnerAuthorityCommand, StringComparer.OrdinalIgnoreCase);
+if (new[] { runMigrations, runDemoBootstrap, runWorkspaceOwnerAuthorityRepair }.Count(enabled => enabled) > 1)
+    throw new InvalidOperationException("Specify only one maintenance command per process invocation.");
+var repairWorkspaceTargets = args
+    .Where(argument => argument.StartsWith(WorkspaceTargetPrefix, StringComparison.OrdinalIgnoreCase))
+    .Select(argument => argument[WorkspaceTargetPrefix.Length..])
+    .ToArray();
+if (repairWorkspaceTargets.Length > 1 || repairWorkspaceTargets.Any(string.IsNullOrWhiteSpace))
+    throw new InvalidOperationException("Specify at most one non-empty --workspace-id target.");
+if (repairWorkspaceTargets.Length != 0 && !runWorkspaceOwnerAuthorityRepair)
+    throw new InvalidOperationException("--workspace-id is valid only with --repair-workspace-owner-authority.");
 var hostArguments = args
     .Where(argument => !string.Equals(argument, MigrateCommand, StringComparison.OrdinalIgnoreCase)
-                       && !string.Equals(argument, SeedDemoCommand, StringComparison.OrdinalIgnoreCase))
+                       && !string.Equals(argument, SeedDemoCommand, StringComparison.OrdinalIgnoreCase)
+                       && !string.Equals(argument, RepairWorkspaceOwnerAuthorityCommand, StringComparison.OrdinalIgnoreCase)
+                       && !argument.StartsWith(WorkspaceTargetPrefix, StringComparison.OrdinalIgnoreCase))
     .ToArray();
 
 var builder = WebApplication.CreateBuilder(hostArguments);
@@ -79,12 +94,14 @@ builder.Services.AddPlatformOperationsModule(builder.Configuration);
 
 var app = builder.Build();
 
-if (runMigrations || runDemoBootstrap)
+if (runMigrations || runDemoBootstrap || runWorkspaceOwnerAuthorityRepair)
 {
     if (runMigrations)
         await app.Services.RunOwnerSchemaMigrationsAsync(app.Logger, CancellationToken.None);
     if (runDemoBootstrap)
         await app.Services.RunDevelopmentBootstrapAsync(app.Logger, CancellationToken.None);
+    if (runWorkspaceOwnerAuthorityRepair)
+        await app.Services.RunWorkspaceOwnerAuthorityRepairAsync(repairWorkspaceTargets.SingleOrDefault(), CancellationToken.None);
     return;
 }
 
@@ -112,6 +129,7 @@ app.UseTrustedWorkspaceResolution();
 app.UseAuthorization();
 app.MapIdentityAuthEndpoints();
 app.MapWorkspaceEndpoints();
+app.MapStudioEndpoints();
 app.MapAccessControlEndpoints();
 app.MapDurableWorkflowEndpoints();
 app.MapLeadQualificationEndpoints();

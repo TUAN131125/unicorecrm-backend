@@ -22,6 +22,7 @@ internal static class AccessControlModule
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "access")));
         services.AddScoped<IAccessControlPersistence, EfAccessControlPersistence>();
         services.AddScoped<AccessRoleLegacyNormalizationCorrectionService>();
+        services.AddScoped<WorkspaceOwnerAuthorityRepairService>();
         services.AddDevelopmentSchemaMigration(
             "access-control",
             async (provider, cancellationToken) =>

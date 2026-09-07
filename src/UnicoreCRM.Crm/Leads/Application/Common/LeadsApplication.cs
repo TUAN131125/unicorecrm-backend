@@ -46,8 +46,6 @@ internal static class LeadErrors
         new("LEAD_PROGRESSIVE_PROFILE_INCOMPLETE", 422, "Lead progressive profile is incomplete", FieldErrors: fields);
     internal static LeadOperationError ReopenNotAllowed(string leadId) =>
         new("LEAD_REOPEN_NOT_ALLOWED", 409, "Lead reopen is not allowed", AggregateId: leadId);
-    internal static LeadOperationError ArchiveReasonRequired(IReadOnlyDictionary<string, string[]> fields) =>
-        new("LEAD_RETENTION_REASON_REQUIRED", 422, "Lead archive reason is required", FieldErrors: fields);
     internal static LeadOperationError AlreadyArchived(string leadId) =>
         new("LEAD_ALREADY_ARCHIVED", 409, "Lead is already archived", AggregateId: leadId);
     internal static LeadOperationError BatchEmpty() =>

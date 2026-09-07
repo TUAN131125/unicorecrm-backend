@@ -36,6 +36,8 @@ internal static class WorkspaceModule
         services.AddScoped<IInitialWorkspaceProvisioning, Application.ProvisionInitialWorkspace.InitialWorkspaceProvisioningService>();
         services.AddScoped<Application.ListMyWorkspaces.Handler>();
         services.AddScoped<Application.GetWorkspaceBootstrap.Handler>();
+        services.AddScoped<Application.Common.IStudioPersistence, EfStudioPersistence>();
+        services.AddScoped<Application.StudioService>();
         services.AddScoped<DevelopmentWorkspaceBootstrap>();
         services.AddDevelopmentBootstrapAction(
             "workspace",

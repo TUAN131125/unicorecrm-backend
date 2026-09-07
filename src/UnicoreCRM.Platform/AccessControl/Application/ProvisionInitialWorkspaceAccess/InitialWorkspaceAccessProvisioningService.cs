@@ -108,7 +108,7 @@ internal sealed class InitialWorkspaceAccessProvisioningService(
                 workspaceId,
                 InitialWorkspaceAccessPolicy.RoleName,
                 InitialWorkspaceAccessPolicy.RoleDescription,
-                null,
+                InitialWorkspaceAccessPolicy.SystemOwnerTemplateId,
                 now);
             var roleCapabilities = existingRole is null
                 ? capabilities.Select(capability => new RoleCapability(role.RoleId, capability)).ToArray()

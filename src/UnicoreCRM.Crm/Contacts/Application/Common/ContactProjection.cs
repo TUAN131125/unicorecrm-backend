@@ -16,6 +16,7 @@ internal static class ContactProjection
             Timestamp(contact.CreatedAt),
             Timestamp(contact.UpdatedAt))
         {
+            ArchivedAt = contact.ArchivedAt is null ? null : Timestamp(contact.ArchivedAt.Value),
             Salutation = contact.Profile.Salutation,
             JobTitle = contact.Profile.JobTitle,
             Department = contact.Profile.Department,
@@ -103,4 +104,6 @@ internal static class ContactProjection
 
     private static string Timestamp(DateTimeOffset value) =>
         value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
+
+    internal static string TimestampValue(DateTimeOffset value) => Timestamp(value);
 }
