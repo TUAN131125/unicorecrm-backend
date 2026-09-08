@@ -28,6 +28,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.Property(item => item.Status).HasMaxLength(40);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.UpdatedAt);
+            entity.Property(item => item.ArchivedAt).HasPrecision(7);
             entity.Property(item => item.Profile).HasConversion<ContactProfileValueConverter>().HasColumnType("nvarchar(max)");
             entity.Property(item => item.NormalizedWorkEmail).HasMaxLength(320);
             entity.Property(item => item.NormalizedPersonalEmail).HasMaxLength(320);

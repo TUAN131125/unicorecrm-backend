@@ -45,8 +45,17 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
     public Task<ContactIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) =>
         dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken) =>
-        dbContext.SaveChangesAsync(cancellationToken);
+    public async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new ContactsPersistenceConcurrencyException { Source = exception.Source };
+        }
+    }
 
     public Task<Contact?> ReadContactAsync(
         string workspaceId,

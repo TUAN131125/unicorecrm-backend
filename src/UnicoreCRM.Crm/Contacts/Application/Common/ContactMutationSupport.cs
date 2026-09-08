@@ -24,6 +24,9 @@ internal static class ContactMutationSupport
             ?? throw new InvalidOperationException("Stored Contact idempotency response is invalid.")) with
         { Outcome = "REPLAYED" };
 
+    internal static ContactMutationResponse Project(ContactMutationResponse response, ContactAccess access) =>
+        response with { Result = new ContactMutationResult(ContactFieldSecurity.Project(response.Result.Contact, access.Authorization)) };
+
     internal static ContactMutationResponse RecordCommit(
         IContactsPersistence persistence,
         Contact contact,

@@ -66,7 +66,21 @@ internal sealed class Contact
             throw new InvalidOperationException("An archived Contact cannot be updated.");
         OwnerId = ownerId;
         FullName = fullName;
-        Profile = profile with { OrganizationRelationships = Profile.OrganizationRelationships };
+        // The public profile contract deliberately does not own consent/address-detail or
+        // cross-module relationship writes yet. A profile update must preserve those existing
+        // authoritative facts rather than clearing them as collateral damage.
+        Profile = profile with
+        {
+            AddressDetails = Profile.AddressDetails,
+            Consent = Profile.Consent,
+            DoNotCall = Profile.DoNotCall,
+            DoNotEmail = Profile.DoNotEmail,
+            DoNotSms = Profile.DoNotSms,
+            DoNotZalo = Profile.DoNotZalo,
+            DoNotContact = Profile.DoNotContact,
+            DoNotContactReason = Profile.DoNotContactReason,
+            OrganizationRelationships = Profile.OrganizationRelationships
+        };
         UpdatedAt = now;
         Version++;
         SyncEmailIdentityProjections();

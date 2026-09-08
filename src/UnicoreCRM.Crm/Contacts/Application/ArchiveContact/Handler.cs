@@ -24,8 +24,10 @@ internal sealed class Handler(ContactAuthorization authorization, IContactsPersi
         if (existing is not null)
         {
             var replayError = ContactMutationSupport.ReplayError(existing, fingerprint);
-            return replayError is null ? ContactOperationResult<ContactMutationResponse>.Success(ContactMutationSupport.Replay(existing)) : ContactOperationResult<ContactMutationResponse>.Failure(replayError);
+            return replayError is null ? ContactOperationResult<ContactMutationResponse>.Success(ContactMutationSupport.Project(ContactMutationSupport.Replay(existing), access.Value)) : ContactOperationResult<ContactMutationResponse>.Failure(replayError);
         }
+        var writeError = ContactFieldSecurity.GuardWrite(access.Value.Authorization, "status", "archivedAt");
+        if (writeError is not null) return ContactOperationResult<ContactMutationResponse>.Failure(writeError);
         var contact = await persistence.LoadContactAsync(trusted.WorkspaceId, command.ContactId, cancellationToken);
         if (contact is null) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         if (contact.ArchivedAt is not null) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.AlreadyArchived());
@@ -35,8 +37,15 @@ internal sealed class Handler(ContactAuthorization authorization, IContactsPersi
         contact.Archive(now);
         var response = ContactMutationSupport.RecordCommit(persistence, contact, trusted, command.Metadata,
             "archiveContact", "CONTACT_ARCHIVED", scopeKey, contact.ContactId, fingerprint, now);
-        await persistence.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await persistence.SaveChangesAsync(cancellationToken);
+        }
+        catch (ContactsPersistenceConcurrencyException)
+        {
+            return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.VersionConflict(contact.ContactId, expected, contact.Version));
+        }
         await transaction.CommitAsync(cancellationToken);
-        return ContactOperationResult<ContactMutationResponse>.Success(response);
+        return ContactOperationResult<ContactMutationResponse>.Success(ContactMutationSupport.Project(response, access.Value));
     }
 }

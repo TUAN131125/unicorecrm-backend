@@ -28,6 +28,8 @@ internal interface IContactsTransaction : IAsyncDisposable
     Task CommitAsync(CancellationToken cancellationToken);
 }
 
+internal sealed class ContactsPersistenceConcurrencyException : Exception { }
+
 internal interface IContactsPersistence
 {
     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);

@@ -11,9 +11,9 @@ internal static class WorkspaceCapabilityPolicy
     [
         "access.configure",
         "access.read",
-        "contacts.read",
         "contacts.create",
         "contacts.delete",
+        "contacts.read",
         "contacts.update",
         "customers.view",
         "deals.assign",

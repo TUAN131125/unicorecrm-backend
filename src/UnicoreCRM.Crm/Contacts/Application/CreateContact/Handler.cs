@@ -30,9 +30,15 @@ internal sealed class Handler(
         {
             var replayError = ContactMutationSupport.ReplayError(existing, fingerprint);
             return replayError is null
-                ? ContactOperationResult<ContactMutationResponse>.Success(ContactMutationSupport.Replay(existing))
+                ? ContactOperationResult<ContactMutationResponse>.Success(ContactMutationSupport.Project(ContactMutationSupport.Replay(existing), access.Value))
                 : ContactOperationResult<ContactMutationResponse>.Failure(replayError);
         }
+        var writeError = ContactFieldSecurity.GuardWrite(access.Value.Authorization,
+            "fullName", "ownerId", "salutation", "jobTitle", "department", "roleAtCompany", "workEmail",
+            "personalEmail", "mobilePhone", "workPhone", "otherPhone", "zaloId", "facebook",
+            "preferredContactChannel", "address", "source", "decisionRole", "relationshipLevel", "painPoint",
+            "needSummary", "notes", "tags", "displayName");
+        if (writeError is not null) return ContactOperationResult<ContactMutationResponse>.Failure(writeError);
         if (ownerId is not null && !await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, ownerId, cancellationToken))
             return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.Validation(new Dictionary<string, string[]> { ["ownerId"] = ["ownerId must reference an active Workspace member."] }));
 
@@ -43,6 +49,6 @@ internal sealed class Handler(
             "createContact", "CONTACT_CREATED", scopeKey, "WORKSPACE", fingerprint, now);
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return ContactOperationResult<ContactMutationResponse>.Success(response);
+        return ContactOperationResult<ContactMutationResponse>.Success(ContactMutationSupport.Project(response, access.Value));
     }
 }

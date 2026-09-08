@@ -43,8 +43,8 @@ internal static class ContactMutationValidation
         ownerId = Text(suppliedOwnerId, "ownerId", 128, false, fields);
         var normalizedWorkEmail = Email(workEmail, "workEmail", fields);
         var normalizedPersonalEmail = Email(personalEmail, "personalEmail", fields);
-        var tags = suppliedTags?.Select(value => value?.Trim()).Where(value => !string.IsNullOrEmpty(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        if (tags?.Length > 100 || tags?.Any(value => value!.Length > 100) == true)
+        var tags = suppliedTags?.Select(value => value?.Trim()).OfType<string>().Where(value => value.Length != 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (tags?.Length > 100 || tags?.Any(value => value.Length > 100) == true)
             fields["tags"] = ["tags may contain at most 100 values of at most 100 characters each."];
         errors = fields;
         if (fields.Count != 0)
@@ -55,24 +55,24 @@ internal static class ContactMutationValidation
         profile = new ContactProfile
         {
             Salutation = Text(salutation, "salutation", 40, false, fields),
-            JobTitle = Text(jobTitle, "jobTitle", 200, false, fields),
-            Department = Text(department, "department", 200, false, fields),
-            RoleAtCompany = Text(roleAtCompany, "roleAtCompany", 200, false, fields),
+            JobTitle = Text(jobTitle, "jobTitle", 160, false, fields),
+            Department = Text(department, "department", 160, false, fields),
+            RoleAtCompany = Text(roleAtCompany, "roleAtCompany", 160, false, fields),
             WorkEmail = normalizedWorkEmail,
             PersonalEmail = normalizedPersonalEmail,
             MobilePhone = Text(mobilePhone, "mobilePhone", 50, false, fields),
             WorkPhone = Text(workPhone, "workPhone", 50, false, fields),
             OtherPhone = Text(otherPhone, "otherPhone", 50, false, fields),
-            ZaloId = Text(zaloId, "zaloId", 128, false, fields),
+            ZaloId = Text(zaloId, "zaloId", 120, false, fields),
             Facebook = Text(facebook, "facebook", 500, false, fields),
-            PreferredContactChannel = Text(preferredContactChannel, "preferredContactChannel", 40, false, fields),
-            Address = Text(address, "address", 1000, false, fields),
-            Source = Text(source, "source", 120, false, fields),
-            DecisionRole = Text(decisionRole, "decisionRole", 120, false, fields),
-            RelationshipLevel = Text(relationshipLevel, "relationshipLevel", 120, false, fields),
-            PainPoint = Text(painPoint, "painPoint", 2000, false, fields),
-            NeedSummary = Text(needSummary, "needSummary", 2000, false, fields),
-            Notes = Text(notes, "notes", 4000, false, fields),
+            PreferredContactChannel = Choice(preferredContactChannel, "preferredContactChannel", ["phone", "email", "zalo", "facebook", "sms"], fields),
+            Address = Text(address, "address", 700, false, fields),
+            Source = Text(source, "source", 160, false, fields),
+            DecisionRole = Choice(decisionRole, "decisionRole", ["decision_maker", "influencer", "user", "buyer", "technical", "finance", "other"], fields),
+            RelationshipLevel = Choice(relationshipLevel, "relationshipLevel", ["cold", "warm", "good", "strong", "vip"], fields),
+            PainPoint = Text(painPoint, "painPoint", 5000, false, fields),
+            NeedSummary = Text(needSummary, "needSummary", 5000, false, fields),
+            Notes = Text(notes, "notes", 5000, false, fields),
             Tags = tags,
             DisplayName = Text(displayName, "displayName", ContactNameBound.MaxLength, false, fields)
         };
@@ -86,6 +86,14 @@ internal static class ContactMutationValidation
         if (result is not null && (!result.Contains('@') || result.StartsWith('@') || result.EndsWith('@')))
             errors[field] = [$"{field} must be a valid email address."];
         return result;
+    }
+
+    private static string? Choice(string? value, string field, IReadOnlyList<string> allowed, IDictionary<string, string[]> errors)
+    {
+        var normalized = Text(value, field, 80, false, errors)?.ToLowerInvariant();
+        if (normalized is not null && !allowed.Contains(normalized, StringComparer.Ordinal))
+            errors[field] = [$"{field} must be one of: {string.Join(", ", allowed)}."];
+        return normalized;
     }
 
     private static string? Text(string? value, string field, int max, bool required, IDictionary<string, string[]> errors)

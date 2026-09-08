@@ -101,6 +101,15 @@ internal static class ContactFieldSecurity
                 "Access denied",
                 "A field-security policy applies to a required Contact field, so the request is refused rather than returning a value the policy forbids.");
 
+    internal static ContactOperationError? GuardWrite(RecordAccessAuthorization access, params string[] fields)
+    {
+        var blocked = fields.Where(field => !access.CanWrite(field)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return blocked.Length == 0
+            ? null
+            : new ContactOperationError("ACCESS_DENIED", 403, "Access denied",
+                $"Write access is denied for Contact field(s): {string.Join(", ", blocked)}.");
+    }
+
     private static string? Keep(RecordAccessAuthorization access, string fieldKey, string? value) =>
         access.CanRead(fieldKey) ? value : null;
 
