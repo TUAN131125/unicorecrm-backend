@@ -478,7 +478,7 @@ SELECT COUNT(*) FROM contacts.ReadAuditRecords WHERE ContactId IN ('$contactB', 
     $countBeforeMutationProbe = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts'
     $postProbe = Invoke-Contact -Method 'POST' -Path '/contacts' -Body '{}'
     $putProbe = Invoke-Contact -Method 'PUT' -Path "/contacts/$contactA" -Body '{}'
-    Add-Result 'no create Contact success path' 'False' ($postProbe.Status -ge 200 -and $postProbe.Status -lt 300).ToString()
+    Add-Result 'invalid create Contact request has no success path' 'False' ($postProbe.Status -ge 200 -and $postProbe.Status -lt 300).ToString()
     Add-Result 'no update Contact success path' 'False' ($putProbe.Status -ge 200 -and $putProbe.Status -lt 300).ToString()
     Add-Result 'mutation probes changed no Contact state' ([string]$countBeforeMutationProbe) `
         ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts'))

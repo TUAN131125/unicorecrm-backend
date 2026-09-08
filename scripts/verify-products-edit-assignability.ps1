@@ -297,7 +297,7 @@ try {
     Add-Result 'products.update is no longer a capability row' 0 (@($matrix.capabilities | Where-Object { $_.capability -ceq 'products.update' }).Count)
     Add-Result 'matrix capability count unchanged by the correction' ([int]$matrix.capabilityCount) (@($matrix.capabilities).Count)
     Add-Result 'products.export remains without backend operation authority' 'NO_BACKEND_OPERATION_AUTHORITY' ([string](@($matrix.capabilities | Where-Object { $_.capability -ceq 'products.export' })[0].admittedStatus))
-    Add-Result 'BLOCKED rows unchanged by this correction' 7 (@($matrix.capabilities | Where-Object { $_.admittedStatus -ceq 'BLOCKED' }).Count)
+    Add-Result 'BLOCKED rows after Contact Create admission' 6 (@($matrix.capabilities | Where-Object { $_.admittedStatus -ceq 'BLOCKED' }).Count)
 
     # The frozen provisioning seed already contained products.edit and is not extended here.
     $seedSource = Get-Content -Raw -LiteralPath $seedPolicyPath
@@ -390,7 +390,7 @@ try {
     # E. Non-assignable capabilities are still rejected
     # =============================================================================================
     $rejections = @(
-        @{ Name = 'blocked capability'; Value = 'contacts.create' },
+        @{ Name = 'blocked capability'; Value = 'contacts.update' },
         @{ Name = 'authority-gap capability'; Value = 'identity.account.recover' },
         @{ Name = 'reconciliation-required capability'; Value = 'studio.configure' },
         @{ Name = 'no-operation-authority capability'; Value = 'products.export' },

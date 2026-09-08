@@ -60,7 +60,7 @@ internal static class InitialWorkspaceAccessPolicy
     // refusing arbitrary subsets or caller-invented capabilities.
     private static IReadOnlyList<string> PreContactWritesOwnerCapabilities { get; } =
         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
-            .Where(capability => capability is not "contacts.create" and not "contacts.update" and not "contacts.delete")
+            .Where(capability => capability is not "contacts.create")
             .ToArray();
 
     internal static IReadOnlyList<string> Capabilities { get; } =

@@ -31,15 +31,26 @@ $checks = [System.Collections.Generic.List[string]]::new()
 # Development demo fixture below so that the local operator cannot silently lose an implemented
 # read capability while production provisioning remains correct.
 $expectedInitialCapabilities = @(
-    'contacts.read',
+    'access.configure', 'access.read',
+    'contacts.create', 'contacts.read',
+    'customers.view',
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
-    'leads.create', 'leads.qualify', 'leads.read', 'leads.update',
+    'invoices.create', 'invoices.create_credit_note', 'invoices.edit', 'invoices.issue', 'invoices.read', 'invoices.send', 'invoices.update_draft', 'invoices.void',
+    'leads.assign', 'leads.bulk', 'leads.create', 'leads.delete', 'leads.export', 'leads.qualify', 'leads.read', 'leads.update',
+    'orders.complete', 'orders.confirm', 'orders.create', 'orders.credit_approval.decide', 'orders.credit_approval.request', 'orders.delete', 'orders.read', 'orders.update',
+    'organizations.read',
+    'payments.allocate', 'payments.intent.cancel', 'payments.intent.create', 'payments.plan.activate', 'payments.plan.read', 'payments.plan.supersede', 'payments.plan.update_draft', 'payments.read', 'payments.reconcile', 'payments.record_manual', 'payments.refund', 'payments.reverse_allocation',
     'products.create', 'products.delete', 'products.edit', 'products.read',
+    'quotes.approve', 'quotes.create', 'quotes.delete', 'quotes.read', 'quotes.update',
+    'receivables.read',
+    'returns.read', 'returns.resolve', 'returns.update',
+    'shipping.create', 'shipping.read',
+    'studio.configure', 'studio.read',
     'support.assign', 'support.create', 'support.read', 'support.update',
     'tasks.assign', 'tasks.complete', 'tasks.create', 'tasks.read', 'tasks.update',
     'workspace.context.resolve'
 )
-$expectedEnabledModuleKeys = @('contacts', 'leads', 'deals', 'tasks')
+$expectedEnabledModuleKeys = @('leads', 'customers', 'contacts', 'deals', 'quotes', 'orders', 'support', 'organizations', 'tasks', 'payments', 'invoices', 'shipping', 'returns')
 
 function Invoke-SqlScalar([string] $query) {
     $value = & sqlcmd -S $server -d $DatabaseName -h -1 -W -Q "SET NOCOUNT ON; $query"
@@ -110,6 +121,8 @@ function Set-HostEnvironment([string] $identityEmail, [bool] $enableWorkspaceBoo
 
 function Start-ApiHost([string] $identityEmail, [bool] $enableWorkspaceBootstrap = $false, [bool] $failAccessAssignment = $false, [bool] $resumeEnabled = $true) {
     Set-HostEnvironment $identityEmail $enableWorkspaceBootstrap $failAccessAssignment $resumeEnabled
+    & dotnet $hostDll --seed-demo | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not explicitly seed the Identity fixture for $identityEmail." }
     $standardOut = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.out.log')
     $standardError = Join-Path $temporaryDirectory ('host-' + [Guid]::NewGuid().ToString('N') + '.err.log')
     $process = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput $standardOut -RedirectStandardError $standardError -PassThru
@@ -318,7 +331,8 @@ try {
     $roleCapabilityCount = [int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA';")
     Assert-True ($roleCapabilityCount -eq $expectedInitialCapabilities.Count) 'C: initial role carries the server-owned capability set'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='contacts.read';") -eq 1) 'C: initial Workspace provisioning grants contacts.read exactly once'
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability LIKE 'contacts.%' AND c.Capability<>'contacts.read';") -eq 0) 'C: initial role grants no unsupported Contacts capability'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='contacts.create';") -eq 1) 'C: initial Workspace provisioning grants contacts.create exactly once'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability LIKE 'contacts.%' AND c.Capability NOT IN ('contacts.read','contacts.create');") -eq 0) 'C: initial role grants no unsupported Contacts capability'
     $listAfterFinish = Get-Workspaces $tokenA
     Assert-True ($listAfterFinish.items.Count -eq 1 -and $listAfterFinish.items[0].workspaceId -eq $workspaceA) 'C: listMyWorkspaces returns the new Workspace'
     Assert-True ($listAfterFinish.items[0].workspaceKey -eq $finishBody.workspace.workspaceKey) 'C: response carries the authoritative Workspace key'
@@ -326,7 +340,7 @@ try {
     Assert-True ($bootstrapA.configuration.locale -eq 'vi' -and $bootstrapA.configuration.timeZone -eq 'Asia/Saigon' -and $bootstrapA.configuration.baseCurrency -eq 'VND') 'C: supplied setup values were applied'
     Assert-True ((($bootstrapA.capabilities | Sort-Object) -join ',') -eq (($expectedInitialCapabilities | Sort-Object) -join ',')) 'C: AccessControl evaluates the initial capability set'
     Assert-True ((($bootstrapA.configuration.enabledModuleKeys) -join ',') -eq ($expectedEnabledModuleKeys -join ',')) 'C: fresh Workspace bootstrap carries the exact canonical enabled modules'
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections b WHERE WorkspaceId='$workspaceA' AND (SELECT COUNT(*) FROM OPENJSON(b.EnabledModuleKeysJson))=4 AND (SELECT STRING_AGG(CONVERT(nvarchar(max),j.value),',') WITHIN GROUP (ORDER BY CONVERT(int,j.[key])) FROM OPENJSON(b.EnabledModuleKeysJson) j)='contacts,leads,deals,tasks';") -eq 1) 'C: persisted enabled-module intent is exact'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections b WHERE WorkspaceId='$workspaceA' AND (SELECT COUNT(*) FROM OPENJSON(b.EnabledModuleKeysJson))=13 AND (SELECT STRING_AGG(CONVERT(nvarchar(max),j.value),',') WITHIN GROUP (ORDER BY CONVERT(int,j.[key])) FROM OPENJSON(b.EnabledModuleKeysJson) j)='leads,customers,contacts,deals,quotes,orders,support,organizations,tasks,payments,invoices,shipping,returns';") -eq 1) 'C: persisted enabled-module intent is exact'
 
     # E. Retry with the same provisioning intent and idempotency key.
     $storedFingerprint = Invoke-SqlScalar "SELECT RequestFingerprint FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountAId';"
@@ -346,7 +360,7 @@ try {
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate access assignment'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate configuration'
     Assert-True ((Invoke-SqlScalar "SELECT RequestFingerprint FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountAId';") -eq $storedFingerprint) 'E/G: replay preserves the committed provisioning fingerprint'
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections b WHERE WorkspaceId='$workspaceA' AND (SELECT COUNT(*) FROM OPENJSON(b.EnabledModuleKeysJson))=4 AND (SELECT STRING_AGG(CONVERT(nvarchar(max),j.value),',') WITHIN GROUP (ORDER BY CONVERT(int,j.[key])) FROM OPENJSON(b.EnabledModuleKeysJson) j)='contacts,leads,deals,tasks';") -eq 1) 'E/G: replay preserves the committed enabled-module intent'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections b WHERE WorkspaceId='$workspaceA' AND (SELECT COUNT(*) FROM OPENJSON(b.EnabledModuleKeysJson))=13 AND (SELECT STRING_AGG(CONVERT(nvarchar(max),j.value),',') WITHIN GROUP (ORDER BY CONVERT(int,j.[key])) FROM OPENJSON(b.EnabledModuleKeysJson) j)='leads,customers,contacts,deals,quotes,orders,support,organizations,tasks,payments,invoices,shipping,returns';") -eq 1) 'E/G: replay preserves the committed enabled-module intent'
 
     # Request contract strictness. An unknown member must be rejected, and it must still be
     # rejected when the body arrives chunked, which proves the body is read rather than assumed.
@@ -408,7 +422,7 @@ try {
     $bootstrapB = Assert-ProvisionedRuntime $tokenB $workspaceB 'D'
     Assert-True ($bootstrapB.configuration.locale -eq 'en' -and $bootstrapB.configuration.timeZone -eq 'UTC' -and $bootstrapB.configuration.baseCurrency -eq 'USD') 'D: server-owned configuration defaults applied'
     Assert-True ((($bootstrapB.configuration.enabledModuleKeys) -join ',') -eq ($expectedEnabledModuleKeys -join ',')) 'D: exact server-owned enabled modules applied'
-    Assert-True ((($bootstrapB.configuration.availableProductSpaces) -join ',') -eq 'crm') 'D: server-owned product spaces applied'
+    Assert-True ((($bootstrapB.configuration.availableProductSpaces) -join ',') -eq 'crm,studio,people') 'D: server-owned product spaces applied'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountBId' AND Status='Active';") -eq 1) 'D: exactly one ACTIVE membership for the skip account'
     Stop-ApiHost $hostProcess
     $hostProcess = $null

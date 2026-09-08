@@ -198,8 +198,18 @@ try {
     $env:UNICORE_DEV_SEED_ENABLED = 'true'
     $env:UNICORE_DEV_SEED_EMAIL = $email
     $env:UNICORE_DEV_SEED_PASSWORD = $password
+    $env:IdentityAuth__Jwt__SigningKey = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
+    $env:IdentityAuth__RefreshTokenPepper = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
     $env:AccessControl__DevelopmentBootstrap__Capabilities__0 = 'access.configure'
     $env:IdentityAuth__EmailVerification__Sender__Kind = 'DevelopmentLog'
+    Push-Location $contentRoot
+    try {
+        & dotnet $hostDll --migrate | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Owner schema migration failed with exit code $LASTEXITCODE." }
+        & dotnet $hostDll --seed-demo | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Development bootstrap failed with exit code $LASTEXITCODE." }
+    }
+    finally { Pop-Location }
     $stdout = Join-Path $logRoot 'host.out.log'
     $stderr = Join-Path $logRoot 'host.err.log'
     $script:HostProcess = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
@@ -242,7 +252,7 @@ try {
     Add-Result 'capability denial precedes validation' 'ACCESS_DENIED' $deniedMalformed.Body.code
     Invoke-SqlNonQuery "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$adminRoleId','access.configure');"
 
-    $happyBody = New-Body "  $([char]0x2003)Custom Managers$([char]0x2003)  " @('tasks.read','access.read') @(
+    $happyBody = New-Body "  $([char]0x2003)Custom Managers$([char]0x2003)  " @('tasks.read','access.read','contacts.create') @(
         @{ resourceKey = ' Contacts '; scope = 'WORKSPACE' },
         @{ resourceKey = 'leads'; scope = 'CUSTOM'; allowedOwnerIds = @() },
         @{ resourceKey = 'deals'; scope = 'CUSTOM'; allowedOwnerIds = @('mem_owner_002','mem_owner_001') }
@@ -272,7 +282,7 @@ try {
     Add-Result 'opaque template provenance normalized' 'opaque-template-01' (Get-Scalar "SELECT SourceTemplateId FROM access.Roles WHERE RoleId='$roleId'")
     Add-Result 'role active' 'True' ([bool] (Get-Scalar "SELECT IsActive FROM access.Roles WHERE RoleId='$roleId'")).ToString()
     Add-Result 'role version persisted' 0 (Get-Scalar "SELECT Version FROM access.Roles WHERE RoleId='$roleId'")
-    Add-Result 'exact capabilities persisted' 'access.read,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$roleId' ORDER BY Capability").Capability -join ',')
+    Add-Result 'exact capabilities persisted' 'access.read,contacts.create,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$roleId' ORDER BY Capability").Capability -join ',')
     Add-Result 'data scopes count' 3 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleDataScopes WHERE RoleId='$roleId'")
     Add-Result 'field security count' 2 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleFieldSecurity WHERE RoleId='$roleId'")
     Assert-True 'data-scope policy ID formats' (@(Invoke-Sql "SELECT PolicyId FROM access.RoleDataScopes WHERE RoleId='$roleId'" | Where-Object { $_.PolicyId -cnotmatch '^scope_[0-9a-f]{32}$' }).Count -eq 0)
@@ -325,7 +335,7 @@ try {
     Add-Result 'event timestamp shared with response' ([DateTimeOffset] $happy.Body.occurredAt) ([DateTimeOffset] $event.OccurredAt)
     Add-Result 'event minimal payload' ("{`"roleId`":`"$roleId`",`"version`":0}") $event.PayloadJson
 
-    Assert-Rejected 'blocked capability' (New-Body 'Blocked Capability' @('contacts.create')) 422 'VALIDATION_FAILED'
+    Assert-Rejected 'blocked capability' (New-Body 'Blocked Capability' @('contacts.update')) 422 'VALIDATION_FAILED'
     Assert-Rejected 'authority-gap capability' (New-Body 'Authority Gap Capability' @('identity.account.recover')) 422 'VALIDATION_FAILED'
     Assert-Rejected 'reconciliation-required capability' (New-Body 'Reconciliation Capability' @('studio.configure')) 422 'VALIDATION_FAILED'
     Assert-Rejected 'no-operation-authority capability' (New-Body 'No Operation Capability' @('dashboard.read')) 422 'VALIDATION_FAILED'

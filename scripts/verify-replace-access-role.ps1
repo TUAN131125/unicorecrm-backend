@@ -333,7 +333,7 @@ try {
     $happyKey = 'idem-replace-happy-0001'
     $happyRequestId = 'req-replace-happy-0001'
     $happyCorrelationId = 'corr-replace-happy-0001'
-    $happyBody = New-Body "  $([char]0x2003)Replaced Managers$([char]0x2003)  " @('access.read','tasks.read') @(
+    $happyBody = New-Body "  $([char]0x2003)Replaced Managers$([char]0x2003)  " @('access.read','contacts.create','tasks.read') @(
         @{ resourceKey = ' Contacts '; scope = 'CUSTOM'; allowedOwnerIds = @('mem_owner_002','mem_owner_001') },
         @{ resourceKey = 'deals'; scope = 'TEAM' }
     ) @(
@@ -368,7 +368,7 @@ try {
     Add-Result 'createdAt unchanged' $createdAtBefore (Get-Scalar "SELECT CONVERT(varchar(33), CreatedAt, 127) FROM access.Roles WHERE RoleId='$originalId'")
     Add-Result 'workspace unchanged' $script:WorkspaceId (Get-Scalar "SELECT WorkspaceId FROM access.Roles WHERE RoleId='$originalId'")
 
-    Add-Result 'capabilities exactly replaced' 'access.read,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$originalId' ORDER BY Capability").Capability -join ',')
+    Add-Result 'capabilities exactly replaced' 'access.read,contacts.create,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$originalId' ORDER BY Capability").Capability -join ',')
     Add-Result 'stale capability removed' 0 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleCapabilities WHERE RoleId='$originalId' AND Capability='tasks.create'")
     Add-Result 'data scopes exactly replaced' 'contacts,deals' ((Invoke-Sql "SELECT ResourceKey FROM access.RoleDataScopes WHERE RoleId='$originalId' ORDER BY ResourceKey").ResourceKey -join ',')
     Add-Result 'stale data scope removed' 0 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleDataScopes WHERE PolicyId='$removedScopeId'")
@@ -389,7 +389,7 @@ try {
     $replacedRoleDocument = @($happy.Body.result.roles | Where-Object { $_.roleId -eq $originalId })[0]
     Add-Result 'returned directory reflects replaced role name' 'Replaced Managers' $replacedRoleDocument.name
     Add-Result 'returned directory reflects resulting version' 1 $replacedRoleDocument.version
-    Add-Result 'returned directory reflects replaced capabilities' 'access.read,tasks.read' ($replacedRoleDocument.capabilities -join ',')
+    Add-Result 'returned directory reflects replaced capabilities' 'access.read,contacts.create,tasks.read' ($replacedRoleDocument.capabilities -join ',')
     Assert-True 'shared composer supplied Workspace and Identity facts' ($happy.Body.result.members[0].workspaceKey.Length -gt 0 -and @($happy.Body.result.memberProfiles).Count -gt 0)
     Add-Result 'command writes no directory read evidence' 0 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.DirectoryReadAccessRecords")
 
@@ -533,7 +533,7 @@ try {
 
     $validationId = New-Role 'Validation Target'
     foreach ($case in @(
-        @{ Name = 'blocked capability'; Body = (New-Body 'Validation Target' @('contacts.create')) },
+        @{ Name = 'blocked capability'; Body = (New-Body 'Validation Target' @('contacts.update')) },
         @{ Name = 'unknown capability'; Body = (New-Body 'Validation Target' @('unknown.capability')) },
         @{ Name = 'wrong-case capability'; Body = (New-Body 'Validation Target' @('Tasks.Read')) },
         @{ Name = 'duplicate capability'; Body = (New-Body 'Validation Target' @('tasks.read','tasks.read')) },

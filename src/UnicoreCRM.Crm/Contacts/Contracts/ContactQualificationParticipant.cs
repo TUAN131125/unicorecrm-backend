@@ -75,7 +75,7 @@ public sealed record ContactQualificationInput(
 
 /// <summary>
 /// The narrow internal boundary the Lead Qualification workflow calls. It is not public HTTP: it is
-/// not <c>createContact</c>, which remains BLOCKED, and it widens no public Contacts surface.
+/// not the public <c>createContact</c> command, and it widens no public Contacts surface.
 /// </summary>
 /// <param name="TrustedWorkspace">Server-derived trusted context. Never caller input.</param>
 /// <param name="SelectedContactId">Required for <see cref="ContactQualificationMode.Existing"/>.</param>

@@ -9,7 +9,7 @@ namespace UnicoreCRM.Operations.Tasks.Contracts;
 /// It runs the ordinary <c>createTask</c> execution, so <c>tasks.create</c> is enforced at the Tasks
 /// application boundary, and Tasks' own idempotency, audit and outbox apply unchanged. That is the
 /// frozen split: <c>tasks.create</c> is required of the caller because it is grantable and seeded,
-/// unlike the BLOCKED and ungrantable <c>contacts.create</c>.
+/// unlike <c>contacts.create</c>, which is not required because Contact creation is a server-owned consequence of qualification.
 /// </summary>
 public interface ILeadQualificationTaskParticipant
 {

@@ -4457,3 +4457,21 @@ No Contact identifier, match count, database error or foreign-resource fact appe
 ## Never-invent rule
 
 A missing or conflicting business contract is recorded as `AUTHORITY_GAP`. It is never repaired by convention, frontend behavior, folder names, common CRM behavior, or a speculative abstraction.
+
+## Contact Create authority reconciliation — CRM-C0-AUTH-001
+
+Product authority admits only `createContact` / `contacts.create` as a supported production
+capability. This supersedes earlier statements in this document that classified `createContact` as
+blocked; `updateContact`, Contact retention/delete, Organization, Customer and unrelated operations
+remain unchanged.
+
+The authoritative wire is `POST /contacts`, `CreateContactRequest` → `201 ContactMutationResponse`.
+It requires authenticated trusted Workspace context and `contacts.create`; AccessControl remains the
+enforcement owner and callers without the capability receive `ACCESS_DENIED`. The existing
+implementation contract is retained: required idempotency, backend-serialized concurrency, a single
+Contacts-owned aggregate transaction, immutable command audit, and a Contacts-owned
+`CONTACT_CREATED` outbox event.
+
+The Workspace Owner seed and authorized custom Workspace roles may carry `contacts.create`.
+`contacts.update` and `contacts.delete` are intentionally excluded from the admitted capability
+projection by this reconciliation.

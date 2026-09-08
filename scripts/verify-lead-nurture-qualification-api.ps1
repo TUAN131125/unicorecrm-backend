@@ -5,8 +5,8 @@
 .DESCRIPTION
     Drives the admitted NURTURE qualification operation over HTTP against a real ApiHost and an
     isolated database. Leads have no admitted VERIFYING seeding path other than the real create and
-    advance operations, so the fixtures are built through the public Leads API; Contact fixtures are
-    seeded with controlled SQL because Contacts still has no admitted mutation API.
+    advance operations, so the fixtures are built through the public Leads API; pre-existing Contact
+    fixtures are seeded with controlled SQL because this suite needs exact relationship states.
 #>
 [CmdletBinding()]
 param(
@@ -273,6 +273,8 @@ VALUES
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $hostProject = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj'
+$hostExe = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/bin/Debug/net10.0/UnicoreCRM.ApiHost.exe'
+$contentRoot = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost'
 $demoEmail = 'nurture.qualification@example.test'
 $demoPassword = 'Nurture-Qualification!2026'
 $hostProcess = $null
@@ -300,16 +302,25 @@ CREATE DATABASE [$DatabaseName];
     $env:IdentityAuth__DevelopmentBootstrap__Email = $demoEmail
     $env:IdentityAuth__DevelopmentBootstrap__Password = $demoPassword
     $env:IdentityAuth__DevelopmentBootstrap__DisplayName = 'Nurture Qualification Fixture'
+    $env:IdentityAuth__Jwt__SigningKey = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
+    $env:IdentityAuth__RefreshTokenPepper = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
     $env:Workspace__DevelopmentBootstrap__Enabled = 'false'
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = 'false'
     $env:AI__Provider__Kind = 'DevelopmentDeterministic'
 
     Push-Location $repositoryRoot
-    try { & dotnet build $hostProject -v q --nologo | Out-Null } finally { Pop-Location }
+    try {
+        & dotnet build $hostProject -v q --nologo | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "ApiHost build failed with exit code $LASTEXITCODE." }
+        & dotnet run --no-build --no-launch-profile --project $hostProject -- --migrate | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Owner schema migration failed with exit code $LASTEXITCODE." }
+        & dotnet run --no-build --no-launch-profile --project $hostProject -- --seed-demo | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Development bootstrap failed with exit code $LASTEXITCODE." }
+    }
+    finally { Pop-Location }
 
-    $hostProcess = Start-Process -FilePath 'dotnet' `
-        -ArgumentList @('run', '--no-build', '--no-launch-profile', '--project', $hostProject) `
+    $hostProcess = Start-Process -FilePath $hostExe -WorkingDirectory $contentRoot `
         -PassThru -WindowStyle Hidden -RedirectStandardOutput $logPath -RedirectStandardError "$logPath.err"
 
     $ready = $false
@@ -949,9 +960,34 @@ WHERE LeadId = '$leadRecovery';
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-generic-001' -Body '{}'
     Add-Result 'the retired generic qualify stays unexposed' '404' $genericQualify.Status
     $createContact = Invoke-Api -Method 'POST' -Path '/contacts' -Token $script:Token -WorkspaceId $script:WorkspaceId `
-        -IdempotencyKey 'idem-nurture-createcontact' -Body '{"fullName":"Should Not Exist"}'
-    # The path exists for GET only, so the host answers 405. Either way there is no POST /contacts.
-    Add-Result 'createContact stays blocked' '405' $createContact.Status
+        -IdempotencyKey 'idem-nurture-createcontact' -Body '{"fullName":"Authorized Contact"}'
+    Add-Result 'authorized createContact is exposed' '201' $createContact.Status
+    $updateContact = Invoke-Api -Method 'PUT' -Path "/contacts/$($createContact.Body.aggregateId)" `
+        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-unavailable' `
+        -Body '{"fullName":"Unsupported Update"}'
+    Add-Result 'updateContact remains unexposed' '405' $updateContact.Status
+    $deleteContact = Invoke-Api -Method 'DELETE' -Path "/contacts/$($createContact.Body.aggregateId)" `
+        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-deletecontact-unavailable'
+    Add-Result 'deleteContact remains unexposed' '405' $deleteContact.Status
+    $authorizedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
+    Add-Result 'authorized access context succeeds' '200' $authorizedContext.Status
+    Add-Result 'authorized access context exposes contacts.create' 'True' `
+        ($authorizedContext.Body.capabilities -contains 'contacts.create').ToString()
+    Add-Result 'authorized access context excludes contacts.update' 'False' `
+        ($authorizedContext.Body.capabilities -contains 'contacts.update').ToString()
+    Add-Result 'authorized access context excludes contacts.delete' 'False' `
+        ($authorizedContext.Body.capabilities -contains 'contacts.delete').ToString()
+
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='contacts.create'"
+    $unauthorizedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
+    Add-Result 'unauthorized access context succeeds' '200' $unauthorizedContext.Status
+    Add-Result 'unauthorized access context excludes contacts.create' 'False' `
+        ($unauthorizedContext.Body.capabilities -contains 'contacts.create').ToString()
+    $deniedCreateContact = Invoke-Api -Method 'POST' -Path '/contacts' -Token $script:Token -WorkspaceId $script:WorkspaceId `
+        -IdempotencyKey 'idem-nurture-createcontact-denied' -Body '{"fullName":"Must Not Exist"}'
+    Add-Result 'createContact without contacts.create is denied' '403' $deniedCreateContact.Status
+    Add-Result 'createContact capability denial code' 'ACCESS_DENIED' ([string]$deniedCreateContact.Body.code)
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId','contacts.create')"
 }
 finally {
     if ($hostProcess -and -not $hostProcess.HasExited) {
@@ -963,6 +999,7 @@ finally {
         'Development__ApplyMigrations','IdentityAuth__EmailVerification__Sender__Kind','UNICORE_DEV_SEED_ENABLED',
         'IdentityAuth__DevelopmentBootstrap__Enabled','IdentityAuth__DevelopmentBootstrap__Email',
         'IdentityAuth__DevelopmentBootstrap__Password','IdentityAuth__DevelopmentBootstrap__DisplayName',
+        'IdentityAuth__Jwt__SigningKey','IdentityAuth__RefreshTokenPepper',
         'Workspace__DevelopmentBootstrap__Enabled','AccessControl__DevelopmentBootstrap__Enabled',
         'Workflows__InitialWorkspaceProvisioning__ResumeEnabled','AI__Provider__Kind')) {
         Remove-Item "Env:$name" -ErrorAction SilentlyContinue
