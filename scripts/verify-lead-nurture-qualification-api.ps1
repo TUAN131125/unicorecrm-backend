@@ -962,9 +962,17 @@ WHERE LeadId = '$leadRecovery';
     $createContact = Invoke-Api -Method 'POST' -Path '/contacts' -Token $script:Token -WorkspaceId $script:WorkspaceId `
         -IdempotencyKey 'idem-nurture-createcontact' -Body '{"fullName":"Authorized Contact"}'
     Add-Result 'authorized createContact is exposed' '201' $createContact.Status
+    $customRoleId = 'role_c0_legacy_contact_writes'
+    $customAssignmentId = 'assignment_c0_legacy_contact_writes'
+    $membershipId = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT MembershipId FROM access.MembershipRoleAssignments WHERE WorkspaceId='$($script:WorkspaceId)' AND RoleId='$roleId'"
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId','contacts.update');
-INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId','contacts.delete');
+INSERT INTO access.Roles (RoleId, WorkspaceId, Name, NormalizedName, Description, SourceTemplateId, IsActive, [Version], CreatedAt, UpdatedAt)
+VALUES ('$customRoleId', '$($script:WorkspaceId)', 'Legacy Contact Writer', 'LEGACY CONTACT WRITER', 'C0 effective-access regression fixture', NULL, 1, 0, SYSUTCDATETIME(), SYSUTCDATETIME());
+INSERT INTO access.MembershipRoleAssignments (AssignmentId, WorkspaceId, MembershipId, RoleId, AssignedAt)
+VALUES ('$customAssignmentId', '$($script:WorkspaceId)', '$membershipId', '$customRoleId', SYSUTCDATETIME());
+INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$customRoleId','contacts.update');
+INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$customRoleId','contacts.delete');
 "@
     $contactWriteEffects = @"
 SELECT CONCAT(
@@ -977,12 +985,12 @@ SELECT CONCAT(
     $updateContact = Invoke-Api -Method 'PATCH' -Path "/contacts/$($createContact.Body.aggregateId)" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-denied' `
         -IfMatch '"0"' -Body '{"fullName":"Must Not Update"}'
-    Add-Result 'PATCH with legacy system-owner contacts.update is denied' '403' $updateContact.Status
+    Add-Result 'PATCH with legacy custom-role contacts.update is denied' '403' $updateContact.Status
     Add-Result 'PATCH capability denial code' 'ACCESS_DENIED' ([string]$updateContact.Body.code)
     $archiveContact = Invoke-Api -Method 'POST' -Path "/contacts/$($createContact.Body.aggregateId)/archive" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-archivecontact-denied' `
         -IfMatch '"0"' -Body '{}'
-    Add-Result 'archive POST with legacy system-owner contacts.delete is denied' '403' $archiveContact.Status
+    Add-Result 'archive POST with legacy custom-role contacts.delete is denied' '403' $archiveContact.Status
     Add-Result 'archive capability denial code' 'ACCESS_DENIED' ([string]$archiveContact.Body.code)
     Add-Result 'denied Contact writes change no state, version, audit, outbox or idempotency effect' `
         $effectsBeforeDeniedWrites (Get-Scalar -Database $DatabaseName -Query $contactWriteEffects)
@@ -994,7 +1002,8 @@ SELECT CONCAT(
         ($authorizedContext.Body.capabilities -contains 'contacts.update').ToString()
     Add-Result 'authorized access context excludes contacts.delete' 'False' `
         ($authorizedContext.Body.capabilities -contains 'contacts.delete').ToString()
-    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability IN ('contacts.update','contacts.delete')"
+    Add-Result 'legacy custom-role Contact capability rows remain persisted' '2' `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$customRoleId' AND Capability IN ('contacts.update','contacts.delete')"))
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='contacts.create'"
     $unauthorizedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
