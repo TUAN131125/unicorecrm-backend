@@ -962,13 +962,30 @@ WHERE LeadId = '$leadRecovery';
     $createContact = Invoke-Api -Method 'POST' -Path '/contacts' -Token $script:Token -WorkspaceId $script:WorkspaceId `
         -IdempotencyKey 'idem-nurture-createcontact' -Body '{"fullName":"Authorized Contact"}'
     Add-Result 'authorized createContact is exposed' '201' $createContact.Status
-    $updateContact = Invoke-Api -Method 'PUT' -Path "/contacts/$($createContact.Body.aggregateId)" `
-        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-unavailable' `
-        -Body '{"fullName":"Unsupported Update"}'
-    Add-Result 'updateContact remains unexposed' '405' $updateContact.Status
-    $deleteContact = Invoke-Api -Method 'DELETE' -Path "/contacts/$($createContact.Body.aggregateId)" `
-        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-deletecontact-unavailable'
-    Add-Result 'deleteContact remains unexposed' '405' $deleteContact.Status
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId','contacts.update');
+INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId','contacts.delete');
+"@
+    $contactWriteEffects = @"
+SELECT CONCAT(
+    (SELECT CONCAT(FullName,'|',Status,'|',ISNULL(CONVERT(varchar(50),ArchivedAt,127),''),'|',[Version]) FROM contacts.Contacts WHERE ContactId='$($createContact.Body.aggregateId)'), '|',
+    (SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$($createContact.Body.aggregateId)'), '|',
+    (SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$($createContact.Body.aggregateId)'), '|',
+    (SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$($createContact.Body.aggregateId)'))
+"@
+    $effectsBeforeDeniedWrites = Get-Scalar -Database $DatabaseName -Query $contactWriteEffects
+    $updateContact = Invoke-Api -Method 'PATCH' -Path "/contacts/$($createContact.Body.aggregateId)" `
+        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-denied' `
+        -IfMatch '"0"' -Body '{"fullName":"Must Not Update"}'
+    Add-Result 'PATCH with legacy system-owner contacts.update is denied' '403' $updateContact.Status
+    Add-Result 'PATCH capability denial code' 'ACCESS_DENIED' ([string]$updateContact.Body.code)
+    $archiveContact = Invoke-Api -Method 'POST' -Path "/contacts/$($createContact.Body.aggregateId)/archive" `
+        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-archivecontact-denied' `
+        -IfMatch '"0"' -Body '{}'
+    Add-Result 'archive POST with legacy system-owner contacts.delete is denied' '403' $archiveContact.Status
+    Add-Result 'archive capability denial code' 'ACCESS_DENIED' ([string]$archiveContact.Body.code)
+    Add-Result 'denied Contact writes change no state, version, audit, outbox or idempotency effect' `
+        $effectsBeforeDeniedWrites (Get-Scalar -Database $DatabaseName -Query $contactWriteEffects)
     $authorizedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
     Add-Result 'authorized access context succeeds' '200' $authorizedContext.Status
     Add-Result 'authorized access context exposes contacts.create' 'True' `
@@ -977,6 +994,7 @@ WHERE LeadId = '$leadRecovery';
         ($authorizedContext.Body.capabilities -contains 'contacts.update').ToString()
     Add-Result 'authorized access context excludes contacts.delete' 'False' `
         ($authorizedContext.Body.capabilities -contains 'contacts.delete').ToString()
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability IN ('contacts.update','contacts.delete')"
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='contacts.create'"
     $unauthorizedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
@@ -991,7 +1009,7 @@ WHERE LeadId = '$leadRecovery';
 }
 finally {
     if ($hostProcess -and -not $hostProcess.HasExited) {
-        try { $hostProcess.Kill($true) } catch { }
+        try { Stop-Process -Id $hostProcess.Id -Force } catch { }
         try { $hostProcess.WaitForExit(30000) | Out-Null } catch { }
     }
     foreach ($name in @(

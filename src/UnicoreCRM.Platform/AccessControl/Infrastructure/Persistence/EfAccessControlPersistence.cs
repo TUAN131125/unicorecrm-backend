@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using UnicoreCRM.Platform.AccessControl.Application.Common;
+using UnicoreCRM.Platform.AccessControl.Application.ProvisionInitialWorkspaceAccess;
 using UnicoreCRM.Platform.AccessControl.Domain;
 
 namespace UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence;
@@ -27,9 +28,19 @@ internal sealed class EfAccessControlPersistence(AccessControlDbContext dbContex
             return new EffectiveAccessState([], [], [], []);
 
         var roleIds = roles.Select(role => role.RoleId).ToArray();
+        var systemWorkspaceOwnerRoleIds = roles
+            .Where(role => role.SourceTemplateId == InitialWorkspaceAccessPolicy.SystemOwnerTemplateId)
+            .Select(role => role.RoleId)
+            .ToArray();
         var capabilities = await dbContext.RoleCapabilities
             .AsNoTracking()
             .Where(item => roleIds.Contains(item.RoleId))
+            // Historical server-owned Workspace Owner baselines could persist these Contact writes.
+            // They are no longer admitted, so the system template must not make them effective.
+            // A separately customized role remains untouched and continues to require its own
+            // explicit authority/reconciliation decision.
+            .Where(item => !systemWorkspaceOwnerRoleIds.Contains(item.RoleId)
+                || (item.Capability != "contacts.update" && item.Capability != "contacts.delete"))
             .Select(item => item.Capability)
             .Distinct()
             .Take(1001)
