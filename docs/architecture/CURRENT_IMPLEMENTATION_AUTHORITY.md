@@ -4475,3 +4475,11 @@ Contacts-owned aggregate transaction, immutable command audit, and a Contacts-ow
 The Workspace Owner seed and authorized custom Workspace roles may carry `contacts.create`.
 `contacts.update` and `contacts.delete` are intentionally excluded from the admitted capability
 projection by this reconciliation.
+## Contact Update authority reconciliation — CRM-C3
+
+Product authority admits only `updateContact` / `contacts.update` as the C3 production mutation.
+The runtime exposes `PATCH /contacts/{contactId}` with required idempotency and quoted `If-Match`,
+server-side capability enforcement, exact Contact version matching, one serializable Contact-owned
+transaction, immutable command audit, and `CONTACT_UPDATED` outbox evidence. The authoritative
+mutation response is projected by the connected frontend. `archiveContact` / `contacts.delete`
+remain blocked and non-effective.

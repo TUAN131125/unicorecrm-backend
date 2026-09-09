@@ -981,24 +981,41 @@ SELECT CONCAT(
     (SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$($createContact.Body.aggregateId)'), '|',
     (SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$($createContact.Body.aggregateId)'))
 "@
-    $effectsBeforeDeniedWrites = Get-Scalar -Database $DatabaseName -Query $contactWriteEffects
     $updateContact = Invoke-Api -Method 'PATCH' -Path "/contacts/$($createContact.Body.aggregateId)" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-denied' `
-        -IfMatch '"0"' -Body '{"fullName":"Must Not Update"}'
-    Add-Result 'PATCH with legacy custom-role contacts.update is denied' '403' $updateContact.Status
-    Add-Result 'PATCH capability denial code' 'ACCESS_DENIED' ([string]$updateContact.Body.code)
+        -IfMatch '"0"' -Body '{"fullName":"Authoritative Updated Contact"}'
+    Add-Result 'PATCH with assigned contacts.update succeeds' '200' $updateContact.Status
+    Add-Result 'PATCH preserves Contact identity' ([string]$createContact.Body.aggregateId) ([string]$updateContact.Body.aggregateId)
+    Add-Result 'PATCH advances authoritative version' '1' ([string]$updateContact.Body.version)
+    $effectsAfterSuccessfulUpdate = Get-Scalar -Database $DatabaseName -Query $contactWriteEffects
+    $staleUpdate = Invoke-Api -Method 'PATCH' -Path "/contacts/$($createContact.Body.aggregateId)" `
+        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-stale' `
+        -IfMatch '"0"' -Body '{"fullName":"Must Not Win"}'
+    Add-Result 'stale Contact PATCH conflicts' '409' $staleUpdate.Status
+    Add-Result 'stale Contact PATCH uses canonical code' 'RESOURCE_VERSION_CONFLICT' ([string]$staleUpdate.Body.code)
+    $effectsAfterStale = Get-Scalar -Database $DatabaseName -Query $contactWriteEffects
+    Add-Result 'stale Contact PATCH causes no mutation effect' $effectsAfterSuccessfulUpdate $effectsAfterStale
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM access.RoleCapabilities WHERE Capability='contacts.update' AND RoleId='$roleId';
+DELETE FROM access.MembershipRoleAssignments WHERE AssignmentId='$customAssignmentId';
+"@
+    $deniedUpdate = Invoke-Api -Method 'PATCH' -Path "/contacts/$($createContact.Body.aggregateId)" `
+        -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-unauthorized' `
+        -IfMatch '"1"' -Body '{"fullName":"Must Not Update"}'
+    Add-Result 'PATCH without contacts.update is denied' '403' $deniedUpdate.Status
+    Add-Result 'PATCH capability denial code' 'ACCESS_DENIED' ([string]$deniedUpdate.Body.code)
     $archiveContact = Invoke-Api -Method 'POST' -Path "/contacts/$($createContact.Body.aggregateId)/archive" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-archivecontact-denied' `
-        -IfMatch '"0"' -Body '{}'
+        -IfMatch '"1"' -Body '{}'
     Add-Result 'archive POST with legacy custom-role contacts.delete is denied' '403' $archiveContact.Status
     Add-Result 'archive capability denial code' 'ACCESS_DENIED' ([string]$archiveContact.Body.code)
-    Add-Result 'denied Contact writes change no state, version, audit, outbox or idempotency effect' `
-        $effectsBeforeDeniedWrites (Get-Scalar -Database $DatabaseName -Query $contactWriteEffects)
+    Add-Result 'stale and denied Contact writes add no mutation effect' `
+        $effectsAfterStale (Get-Scalar -Database $DatabaseName -Query $contactWriteEffects)
     $authorizedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
     Add-Result 'authorized access context succeeds' '200' $authorizedContext.Status
     Add-Result 'authorized access context exposes contacts.create' 'True' `
         ($authorizedContext.Body.capabilities -contains 'contacts.create').ToString()
-    Add-Result 'authorized access context excludes contacts.update' 'False' `
+    Add-Result 'access context excludes removed contacts.update' 'False' `
         ($authorizedContext.Body.capabilities -contains 'contacts.update').ToString()
     Add-Result 'authorized access context excludes contacts.delete' 'False' `
         ($authorizedContext.Body.capabilities -contains 'contacts.delete').ToString()

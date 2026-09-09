@@ -533,7 +533,7 @@ try {
 
     $validationId = New-Role 'Validation Target'
     foreach ($case in @(
-        @{ Name = 'blocked capability'; Body = (New-Body 'Validation Target' @('contacts.update')) },
+        @{ Name = 'blocked capability'; Body = (New-Body 'Validation Target' @('contacts.delete')) },
         @{ Name = 'unknown capability'; Body = (New-Body 'Validation Target' @('unknown.capability')) },
         @{ Name = 'wrong-case capability'; Body = (New-Body 'Validation Target' @('Tasks.Read')) },
         @{ Name = 'duplicate capability'; Body = (New-Body 'Validation Target' @('tasks.read','tasks.read')) },

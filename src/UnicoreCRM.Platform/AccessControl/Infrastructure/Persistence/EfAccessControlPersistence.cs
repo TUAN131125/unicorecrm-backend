@@ -33,7 +33,7 @@ internal sealed class EfAccessControlPersistence(AccessControlDbContext dbContex
             // Persisted role configuration is historical input, not operation admission authority.
             // Keep legacy/custom rows intact, but do not project non-admitted Contact writes into
             // effective authorization regardless of which role stored them.
-            .Where(item => item.Capability != "contacts.update" && item.Capability != "contacts.delete")
+            .Where(item => item.Capability != "contacts.delete")
             .Select(item => item.Capability)
             .Distinct()
             .Take(1001)

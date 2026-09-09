@@ -268,7 +268,7 @@ try {
     Assert-True 'products.configure is present in the code projection' ($catalogValues -ccontains 'products.configure')
 
     # The remaining non-assignable classes are untouched by this closure.
-    foreach ($blocked in @('contacts.update', 'organizations.create', 'organizations.update', 'customers.onboard_existing', 'customers.edit', 'payments.customer_credit.allocate')) {
+    foreach ($blocked in @('contacts.delete', 'organizations.create', 'organizations.update', 'customers.onboard_existing', 'customers.edit', 'payments.customer_credit.allocate')) {
         $row = @($matrix.capabilities | Where-Object { $_.capability -ceq $blocked })[0]
         Add-Result "$blocked remains BLOCKED" 'BLOCKED' ([string]$row.admittedStatus)
         Assert-True "$blocked stays out of the code projection" (-not ($catalogValues -ccontains $blocked))
@@ -348,7 +348,7 @@ try {
     # E. Non-assignable capabilities are still rejected, by both operations
     # =============================================================================================
     $rejections = @(
-        @{ Name = 'blocked capability'; Value = 'contacts.update' },
+        @{ Name = 'blocked capability'; Value = 'contacts.delete' },
         @{ Name = 'authority-gap capability'; Value = 'identity.account.recover' },
         @{ Name = 'reconciliation-required capability'; Value = 'studio.configure' },
         @{ Name = 'no-operation-authority capability'; Value = 'products.export' },
@@ -385,7 +385,7 @@ try {
     $removed = Invoke-ReplaceRole $replaceRoleId (New-ReplaceBody 'Replaceable Product Role' @('products.read')) '"1"'
     Add-Result 'replaceAccessRole removes products.configure' 200 $removed.Status
     Add-Result 'removal persisted' 'products.read' (Get-RoleCapabilities $replaceRoleId)
-    $replaceBlocked = Invoke-ReplaceRole $replaceRoleId (New-ReplaceBody 'Replaceable Product Role' @('contacts.update')) '"2"'
+    $replaceBlocked = Invoke-ReplaceRole $replaceRoleId (New-ReplaceBody 'Replaceable Product Role' @('contacts.delete')) '"2"'
     Add-Result 'replaceAccessRole cannot bypass create-time capability rules' 422 $replaceBlocked.Status
     Add-Result 'replacement rejection uses VALIDATION_FAILED' 'VALIDATION_FAILED' ([string]$replaceBlocked.Body.code)
     Add-Result 'rejected replacement changed nothing' 'products.read' (Get-RoleCapabilities $replaceRoleId)
