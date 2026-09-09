@@ -29,6 +29,7 @@ internal interface IContactsTransaction : IAsyncDisposable
 }
 
 internal sealed class ContactsPersistenceConcurrencyException : Exception { }
+internal sealed class ContactsRelationshipConflictException : Exception { }
 
 internal interface IContactsPersistence
 {
@@ -61,6 +62,16 @@ internal interface IContactsPersistence
     void AddOutbox(ContactOutboxMessage message);
     Task<ContactIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddIdempotency(ContactIdempotencyRecord record);
+    Task<IReadOnlyList<ContactOrganizationRelationship>> ReadOrganizationRelationshipsAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ContactCustomerRelationship>> ReadCustomerRelationshipsAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
+    Task<ContactOrganizationRelationship?> LoadOrganizationRelationshipAsync(string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken);
+    Task<ContactCustomerRelationship?> LoadCustomerRelationshipAsync(string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken);
+    Task<ContactOrganizationRelationship?> LoadActivePrimaryOrganizationRelationshipAsync(string workspaceId, string contactId, string? exceptRelationshipId, CancellationToken cancellationToken);
+    Task<bool> HasActiveOrganizationRelationshipAsync(string workspaceId, string contactId, string organizationId, CancellationToken cancellationToken);
+    Task<bool> HasActiveCustomerRelationshipAsync(string workspaceId, string contactId, string customerId, CancellationToken cancellationToken);
+    Task<bool> HasOtherActivePrimaryCustomerRelationshipAsync(string workspaceId, string customerId, string? exceptRelationshipId, CancellationToken cancellationToken);
+    void AddOrganizationRelationship(ContactOrganizationRelationship relationship);
+    void AddCustomerRelationship(ContactCustomerRelationship relationship);
 }
 
 internal static class ContactErrors
@@ -76,4 +87,6 @@ internal static class ContactErrors
         new("IDEMPOTENCY_KEY_REUSED", 409, "Idempotency key reused");
     internal static ContactOperationError AlreadyArchived() =>
         new("CONTACT_ALREADY_ARCHIVED", 409, "Contact already archived");
+    internal static ContactOperationError RelationshipConflict(string detail) =>
+        new("RELATIONSHIP_CONFLICT", 409, "Relationship conflict", detail);
 }

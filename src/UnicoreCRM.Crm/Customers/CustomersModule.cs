@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Crm.Customers.Application.Common;
 using UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
+using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Crm.Customers;
@@ -22,6 +23,7 @@ internal static class CustomersModule
         services.AddScoped<CustomerAuthorization>();
         services.AddScoped<Application.ListCustomers.Handler>();
         services.AddScoped<Application.GetCustomer.Handler>();
+        services.AddScoped<ICustomerRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideCustomerRecordAccessFacts.CustomerRecordAccessFactProvider>();
         return services;
     }

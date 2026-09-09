@@ -14,9 +14,11 @@ public static class CrmModule
     {
         services.AddLeadsModule(configuration);
         services.AddDealsModule(configuration);
-        services.AddContactsModule(configuration);
         services.AddCustomersModule(configuration);
         services.AddOrganizationsModule(configuration);
+        // C6's one-time legacy Contact affiliation adoption validates Organization targets.
+        // Register the owner migration before Contacts in the standard composed host.
+        services.AddContactsModule(configuration);
 
         return services;
     }

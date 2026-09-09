@@ -13,6 +13,8 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
     internal DbSet<ContactOutboxMessage> OutboxMessages => Set<ContactOutboxMessage>();
     internal DbSet<ContactConversionRecord> ConversionRecords => Set<ContactConversionRecord>();
     internal DbSet<ContactIdempotencyRecord> IdempotencyRecords => Set<ContactIdempotencyRecord>();
+    internal DbSet<ContactOrganizationRelationship> OrganizationRelationships => Set<ContactOrganizationRelationship>();
+    internal DbSet<ContactCustomerRelationship> CustomerRelationships => Set<ContactCustomerRelationship>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,6 +23,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
         {
             entity.ToTable("Contacts");
             entity.HasKey(item => item.ContactId);
+            entity.HasAlternateKey(item => new { item.WorkspaceId, item.ContactId });
             entity.Property(item => item.ContactId).HasMaxLength(128);
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
             entity.Property(item => item.OwnerId).HasMaxLength(128);
@@ -42,6 +45,66 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             // seeks take, not by a constraint.
             entity.HasIndex(item => new { item.WorkspaceId, item.NormalizedWorkEmail });
             entity.HasIndex(item => new { item.WorkspaceId, item.NormalizedPersonalEmail });
+        });
+
+        modelBuilder.Entity<ContactOrganizationRelationship>(entity =>
+        {
+            entity.ToTable("OrganizationRelationships", table =>
+            {
+                table.HasCheckConstraint("CK_OrganizationRelationships_Role", "[Role] COLLATE Latin1_General_100_BIN2 IN (N'employee',N'executive',N'decision_maker',N'buyer',N'finance',N'technical',N'advisor',N'partner',N'other')");
+                table.HasCheckConstraint("CK_OrganizationRelationships_EndState", "([EffectiveTo] IS NULL AND [EndedReason] IS NULL) OR ([EffectiveTo] IS NOT NULL AND LEN(LTRIM(RTRIM([EndedReason]))) > 0)");
+                table.HasCheckConstraint("CK_OrganizationRelationships_DateRange", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+            });
+            entity.HasKey(item => item.RelationshipId);
+            entity.Property(item => item.RelationshipId).HasMaxLength(128);
+            entity.Property(item => item.WorkspaceId).HasMaxLength(128);
+            entity.Property(item => item.ContactId).HasMaxLength(128);
+            entity.Property(item => item.OrganizationId).HasMaxLength(128);
+            entity.Property(item => item.Role).HasMaxLength(40);
+            entity.Property(item => item.IsPrimaryAffiliation);
+            entity.Property(item => item.EffectiveFrom).HasPrecision(7);
+            entity.Property(item => item.EffectiveTo).HasPrecision(7);
+            entity.Property(item => item.EndedReason).HasMaxLength(1000);
+            entity.Property(item => item.CreatedAt).HasPrecision(7);
+            entity.Property(item => item.CreatedBy).HasMaxLength(128);
+            entity.Property(item => item.UpdatedAt).HasPrecision(7);
+            entity.Property(item => item.UpdatedBy).HasMaxLength(128);
+            entity.Property(item => item.LegacyEvidenceJson).HasColumnType("nvarchar(max)");
+            entity.HasOne<Contact>().WithMany().HasForeignKey(item => new { item.WorkspaceId, item.ContactId })
+                .HasPrincipalKey(item => new { item.WorkspaceId, item.ContactId }).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => new { item.WorkspaceId, item.ContactId, item.OrganizationId }).IsUnique().HasFilter("[EffectiveTo] IS NULL");
+            entity.HasIndex(item => new { item.WorkspaceId, item.ContactId }).IsUnique().HasFilter("[EffectiveTo] IS NULL AND [IsPrimaryAffiliation] = 1");
+            entity.HasIndex(item => new { item.WorkspaceId, item.ContactId, item.EffectiveTo, item.EffectiveFrom, item.RelationshipId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.OrganizationId, item.EffectiveTo });
+        });
+
+        modelBuilder.Entity<ContactCustomerRelationship>(entity =>
+        {
+            entity.ToTable("CustomerRelationships", table =>
+            {
+                table.HasCheckConstraint("CK_CustomerRelationships_Role", "[Role] COLLATE Latin1_General_100_BIN2 IN (N'primary_contact',N'billing',N'decision_maker',N'end_user',N'technical',N'support',N'other')");
+                table.HasCheckConstraint("CK_CustomerRelationships_EndState", "([EffectiveTo] IS NULL AND [EndedReason] IS NULL) OR ([EffectiveTo] IS NOT NULL AND LEN(LTRIM(RTRIM([EndedReason]))) > 0)");
+                table.HasCheckConstraint("CK_CustomerRelationships_DateRange", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+            });
+            entity.HasKey(item => item.RelationshipId);
+            entity.Property(item => item.RelationshipId).HasMaxLength(128);
+            entity.Property(item => item.WorkspaceId).HasMaxLength(128);
+            entity.Property(item => item.ContactId).HasMaxLength(128);
+            entity.Property(item => item.CustomerId).HasMaxLength(128);
+            entity.Property(item => item.Role).HasMaxLength(40);
+            entity.Property(item => item.EffectiveFrom).HasPrecision(7);
+            entity.Property(item => item.EffectiveTo).HasPrecision(7);
+            entity.Property(item => item.EndedReason).HasMaxLength(1000);
+            entity.Property(item => item.CreatedAt).HasPrecision(7);
+            entity.Property(item => item.CreatedBy).HasMaxLength(128);
+            entity.Property(item => item.UpdatedAt).HasPrecision(7);
+            entity.Property(item => item.UpdatedBy).HasMaxLength(128);
+            entity.HasOne<Contact>().WithMany().HasForeignKey(item => new { item.WorkspaceId, item.ContactId })
+                .HasPrincipalKey(item => new { item.WorkspaceId, item.ContactId }).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => new { item.WorkspaceId, item.ContactId, item.CustomerId }).IsUnique().HasFilter("[EffectiveTo] IS NULL");
+            entity.HasIndex(item => new { item.WorkspaceId, item.CustomerId }).IsUnique().HasFilter("[EffectiveTo] IS NULL AND [Role] = N'primary_contact'");
+            entity.HasIndex(item => new { item.WorkspaceId, item.ContactId, item.EffectiveTo, item.EffectiveFrom, item.RelationshipId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.CustomerId, item.EffectiveTo });
         });
 
         modelBuilder.Entity<ContactIdempotencyRecord>(entity =>

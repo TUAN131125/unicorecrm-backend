@@ -46,7 +46,6 @@ internal static class ContactProjection
             NeedSummary = contact.Profile.NeedSummary,
             Notes = contact.Profile.Notes,
             Tags = contact.Profile.Tags,
-            OrganizationRelationships = contact.Profile.OrganizationRelationships?.Select(Relationship).ToArray(),
             DisplayName = contact.Profile.DisplayName
         };
 
@@ -83,7 +82,7 @@ internal static class ContactProjection
             ExpiresAt = item.ExpiresAt is null ? null : Timestamp(item.ExpiresAt.Value)
         };
 
-    private static ContactOrganizationRelationshipDocument Relationship(ContactOrganizationRelationship item) =>
+    private static ContactOrganizationRelationshipDocument Relationship(LegacyContactOrganizationRelationship item) =>
         new(
             item.Id,
             item.OrganizationAccountId,
@@ -100,6 +99,32 @@ internal static class ContactProjection
             UpdatedAt = item.UpdatedAt is null ? null : Timestamp(item.UpdatedAt.Value),
             UpdatedBy = item.UpdatedBy,
             EndedReason = item.EndedReason
+        };
+
+    internal static ContactOrganizationRelationshipSummaryDocument OrganizationRelationship(
+        ContactOrganizationRelationship item, string? label) =>
+        new(item.RelationshipId, new ContactRelationshipTargetDocument("organizations", item.OrganizationId) { Label = label },
+            item.Role, item.IsPrimaryAffiliation, item.EffectiveTo is null ? "active" : "ended",
+            Timestamp(item.EffectiveFrom), Timestamp(item.CreatedAt))
+        {
+            EffectiveTo = item.EffectiveTo is null ? null : Timestamp(item.EffectiveTo.Value),
+            EndedReason = item.EndedReason,
+            CreatedBy = item.CreatedBy,
+            UpdatedAt = Timestamp(item.UpdatedAt),
+            UpdatedBy = item.UpdatedBy
+        };
+
+    internal static ContactCustomerRelationshipSummaryDocument CustomerRelationship(
+        ContactCustomerRelationship item, string? label) =>
+        new(item.RelationshipId, new ContactRelationshipTargetDocument("customers", item.CustomerId) { Label = label },
+            item.Role, item.EffectiveTo is null ? "active" : "ended",
+            Timestamp(item.EffectiveFrom), Timestamp(item.CreatedAt))
+        {
+            EffectiveTo = item.EffectiveTo is null ? null : Timestamp(item.EffectiveTo.Value),
+            EndedReason = item.EndedReason,
+            CreatedBy = item.CreatedBy,
+            UpdatedAt = Timestamp(item.UpdatedAt),
+            UpdatedBy = item.UpdatedBy
         };
 
     private static string Timestamp(DateTimeOffset value) =>

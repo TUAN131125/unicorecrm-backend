@@ -30,4 +30,10 @@ internal sealed class EfOrganizationsPersistence(OrganizationsDbContext dbContex
             .OrderByDescending(item => item.CreatedAt)
             .ThenBy(item => item.OrganizationId)
             .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(
+        string workspaceId, IReadOnlyCollection<string> organizationIds, CancellationToken cancellationToken) =>
+        await dbContext.Organizations.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && organizationIds.Contains(item.OrganizationId))
+            .ToArrayAsync(cancellationToken);
 }

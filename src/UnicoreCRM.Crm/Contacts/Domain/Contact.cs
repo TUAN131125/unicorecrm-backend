@@ -95,6 +95,14 @@ internal sealed class Contact
         UpdatedAt = now;
         Version++;
     }
+
+    internal void RecordRelationshipMutation(DateTimeOffset now)
+    {
+        if (ArchivedAt is not null)
+            throw new InvalidOperationException("An archived Contact cannot mutate relationships.");
+        UpdatedAt = now;
+        Version++;
+    }
 }
 
 internal sealed record ContactProfile
@@ -127,7 +135,7 @@ internal sealed record ContactProfile
     public string? NeedSummary { get; init; }
     public string? Notes { get; init; }
     public IReadOnlyList<string>? Tags { get; init; }
-    public IReadOnlyList<ContactOrganizationRelationship>? OrganizationRelationships { get; init; }
+    public IReadOnlyList<LegacyContactOrganizationRelationship>? OrganizationRelationships { get; init; }
     public string? DisplayName { get; init; }
 }
 
@@ -162,7 +170,7 @@ internal sealed record ContactCommunicationConsentProfile(
     public string? LawfulBasis { get; init; }
 }
 
-internal sealed record ContactOrganizationRelationship(
+internal sealed record LegacyContactOrganizationRelationship(
     string Id,
     string OrganizationAccountId,
     string Role,

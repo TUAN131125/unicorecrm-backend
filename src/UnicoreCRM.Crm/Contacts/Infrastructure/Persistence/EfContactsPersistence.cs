@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Data.SqlClient;
 using UnicoreCRM.Crm.Contacts.Application.Common;
 using UnicoreCRM.Crm.Contacts.Domain;
 
@@ -55,6 +56,46 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
         {
             throw new ContactsPersistenceConcurrencyException { Source = exception.Source };
         }
+        catch (DbUpdateException exception) when (ContainsRelationshipConstraintViolation(exception))
+        {
+            throw new ContactsRelationshipConflictException { Source = exception.Source };
+        }
+        catch (DbUpdateException exception) when (ContainsSqlError(exception, 2601) || ContainsSqlError(exception, 2627))
+        {
+            // A competing request may win a unique idempotency, outbox, or audit key. Do not
+            // misreport those infrastructure races as a relationship-domain conflict.
+            throw new ContactsPersistenceConcurrencyException { Source = exception.Source };
+        }
+        catch (Exception exception) when (ContainsSqlError(exception, 1205))
+        {
+            // SQL Server chooses one SERIALIZABLE contender as a deadlock victim. That loser is
+            // a canonical optimistic-concurrency conflict, not an unhandled server failure.
+            throw new ContactsPersistenceConcurrencyException { Source = exception.Source };
+        }
+    }
+
+    private static bool ContainsSqlError(Exception exception, int number)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            if (current is SqlException sql && sql.Number == number) return true;
+        return false;
+    }
+
+    private static bool ContainsRelationshipConstraintViolation(Exception exception)
+    {
+        string[] relationshipIndexes =
+        [
+            "IX_OrganizationRelationships_WorkspaceId_ContactId_OrganizationId",
+            "IX_OrganizationRelationships_WorkspaceId_ContactId",
+            "IX_CustomerRelationships_WorkspaceId_ContactId_CustomerId",
+            "IX_CustomerRelationships_WorkspaceId_CustomerId"
+        ];
+
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            if (current is SqlException sql && sql.Number is 2601 or 2627
+                && relationshipIndexes.Any(index => sql.Message.Contains(index, StringComparison.Ordinal)))
+                return true;
+        return false;
     }
 
     public Task<Contact?> ReadContactAsync(
@@ -69,6 +110,50 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
 
     public Task<Contact?> LoadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken) =>
         dbContext.Contacts.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId, cancellationToken);
+
+    public async Task<IReadOnlyList<ContactOrganizationRelationship>> ReadOrganizationRelationshipsAsync(
+        string workspaceId, string contactId, CancellationToken cancellationToken) =>
+        await dbContext.OrganizationRelationships.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && item.ContactId == contactId)
+            .OrderBy(item => item.EffectiveTo == null ? 0 : 1)
+            .ThenByDescending(item => item.EffectiveFrom).ThenBy(item => item.RelationshipId)
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ContactCustomerRelationship>> ReadCustomerRelationshipsAsync(
+        string workspaceId, string contactId, CancellationToken cancellationToken) =>
+        await dbContext.CustomerRelationships.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && item.ContactId == contactId)
+            .OrderBy(item => item.EffectiveTo == null ? 0 : 1)
+            .ThenByDescending(item => item.EffectiveFrom).ThenBy(item => item.RelationshipId)
+            .ToArrayAsync(cancellationToken);
+
+    public Task<ContactOrganizationRelationship?> LoadOrganizationRelationshipAsync(
+        string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken) =>
+        dbContext.OrganizationRelationships.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId && item.RelationshipId == relationshipId, cancellationToken);
+
+    public Task<ContactCustomerRelationship?> LoadCustomerRelationshipAsync(
+        string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken) =>
+        dbContext.CustomerRelationships.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId && item.RelationshipId == relationshipId, cancellationToken);
+
+    public Task<ContactOrganizationRelationship?> LoadActivePrimaryOrganizationRelationshipAsync(
+        string workspaceId, string contactId, string? exceptRelationshipId, CancellationToken cancellationToken) =>
+        dbContext.OrganizationRelationships.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId
+            && item.EffectiveTo == null && item.IsPrimaryAffiliation && item.RelationshipId != exceptRelationshipId, cancellationToken);
+
+    public Task<bool> HasActiveOrganizationRelationshipAsync(string workspaceId, string contactId, string organizationId, CancellationToken cancellationToken) =>
+        dbContext.OrganizationRelationships.AnyAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId
+            && item.OrganizationId == organizationId && item.EffectiveTo == null, cancellationToken);
+
+    public Task<bool> HasActiveCustomerRelationshipAsync(string workspaceId, string contactId, string customerId, CancellationToken cancellationToken) =>
+        dbContext.CustomerRelationships.AnyAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId
+            && item.CustomerId == customerId && item.EffectiveTo == null, cancellationToken);
+
+    public Task<bool> HasOtherActivePrimaryCustomerRelationshipAsync(string workspaceId, string customerId, string? exceptRelationshipId, CancellationToken cancellationToken) =>
+        dbContext.CustomerRelationships.AnyAsync(item => item.WorkspaceId == workspaceId && item.CustomerId == customerId
+            && item.Role == "primary_contact" && item.EffectiveTo == null && item.RelationshipId != exceptRelationshipId, cancellationToken);
+
+    public void AddOrganizationRelationship(ContactOrganizationRelationship relationship) => dbContext.OrganizationRelationships.Add(relationship);
+    public void AddCustomerRelationship(ContactCustomerRelationship relationship) => dbContext.CustomerRelationships.Add(relationship);
 
     public async Task<IReadOnlyList<Contact>> ReadContactsAsync(
         string workspaceId,

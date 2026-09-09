@@ -22,6 +22,20 @@ public static class ContactsEndpoints
             .RequireAuthorization().RequireTrustedWorkspace().WithName("updateContact");
         endpoints.MapPost("/contacts/{contactId}/archive", ArchiveContactAsync)
             .RequireAuthorization().RequireTrustedWorkspace().WithName("archiveContact");
+        endpoints.MapGet("/contacts/{contactId}/relationship-summary", GetRelationshipSummaryAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("getContactRelationshipSummary");
+        endpoints.MapPost("/contacts/{contactId}/organization-relationships", CreateOrganizationRelationshipAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("createContactOrganizationRelationship");
+        endpoints.MapPatch("/contacts/{contactId}/organization-relationships/{relationshipId}", UpdateOrganizationRelationshipAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("updateContactOrganizationRelationship");
+        endpoints.MapPost("/contacts/{contactId}/organization-relationships/{relationshipId}/end", EndOrganizationRelationshipAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("endContactOrganizationRelationship");
+        endpoints.MapPost("/contacts/{contactId}/customer-relationships", CreateCustomerRelationshipAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("createContactCustomerRelationship");
+        endpoints.MapPatch("/contacts/{contactId}/customer-relationships/{relationshipId}", UpdateCustomerRelationshipAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("updateContactCustomerRelationship");
+        endpoints.MapPost("/contacts/{contactId}/customer-relationships/{relationshipId}/end", EndCustomerRelationshipAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("endContactCustomerRelationship");
         return endpoints;
     }
 
@@ -73,6 +87,60 @@ public static class ContactsEndpoints
         if (body.Error is not null) return body.Error;
         var result = await handler.HandleAsync(new(contactId, body.Value!, metadata), cancellationToken);
         return ContactsHttp.Result(result, metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> GetRelationshipSummaryAsync(string contactId, HttpContext context, Application.GetRelationshipSummary.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryMetadata(context, out var metadata, out var error)) return error!;
+        return ContactsHttp.Result(await handler.HandleAsync(new(contactId, metadata!), cancellationToken), metadata!.CorrelationId);
+    }
+
+    private static async Task<IResult> CreateOrganizationRelationshipAsync(string contactId, HttpContext context, Application.Relationships.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await ContactsHttp.ReadBodyAsync<CreateContactOrganizationRelationshipRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        return ContactsHttp.Result(await handler.CreateOrganizationAsync(new(contactId, body.Value!, metadata), cancellationToken), metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> UpdateOrganizationRelationshipAsync(string contactId, string relationshipId, HttpContext context, Application.Relationships.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await ContactsHttp.ReadBodyAsync<UpdateContactOrganizationRelationshipRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        return ContactsHttp.Result(await handler.UpdateOrganizationAsync(new(contactId, relationshipId, body.Value!, metadata), cancellationToken), metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> EndOrganizationRelationshipAsync(string contactId, string relationshipId, HttpContext context, Application.Relationships.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await ContactsHttp.ReadBodyAsync<EndContactRelationshipRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        return ContactsHttp.Result(await handler.EndOrganizationAsync(new(contactId, relationshipId, body.Value!, metadata), cancellationToken), metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> CreateCustomerRelationshipAsync(string contactId, HttpContext context, Application.Relationships.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await ContactsHttp.ReadBodyAsync<CreateContactCustomerRelationshipRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        return ContactsHttp.Result(await handler.CreateCustomerAsync(new(contactId, body.Value!, metadata), cancellationToken), metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> UpdateCustomerRelationshipAsync(string contactId, string relationshipId, HttpContext context, Application.Relationships.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await ContactsHttp.ReadBodyAsync<UpdateContactCustomerRelationshipRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        return ContactsHttp.Result(await handler.UpdateCustomerAsync(new(contactId, relationshipId, body.Value!, metadata), cancellationToken), metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> EndCustomerRelationshipAsync(string contactId, string relationshipId, HttpContext context, Application.Relationships.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await ContactsHttp.ReadBodyAsync<EndContactRelationshipRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        return ContactsHttp.Result(await handler.EndCustomerAsync(new(contactId, relationshipId, body.Value!, metadata), cancellationToken), metadata.CorrelationId);
     }
 }
 

@@ -4492,3 +4492,35 @@ Product authority selects Archive / soft delete as normal Contact removal. The a
 advances version once, records immutable audit and emits `CONTACT_ARCHIVED`. The active list excludes
 archived Contacts; direct detail retains them visibly archived. Hard delete, Restore, Anonymize and
 privacy erasure remain non-admitted. This section supersedes the preceding C3 retention status only.
+
+## Contact relationship authority reconciliation — DEC-C6-001 / DEC-C6-002 / CRM-C6
+
+Contacts owns the first-class `contacts.OrganizationRelationships` and
+`contacts.CustomerRelationships` ledgers and all six Contact-side lifecycle commands. Organization
+and Customer participate only through owner-local, authorization-aware target reads; Contacts does
+not query or write their persistence. The existing `getContactRelationshipSummary` is extended as
+the single relationship read model and omits targets the caller cannot resolve.
+
+Organization affiliations are many-to-many, allow one active row per Contact/Organization pair,
+and allow one active primary affiliation per Contact. Selecting a primary affiliation demotes the
+prior one in the same serializable Contact transaction. This is distinct from Organization-owned
+primary-contact semantics, which C6 does not implement. Customer stakeholder links are many-to-many,
+allow one active row per Contact/Customer pair, and allow one active `primary_contact` per Customer;
+conflicting primary commands fail rather than silently reassigning another Contact.
+
+All mutations require `contacts.update`, target read authority (`organizations.read` or
+`customers.view`), idempotency, and quoted Contact `If-Match`. A successful command advances only the
+Contact version and atomically writes relationship state, Contact audit, outbox, and replay record.
+SQL filtered unique indexes are the final race-safe cardinality guard. Serializable deadlock victims
+are returned as canonical version conflicts, while unique-index races are relationship conflicts.
+Archived Contacts retain readable history but reject create, update, and end commands.
+
+The C6 migration converts valid legacy embedded Organization rows once, retains their raw JSON as
+evidence, and quarantines invalid or ambiguous rows in `contacts.RelationshipMigrationIssues`.
+Promotion additionally requires the Organization owner table to contain the target under the same
+Workspace. Missing, foreign-Workspace, and unverifiable targets are quarantined; the composed host
+migrates Organizations before Contacts. This bounded migration-only owner lookup does not create a
+runtime cross-owner persistence path. Owner-local target label resolution writes Organization or
+Customer read-audit evidence for every label disclosed to a relationship command or summary.
+Legacy `isPrimaryRepresentative` is not promoted into primary-affiliation authority, and the legacy
+JSON remains compatibility input rather than a writable relationship store.

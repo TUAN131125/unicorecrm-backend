@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Crm.Organizations.Application.Common;
 using UnicoreCRM.Crm.Organizations.Infrastructure.Persistence;
+using UnicoreCRM.Crm.Organizations.Contracts;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Crm.Organizations;
@@ -22,6 +23,7 @@ internal static class OrganizationsModule
         services.AddScoped<OrganizationAuthorization>();
         services.AddScoped<Application.ListOrganizations.Handler>();
         services.AddScoped<Application.GetOrganization.Handler>();
+        services.AddScoped<IOrganizationRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
         return services;
     }

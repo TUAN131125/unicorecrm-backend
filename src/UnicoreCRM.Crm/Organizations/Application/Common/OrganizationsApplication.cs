@@ -22,6 +22,7 @@ internal interface IOrganizationsPersistence
 {
     Task<Organization?> ReadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, IReadOnlyCollection<string> organizationIds, CancellationToken cancellationToken);
     void AddReadAudit(OrganizationReadAuditRecord audit);
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

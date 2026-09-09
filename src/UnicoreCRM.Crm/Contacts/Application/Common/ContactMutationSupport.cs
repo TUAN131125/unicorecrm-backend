@@ -25,7 +25,13 @@ internal static class ContactMutationSupport
         { Outcome = "REPLAYED" };
 
     internal static ContactMutationResponse Project(ContactMutationResponse response, ContactAccess access) =>
-        response with { Result = new ContactMutationResult(ContactFieldSecurity.Project(response.Result.Contact, access.Authorization)) };
+        response with
+        {
+            Result = response.Result with
+            {
+                Contact = ContactFieldSecurity.Project(response.Result.Contact, access.Authorization)
+            }
+        };
 
     internal static ContactMutationResponse RecordCommit(
         IContactsPersistence persistence,
@@ -37,16 +43,22 @@ internal static class ContactMutationSupport
         string scopeKey,
         string targetId,
         string fingerprint,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        ContactOrganizationRelationshipSummaryDocument? organizationRelationship = null,
+        ContactCustomerRelationshipSummaryDocument? customerRelationship = null)
     {
         var audit = new ContactAuditRecord(operation, trusted.WorkspaceId, trusted.MemberId, contact.ContactId,
             metadata.RequestId, metadata.CorrelationId, "COMMITTED", contact.Version, now);
         var message = new ContactOutboxMessage(eventType, contact.ContactId, trusted.WorkspaceId,
             metadata.CorrelationId,
-            JsonSerializer.Serialize(new { contactId = contact.ContactId, resourceVersion = contact.Version }, JsonOptions), now);
+            JsonSerializer.Serialize(new { contactId = contact.ContactId, relationshipId = organizationRelationship?.RelationshipId ?? customerRelationship?.RelationshipId, resourceVersion = contact.Version }, JsonOptions), now);
         var response = new ContactMutationResponse(ContactIds.New("command"), metadata.CorrelationId,
             contact.ContactId, "CONTACT", contact.Version, ContactProjection.TimestampValue(now), "COMMITTED",
-            new ContactMutationResult(ContactProjection.Document(contact)), [], [message.EventId], [audit.AuditId]);
+            new ContactMutationResult(ContactProjection.Document(contact))
+            {
+                OrganizationRelationship = organizationRelationship,
+                CustomerRelationship = customerRelationship
+            }, [], [message.EventId], [audit.AuditId]);
         persistence.AddAudit(audit);
         persistence.AddOutbox(message);
         persistence.AddIdempotency(new ContactIdempotencyRecord(scopeKey, trusted.WorkspaceId, operation,

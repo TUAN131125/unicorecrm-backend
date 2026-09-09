@@ -22,6 +22,7 @@ internal interface ICustomersPersistence
 {
     Task<Customer?> ReadCustomerAsync(string workspaceId, string customerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, IReadOnlyCollection<string> customerIds, CancellationToken cancellationToken);
     void AddReadAudit(CustomerReadAuditRecord audit);
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

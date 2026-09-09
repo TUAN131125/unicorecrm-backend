@@ -31,4 +31,10 @@ internal sealed class EfCustomersPersistence(CustomersDbContext dbContext) : ICu
             .OrderByDescending(item => item.CreatedAt)
             .ThenBy(item => item.CustomerId)
             .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Customer>> ReadCustomersAsync(
+        string workspaceId, IReadOnlyCollection<string> customerIds, CancellationToken cancellationToken) =>
+        await dbContext.Customers.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && customerIds.Contains(item.CustomerId))
+            .ToArrayAsync(cancellationToken);
 }

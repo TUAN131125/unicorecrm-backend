@@ -67,6 +67,25 @@ public sealed record UpdateContactRequest(
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ArchiveContactRequest;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CreateContactOrganizationRelationshipRequest(
+    string? OrganizationId,
+    string? Role,
+    bool IsPrimaryAffiliation = false,
+    string? EffectiveFrom = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record UpdateContactOrganizationRelationshipRequest(string? Role = null, bool? IsPrimaryAffiliation = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CreateContactCustomerRelationshipRequest(string? CustomerId, string? Role, string? EffectiveFrom = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record UpdateContactCustomerRelationshipRequest(string? Role);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record EndContactRelationshipRequest(string? EndedReason, string? EffectiveTo = null);
+
 public sealed record PostalAddressDocument(string Line1)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Line2 { get; init; }
@@ -159,7 +178,65 @@ public sealed record ContactDocument(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DisplayName { get; init; }
 }
 
-public sealed record ContactMutationResult(ContactDocument Contact);
+public sealed record ContactRelationshipTargetDocument(string ModuleKey, string RecordId)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Label { get; init; }
+}
+
+public sealed record ContactOrganizationRelationshipSummaryDocument(
+    string RelationshipId,
+    ContactRelationshipTargetDocument Target,
+    string Role,
+    bool IsPrimaryAffiliation,
+    string Status,
+    string EffectiveFrom,
+    string CreatedAt)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? EffectiveTo { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? EndedReason { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? CreatedBy { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? UpdatedAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? UpdatedBy { get; init; }
+}
+
+public sealed record ContactCustomerRelationshipSummaryDocument(
+    string RelationshipId,
+    ContactRelationshipTargetDocument Target,
+    string Role,
+    string Status,
+    string EffectiveFrom,
+    string CreatedAt)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? EffectiveTo { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? EndedReason { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? CreatedBy { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? UpdatedAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? UpdatedBy { get; init; }
+}
+
+public sealed record RelationshipLinkedRecordCountsDocument(
+    int Tasks = 0, int Activities = 0, int Deals = 0, int Quotes = 0, int Orders = 0,
+    int Invoices = 0, int Payments = 0, int Shipping = 0, int Returns = 0, int SupportCases = 0);
+
+public sealed record ContactRelationshipSummaryDocument(
+    ContactDocument Contact,
+    IReadOnlyList<string> OrganizationIds,
+    IReadOnlyList<string> CustomerIds,
+    IReadOnlyList<ContactRelationshipTargetDocument> LinkedRecords,
+    RelationshipLinkedRecordCountsDocument LinkedRecordCounts,
+    IReadOnlyList<string> AllowedActions,
+    IReadOnlyList<ContactOrganizationRelationshipSummaryDocument> OrganizationRelationships,
+    IReadOnlyList<ContactCustomerRelationshipSummaryDocument> CustomerRelationships,
+    long ProjectionVersion,
+    string GeneratedAt);
+
+public sealed record ContactMutationResult(ContactDocument Contact)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContactOrganizationRelationshipSummaryDocument? OrganizationRelationship { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContactCustomerRelationshipSummaryDocument? CustomerRelationship { get; init; }
+}
 
 public sealed record ContactMutationResponse(
     string CommandId,
