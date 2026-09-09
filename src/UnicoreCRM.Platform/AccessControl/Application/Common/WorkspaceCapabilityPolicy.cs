@@ -14,6 +14,7 @@ internal static class WorkspaceCapabilityPolicy
         "contacts.create",
         "contacts.read",
         "contacts.update",
+        "contacts.delete",
         "customers.view",
         "deals.assign",
         "deals.bulk",

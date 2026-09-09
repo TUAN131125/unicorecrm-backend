@@ -4483,3 +4483,12 @@ server-side capability enforcement, exact Contact version matching, one serializ
 transaction, immutable command audit, and `CONTACT_UPDATED` outbox evidence. The authoritative
 mutation response is projected by the connected frontend. `archiveContact` / `contacts.delete`
 remain blocked and non-effective.
+
+## Contact Archive authority reconciliation — DEC-C4-001 / CRM-C4
+
+Product authority selects Archive / soft delete as normal Contact removal. The admitted operation is
+`POST /contacts/{contactId}/archive`, requiring authenticated trusted Workspace context,
+`contacts.delete`, idempotency and quoted `If-Match`. It preserves the Contact row and identity,
+advances version once, records immutable audit and emits `CONTACT_ARCHIVED`. The active list excludes
+archived Contacts; direct detail retains them visibly archived. Hard delete, Restore, Anonymize and
+privacy erasure remain non-admitted. This section supersedes the preceding C3 retention status only.

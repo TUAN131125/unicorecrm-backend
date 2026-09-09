@@ -50,7 +50,7 @@ $preContactsCapabilities = @(
     'tasks.assign', 'tasks.complete', 'tasks.create', 'tasks.read', 'tasks.update',
     'workspace.context.resolve'
 )
-$initialCapabilities = @('contacts.create', 'contacts.read', 'contacts.update') + $preContactsCapabilities
+$initialCapabilities = @('contacts.create', 'contacts.delete', 'contacts.read', 'contacts.update') + $preContactsCapabilities
 $initialCapabilitiesSql = ($initialCapabilities | ForEach-Object { "'$_'" }) -join ','
 
 $ownerContexts = @(
@@ -309,6 +309,7 @@ function Assert-SingleState($state, [string] $label) {
     Assert-True ($capabilityCount -eq $initialCapabilities.Count) "$label role carries the server-owned capability set"
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId=(SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)' AND Name='Workspace Owner') AND Capability='contacts.read';") -eq 1) "$label contacts.read exists exactly once"
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId=(SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)' AND Name='Workspace Owner') AND Capability='contacts.update';") -eq 1) "$label contacts.update exists exactly once"
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId=(SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)' AND Name='Workspace Owner') AND Capability='contacts.delete';") -eq 1) "$label contacts.delete exists exactly once"
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId=(SELECT RoleId FROM access.Roles WHERE WorkspaceId='$($state.WorkspaceId)' AND Name='Workspace Owner') AND Capability NOT IN ($initialCapabilitiesSql);") -eq 0) "$label no unexpected canonical-role capability was introduced"
 }
 
@@ -374,7 +375,7 @@ try {
     # Runtime-negative controls use the current anchor schema directly. Each has a real creator
     # assignment, but only A carries the one exact historical capability snapshot admitted for
     # upgrade and the exact canonical role metadata.
-    $unexpectedCapabilities = @($preContactsCapabilities + 'contacts.delete' | Sort-Object)
+    $unexpectedCapabilities = @($preContactsCapabilities + 'contacts.export' | Sort-Object)
     $stateF = New-SeededAnchor $emailF 'unexpected-drift' $true 5 $unexpectedCapabilities
     $partialCapabilities = @($preContactsCapabilities | Where-Object { $_ -ne 'tasks.read' })
     $stateG = New-SeededAnchor $emailG 'arbitrary-partial' $true 5 $partialCapabilities
@@ -431,7 +432,7 @@ try {
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$customRoleId' AND Capability='contacts.create';") -eq '1') 'A: unrelated custom role capability set is unchanged'
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$customRoleId';") -eq '1') 'A: unrelated custom role received no canonical capabilities'
     Assert-True ((Invoke-SqlScalar "SELECT AssignmentId FROM access.MembershipRoleAssignments WHERE RoleId='$customRoleId';") -eq $customAssignmentId) 'A: unrelated custom assignment identity is unchanged'
-    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateF.RoleId)' AND Capability='contacts.delete';") -eq '1') 'F: unexpected extra capability is not silently deleted or reclassified'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateF.RoleId)' AND Capability='contacts.export';") -eq '1') 'F: unexpected extra capability is not silently deleted or reclassified'
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateF.RoleId)' AND Capability='contacts.read';") -eq '0') 'F: drifted role receives no contacts.read grant'
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateG.RoleId)' AND Capability='contacts.read';") -eq '0') 'G: arbitrary partial role receives no contacts.read grant'
     Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$($stateH.RoleId)' AND Capability='contacts.read';") -eq '0') 'H: identity-drifted role receives no contacts.read grant'

@@ -390,7 +390,7 @@ try {
     # E. Non-assignable capabilities are still rejected
     # =============================================================================================
     $rejections = @(
-        @{ Name = 'blocked capability'; Value = 'contacts.delete' },
+        @{ Name = 'blocked capability'; Value = 'contacts.export' },
         @{ Name = 'authority-gap capability'; Value = 'identity.account.recover' },
         @{ Name = 'reconciliation-required capability'; Value = 'studio.configure' },
         @{ Name = 'no-operation-authority capability'; Value = 'products.export' },

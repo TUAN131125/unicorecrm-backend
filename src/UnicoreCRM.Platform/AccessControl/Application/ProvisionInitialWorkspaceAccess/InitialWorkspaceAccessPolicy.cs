@@ -58,9 +58,14 @@ internal static class InitialWorkspaceAccessPolicy
     // Exact owner projection immediately preceding authoritative Contact writes. Deriving it from
     // the current server-owned set keeps unrelated admitted module capabilities intact while still
     // refusing arbitrary subsets or caller-invented capabilities.
-    private static IReadOnlyList<string> PreContactWritesOwnerCapabilities { get; } =
+    private static IReadOnlyList<string> PreContactUpdateOwnerCapabilities { get; } =
         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
-            .Where(capability => capability is not "contacts.update")
+            .Where(capability => capability is not "contacts.update" and not "contacts.delete")
+            .ToArray();
+
+    private static IReadOnlyList<string> PreContactArchiveOwnerCapabilities { get; } =
+        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+            .Where(capability => capability is not "contacts.delete")
             .ToArray();
 
     internal static IReadOnlyList<string> Capabilities { get; } =
@@ -78,10 +83,12 @@ internal static class InitialWorkspaceAccessPolicy
     {
         var v1 = Validate(PreContactsCapabilities, "The V1 initial Workspace access capability set is not canonical.");
         var v2 = Validate(RestrictedOwnerCapabilitiesV2, "The V2 initial Workspace access capability set is not canonical.");
-        var preContactWrites = Validate(PreContactWritesOwnerCapabilities, "The pre-Contact-writes Workspace Owner capability set is not canonical.");
+        var preContactUpdate = Validate(PreContactUpdateOwnerCapabilities, "The pre-Contact-update Workspace Owner capability set is not canonical.");
+        var preContactArchive = Validate(PreContactArchiveOwnerCapabilities, "The pre-Contact-archive Workspace Owner capability set is not canonical.");
         return storedCapabilities.SequenceEqual(v1, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v2, StringComparer.Ordinal)
-            || storedCapabilities.SequenceEqual(preContactWrites, StringComparer.Ordinal);
+            || storedCapabilities.SequenceEqual(preContactUpdate, StringComparer.Ordinal)
+            || storedCapabilities.SequenceEqual(preContactArchive, StringComparer.Ordinal);
     }
 
     /// <summary>

@@ -530,16 +530,12 @@ Runtime write unavailable ≠ Read API unavailable
 
 **Mục tiêu:** chốt và implement lifecycle removal đúng business authority.
 
-## 9.1 OPEN DECISION — không được invent
+## 9.1 DEC-C4-001 — CLOSED / APPROVED
 
-**Quyết định bắt buộc:** Contact dùng:
-
-- hard delete;
-- soft delete;
-- archive/deactivate;
-- hoặc kết hợp theo lifecycle.
-
-Owner/Architect phải xác nhận bằng canonical authority. AI không được tự chọn chỉ vì “CRM thường nên soft delete”.
+**Quyết định:** Contact removal dùng Archive / soft delete thông qua `archiveContact` và
+`contacts.delete`; không dùng hard delete cho normal CRUD. Active list loại Contact đã archive;
+direct detail vẫn đọc được và hiển thị archived. Restore, Anonymize và privacy erasure không được
+admit bởi quyết định này. Authority chi tiết: `contact-archive-authority.md`.
 
 ## 9.2 Questions phải được quyết định
 
@@ -1114,7 +1110,7 @@ Các mục sau phải được đóng bằng owner/architect authority trước 
 |---|---|---|---|
 | DEC-C0-001 | Exact source of Contact create/update/delete capability and access semantics | C0 close | OPEN until verified |
 | DEC-C1-001 | Contact duplicate semantics / identity rules | C1 behavior relying on duplicates | OPEN unless authority exists |
-| DEC-C4-001 | Hard delete vs soft delete/archive lifecycle | C4 implementation | OPEN |
+| DEC-C4-001 | Hard delete vs soft delete/archive lifecycle | C4 implementation | CLOSED / APPROVED — Archive / soft delete |
 | DEC-C6-001 | Contact↔Organization cardinality | C6 | OPEN |
 | DEC-C6-002 | Contact↔Customer semantic/cardinality | C6 | OPEN |
 | DEC-WF-001 | Lead conversion create-vs-reuse semantics | WF | OPEN |

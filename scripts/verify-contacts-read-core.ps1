@@ -1,11 +1,10 @@
 <#
 .SYNOPSIS
-    Reproducible Contacts Read Core security verification against an isolated database and real ApiHost.
+    Reproducible Contacts Read and Archive security verification against an isolated database and real ApiHost.
 
 .DESCRIPTION
-    Contacts has no admitted mutation API. This harness therefore seeds owner-local read state with
-    controlled SQL after applying the real Contacts migration, and exercises the public list/detail
-    routes plus the canonical AccessControl evaluator. It never creates a hidden production write path.
+    Seeds controlled owner-local state after real migrations and exercises the public list/detail and
+    Archive routes plus canonical AccessControl, concurrency and idempotency boundaries.
 #>
 [CmdletBinding()]
 param(
@@ -112,6 +111,7 @@ function Invoke-Api {
         [string] $Token,
         [string] $WorkspaceId,
         [string] $IdempotencyKey,
+        [string] $IfMatch,
         [string] $RequestId
     )
     $request = New-Object System.Net.Http.HttpRequestMessage ([System.Net.Http.HttpMethod]::new($Method), "$script:BaseUrl$Path")
@@ -130,6 +130,9 @@ function Invoke-Api {
     }
     if (-not [string]::IsNullOrWhiteSpace($IdempotencyKey)) {
         [void]$request.Headers.TryAddWithoutValidation('Idempotency-Key', $IdempotencyKey)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($IfMatch)) {
+        [void]$request.Headers.TryAddWithoutValidation('If-Match', $IfMatch)
     }
     if (-not [string]::IsNullOrEmpty($Body)) {
         $request.Content = New-Object System.Net.Http.StringContent ($Body, [Text.Encoding]::UTF8, 'application/json')
@@ -488,6 +491,73 @@ WHERE ResourceKey = 'contacts' AND RecordId = '$contactC'
 SELECT COUNT(*) FROM contacts.ReadAuditRecords WHERE ContactId IN ('$contactB', '$contactC')
 "@
     Add-Result 'denied and foreign Contacts never enter owner read audit' '0' ([string]$foreignOwnerAuditRows)
+
+    # ---------------------------------------------------------------- C4 Archive / soft-delete
+
+    $archiveId = 'contact_archive_core_0001'
+    $staleArchiveId = 'contact_archive_stale_0001'
+    $deniedArchiveId = 'contact_archive_denied_0001'
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO contacts.Contacts (ContactId, WorkspaceId, OwnerId, FullName, Status, Version, CreatedAt, UpdatedAt, Profile)
+VALUES
+('$archiveId', '$($script:WorkspaceId)', '$callerMemberId', 'Archive Core', 'active', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), N'{}'),
+('$staleArchiveId', '$($script:WorkspaceId)', '$callerMemberId', 'Archive Stale', 'active', 3, SYSUTCDATETIME(), SYSUTCDATETIME(), N'{}'),
+('$deniedArchiveId', '$($script:WorkspaceId)', '$callerMemberId', 'Archive Denied', 'active', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), N'{}');
+"@
+    $accessContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
+    Add-Result 'assigned contacts.delete is effective' 'True' ($accessContext.Body.capabilities -contains 'contacts.delete').ToString()
+
+    $archive = Invoke-Api -Method 'POST' -Path "/contacts/$archiveId/archive" -Body '{}' -Token $script:Token `
+        -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-contact-archive-core-0001' -IfMatch '"0"'
+    Add-Result 'authorized Archive succeeds' '200' $archive.Status
+    Add-Result 'Archive preserves Contact identity' $archiveId ([string]$archive.Body.aggregateId)
+    Add-Result 'Archive advances version once' '1' ([string]$archive.Body.version)
+    Add-Result 'Archive stores archived lifecycle' 'archived|1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Status,'|',Version) FROM contacts.Contacts WHERE ContactId='$archiveId'"))
+    Add-Result 'Archive physically preserves Contact row' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.Contacts WHERE ContactId='$archiveId'"))
+    Add-Result 'Archive writes one audit record' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$archiveId' AND Operation='archiveContact'"))
+    Add-Result 'Archive emits one CONTACT_ARCHIVED event' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$archiveId' AND EventType='CONTACT_ARCHIVED'"))
+    Add-Result 'active list excludes archived Contact' 'False' ((Invoke-Contact -Method 'GET' -Path '/contacts').Body.id -contains $archiveId).ToString()
+    $archivedDetail = Invoke-Contact -Method 'GET' -Path "/contacts/$archiveId"
+    Add-Result 'direct detail retains archived Contact' '200' $archivedDetail.Status
+    Add-Result 'direct detail represents archived state' 'archived|1' "$($archivedDetail.Body.status)|$($archivedDetail.Body.version)"
+
+    $archiveEffects = Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$archiveId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$archiveId'),'|',(SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$archiveId')) FROM contacts.Contacts WHERE ContactId='$archiveId'"
+    $replay = Invoke-Api -Method 'POST' -Path "/contacts/$archiveId/archive" -Body '{}' -Token $script:Token `
+        -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-contact-archive-core-0001' -IfMatch '"0"'
+    Add-Result 'same-key Archive replay succeeds' '200' $replay.Status
+    Add-Result 'same-key replay is canonical replay' 'REPLAYED' ([string]$replay.Body.outcome)
+    Add-Result 'same-key replay duplicates no effects' $archiveEffects ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$archiveId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$archiveId'),'|',(SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$archiveId')) FROM contacts.Contacts WHERE ContactId='$archiveId'"))
+    $reusedKey = Invoke-Api -Method 'POST' -Path "/contacts/$archiveId/archive" -Body '{}' -Token $script:Token `
+        -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-contact-archive-core-0001' -IfMatch '"1"'
+    Add-Result 'incompatible idempotency-key reuse conflicts' '409|IDEMPOTENCY_KEY_REUSED' "$($reusedKey.Status)|$($reusedKey.Body.code)"
+    $already = Invoke-Api -Method 'POST' -Path "/contacts/$archiveId/archive" -Body '{}' -Token $script:Token `
+        -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-contact-archive-already-0001' -IfMatch '"1"'
+    Add-Result 'new command against archived Contact is canonical conflict' '409|CONTACT_ALREADY_ARCHIVED' "$($already.Status)|$($already.Body.code)"
+    Add-Result 'already-archived attempt creates no effects' $archiveEffects ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$archiveId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$archiveId'),'|',(SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$archiveId')) FROM contacts.Contacts WHERE ContactId='$archiveId'"))
+
+    $staleEffects = Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(ArchivedAt,'|',Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$staleArchiveId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$staleArchiveId'),'|',(SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$staleArchiveId')) FROM contacts.Contacts WHERE ContactId='$staleArchiveId'"
+    $staleArchive = Invoke-Api -Method 'POST' -Path "/contacts/$staleArchiveId/archive" -Body '{}' -Token $script:Token `
+        -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-contact-archive-stale-0001' -IfMatch '"2"'
+    Add-Result 'stale Archive conflicts canonically' '409|RESOURCE_VERSION_CONFLICT' "$($staleArchive.Status)|$($staleArchive.Body.code)"
+    Add-Result 'stale Archive creates no effects' $staleEffects ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(ArchivedAt,'|',Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$staleArchiveId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$staleArchiveId'),'|',(SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$staleArchiveId')) FROM contacts.Contacts WHERE ContactId='$staleArchiveId'"))
+
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='contacts.delete'"
+    $deniedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
+    Add-Result 'missing contacts.delete is not effective' 'False' ($deniedContext.Body.capabilities -contains 'contacts.delete').ToString()
+    $deniedEffects = Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(ArchivedAt,'|',Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$deniedArchiveId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$deniedArchiveId'),'|',(SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$deniedArchiveId')) FROM contacts.Contacts WHERE ContactId='$deniedArchiveId'"
+    $deniedArchive = Invoke-Api -Method 'POST' -Path "/contacts/$deniedArchiveId/archive" -Body '{}' -Token $script:Token `
+        -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-contact-archive-denied-0001' -IfMatch '"0"'
+    Add-Result 'Archive without contacts.delete is denied' '403|ACCESS_DENIED' "$($deniedArchive.Status)|$($deniedArchive.Body.code)"
+    Add-Result 'denied Archive creates no effects' $deniedEffects ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(ArchivedAt,'|',Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$deniedArchiveId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$deniedArchiveId'),'|',(SELECT COUNT(*) FROM contacts.IdempotencyRecords WHERE TargetId='$deniedArchiveId')) FROM contacts.Contacts WHERE ContactId='$deniedArchiveId'"))
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId','contacts.delete')"
+
+    $foreignArchive = Invoke-Api -Method 'POST' -Path "/contacts/$contactC/archive" -Body '{}' -Token $script:Token `
+        -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-contact-archive-foreign-0001' -IfMatch '"1"'
+    Add-Result 'foreign Workspace Archive is hidden' '404|RESOURCE_NOT_FOUND' "$($foreignArchive.Status)|$($foreignArchive.Body.code)"
+    Add-Result 'foreign Workspace Contact remains active' 'active|1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Status,'|',Version) FROM contacts.Contacts WHERE ContactId='$contactC'"))
+    Add-Result 'HTTP DELETE Contact route does not exist' '405' (Invoke-Contact -Method 'DELETE' -Path "/contacts/$archiveId").Status
+    Add-Result 'Contact Restore route remains unavailable' '404' (Invoke-Contact -Method 'POST' -Path "/contacts/$archiveId/restore" -Body '{}').Status
+    Add-Result 'Contact Anonymize route remains unavailable' '404' (Invoke-Contact -Method 'POST' -Path "/contacts/$archiveId/anonymize" -Body '{}').Status
 
     $countBeforeMutationProbe = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts'
     $postProbe = Invoke-Contact -Method 'POST' -Path '/contacts' -Body '{}'

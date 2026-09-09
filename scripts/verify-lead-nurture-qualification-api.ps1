@@ -996,8 +996,7 @@ SELECT CONCAT(
     $effectsAfterStale = Get-Scalar -Database $DatabaseName -Query $contactWriteEffects
     Add-Result 'stale Contact PATCH causes no mutation effect' $effectsAfterSuccessfulUpdate $effectsAfterStale
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-DELETE FROM access.RoleCapabilities WHERE Capability='contacts.update' AND RoleId='$roleId';
-DELETE FROM access.MembershipRoleAssignments WHERE AssignmentId='$customAssignmentId';
+DELETE FROM access.RoleCapabilities WHERE Capability='contacts.update' AND RoleId IN ('$roleId','$customRoleId');
 "@
     $deniedUpdate = Invoke-Api -Method 'PATCH' -Path "/contacts/$($createContact.Body.aggregateId)" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-updatecontact-unauthorized' `
@@ -1007,19 +1006,19 @@ DELETE FROM access.MembershipRoleAssignments WHERE AssignmentId='$customAssignme
     $archiveContact = Invoke-Api -Method 'POST' -Path "/contacts/$($createContact.Body.aggregateId)/archive" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-archivecontact-denied' `
         -IfMatch '"1"' -Body '{}'
-    Add-Result 'archive POST with legacy custom-role contacts.delete is denied' '403' $archiveContact.Status
-    Add-Result 'archive capability denial code' 'ACCESS_DENIED' ([string]$archiveContact.Body.code)
-    Add-Result 'stale and denied Contact writes add no mutation effect' `
-        $effectsAfterStale (Get-Scalar -Database $DatabaseName -Query $contactWriteEffects)
+    Add-Result 'archive POST with assigned custom-role contacts.delete succeeds' '200' $archiveContact.Status
+    Add-Result 'archive advances the authoritative version' '2' ([string]$archiveContact.Body.version)
+    Add-Result 'archive keeps the Contact row and marks it archived' 'archived|2' `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Status,'|',Version) FROM contacts.Contacts WHERE ContactId='$($createContact.Body.aggregateId)'"))
     $authorizedContext = Invoke-Api -Method 'GET' -Path '/access/context' -Token $script:Token -WorkspaceId $script:WorkspaceId
     Add-Result 'authorized access context succeeds' '200' $authorizedContext.Status
     Add-Result 'authorized access context exposes contacts.create' 'True' `
         ($authorizedContext.Body.capabilities -contains 'contacts.create').ToString()
     Add-Result 'access context excludes removed contacts.update' 'False' `
         ($authorizedContext.Body.capabilities -contains 'contacts.update').ToString()
-    Add-Result 'authorized access context excludes contacts.delete' 'False' `
+    Add-Result 'authorized access context exposes assigned contacts.delete' 'True' `
         ($authorizedContext.Body.capabilities -contains 'contacts.delete').ToString()
-    Add-Result 'legacy custom-role Contact capability rows remain persisted' '2' `
+    Add-Result 'custom-role contacts.delete remains persisted and effective' '1' `
         ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$customRoleId' AND Capability IN ('contacts.update','contacts.delete')"))
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='contacts.create'"

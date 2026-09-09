@@ -32,7 +32,7 @@ $checks = [System.Collections.Generic.List[string]]::new()
 # read capability while production provisioning remains correct.
 $expectedInitialCapabilities = @(
     'access.configure', 'access.read',
-    'contacts.create', 'contacts.read',
+    'contacts.create', 'contacts.read', 'contacts.update', 'contacts.delete',
     'customers.view',
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'invoices.create', 'invoices.create_credit_note', 'invoices.edit', 'invoices.issue', 'invoices.read', 'invoices.send', 'invoices.update_draft', 'invoices.void',
@@ -332,7 +332,7 @@ try {
     Assert-True ($roleCapabilityCount -eq $expectedInitialCapabilities.Count) 'C: initial role carries the server-owned capability set'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='contacts.read';") -eq 1) 'C: initial Workspace provisioning grants contacts.read exactly once'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='contacts.create';") -eq 1) 'C: initial Workspace provisioning grants contacts.create exactly once'
-    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability LIKE 'contacts.%' AND c.Capability NOT IN ('contacts.read','contacts.create');") -eq 0) 'C: initial role grants no unsupported Contacts capability'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability LIKE 'contacts.%' AND c.Capability NOT IN ('contacts.read','contacts.create','contacts.update','contacts.delete');") -eq 0) 'C: initial role grants no unsupported Contacts capability'
     $listAfterFinish = Get-Workspaces $tokenA
     Assert-True ($listAfterFinish.items.Count -eq 1 -and $listAfterFinish.items[0].workspaceId -eq $workspaceA) 'C: listMyWorkspaces returns the new Workspace'
     Assert-True ($listAfterFinish.items[0].workspaceKey -eq $finishBody.workspace.workspaceKey) 'C: response carries the authoritative Workspace key'
