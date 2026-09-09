@@ -186,6 +186,8 @@ function Same-Problem {
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $hostProject = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj'
+$hostExe = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/bin/Debug/net10.0/UnicoreCRM.ApiHost.exe'
+$contentRoot = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost'
 $crmProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj'
 $demoEmail = 'contacts.read.provisioned@example.test'
 $demoPassword = 'Contacts-Read-Core!2026'
@@ -221,13 +223,25 @@ CREATE DATABASE [$DatabaseName];
     $env:IdentityAuth__DevelopmentBootstrap__Email = $demoEmail
     $env:IdentityAuth__DevelopmentBootstrap__Password = $demoPassword
     $env:IdentityAuth__DevelopmentBootstrap__DisplayName = 'Contacts Provisioning Fixture'
+    $env:IdentityAuth__Jwt__SigningKey = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
+    $env:IdentityAuth__RefreshTokenPepper = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
     $env:Workspace__DevelopmentBootstrap__Enabled = 'false'
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = 'false'
     $env:AI__Provider__Kind = 'DevelopmentDeterministic'
 
-    $hostProcess = Start-Process -FilePath 'dotnet' `
-        -ArgumentList @('run', '--no-build', '--no-launch-profile', '--project', $hostProject) `
+    Push-Location $repositoryRoot
+    try {
+        & dotnet build $hostProject -v q --nologo | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "ApiHost build failed with exit code $LASTEXITCODE." }
+        & dotnet run --no-build --no-launch-profile --project $hostProject -- --migrate | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Owner schema migration failed with exit code $LASTEXITCODE." }
+        & dotnet run --no-build --no-launch-profile --project $hostProject -- --seed-demo | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Development bootstrap failed with exit code $LASTEXITCODE." }
+    }
+    finally { Pop-Location }
+
+    $hostProcess = Start-Process -FilePath $hostExe -WorkingDirectory $contentRoot `
         -PassThru -WindowStyle Hidden -RedirectStandardOutput $logPath -RedirectStandardError "$logPath.err"
 
     $ready = $false
