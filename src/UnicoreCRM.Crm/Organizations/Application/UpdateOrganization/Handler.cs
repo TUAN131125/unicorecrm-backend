@@ -9,7 +9,7 @@ internal sealed class Handler(OrganizationAuthorization authorization, IOrganiza
     {
         var meta=new OrganizationRequestMetadata(command.Metadata.RequestId,command.Metadata.CorrelationId); var access=await authorization.AuthorizeAsync(meta,OrganizationCapabilities.Update,ct);
         if(!access.IsSuccess)return OrganizationOperationResult<OrganizationMutationResponse>.Failure(access.Error!);
-        var validation=OrganizationMutationSupport.Validate(command.Request.DisplayName,command.Request.Status,false); if(validation is not null)return OrganizationOperationResult<OrganizationMutationResponse>.Failure(validation);
+        var validation=OrganizationMutationSupport.Validate(command.Request); if(validation is not null)return OrganizationOperationResult<OrganizationMutationResponse>.Failure(validation);
         var trusted=access.Value!.Trusted; var fingerprint=OrganizationMutationSupport.Fingerprint(new{command.OrganizationId,command.Request,command.Metadata.ExpectedVersion}); await using var tx=await persistence.BeginSerializableAsync(ct);
         var scope=OrganizationMutationSupport.ScopeKey(trusted,"updateOrganization",command.OrganizationId,command.Metadata.IdempotencyKey); var prior=await persistence.FindIdempotencyAsync(scope,ct);
         if(prior is not null)return prior.Fingerprint==fingerprint?OrganizationOperationResult<OrganizationMutationResponse>.Success(OrganizationMutationSupport.Replay(prior)):OrganizationOperationResult<OrganizationMutationResponse>.Failure(OrganizationErrors.IdempotencyReused());

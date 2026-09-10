@@ -11,7 +11,7 @@ internal sealed class Handler(OrganizationAuthorization authorization, IOrganiza
         var meta = new OrganizationRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
         var access = await authorization.AuthorizeAsync(meta, OrganizationCapabilities.Create, ct);
         if (!access.IsSuccess) return OrganizationOperationResult<OrganizationMutationResponse>.Failure(access.Error!);
-        var validation = OrganizationMutationSupport.Validate(command.Request.DisplayName, command.Request.Status, true);
+        var validation = OrganizationMutationSupport.Validate(command.Request);
         if (validation is not null) return OrganizationOperationResult<OrganizationMutationResponse>.Failure(validation);
         var trusted = access.Value!.Trusted; var fingerprint = OrganizationMutationSupport.Fingerprint(command.Request);
         await using var tx = await persistence.BeginSerializableAsync(ct);

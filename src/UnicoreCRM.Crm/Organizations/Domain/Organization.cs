@@ -18,6 +18,7 @@ internal sealed class Organization
         CreatedAt = now;
         UpdatedAt = now;
         Profile = profile;
+        SyncQueryProjections();
     }
 
     internal string OrganizationId { get; private set; } = null!;
@@ -29,6 +30,9 @@ internal sealed class Organization
     internal DateTimeOffset CreatedAt { get; private set; }
     internal DateTimeOffset UpdatedAt { get; private set; }
     internal OrganizationProfile Profile { get; private set; } = new();
+    internal string SearchText { get; private set; } = null!;
+    internal string? Industry { get; private set; }
+    internal string? SizeBand { get; private set; }
 
     internal void Update(string displayName, string status, OrganizationProfile profile, DateTimeOffset now)
     {
@@ -36,6 +40,7 @@ internal sealed class Organization
         DisplayName = displayName;
         Status = status;
         Profile = profile;
+        SyncQueryProjections();
         UpdatedAt = now;
         Version++;
     }
@@ -46,6 +51,22 @@ internal sealed class Organization
         Status = "archived";
         UpdatedAt = now;
         Version++;
+    }
+
+    private void SyncQueryProjections()
+    {
+        Industry = Normalize(Profile.Industry, 160);
+        SizeBand = Normalize(Profile.SizeBand, 80);
+        var searchText = string.Join(' ', new[] { DisplayName, Profile.LegalName, Profile.TaxCode, Profile.Domain }
+            .Where(value => !string.IsNullOrWhiteSpace(value))).ToUpperInvariant();
+        SearchText = searchText[..Math.Min(800, searchText.Length)];
+    }
+
+    private static string? Normalize(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = value.Trim().ToUpperInvariant();
+        return normalized[..Math.Min(maxLength, normalized.Length)];
     }
 }
 

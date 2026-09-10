@@ -24,6 +24,18 @@ internal interface IOrganizationsPersistence
     Task<Organization?> ReadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, IReadOnlyCollection<string> organizationIds, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Organization>> ListOrganizationsAsync(
+        string workspaceId,
+        string? scopeOwnerMemberId,
+        string? ownerId,
+        string? status,
+        string? industry,
+        string? sizeBand,
+        string? normalizedSearch,
+        DateTimeOffset? cursorCreatedAt,
+        string? cursorOrganizationId,
+        int take,
+        CancellationToken cancellationToken);
     Task<Organization?> LoadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
     void AddOrganization(Organization organization);
     Task<OrganizationIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);

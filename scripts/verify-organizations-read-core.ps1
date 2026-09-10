@@ -175,8 +175,8 @@ function Set-OrganizationScope {
     param([string] $RoleId, [string] $Scope)
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 DELETE FROM access.RoleDataScopes WHERE PolicyId = 'scope_organizations_read_core';
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
-VALUES ('scope_organizations_read_core', '$RoleId', 'organizations', '$Scope', '[]');
+INSERT INTO access.RoleDataScopes (PolicyId, WorkspaceId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
+VALUES ('scope_organizations_read_core', '$($script:WorkspaceId)', '$RoleId', 'organizations', '$Scope', '[]');
 "@
 }
 
@@ -204,6 +204,8 @@ $logPath = Join-Path ([IO.Path]::GetTempPath()) ("unicore-organizations-read-$([
 $organizationA = 'organization_read_core_a'
 $organizationB = 'organization_read_core_b'
 $organizationC = 'organization_read_core_c'
+$organizationD = 'organization_read_core_d'
+$organizationE = 'organization_read_core_archived'
 $organizationUnknown = 'organization_read_core_unknown'
 $secretA = 'organization-a-private@example.test'
 $secretB = 'ORGANIZATION-B-HIDDEN-BUSINESS-VALUE'
@@ -235,6 +237,11 @@ CREATE DATABASE [$DatabaseName];
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = 'false'
     $env:AI__Provider__Kind = 'DevelopmentDeterministic'
+
+    & dotnet run --no-build --no-launch-profile --project $hostProject -- --migrate
+    if ($LASTEXITCODE -ne 0) { throw "Owner schema migration command failed with exit code $LASTEXITCODE." }
+    & dotnet run --no-build --no-launch-profile --project $hostProject -- --seed-demo
+    if ($LASTEXITCODE -ne 0) { throw "Development bootstrap command failed with exit code $LASTEXITCODE." }
 
     $hostProcess = Start-Process -FilePath 'dotnet' `
         -ArgumentList @('run', '--no-build', '--no-launch-profile', '--project', $hostProject) `
@@ -283,17 +290,15 @@ CREATE DATABASE [$DatabaseName];
     }
     $provisionedOrganizationsRead = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'organizations.read'"
-    Add-Result 'initial Workspace provisioning does not invent organizations.read default authority' '0' ([string]$provisionedOrganizationsRead)
+    Add-Result 'initial Workspace provisioning admits organizations.read authority' '1' ([string]$provisionedOrganizationsRead)
     $provisionedBootstrap = Invoke-Api -Method 'GET' -Path "/workspaces/$($script:WorkspaceId)/bootstrap" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId
     Add-Result 'provisioned Workspace bootstrap succeeds' '200' $provisionedBootstrap.Status
-    Add-Result 'initial Workspace provisioning preserves the exact existing module defaults' `
-        'contacts,leads,deals,tasks' `
-        ((@($provisionedBootstrap.Body.configuration.enabledModuleKeys)) -join ',')
+    Add-Result 'initial Workspace provisioning enables the admitted Organizations module' `
+        'True' `
+        ((@($provisionedBootstrap.Body.configuration.enabledModuleKeys) -contains 'organizations').ToString())
 
-    Invoke-SqlNonQuery -Database $DatabaseName `
-        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'organizations.read')"
-    Add-Result 'controlled fixture grants one canonical organizations.read' '1' `
+    Add-Result 'controlled fixture has one canonical organizations.read' '1' `
         ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'organizations.read'"))
 
     $organizationsTable = Get-Scalar -Database $DatabaseName `
@@ -307,7 +312,7 @@ SELECT COUNT(*) FROM sys.indexes i
 JOIN sys.tables t ON t.object_id = i.object_id
 JOIN sys.schemas s ON s.schema_id = t.schema_id
 WHERE s.name = 'organizations' AND t.name = 'Organizations'
-  AND i.name = 'IX_Organizations_WorkspaceId_CreatedAt_OrganizationId'
+  AND i.name = 'IX_Organizations_WorkspaceId_Status_CreatedAt_OrganizationId'
 "@
     Add-Result 'Organizations Workspace list index applied' '1' ([string]$indexCount)
 
@@ -320,24 +325,29 @@ INSERT INTO workspace.Memberships (MembershipId, WorkspaceId, AccountId, MemberI
 VALUES ('wsm-organizations-read-other', '$($script:WorkspaceId)', 'acc-organizations-read-other', 'mem-organizations-read-other', 'Active', SYSUTCDATETIME());
 
 INSERT INTO organizations.Organizations
-(OrganizationId, WorkspaceId, DisplayName, Status, Version, CreatedAt, UpdatedAt, Profile)
+(OrganizationId, WorkspaceId, DisplayName, Status, OwnerId, Version, CreatedAt, UpdatedAt, Profile, SearchText, Industry, SizeBand)
 VALUES
-('$organizationA', '$($script:WorkspaceId)', 'Organization Alpha', 'active', 4,
- DATEADD(minute, -30, SYSUTCDATETIME()), DATEADD(minute, -5, SYSUTCDATETIME()),
- N'{"legalName":"Organization Alpha Legal","email":"$secretA","phone":"0900000001","source":"verified-fixture","notes":"READ_ONLY-ORGANIZATION-NOTE","ownerId":"$callerMemberId","primaryContactId":"contact_scalar_a","contactRefs":["contact_scalar_a"],"employeeCount":25,"annualRevenue":1234.56}'),
-('$organizationB', '$($script:WorkspaceId)', 'Organization Beta', 'prospect', 2,
- DATEADD(minute, -20, SYSUTCDATETIME()), DATEADD(minute, -4, SYSUTCDATETIME()),
- N'{"email":"beta@example.test","phone":"$secretB","source":"verified-fixture","notes":"Other organization note","ownerId":"mem-organizations-read-other"}'),
-('$organizationC', '$foreignWorkspaceId', 'Organization Foreign', 'active', 1,
- DATEADD(minute, -10, SYSUTCDATETIME()), DATEADD(minute, -3, SYSUTCDATETIME()),
- N'{"email":"foreign@example.test","phone":"$secretC","notes":"Foreign organization note","ownerId":"mem-organizations-read-other"}');
+('$organizationA', '$($script:WorkspaceId)', 'Organization Alpha', 'active', '$callerMemberId', 4,
+ '2026-08-01T10:00:00Z', '2026-08-01T10:05:00Z',
+ N'{"legalName":"Organization Alpha Legal","taxCode":"TAX-ALPHA","domain":"alpha.test","industry":"Technology","sizeBand":"SMB","email":"$secretA","phone":"0900000001","source":"verified-fixture","notes":"READ_ONLY-ORGANIZATION-NOTE","employeeCount":25,"annualRevenue":1234.56}', N'ORGANIZATION ALPHA ORGANIZATION ALPHA LEGAL TAX-ALPHA ALPHA.TEST', N'TECHNOLOGY', N'SMB'),
+('$organizationD', '$($script:WorkspaceId)', 'Organization Delta', 'active', '$callerMemberId', 3,
+ '2026-08-01T10:00:00Z', '2026-08-01T10:04:00Z',
+ N'{"industry":"Technology","sizeBand":"ENTERPRISE"}', N'ORGANIZATION DELTA', N'TECHNOLOGY', N'ENTERPRISE'),
+('$organizationB', '$($script:WorkspaceId)', 'Organization Beta', 'prospect', 'mem-organizations-read-other', 2,
+ '2026-07-31T10:00:00Z', '2026-07-31T10:04:00Z',
+ N'{"email":"beta@example.test","phone":"$secretB","source":"verified-fixture","notes":"Other organization note","industry":"Finance","sizeBand":"SMB"}', N'ORGANIZATION BETA', N'FINANCE', N'SMB'),
+('$organizationE', '$($script:WorkspaceId)', 'Organization Archived', 'archived', '$callerMemberId', 5,
+ '2026-07-30T10:00:00Z', '2026-07-30T10:04:00Z', N'{"industry":"Technology","sizeBand":"SMB"}', N'ORGANIZATION ARCHIVED', N'TECHNOLOGY', N'SMB'),
+('$organizationC', '$foreignWorkspaceId', 'Organization Foreign', 'active', 'mem-organizations-read-other', 1,
+ '2026-08-02T10:00:00Z', '2026-08-02T10:03:00Z',
+ N'{"email":"foreign@example.test","phone":"$secretC","notes":"Foreign organization note","industry":"Technology","sizeBand":"SMB"}', N'ORGANIZATION FOREIGN', N'TECHNOLOGY', N'SMB');
 "@
 
     Set-OrganizationScope -RoleId $roleId -Scope 'Workspace'
 
     $provisionedList = Invoke-Organization -Method 'GET' -Path '/organizations'
     Add-Result 'controlled organizations.read permits the first Organizations list' '200' $provisionedList.Status
-    Add-Result 'first Organizations list contains only trusted Workspace rows' '2' ([string]$provisionedList.Body.Count)
+    Add-Result 'first Organizations list contains only non-archived trusted Workspace rows' '3' ([string]$provisionedList.Body.items.Count)
 
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'organizations.read'"
@@ -350,12 +360,38 @@ VALUES
 
     $workspaceList = Invoke-Organization -Method 'GET' -Path '/organizations'
     Add-Result 'WORKSPACE list succeeds' '200' $workspaceList.Status
-    Add-Result 'list is the admitted plain array representation' '2' ([string]$workspaceList.Body.Count)
-    Add-Result 'list includes trusted Organization A' 'True' ($workspaceList.Body.id -contains $organizationA).ToString()
-    Add-Result 'list includes trusted Organization B' 'True' ($workspaceList.Body.id -contains $organizationB).ToString()
-    Add-Result 'foreign Workspace Organization absent from list' 'False' ($workspaceList.Body.id -contains $organizationC).ToString()
+    Add-Result 'list uses admitted items plus PageInfo representation' '3' ([string]$workspaceList.Body.items.Count)
+    Add-Result 'list includes trusted Organization A' 'True' ($workspaceList.Body.items.id -contains $organizationA).ToString()
+    Add-Result 'list includes trusted Organization B' 'True' ($workspaceList.Body.items.id -contains $organizationB).ToString()
+    Add-Result 'foreign Workspace Organization absent from list' 'False' ($workspaceList.Body.items.id -contains $organizationC).ToString()
     Add-Result 'foreign business value absent from list bytes' 'True' ($workspaceList.Raw -notmatch [regex]::Escape($secretC)).ToString()
-    Add-Result 'unadmitted page metadata absent' 'True' ($workspaceList.Raw -notmatch 'pageInfo|totalCount|nextCursor').ToString()
+    Add-Result 'terminal PageInfo is authoritative' 'False' ([string]$workspaceList.Body.pageInfo.hasNextPage)
+
+    $page1 = Invoke-Organization -Method 'GET' -Path '/organizations?limit=2'
+    Add-Result 'first bounded page contains limit rows' '2' ([string]$page1.Body.items.Count)
+    Add-Result 'first bounded page reports continuation' 'True' ([string]$page1.Body.pageInfo.hasNextPage)
+    Add-Result 'first bounded page emits cursor' 'True' (-not [string]::IsNullOrWhiteSpace($page1.Body.pageInfo.nextCursor)).ToString()
+    Add-Result 'equal timestamp tie orders OrganizationId ascending' "$organizationA,$organizationD" (($page1.Body.items.id) -join ',')
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO organizations.Organizations
+(OrganizationId, WorkspaceId, DisplayName, Status, OwnerId, Version, CreatedAt, UpdatedAt, Profile, SearchText, Industry, SizeBand)
+VALUES ('organization_inserted_ahead', '$($script:WorkspaceId)', 'Inserted Ahead', 'active', '$callerMemberId', 0,
+'2026-08-03T10:00:00Z', '2026-08-03T10:00:00Z', N'{}', N'INSERTED AHEAD', NULL, NULL)
+"@
+    $page2 = Invoke-Organization -Method 'GET' -Path ("/organizations?limit=2&cursor={0}" -f $page1.Body.pageInfo.nextCursor)
+    Add-Result 'second page contains following row' $organizationB $page2.Body.items[0].id
+    Add-Result 'paged traversal has no duplicate IDs' 'True' ((@($page1.Body.items.id + $page2.Body.items.id) | Select-Object -Unique).Count -eq 3).ToString()
+    Add-Result 'paged traversal has no skipped IDs' "$organizationA,$organizationD,$organizationB" (($page1.Body.items.id + $page2.Body.items.id) -join ',')
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM organizations.Organizations WHERE OrganizationId = 'organization_inserted_ahead' AND WorkspaceId = '$($script:WorkspaceId)'"
+    Add-Result 'terminal page has no continuation' 'False' ([string]$page2.Body.pageInfo.hasNextPage)
+    Add-Result 'malformed cursor is canonical validation failure' '422' (Invoke-Organization -Method 'GET' -Path '/organizations?cursor=not-a-valid-cursor').Status
+    Add-Result 'q applies before pagination' $organizationA (Invoke-Organization -Method 'GET' -Path '/organizations?q=TAX-ALPHA&limit=1').Body.items[0].id
+    Add-Result 'status applies before pagination' $organizationB (Invoke-Organization -Method 'GET' -Path '/organizations?status=prospect&limit=1').Body.items[0].id
+    Add-Result 'industry applies before pagination' '2' ([string](Invoke-Organization -Method 'GET' -Path '/organizations?industry=Technology&limit=10').Body.items.Count)
+    Add-Result 'sizeBand applies before pagination' '2' ([string](Invoke-Organization -Method 'GET' -Path '/organizations?sizeBand=SMB&limit=10').Body.items.Count)
+    Add-Result 'ownerId applies before pagination' '2' ([string](Invoke-Organization -Method 'GET' -Path "/organizations?ownerId=$callerMemberId&limit=10").Body.items.Count)
+    Add-Result 'default list excludes archived' 'False' ($workspaceList.Body.items.id -contains $organizationE).ToString()
+    Add-Result 'explicit archived status returns archived row' $organizationE (Invoke-Organization -Method 'GET' -Path '/organizations?status=archived').Body.items[0].id
 
     $organizationDetail = Invoke-Organization -Method 'GET' -Path "/organizations/$organizationA"
     Add-Result 'own Workspace detail succeeds' '200' $organizationDetail.Status
@@ -376,31 +412,32 @@ VALUES
     $ownDetail = Invoke-Organization -Method 'GET' -Path "/organizations/$organizationA"
     $hiddenDetail = Invoke-Organization -Method 'GET' -Path "/organizations/$organizationB"
     $ownUnknown = Invoke-Organization -Method 'GET' -Path "/organizations/$organizationUnknown"
-    Add-Result 'unresolved OWN fails closed even when ownerId resembles caller' '404' $ownDetail.Status
+    Add-Result 'OWN detail permits canonical owner' '200' $ownDetail.Status
     Add-Result 'unresolved OWN hides same-Workspace Organization' '404' $hiddenDetail.Status
     Add-Result 'scope-hidden and unknown problem behavior match' 'True' (Same-Problem $hiddenDetail $ownUnknown).ToString()
     Add-Result 'scope-hidden response leaks no business value' 'True' `
         (($hiddenDetail.Raw -notmatch [regex]::Escape($secretB)) -and ($hiddenDetail.Raw -notmatch 'Organization Beta')).ToString()
     $ownList = Invoke-Organization -Method 'GET' -Path '/organizations'
-    Add-Result 'unresolved OWN list fails closed before materialization' '0' ([string]$ownList.Body.Count)
+    Add-Result 'OWN list is pushed to canonical owner rows' '2' ([string]$ownList.Body.items.Count)
+    Add-Result 'OWN filter cannot be escaped with another ownerId' '0' ([string](Invoke-Organization -Method 'GET' -Path '/organizations?ownerId=mem-organizations-read-other').Body.items.Count)
 
     foreach ($unsupported in @('Team', 'Custom')) {
         Set-OrganizationScope -RoleId $roleId -Scope $unsupported
         Add-Result ("{0} detail fails closed" -f $unsupported.ToUpperInvariant()) '404' `
             (Invoke-Organization -Method 'GET' -Path "/organizations/$organizationA").Status
         Add-Result ("{0} list fails closed" -f $unsupported.ToUpperInvariant()) '0' `
-            ([string](Invoke-Organization -Method 'GET' -Path '/organizations').Body.Count)
+            ([string](Invoke-Organization -Method 'GET' -Path '/organizations').Body.items.Count)
     }
 
     Set-OrganizationScope -RoleId $roleId -Scope 'Workspace'
     Clear-OrganizationFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
-('field_organizations_read_email', '$roleId', 'organizations', 'email', 'Hidden'),
-('field_organizations_read_phone', '$roleId', 'organizations', 'phone', 'Masked'),
-('field_organizations_read_notes', '$roleId', 'organizations', 'notes', 'ReadOnly'),
-('field_organizations_read_source', '$roleId', 'organizations', 'source', 'ReadWrite'),
-('field_organizations_read_unknown', '$roleId', 'organizations', 'ghostField', 'ReadWrite');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('field_organizations_read_email', '$($script:WorkspaceId)', '$roleId', 'organizations', 'email', 'Hidden'),
+('field_organizations_read_phone', '$($script:WorkspaceId)', '$roleId', 'organizations', 'phone', 'Masked'),
+('field_organizations_read_notes', '$($script:WorkspaceId)', '$roleId', 'organizations', 'notes', 'ReadOnly'),
+('field_organizations_read_source', '$($script:WorkspaceId)', '$roleId', 'organizations', 'source', 'ReadWrite'),
+('field_organizations_read_unknown', '$($script:WorkspaceId)', '$roleId', 'organizations', 'ghostField', 'ReadWrite');
 "@
     $fieldDetail = Invoke-Organization -Method 'GET' -Path "/organizations/$organizationA"
     Add-Result 'optional HIDDEN field omitted' 'True' ($fieldDetail.Raw -notmatch '"email"').ToString()
@@ -431,8 +468,8 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
 
     Clear-OrganizationFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_organizations_read_required', '$roleId', 'organizations', 'displayName', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (PolicyId, WorkspaceId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('field_organizations_read_required', '$($script:WorkspaceId)', '$roleId', 'organizations', 'displayName', 'Hidden');
 "@
     $requiredRestricted = Invoke-Organization -Method 'GET' -Path "/organizations/$organizationA"
     Add-Result 'required-field restriction fails operation closed' '403' $requiredRestricted.Status
@@ -490,20 +527,14 @@ WHERE WorkspaceId = '$($script:WorkspaceId)' AND OrganizationId IN ('$organizati
 "@
     Add-Result 'denied and foreign Organizations never enter owner read audit' '0' ([string]$foreignOwnerAuditRows)
 
-    $countBeforeMutationProbe = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM organizations.Organizations'
-    $postProbe = Invoke-Organization -Method 'POST' -Path '/organizations' -Body '{}'
+    $countBeforeRouteProbe = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM organizations.Organizations'
     $putProbe = Invoke-Organization -Method 'PUT' -Path "/organizations/$organizationA" -Body '{}'
-    $patchProbe = Invoke-Organization -Method 'PATCH' -Path "/organizations/$organizationA" -Body '{}'
-    $deleteProbe = Invoke-Organization -Method 'DELETE' -Path "/organizations/$organizationA"
     $linkProbe = Invoke-Organization -Method 'PUT' -Path "/organizations/$organizationA/contacts/contact_scalar_a" -Body '{}'
     $overviewProbe = Invoke-Organization -Method 'GET' -Path "/organizations/$organizationA/overview"
-    Add-Result 'create Organization method is not mapped' '405' $postProbe.Status
     Add-Result 'replace Organization method is not mapped' '405' $putProbe.Status
-    Add-Result 'update Organization method is not mapped' '405' $patchProbe.Status
-    Add-Result 'delete Organization method is not mapped' '405' $deleteProbe.Status
     Add-Result 'link Contact to Organization route is absent' '404' $linkProbe.Status
-    Add-Result 'composed Organization overview route is absent from read core' '404' $overviewProbe.Status
-    Add-Result 'mutation probes changed no Organization state' ([string]$countBeforeMutationProbe) `
+    Add-Result 'composed Organization overview remains readable' '200' $overviewProbe.Status
+    Add-Result 'route probes changed no Organization state' ([string]$countBeforeRouteProbe) `
         ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM organizations.Organizations'))
 
     $healthy = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token

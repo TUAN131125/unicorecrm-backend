@@ -47,6 +47,36 @@ internal sealed class EfOrganizationsPersistence(OrganizationsDbContext dbContex
             .ThenBy(item => item.OrganizationId)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Organization>> ListOrganizationsAsync(
+        string workspaceId, string? scopeOwnerMemberId, string? ownerId, string? status,
+        string? industry, string? sizeBand, string? normalizedSearch,
+        DateTimeOffset? cursorCreatedAt, string? cursorOrganizationId, int take,
+        CancellationToken cancellationToken)
+    {
+        IQueryable<Organization> query = dbContext.Organizations.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId);
+        if (scopeOwnerMemberId is not null)
+            query = query.Where(item => item.OwnerId == scopeOwnerMemberId);
+        if (ownerId is not null)
+            query = query.Where(item => item.OwnerId == ownerId);
+        query = status is null
+            ? query.Where(item => item.Status != "archived")
+            : query.Where(item => item.Status == status);
+        if (industry is not null)
+            query = query.Where(item => item.Industry == industry);
+        if (sizeBand is not null)
+            query = query.Where(item => item.SizeBand == sizeBand);
+        if (normalizedSearch is not null)
+            query = query.Where(item => item.SearchText.Contains(normalizedSearch));
+        if (cursorCreatedAt is not null && cursorOrganizationId is not null)
+            query = query.Where(item => item.CreatedAt < cursorCreatedAt
+                || (item.CreatedAt == cursorCreatedAt && string.Compare(item.OrganizationId, cursorOrganizationId) > 0));
+        return await query.OrderByDescending(item => item.CreatedAt)
+            .ThenBy(item => item.OrganizationId)
+            .Take(take)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(
         string workspaceId, IReadOnlyCollection<string> organizationIds, CancellationToken cancellationToken) =>
         await dbContext.Organizations.AsNoTracking()

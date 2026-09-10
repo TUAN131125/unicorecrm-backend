@@ -29,12 +29,18 @@ internal sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbCon
             entity.Property(item => item.Status).HasMaxLength(40);
             // Nullable by design: pre-O rows remain unowned rather than receiving a guessed owner.
             entity.Property(item => item.OwnerId).HasMaxLength(128);
+            entity.Property(item => item.SearchText).HasMaxLength(800).IsRequired();
+            entity.Property(item => item.Industry).HasMaxLength(160);
+            entity.Property(item => item.SizeBand).HasMaxLength(80);
             entity.Property(item => item.Version);
             entity.Property(item => item.UpdatedAt);
             entity.Property(item => item.Profile).HasConversion<OrganizationProfileValueConverter>().HasColumnType("nvarchar(max)");
-            entity.HasIndex(item => new { item.WorkspaceId, item.CreatedAt, item.OrganizationId })
-                .IsDescending(false, true, false);
-            entity.HasIndex(item => new { item.WorkspaceId, item.OwnerId, item.CreatedAt, item.OrganizationId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.Status, item.CreatedAt, item.OrganizationId })
+                .IsDescending(false, false, true, false);
+            entity.HasIndex(item => new { item.WorkspaceId, item.OwnerId, item.Status, item.CreatedAt, item.OrganizationId })
+                .IsDescending(false, false, false, true, false);
+            entity.HasIndex(item => new { item.WorkspaceId, item.Industry });
+            entity.HasIndex(item => new { item.WorkspaceId, item.SizeBand });
         });
 
         modelBuilder.Entity<OrganizationReadAuditRecord>(entity =>
