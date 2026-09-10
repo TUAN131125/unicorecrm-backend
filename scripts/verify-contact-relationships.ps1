@@ -37,7 +37,10 @@ function Invoke-Api {
     [void]$request.Headers.TryAddWithoutValidation('X-Request-Id',('req-c6-{0:d8}' -f $script:RequestCounter)); [void]$request.Headers.TryAddWithoutValidation('X-Correlation-Id','corr-contact-relationships-c6')
     if($Token){[void]$request.Headers.TryAddWithoutValidation('Authorization',"Bearer $Token")}; if($WorkspaceId){[void]$request.Headers.TryAddWithoutValidation('X-Workspace-Id',$WorkspaceId)}
     if($IdempotencyKey){[void]$request.Headers.TryAddWithoutValidation('Idempotency-Key',$IdempotencyKey)}; if($IfMatch){[void]$request.Headers.TryAddWithoutValidation('If-Match',$IfMatch)}
-    if($null-ne$Body){$request.Content=New-Object System.Net.Http.StringContent ($Body,[Text.Encoding]::UTF8,'application/json')}
+    # Windows PowerShell coerces an omitted [string] parameter to "". Never attach
+    # that synthetic empty body to GET/HEAD: .NET Framework rejects it before the
+    # readiness request reaches Kestrel.
+    if($Method -notin @('GET','HEAD') -and $null-ne$Body){$request.Content=New-Object System.Net.Http.StringContent ($Body,[Text.Encoding]::UTF8,'application/json')}
     $handler=New-Object System.Net.Http.HttpClientHandler; $handler.UseProxy=$false; $handler.AllowAutoRedirect=$false; $client=New-Object System.Net.Http.HttpClient($handler,$true); $client.Timeout=[TimeSpan]::FromSeconds(60)
     try{$response=$client.SendAsync($request).GetAwaiter().GetResult();$raw=$response.Content.ReadAsStringAsync().GetAwaiter().GetResult();$status=[int]$response.StatusCode}finally{$client.Dispose();$request.Dispose()}
     $payload=$null;if($raw){try{$payload=$raw|ConvertFrom-Json}catch{}};[pscustomobject]@{Status=$status;Body=$payload;Raw=$raw}
