@@ -92,11 +92,16 @@ internal sealed class OrganizationAuthorization(IRecordAccessEvaluator evaluator
 
     internal async Task<OrganizationOperationResult<OrganizationAccess>> AuthorizeAsync(
         OrganizationRequestMetadata metadata,
+        CancellationToken cancellationToken) => await AuthorizeAsync(metadata, OrganizationCapabilities.Read, cancellationToken);
+
+    internal async Task<OrganizationOperationResult<OrganizationAccess>> AuthorizeAsync(
+        OrganizationRequestMetadata metadata,
+        AccessRequirement requirement,
         CancellationToken cancellationToken)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
-            OrganizationCapabilities.Read.Capability,
+            requirement.Capability,
             OrganizationFieldSecurity.FieldKeys,
             RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
@@ -135,7 +140,5 @@ internal sealed class OrganizationAuthorization(IRecordAccessEvaluator evaluator
         return decision.IsAllowed ? null : OrganizationErrors.NotFound();
     }
 
-    // Current authority admits ownerId as an Organization field, but does not establish it as the
-    // canonical AccessControl ownership fact. Returning no owner makes OWN fail closed.
-    internal static RecordAccessFacts Facts(Organization organization) => RecordAccessFacts.Found(null);
+    internal static RecordAccessFacts Facts(Organization organization) => RecordAccessFacts.Found(organization.OwnerId);
 }

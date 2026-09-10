@@ -1,21 +1,52 @@
 namespace UnicoreCRM.Crm.Organizations.Domain;
 
 /// <summary>
-/// Organizations-owned durable read state. This slice has no mutation surface; controlled fixtures
-/// and future admitted owner workflows are the only ways state can enter the table.
+/// Organizations-owned durable aggregate. Relationship membership remains Contacts-owned.
 /// </summary>
 internal sealed class Organization
 {
     private Organization() { }
 
+    internal Organization(string workspaceId, string ownerId, string displayName, string status, OrganizationProfile profile, DateTimeOffset now)
+    {
+        OrganizationId = $"organization_{Guid.NewGuid():N}";
+        WorkspaceId = workspaceId;
+        OwnerId = ownerId;
+        DisplayName = displayName;
+        Status = status;
+        Version = 0;
+        CreatedAt = now;
+        UpdatedAt = now;
+        Profile = profile;
+    }
+
     internal string OrganizationId { get; private set; } = null!;
     internal string WorkspaceId { get; private set; } = null!;
     internal string DisplayName { get; private set; } = null!;
     internal string Status { get; private set; } = null!;
+    internal string? OwnerId { get; private set; }
     internal long Version { get; private set; }
     internal DateTimeOffset CreatedAt { get; private set; }
     internal DateTimeOffset UpdatedAt { get; private set; }
     internal OrganizationProfile Profile { get; private set; } = new();
+
+    internal void Update(string displayName, string status, OrganizationProfile profile, DateTimeOffset now)
+    {
+        if (Status == "archived") throw new InvalidOperationException("An archived Organization cannot be updated.");
+        DisplayName = displayName;
+        Status = status;
+        Profile = profile;
+        UpdatedAt = now;
+        Version++;
+    }
+
+    internal void Archive(DateTimeOffset now)
+    {
+        if (Status == "archived") throw new InvalidOperationException("The Organization is already archived.");
+        Status = "archived";
+        UpdatedAt = now;
+        Version++;
+    }
 }
 
 internal sealed record OrganizationProfile
@@ -33,7 +64,7 @@ internal sealed record OrganizationProfile
     public string? Address { get; init; }
     public OrganizationPostalAddress? AddressDetails { get; init; }
     public string? Source { get; init; }
-    public string? OwnerId { get; init; }
+    // Relationship membership is never persisted in this profile; Contacts owns the C6 ledger.
     public string? PrimaryContactId { get; init; }
     public IReadOnlyList<string>? ContactRefs { get; init; }
     public string? RelationshipLevel { get; init; }

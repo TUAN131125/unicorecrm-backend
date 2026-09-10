@@ -23,6 +23,10 @@ internal static class OrganizationsModule
         services.AddScoped<OrganizationAuthorization>();
         services.AddScoped<Application.ListOrganizations.Handler>();
         services.AddScoped<Application.GetOrganization.Handler>();
+        services.AddScoped<Application.GetOrganizationOverview.Handler>();
+        services.AddScoped<Application.CreateOrganization.Handler>();
+        services.AddScoped<Application.UpdateOrganization.Handler>();
+        services.AddScoped<Application.ArchiveOrganization.Handler>();
         services.AddScoped<IOrganizationRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
         return services;

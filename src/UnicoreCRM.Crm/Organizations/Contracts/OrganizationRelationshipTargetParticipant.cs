@@ -4,7 +4,11 @@ namespace UnicoreCRM.Crm.Organizations.Contracts;
 
 internal sealed record OrganizationRelationshipTargetResolution(
     bool CanReadResource,
-    IReadOnlyDictionary<string, string?> VisibleTargets);
+    IReadOnlyDictionary<string, string?> VisibleTargets,
+    IReadOnlySet<string> MutationEligibleTargetIds)
+{
+    internal bool IsMutationEligible(string organizationId) => MutationEligibleTargetIds.Contains(organizationId);
+}
 
 internal interface IOrganizationRelationshipTargetParticipant
 {

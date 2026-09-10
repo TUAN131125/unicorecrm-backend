@@ -37,6 +37,11 @@ internal sealed partial class Handler(
         var fingerprint = ContactMutationSupport.Fingerprint(new { command.ContactId, organizationId, role, command.Request.IsPrimaryAffiliation, command.Request.EffectiveFrom, command.Metadata.ExpectedVersion });
         var replay = await ReplayAsync(prepared.Value, command.Metadata, "createContactOrganizationRelationship", command.ContactId, fingerprint, cancellationToken);
         if (replay is not null) return replay;
+        // Archived Organizations remain readable for historical summaries, but are not eligible
+        // targets for a new relationship. Replay is checked first so an already-committed command
+        // keeps its idempotency guarantee if the Organization was archived afterwards.
+        if (!target.IsMutationEligible(organizationId!))
+            return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         var contact = await LoadMutableContactAsync(prepared.Value, command.Metadata, cancellationToken);
         if (!contact.IsSuccess) return ContactOperationResult<ContactMutationResponse>.Failure(contact.Error!);
         if (await persistence.HasActiveOrganizationRelationshipAsync(prepared.Value.Trusted.WorkspaceId, command.ContactId, organizationId!, cancellationToken))
@@ -71,6 +76,8 @@ internal sealed partial class Handler(
         var fingerprint = ContactMutationSupport.Fingerprint(new { command.ContactId, command.RelationshipId, command.Request.Role, command.Request.IsPrimaryAffiliation, command.Metadata.ExpectedVersion });
         var replay = await ReplayAsync(prepared.Value, command.Metadata, "updateContactOrganizationRelationship", command.ContactId, fingerprint, cancellationToken);
         if (replay is not null) return replay;
+        if (!target.IsMutationEligible(relationship.OrganizationId))
+            return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         if (relationship.EffectiveTo is not null) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         var contact = await LoadMutableContactAsync(prepared.Value, command.Metadata, cancellationToken);
         if (!contact.IsSuccess) return ContactOperationResult<ContactMutationResponse>.Failure(contact.Error!);

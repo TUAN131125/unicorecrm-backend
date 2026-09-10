@@ -1,0 +1,43 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using UnicoreCRM.Crm.Organizations.Contracts;
+using UnicoreCRM.Crm.Organizations.Domain;
+using UnicoreCRM.Platform.Workspace.Contracts;
+
+namespace UnicoreCRM.Crm.Organizations.Application.Common;
+
+internal static class OrganizationMutationSupport
+{
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    internal static string Fingerprint<T>(T value) => Hash(JsonSerializer.Serialize(value, Json));
+    internal static string ScopeKey(TrustedWorkspaceContext trusted, string operation, string target, string key) => Hash($"{trusted.WorkspaceId}\n{operation}\n{trusted.MemberId}\n{target}\n{key}");
+    internal static OrganizationMutationResponse Replay(OrganizationIdempotencyRecord record) =>
+        (JsonSerializer.Deserialize<OrganizationMutationResponse>(record.ResponseJson, Json) ?? throw new InvalidOperationException("Invalid Organization replay record.")) with { Outcome = "REPLAYED" };
+    internal static OrganizationMutationResponse Commit(IOrganizationsPersistence persistence, Organization organization,
+        TrustedWorkspaceContext trusted, OrganizationCommandMetadata metadata, string operation, string eventType,
+        string target, string fingerprint, DateTimeOffset now)
+    {
+        var audit = new OrganizationAuditRecord(operation, trusted.WorkspaceId, trusted.MemberId, organization.OrganizationId, metadata.RequestId, metadata.CorrelationId, organization.Version, now);
+        var message = new OrganizationOutboxMessage(eventType, organization.OrganizationId, trusted.WorkspaceId, metadata.CorrelationId,
+            JsonSerializer.Serialize(new { organizationId = organization.OrganizationId, resourceVersion = organization.Version }, Json), now);
+        var response = new OrganizationMutationResponse($"command_{Guid.NewGuid():N}", metadata.CorrelationId,
+            organization.OrganizationId, "ORGANIZATION", organization.Version, OrganizationProjection.TimestampValue(now),
+            "COMMITTED", OrganizationProjection.Document(organization), [], [message.EventId], [audit.AuditId]);
+        persistence.AddAudit(audit); persistence.AddOutbox(message);
+        persistence.AddIdempotency(new OrganizationIdempotencyRecord(ScopeKey(trusted, operation, target, metadata.IdempotencyKey), trusted.WorkspaceId, operation, trusted.MemberId, target, metadata.IdempotencyKey, fingerprint, JsonSerializer.Serialize(response, Json), now));
+        return response;
+    }
+    internal static OrganizationProfile Profile(CreateOrganizationRequest r) => new() { LegalName=r.LegalName, TaxCode=r.TaxCode, Domain=r.Domain, Website=r.Website, Industry=r.Industry, SizeBand=r.SizeBand, EmployeeCount=r.EmployeeCount, AnnualRevenue=r.AnnualRevenue, Email=r.Email, Phone=r.Phone, Address=r.Address, AddressDetails=Address(r.AddressDetails), Source=r.Source, RelationshipLevel=r.RelationshipLevel, Notes=r.Notes };
+    internal static OrganizationProfile Merge(OrganizationProfile p, UpdateOrganizationRequest r) => p with { LegalName=r.LegalName ?? p.LegalName, TaxCode=r.TaxCode ?? p.TaxCode, Domain=r.Domain ?? p.Domain, Website=r.Website ?? p.Website, Industry=r.Industry ?? p.Industry, SizeBand=r.SizeBand ?? p.SizeBand, EmployeeCount=r.EmployeeCount ?? p.EmployeeCount, AnnualRevenue=r.AnnualRevenue ?? p.AnnualRevenue, Email=r.Email ?? p.Email, Phone=r.Phone ?? p.Phone, Address=r.Address ?? p.Address, AddressDetails=r.AddressDetails is null ? p.AddressDetails : Address(r.AddressDetails), Source=r.Source ?? p.Source, RelationshipLevel=r.RelationshipLevel ?? p.RelationshipLevel, Notes=r.Notes ?? p.Notes };
+    internal static OrganizationPostalAddress? Address(OrganizationPostalAddressDocument? a) => a is null ? null : new(a.Line1) { Line2=a.Line2, Ward=a.Ward, District=a.District, Province=a.Province, Country=a.Country, PostalCode=a.PostalCode, Formatted=a.Formatted };
+    internal static OrganizationOperationError? Validate(string? displayName, string? status, bool requireName)
+    {
+        var fields = new Dictionary<string,string[]>();
+        if (requireName && string.IsNullOrWhiteSpace(displayName)) fields["displayName"]=["displayName is required."];
+        if (displayName?.Trim().Length > 200) fields["displayName"]=["displayName must not exceed 200 characters."];
+        if (status is not null && status is not ("prospect" or "active" or "strategic" or "inactive")) fields["status"]=["status is invalid."];
+        return fields.Count == 0 ? null : OrganizationErrors.Validation(fields);
+    }
+    private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+}

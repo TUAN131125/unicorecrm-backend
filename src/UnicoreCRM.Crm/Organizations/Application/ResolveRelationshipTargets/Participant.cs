@@ -15,10 +15,11 @@ internal sealed class Participant(OrganizationAuthorization authorization, IOrga
         var metadata = new OrganizationRequestMetadata(requestId, correlationId);
         var access = await authorization.AuthorizeAsync(metadata, cancellationToken);
         if (!access.IsSuccess || access.Value!.Trusted.WorkspaceId != trusted.WorkspaceId)
-            return new(false, new Dictionary<string, string?>());
+            return new(false, new Dictionary<string, string?>(), new HashSet<string>(StringComparer.Ordinal));
 
         var records = await persistence.ReadOrganizationsAsync(trusted.WorkspaceId, organizationIds, cancellationToken);
         var visible = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var mutationEligible = new HashSet<string>(StringComparer.Ordinal);
         foreach (var record in records)
         {
             var denied = await authorization.EnforceRecordAsync(access.Value, record,
@@ -26,6 +27,8 @@ internal sealed class Participant(OrganizationAuthorization authorization, IOrga
             if (denied is null)
             {
                 visible[record.OrganizationId] = record.DisplayName;
+                if (!string.Equals(record.Status, "archived", StringComparison.Ordinal))
+                    mutationEligible.Add(record.OrganizationId);
                 persistence.AddReadAudit(new OrganizationReadAuditRecord(
                     "resolveContactOrganizationRelationshipTarget", trusted.WorkspaceId,
                     trusted.MemberId, record.OrganizationId, requestId, correlationId,
@@ -33,6 +36,6 @@ internal sealed class Participant(OrganizationAuthorization authorization, IOrga
             }
         }
         if (visible.Count > 0) await persistence.SaveChangesAsync(cancellationToken);
-        return new(true, visible);
+        return new(true, visible, mutationEligible);
     }
 }

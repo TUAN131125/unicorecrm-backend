@@ -63,6 +63,7 @@ internal interface IContactsPersistence
     Task<ContactIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddIdempotency(ContactIdempotencyRecord record);
     Task<IReadOnlyList<ContactOrganizationRelationship>> ReadOrganizationRelationshipsAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Contact>> ReadActiveOrganizationContactsAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ContactCustomerRelationship>> ReadCustomerRelationshipsAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
     Task<ContactOrganizationRelationship?> LoadOrganizationRelationshipAsync(string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken);
     Task<ContactCustomerRelationship?> LoadCustomerRelationshipAsync(string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken);

@@ -29,9 +29,7 @@ internal static class OrganizationProjection
             Address = organization.Profile.Address,
             AddressDetails = Address(organization.Profile.AddressDetails),
             Source = organization.Profile.Source,
-            OwnerId = organization.Profile.OwnerId,
-            PrimaryContactId = organization.Profile.PrimaryContactId,
-            ContactRefs = organization.Profile.ContactRefs,
+            OwnerId = organization.OwnerId,
             RelationshipLevel = organization.Profile.RelationshipLevel,
             Notes = organization.Profile.Notes,
             ExternalRef = organization.Profile.ExternalRef
@@ -51,6 +49,7 @@ internal static class OrganizationProjection
                 Formatted = address.Formatted
             };
 
+    internal static string TimestampValue(DateTimeOffset value) => Timestamp(value);
     private static string Timestamp(DateTimeOffset value) =>
         value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
 }
