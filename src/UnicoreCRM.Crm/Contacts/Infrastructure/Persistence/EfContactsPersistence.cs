@@ -137,6 +137,14 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
             .ThenByDescending(item => item.EffectiveFrom).ThenBy(item => item.RelationshipId)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<ContactCustomerRelationship>> ReadCustomerStakeholderRelationshipsAsync(
+        string workspaceId, string customerId, CancellationToken cancellationToken) =>
+        await dbContext.CustomerRelationships.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && item.CustomerId == customerId)
+            .OrderBy(item => item.EffectiveTo == null ? 0 : 1)
+            .ThenByDescending(item => item.EffectiveFrom).ThenBy(item => item.RelationshipId)
+            .ToArrayAsync(cancellationToken);
+
     public Task<ContactOrganizationRelationship?> LoadOrganizationRelationshipAsync(
         string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken) =>
         dbContext.OrganizationRelationships.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.ContactId == contactId && item.RelationshipId == relationshipId, cancellationToken);

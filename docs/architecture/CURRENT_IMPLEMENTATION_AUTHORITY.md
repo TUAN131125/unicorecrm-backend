@@ -1784,7 +1784,51 @@ The previously identified safe implementation slice—Customers owner-local `lis
 relationship summary, or Organization overview slice is independently admitted; the safe next
 implementation slice from this foundation is therefore `NONE` until its named authority gaps close.
 
-## Customers Read Core implementation authority
+## Customer production aggregate implementation authority (supersedes the historical section below)
+
+As of 2026-09-11, `DEC-CU-001..008` and the pinned Customer OpenAPI admit and the backend implements
+the production Customer aggregate: `listCustomers`, `getCustomer`, `getCustomer360`,
+`createCustomer`, `updateCustomer`, and `archiveCustomer`. Customer identity is an immutable
+Contact or Organization subject reference; Customers owns lifecycle, profile, access owner,
+resource version, command audit, idempotency, and outbox state. Contact and Organization identity
+data and Contact-owned stakeholder relationships are composed only through producer-owned
+participants with producer record and field-security enforcement. Optional metrics are omitted when
+their authoritative producer is unavailable; absence is never projected as numeric zero.
+
+Mutation routes require trusted Workspace context, their canonical capability, field write access,
+idempotency metadata, and `If-Match` for update/archive. They use one Customers transaction for the
+aggregate, immutable audit, durable idempotency result, and outbox records. Replays are authorized
+and re-projected under current field policy before return. Stale writes return 412 without aggregate,
+audit, outbox, or idempotency side effects. Archive retains the aggregate and excludes it from the
+default list. Customer ownership is the server-derived `OwnerId`; `careOwnerId` is not an access
+owner fact. WORKSPACE and resolvable OWN scope are implemented; unresolved TEAM/CUSTOM scope fails
+closed.
+
+Migration `20260910103105_CustomerProductionLifecycle` adds the nullable profile/ownership/version
+columns and Customers-owned command audit, idempotency and outbox tables without rewriting foreign
+owner persistence. The exact executable evidence is:
+
+- `scripts/verify-customers-read-core.ps1`: isolated SQL Server/real ApiHost coverage for B2C and
+  B2B create/360/lifecycle/archive, authorization and field security, OWN isolation, durable replay,
+  duplicate and concurrent subject creation, optimistic concurrency with zero rejected-command
+  side effects, audit/outbox/version persistence, retention, pagination, and EF model currency.
+- `scripts/verify-contact-relationships.ps1`: C6 target visibility versus mutation eligibility,
+  stakeholder separation, archived-target refusal, history preservation, and relationship races.
+- `frontend/unicorecrm-web/tests/quality/unit/check-customers.mts`: connected-mode fail-closed detail,
+  authoritative server paging/filter policy, principal-owned “My Customers”, unsupported-view
+  exclusion, and production command wiring.
+
+The current local release run reports Customer verifier `PASS=164 FAIL=0`, C6 relationship verifier
+`PASS=79 FAIL=0`, backend build zero warnings/errors, no pending Customers EF model changes, and
+frontend Customer/API/type/lint/build gates passing. `GITHUB CI EVIDENCE: NONE`; these are local
+executable results. Therefore `CUSTOMER PRODUCTION AGGREGATE: IMPLEMENTED_AND_VERIFIED` and the six
+canonical Customer operations are `ADMITTED_IMPLEMENTED`.
+
+## Historical Customers Read Core implementation authority (superseded 2026-09-11)
+
+The following section records the earlier 2026-08-29 read-core state only. Its statements that
+mutations, 360, OWN, provisioning, or full-module readiness are absent are superseded by the current
+production authority above and MUST NOT be used as the current implementation status.
 
 ### Reproducible wire evidence
 

@@ -17,6 +17,7 @@ internal static class CustomerProjection
             customer.Health,
             Timestamp(customer.FirstPurchaseAt),
             Timestamp(customer.LastPurchaseAt),
+            customer.OwnerId,
             customer.Version,
             Timestamp(customer.CreatedAt),
             Timestamp(customer.UpdatedAt))
@@ -40,9 +41,11 @@ internal static class CustomerProjection
             LastCareAt = Timestamp(customer.Profile.LastCareAt)
         };
 
-    private static string Timestamp(DateTimeOffset value) =>
+    internal static string TimestampValue(DateTimeOffset value) =>
         value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
 
     private static string? Timestamp(DateTimeOffset? value) =>
-        value is null ? null : Timestamp(value.Value);
+        value is null ? null : TimestampValue(value.Value);
+
+    private static string Timestamp(DateTimeOffset value) => TimestampValue(value);
 }

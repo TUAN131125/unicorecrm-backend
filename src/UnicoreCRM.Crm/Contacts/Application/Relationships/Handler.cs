@@ -130,6 +130,7 @@ internal sealed partial class Handler(
         var fingerprint = ContactMutationSupport.Fingerprint(new { command.ContactId, customerId, role, command.Request.EffectiveFrom, command.Metadata.ExpectedVersion });
         var replay = await ReplayAsync(prepared.Value, command.Metadata, "createContactCustomerRelationship", command.ContactId, fingerprint, cancellationToken);
         if (replay is not null) return replay;
+        if (!target.IsMutationEligible(customerId!)) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         var contact = await LoadMutableContactAsync(prepared.Value, command.Metadata, cancellationToken);
         if (!contact.IsSuccess) return ContactOperationResult<ContactMutationResponse>.Failure(contact.Error!);
         if (await persistence.HasActiveCustomerRelationshipAsync(prepared.Value.Trusted.WorkspaceId, command.ContactId, customerId!, cancellationToken))
@@ -156,6 +157,7 @@ internal sealed partial class Handler(
         var fingerprint = ContactMutationSupport.Fingerprint(new { command.ContactId, command.RelationshipId, role, command.Metadata.ExpectedVersion });
         var replay = await ReplayAsync(prepared.Value, command.Metadata, "updateContactCustomerRelationship", command.ContactId, fingerprint, cancellationToken);
         if (replay is not null) return replay;
+        if (!target.IsMutationEligible(relationship.CustomerId)) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         if (relationship.EffectiveTo is not null) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         var contact = await LoadMutableContactAsync(prepared.Value, command.Metadata, cancellationToken);
         if (!contact.IsSuccess) return ContactOperationResult<ContactMutationResponse>.Failure(contact.Error!);

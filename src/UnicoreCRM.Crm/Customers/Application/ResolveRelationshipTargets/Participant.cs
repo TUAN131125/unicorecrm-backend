@@ -15,10 +15,11 @@ internal sealed class Participant(CustomerAuthorization authorization, ICustomer
         var metadata = new CustomerRequestMetadata(requestId, correlationId);
         var access = await authorization.AuthorizeAsync(metadata, cancellationToken);
         if (!access.IsSuccess || access.Value!.Trusted.WorkspaceId != trusted.WorkspaceId)
-            return new(false, new Dictionary<string, string?>());
+            return new(false, new Dictionary<string, string?>(), new HashSet<string>(StringComparer.Ordinal));
 
         var records = await persistence.ReadCustomersAsync(trusted.WorkspaceId, customerIds, cancellationToken);
         var visible = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var eligible = new HashSet<string>(StringComparer.Ordinal);
         foreach (var record in records)
         {
             var denied = await authorization.EnforceRecordAsync(access.Value, record,
@@ -26,6 +27,7 @@ internal sealed class Participant(CustomerAuthorization authorization, ICustomer
             if (denied is null)
             {
                 visible[record.CustomerId] = record.CustomerCode;
+                if (record.Status != "ARCHIVED") eligible.Add(record.CustomerId);
                 persistence.AddReadAudit(new CustomerReadAuditRecord(
                     "resolveContactCustomerRelationshipTarget", trusted.WorkspaceId,
                     trusted.MemberId, record.CustomerId, requestId, correlationId,
@@ -33,6 +35,6 @@ internal sealed class Participant(CustomerAuthorization authorization, ICustomer
             }
         }
         if (visible.Count > 0) await persistence.SaveChangesAsync(cancellationToken);
-        return new(true, visible);
+        return new(true, visible, eligible);
     }
 }

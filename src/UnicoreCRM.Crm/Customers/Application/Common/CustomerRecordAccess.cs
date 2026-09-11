@@ -24,6 +24,7 @@ internal static class CustomerFieldSecurity
             ["version"] = true,
             ["createdAt"] = true,
             ["updatedAt"] = true,
+            ["ownerId"] = false,
             ["calculatedHealth"] = false,
             ["manualHealthOverride"] = false,
             ["onboardingStatus"] = false,
@@ -49,6 +50,7 @@ internal static class CustomerFieldSecurity
     internal static CustomerDocument Project(CustomerDocument model, RecordAccessAuthorization access) =>
         model with
         {
+            OwnerId = Keep(access, "ownerId", model.OwnerId),
             CalculatedHealth = Keep(access, "calculatedHealth", model.CalculatedHealth),
             ManualHealthOverride = Keep(access, "manualHealthOverride", model.ManualHealthOverride),
             OnboardingStatus = Keep(access, "onboardingStatus", model.OnboardingStatus),
@@ -77,6 +79,15 @@ internal static class CustomerFieldSecurity
                 "Access denied",
                 "A field-security policy applies to a required Customer field, so the request is refused rather than returning a value the policy forbids.");
 
+    internal static CustomerOperationError? GuardWrite(RecordAccessAuthorization access, params string[] fields)
+    {
+        var blocked = fields.Where(field => !access.CanWrite(field)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return blocked.Length == 0
+            ? null
+            : new CustomerOperationError("ACCESS_DENIED", 403, "Access denied",
+                $"Write access is denied for Customer field(s): {string.Join(", ", blocked)}.");
+    }
+
     private static string? Keep(RecordAccessAuthorization access, string fieldKey, string? value) =>
         access.CanRead(fieldKey) ? value : null;
 
@@ -90,11 +101,16 @@ internal sealed class CustomerAuthorization(IRecordAccessEvaluator evaluator)
 
     internal async Task<CustomerOperationResult<CustomerAccess>> AuthorizeAsync(
         CustomerRequestMetadata metadata,
+        CancellationToken cancellationToken) => await AuthorizeAsync(metadata, CustomerCapabilities.View, cancellationToken);
+
+    internal async Task<CustomerOperationResult<CustomerAccess>> AuthorizeAsync(
+        CustomerRequestMetadata metadata,
+        AccessRequirement requirement,
         CancellationToken cancellationToken)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
-            CustomerCapabilities.View.Capability,
+            requirement.Capability,
             CustomerFieldSecurity.FieldKeys,
             RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
@@ -133,7 +149,5 @@ internal sealed class CustomerAuthorization(IRecordAccessEvaluator evaluator)
         return decision.IsAllowed ? null : CustomerErrors.NotFound();
     }
 
-    // careOwnerId is a Customer document field, not a proven canonical AccessControl owner fact.
-    // Relationship targets are likewise not inherited ownership. OWN therefore fails closed.
-    internal static RecordAccessFacts Facts(Customer customer) => RecordAccessFacts.Found(null);
+    internal static RecordAccessFacts Facts(Customer customer) => RecordAccessFacts.Found(customer.OwnerId);
 }

@@ -9,6 +9,9 @@ internal sealed class CustomersDbContext(DbContextOptions<CustomersDbContext> op
 {
     internal DbSet<Customer> Customers => Set<Customer>();
     internal DbSet<CustomerReadAuditRecord> ReadAuditRecords => Set<CustomerReadAuditRecord>();
+    internal DbSet<CustomerIdempotencyRecord> IdempotencyRecords => Set<CustomerIdempotencyRecord>();
+    internal DbSet<CustomerAuditRecord> AuditRecords => Set<CustomerAuditRecord>();
+    internal DbSet<CustomerOutboxMessage> OutboxMessages => Set<CustomerOutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,21 +47,35 @@ internal sealed class CustomersDbContext(DbContextOptions<CustomersDbContext> op
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
             entity.Property(item => item.CustomerId).HasMaxLength(128);
             entity.Property(item => item.CustomerCode).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.OwnerId).HasMaxLength(128);
             entity.Property(item => item.Type).HasMaxLength(8).IsRequired();
             entity.Property(item => item.RelationshipType).HasMaxLength(40).IsRequired();
             entity.Property(item => item.RelationshipId).HasMaxLength(128).IsRequired();
             entity.Property(item => item.Status).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.Health).HasMaxLength(16).IsRequired();
-            entity.Property(item => item.Version);
+            entity.Property(item => item.Health).HasMaxLength(16);
+            entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.FirstPurchaseAt).HasPrecision(7);
             entity.Property(item => item.LastPurchaseAt).HasPrecision(7);
             entity.Property(item => item.CreatedAt).HasPrecision(7);
             entity.Property(item => item.UpdatedAt).HasPrecision(7);
             entity.Property(item => item.Profile).HasConversion<CustomerProfileValueConverter>().HasColumnType("nvarchar(max)");
+            entity.Property(item => item.SearchText).HasMaxLength(400).IsRequired();
+            entity.Property(item => item.Segment).HasMaxLength(160);
+            entity.Property(item => item.Tier).HasMaxLength(40);
             entity.HasIndex(item => new { item.WorkspaceId, item.RelationshipType, item.RelationshipId }).IsUnique();
-            entity.HasIndex(item => new { item.WorkspaceId, item.CreatedAt, item.CustomerId })
-                .IsDescending(false, true, false);
+            entity.HasIndex(item => new { item.WorkspaceId, item.CustomerCode }).IsUnique();
+            entity.HasIndex(item => new { item.WorkspaceId, item.Status, item.CreatedAt, item.CustomerId })
+                .IsDescending(false, false, true, false);
+            entity.HasIndex(item => new { item.WorkspaceId, item.OwnerId, item.Status, item.CreatedAt, item.CustomerId })
+                .IsDescending(false, false, false, true, false);
+            entity.HasIndex(item => new { item.WorkspaceId, item.Type });
+            entity.HasIndex(item => new { item.WorkspaceId, item.Segment });
+            entity.HasIndex(item => new { item.WorkspaceId, item.Tier });
         });
+
+        modelBuilder.Entity<CustomerIdempotencyRecord>(entity => { entity.ToTable("IdempotencyRecords"); entity.HasKey(x => x.ScopeKey); entity.Property(x => x.ScopeKey).HasMaxLength(64); entity.Property(x => x.WorkspaceId).HasMaxLength(128); entity.Property(x => x.Operation).HasMaxLength(96); entity.Property(x => x.ActorId).HasMaxLength(128); entity.Property(x => x.TargetId).HasMaxLength(128); entity.Property(x => x.IdempotencyKey).HasMaxLength(128); entity.Property(x => x.Fingerprint).HasMaxLength(64); entity.Property(x => x.ResponseJson).HasColumnType("nvarchar(max)"); entity.Property(x => x.CreatedAt).HasPrecision(7); });
+        modelBuilder.Entity<CustomerAuditRecord>(entity => { entity.ToTable("AuditRecords"); entity.HasKey(x => x.AuditId); entity.Property(x => x.AuditId).HasMaxLength(128); entity.Property(x => x.Operation).HasMaxLength(96); entity.Property(x => x.WorkspaceId).HasMaxLength(128); entity.Property(x => x.ActorId).HasMaxLength(128); entity.Property(x => x.AggregateId).HasMaxLength(128); entity.Property(x => x.RequestId).HasMaxLength(128); entity.Property(x => x.CorrelationId).HasMaxLength(128); entity.Property(x => x.NewVersion); entity.Property(x => x.OccurredAt).HasPrecision(7); });
+        modelBuilder.Entity<CustomerOutboxMessage>(entity => { entity.ToTable("OutboxMessages"); entity.HasKey(x => x.EventId); entity.Property(x => x.EventId).HasMaxLength(128); entity.Property(x => x.EventType).HasMaxLength(100); entity.Property(x => x.AggregateId).HasMaxLength(128); entity.Property(x => x.WorkspaceId).HasMaxLength(128); entity.Property(x => x.CorrelationId).HasMaxLength(128); entity.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)"); entity.Property(x => x.OccurredAt).HasPrecision(7); });
 
         modelBuilder.Entity<CustomerReadAuditRecord>(entity =>
         {

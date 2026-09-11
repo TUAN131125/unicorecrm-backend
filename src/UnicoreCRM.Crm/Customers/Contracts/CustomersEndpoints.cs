@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -15,17 +16,27 @@ public static class CustomersEndpoints
             .RequireAuthorization().RequireTrustedWorkspace().WithName("listCustomers");
         endpoints.MapGet("/customers/{customerId}", GetCustomerAsync)
             .RequireAuthorization().RequireTrustedWorkspace().WithName("getCustomer");
+        endpoints.MapGet("/customers/{customerId}/360", GetCustomer360Async)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("getCustomer360");
+        endpoints.MapPost("/customers", CreateCustomerAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("createCustomer");
+        endpoints.MapPatch("/customers/{customerId}", UpdateCustomerAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("updateCustomer");
+        endpoints.MapPost("/customers/{customerId}/archive", ArchiveCustomerAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("archiveCustomer");
         return endpoints;
     }
 
     private static async Task<IResult> ListCustomersAsync(
         HttpContext context,
         Application.ListCustomers.Handler handler,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? q = null, string? type = null, string? status = null, string? ownerId = null,
+        string? segment = null, string? tier = null, string? cursor = null, int limit = 50)
     {
         if (!CustomersHttp.TryMetadata(context, out var metadata, out var error))
             return error!;
-        var result = await handler.HandleAsync(new(metadata!), cancellationToken);
+        var result = await handler.HandleAsync(new(metadata!, q, type, status, ownerId, segment, tier, cursor, limit), cancellationToken);
         return CustomersHttp.Result(result, metadata!.CorrelationId);
     }
 
@@ -38,6 +49,46 @@ public static class CustomersEndpoints
         if (!CustomersHttp.TryMetadata(context, out var metadata, out var error))
             return error!;
         var result = await handler.HandleAsync(new(customerId, metadata!), cancellationToken);
+        if (result.IsSuccess) context.Response.Headers.ETag = $"\"{result.Value!.Version}\"";
+        return CustomersHttp.Result(result, metadata!.CorrelationId);
+    }
+
+    private static async Task<IResult> GetCustomer360Async(string customerId, HttpContext context,
+        Application.GetCustomer360.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!CustomersHttp.TryMetadata(context, out var metadata, out var error)) return error!;
+        var result = await handler.HandleAsync(new(customerId, metadata!), cancellationToken);
+        if (result.IsSuccess) context.Response.Headers.ETag = $"\"{result.Value!.ProjectionVersion}\"";
+        return CustomersHttp.Result(result, metadata!.CorrelationId);
+    }
+
+    private static async Task<IResult> CreateCustomerAsync(HttpContext context, Application.CreateCustomer.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!CustomersHttp.TryCommandMetadata(context, false, out var metadata, out var error)) return error!;
+        var body = await CustomersHttp.ReadBodyAsync<CreateCustomerRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        var result = await handler.HandleAsync(new(body.Value!, metadata), cancellationToken);
+        if (result.IsSuccess) context.Response.Headers.ETag = $"\"{result.Value!.Version}\"";
+        return CustomersHttp.Result(result, metadata.CorrelationId, StatusCodes.Status201Created);
+    }
+
+    private static async Task<IResult> UpdateCustomerAsync(string customerId, HttpContext context, Application.UpdateCustomer.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!CustomersHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await CustomersHttp.ReadBodyAsync<UpdateCustomerRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        var result = await handler.HandleAsync(new(customerId, body.Value!, metadata), cancellationToken);
+        if (result.IsSuccess) context.Response.Headers.ETag = $"\"{result.Value!.Version}\"";
+        return CustomersHttp.Result(result, metadata.CorrelationId);
+    }
+
+    private static async Task<IResult> ArchiveCustomerAsync(string customerId, HttpContext context, Application.ArchiveCustomer.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!CustomersHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
+        var body = await CustomersHttp.ReadBodyAsync<ArchiveCustomerRequest>(context, metadata!.CorrelationId, cancellationToken);
+        if (body.Error is not null) return body.Error;
+        var result = await handler.HandleAsync(new(customerId, metadata!), cancellationToken);
+        if (result.IsSuccess) context.Response.Headers.ETag = $"\"{result.Value!.Version}\"";
         return CustomersHttp.Result(result, metadata!.CorrelationId);
     }
 }
@@ -72,8 +123,35 @@ internal static class CustomersHttp
         return true;
     }
 
-    internal static IResult Result<T>(CustomerOperationResult<T> result, string correlationId) =>
-        result.IsSuccess ? Results.Json(result.Value) : Error(result.Error!, correlationId);
+    internal static IResult Result<T>(CustomerOperationResult<T> result, string correlationId, int successStatus = StatusCodes.Status200OK) =>
+        result.IsSuccess ? Results.Json(result.Value, statusCode: successStatus) : Error(result.Error!, correlationId);
+
+    internal static bool TryCommandMetadata(HttpContext context, bool requireIfMatch, out CustomerCommandMetadata? metadata, out IResult? error)
+    {
+        metadata = null; if (!TryMetadata(context, out var read, out error)) return false;
+        var key = context.Request.Headers["Idempotency-Key"].ToString(); var match = context.Request.Headers.IfMatch.ToString();
+        var fields = new Dictionary<string, string[]>();
+        if (key.Length is < 8 or > 128) fields["Idempotency-Key"] = ["Idempotency-Key must contain between 8 and 128 characters."];
+        long? expected = null; if (requireIfMatch && !TryExpectedVersion(match, out expected)) fields["If-Match"] = ["If-Match must contain a quoted non-negative resource version."];
+        if (fields.Count > 0) { error = Error(CustomerErrors.Validation(fields, 400), read!.CorrelationId); return false; }
+        metadata = new(read!.RequestId, read.CorrelationId, key, expected); return true;
+    }
+
+    internal static async Task<CustomerBodyRead<T>> ReadBodyAsync<T>(HttpContext context, string correlationId, CancellationToken cancellationToken) where T : class
+    {
+        try
+        {
+            var value = await context.Request.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+            return value is null ? new(null, Error(CustomerErrors.Validation(new Dictionary<string, string[]> { ["body"] = ["A JSON request body is required."] }, 400), correlationId)) : new(value, null);
+        }
+        catch (JsonException) { return new(null, Error(CustomerErrors.Validation(new Dictionary<string, string[]> { ["body"] = ["The JSON body is invalid."] }, 400), correlationId)); }
+    }
+
+    private static bool TryExpectedVersion(string value, out long? version)
+    {
+        version = null; if (value.Length < 3 || value[0] != '"' || value[^1] != '"' || !long.TryParse(value[1..^1], out var parsed) || parsed < 0) return false;
+        version = parsed; return true;
+    }
 
     private static IResult Error(CustomerOperationError error, string correlationId) =>
         Results.Json(
@@ -89,6 +167,8 @@ internal static class CustomersHttp
             statusCode: error.Status,
             contentType: "application/problem+json");
 }
+
+internal sealed record CustomerBodyRead<T>(T? Value, IResult? Error) where T : class;
 
 internal sealed record CustomerProblemDetails(
     string Type,

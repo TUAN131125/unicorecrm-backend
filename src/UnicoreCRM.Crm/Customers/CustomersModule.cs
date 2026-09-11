@@ -23,6 +23,10 @@ internal static class CustomersModule
         services.AddScoped<CustomerAuthorization>();
         services.AddScoped<Application.ListCustomers.Handler>();
         services.AddScoped<Application.GetCustomer.Handler>();
+        services.AddScoped<Application.GetCustomer360.Handler>();
+        services.AddScoped<Application.CreateCustomer.Handler>();
+        services.AddScoped<Application.UpdateCustomer.Handler>();
+        services.AddScoped<Application.ArchiveCustomer.Handler>();
         services.AddScoped<ICustomerRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideCustomerRecordAccessFacts.CustomerRecordAccessFactProvider>();
         return services;

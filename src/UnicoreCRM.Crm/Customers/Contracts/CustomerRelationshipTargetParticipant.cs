@@ -4,7 +4,11 @@ namespace UnicoreCRM.Crm.Customers.Contracts;
 
 internal sealed record CustomerRelationshipTargetResolution(
     bool CanReadResource,
-    IReadOnlyDictionary<string, string?> VisibleTargets);
+    IReadOnlyDictionary<string, string?> VisibleTargets,
+    IReadOnlySet<string> MutationEligibleTargetIds)
+{
+    internal bool IsMutationEligible(string customerId) => MutationEligibleTargetIds.Contains(customerId);
+}
 
 internal interface ICustomerRelationshipTargetParticipant
 {
