@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
 namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CustomersDbContext))]
-    partial class CustomersDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260911105115_LeadCustomerProvenance")]
+    partial class LeadCustomerProvenance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -230,67 +233,6 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
                     b.HasKey("ScopeKey");
 
                     b.ToTable("IdempotencyRecords", "customers");
-                });
-
-            modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.CustomerLeadConversionProvenance", b =>
-                {
-                    b.Property<string>("WorkspaceId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("WorkflowId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("CompletionAuditId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("CompletionEventId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("CustomerId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("InitiatedBy")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("PolicyVersion")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Resolution")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<string>("SourceLeadId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.HasKey("WorkspaceId", "WorkflowId");
-
-                    b.HasIndex("WorkspaceId", "SourceLeadId")
-                        .IsUnique();
-
-                    b.HasIndex("WorkspaceId", "CustomerId", "CompletedAt");
-
-                    b.ToTable("LeadConversionProvenance", "customers");
                 });
 
             modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.CustomerOutboxMessage", b =>

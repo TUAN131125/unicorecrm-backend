@@ -11,6 +11,7 @@ namespace UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> options) : DbContext(options)
 {
     internal DbSet<LeadQualificationAnchor> LeadQualificationAnchors => Set<LeadQualificationAnchor>();
+    internal DbSet<LeadCustomerConversionAnchor> LeadCustomerConversionAnchors => Set<LeadCustomerConversionAnchor>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +50,21 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
             entity.HasIndex(item => new { item.WorkspaceId, item.LeadId });
             // The resume scan: outstanding anchors, oldest first.
             entity.HasIndex(item => new { item.Stage, item.UpdatedAt });
+        });
+        modelBuilder.Entity<LeadCustomerConversionAnchor>(entity =>
+        {
+            entity.ToTable("LeadCustomerConversionAnchors"); entity.HasKey(x=>x.ScopeKey); entity.Property(x=>x.ScopeKey).HasMaxLength(64);
+            entity.Property(x=>x.ConversionId).HasMaxLength(128).IsRequired(); entity.HasIndex(x=>x.ConversionId).IsUnique();
+            foreach(var name in new[]{"WorkspaceId","LeadId","ConversionType","IdempotencyKey","OriginalAccountId","OriginalMemberId","OriginalMembershipId","CorrelationId","RequestId","SubjectType","SubjectMode","SelectedSubjectId","SubjectId","CustomerId","StakeholderRelationshipId","RecoveryExecutorId","FrozenLeadOwnerId"}) entity.Property(name).HasMaxLength(128);
+            entity.Property(x=>x.ExpectedLeadVersion); entity.Property(x=>x.SubjectVersion); entity.Property(x=>x.SubjectCreated);
+            entity.Property(x=>x.FrozenDoNotCall); entity.Property(x=>x.FrozenDoNotEmail); entity.Property(x=>x.CustomerVersion);
+            entity.Property(x=>x.LeadVersion); entity.Property(x=>x.AttemptCount); entity.Property(x=>x.CreatedAt).HasPrecision(7);
+            entity.Property(x=>x.UpdatedAt).HasPrecision(7); entity.Property(x=>x.CompletedAt).HasPrecision(7);
+            entity.Property(x=>x.Fingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.NewContactJson).HasColumnType("nvarchar(max)"); entity.Property(x=>x.StakeholderJson).HasColumnType("nvarchar(max)"); entity.Property(x=>x.ResponseJson).HasColumnType("nvarchar(max)");
+            entity.Property(x=>x.EmittedEventIdsJson).HasColumnType("nvarchar(max)"); entity.Property(x=>x.AuditEvidenceIdsJson).HasColumnType("nvarchar(max)");
+            entity.Property(x=>x.CustomerResolution).HasMaxLength(16); entity.Property(x=>x.LastErrorCategory).HasMaxLength(32); entity.Property(x=>x.LastErrorCode).HasMaxLength(128);
+            entity.Property(x=>x.Stage).HasConversion<string>().HasMaxLength(40); entity.Property(x=>x.RowVersion).IsRowVersion();
+            entity.HasIndex(x=>new{x.WorkspaceId,x.LeadId,x.ConversionType}).IsUnique(); entity.HasIndex(x=>new{x.Stage,x.NextRetryAt,x.UpdatedAt});
         });
     }
 }

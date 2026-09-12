@@ -38,7 +38,11 @@ internal static class CustomerProjection
             Segment = customer.Profile.Segment,
             Tags = customer.Profile.Tags,
             NextCareAt = Timestamp(customer.Profile.NextCareAt),
-            LastCareAt = Timestamp(customer.Profile.LastCareAt)
+            LastCareAt = Timestamp(customer.Profile.LastCareAt),
+            SourceLeadId = customer.Profile.SourceLeadId,
+            ConversionCompletedAt = Timestamp(customer.Profile.ConversionCompletedAt),
+            ConversionInitiatedBy = customer.Profile.ConversionInitiatedBy,
+            ConversionResult = customer.Profile.ConversionResult
         };
 
     internal static string TimestampValue(DateTimeOffset value) =>

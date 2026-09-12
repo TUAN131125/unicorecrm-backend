@@ -21,7 +21,21 @@ internal sealed class SubjectParticipant(ContactAuthorization authorization, ICo
         await persistence.SaveChangesAsync(cancellationToken);
         var projected = ContactFieldSecurity.Project(ContactProjection.Document(contact), access.Value.Authorization);
         return new(projected.Id, projected.FullName, projected.PersonalEmail ?? projected.WorkEmail,
-            projected.MobilePhone ?? projected.WorkPhone, contact.ArchivedAt is null);
+            projected.MobilePhone ?? projected.WorkPhone, contact.ArchivedAt is null, contact.Version);
+    }
+
+    public async Task<ContactCustomerSubject?> ResolveAcceptedWorkflowAsync(TrustedWorkspaceContext trusted, string contactId,
+        string workflowId, string recoveryExecutorId, CancellationToken cancellationToken)
+    {
+        if (!workflowId.StartsWith("conversion_",StringComparison.Ordinal) || recoveryExecutorId != "workflow-recovery") return null;
+        var contact = await persistence.ReadContactAsync(trusted.WorkspaceId, contactId, cancellationToken);
+        if (contact is null) return null;
+        persistence.AddReadAudit(new ContactReadAuditRecord("recoverLeadCustomerConversion",trusted.WorkspaceId,
+            trusted.MemberId,contact.ContactId,workflowId,recoveryExecutorId,contact.Version,timeProvider.GetUtcNow()));
+        await persistence.SaveChangesAsync(cancellationToken);
+        var projected = ContactProjection.Document(contact);
+        return new(projected.Id, projected.FullName, projected.PersonalEmail ?? projected.WorkEmail,
+            projected.MobilePhone ?? projected.WorkPhone, contact.ArchivedAt is null, contact.Version);
     }
 }
 
@@ -47,5 +61,18 @@ internal sealed class StakeholderParticipant(ContactAuthorization authorization,
         }
         if (result.Count > 0) await persistence.SaveChangesAsync(cancellationToken);
         return result;
+    }
+}
+
+internal sealed class LeadConversionStakeholderParticipant(Application.Relationships.Handler relationships)
+    : ILeadCustomerStakeholderParticipant
+{
+    public async Task<ResolveLeadConversionStakeholderResult> ResolveAsync(ResolveLeadConversionStakeholderCommand command, CancellationToken cancellationToken)
+    {
+        var result=await relationships.CreateCustomerAsync(new(command.ContactId,
+            new CreateContactCustomerRelationshipRequest(command.CustomerId,command.Role),
+            new ContactCommandMetadata(command.RequestId,command.CorrelationId,command.ParticipantKey,command.ExpectedContactVersion)),cancellationToken);
+        if(!result.IsSuccess)return new(false,null,false,result.Error!.Code,result.Error.Status);
+        return new(true,result.Value!.Result.CustomerRelationship?.RelationshipId,result.Value.Outcome=="REPLAYED");
     }
 }

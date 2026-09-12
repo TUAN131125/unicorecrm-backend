@@ -32,6 +32,7 @@ internal static class LeadProjection
                     ? new LeadRelationshipRefDocument(relationshipType, relationshipId)
                     : null,
             DealRef = lead.DealRef,
+            CustomerRef = lead.CustomerRef,
             NextFollowUpAt = OptionalUtc(profile.NextFollowUpAt),
             Priority = profile.Priority,
             Tags = profile.Tags.Count == 0 ? null : profile.Tags,

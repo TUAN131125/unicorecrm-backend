@@ -13,6 +13,9 @@ internal sealed class EfCustomersPersistence(CustomersDbContext dbContext) : ICu
         new Transaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
     public void AddCustomer(Customer customer) => dbContext.Customers.Add(customer);
     public void AddIdempotency(CustomerIdempotencyRecord record) => dbContext.IdempotencyRecords.Add(record);
+    public void AddLeadConversionProvenance(CustomerLeadConversionProvenance provenance) => dbContext.LeadConversionProvenance.Add(provenance);
+    public Task<CustomerLeadConversionProvenance?> LoadLeadConversionProvenanceAsync(string workspaceId,string workflowId,CancellationToken cancellationToken) =>
+        dbContext.LeadConversionProvenance.SingleOrDefaultAsync(x=>x.WorkspaceId==workspaceId&&x.WorkflowId==workflowId,cancellationToken);
     public void AddAudit(CustomerAuditRecord record) => dbContext.AuditRecords.Add(record);
     public void AddOutbox(CustomerOutboxMessage message) => dbContext.OutboxMessages.Add(message);
     public void AddReadAudit(CustomerReadAuditRecord audit) => dbContext.ReadAuditRecords.Add(audit);
@@ -34,6 +37,8 @@ internal sealed class EfCustomersPersistence(CustomersDbContext dbContext) : ICu
         dbContext.Customers.AsNoTracking().SingleOrDefaultAsync(x => x.WorkspaceId == workspaceId && x.CustomerId == customerId, cancellationToken);
     public Task<bool> SubjectExistsAsync(string workspaceId, string relationshipType, string relationshipId, CancellationToken cancellationToken) =>
         dbContext.Customers.AnyAsync(x => x.WorkspaceId == workspaceId && x.RelationshipType == relationshipType && x.RelationshipId == relationshipId, cancellationToken);
+    public Task<Customer?> LoadBySubjectAsync(string workspaceId, string relationshipType, string relationshipId, CancellationToken cancellationToken) =>
+        dbContext.Customers.SingleOrDefaultAsync(x => x.WorkspaceId == workspaceId && x.RelationshipType == relationshipType && x.RelationshipId == relationshipId, cancellationToken);
 
     public async Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, CancellationToken cancellationToken) =>
         await dbContext.Customers.AsNoTracking().Where(x => x.WorkspaceId == workspaceId)

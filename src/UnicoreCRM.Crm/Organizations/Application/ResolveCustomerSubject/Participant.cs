@@ -22,6 +22,20 @@ internal sealed class Participant(OrganizationAuthorization authorization, IOrga
         await persistence.SaveChangesAsync(cancellationToken);
         var projected = OrganizationFieldSecurity.Project(OrganizationProjection.Document(organization), access.Value.Authorization);
         return new(projected.Id, projected.DisplayName, projected.Email, projected.Phone,
-            organization.Status != "archived");
+            organization.Status != "archived", organization.Version);
+    }
+
+    public async Task<OrganizationCustomerSubject?> ResolveAcceptedWorkflowAsync(TrustedWorkspaceContext trusted, string organizationId,
+        string workflowId, string recoveryExecutorId, CancellationToken cancellationToken)
+    {
+        if (!workflowId.StartsWith("conversion_",StringComparison.Ordinal) || recoveryExecutorId != "workflow-recovery") return null;
+        var organization = await persistence.ReadOrganizationAsync(trusted.WorkspaceId, organizationId, cancellationToken);
+        if (organization is null) return null;
+        persistence.AddReadAudit(new OrganizationReadAuditRecord("recoverLeadCustomerConversion",trusted.WorkspaceId,
+            trusted.MemberId,organization.OrganizationId,workflowId,recoveryExecutorId,organization.Version,timeProvider.GetUtcNow()));
+        await persistence.SaveChangesAsync(cancellationToken);
+        var projected = OrganizationProjection.Document(organization);
+        return new(projected.Id, projected.DisplayName, projected.Email, projected.Phone,
+            organization.Status != "archived", organization.Version);
     }
 }
