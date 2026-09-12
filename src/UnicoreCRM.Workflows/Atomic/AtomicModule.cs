@@ -20,6 +20,10 @@ internal static class AtomicModule
             Application.QualifyLeadForNurture.Handler>();
         services.AddScoped<Contracts.ILeadOpportunityQualificationWorkflow,
             Application.QualifyLeadForOpportunity.Handler>();
+        services.AddScoped<Application.ConvertLeadToCustomer.Handler>();
+        services.AddScoped<Contracts.ILeadCustomerConversionWorkflow>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
+        services.AddScoped<Application.ConvertLeadToCustomer.ILeadCustomerConversionRecoveryRunner>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
+        services.AddHostedService<Application.ConvertLeadToCustomer.RecoveryService>();
         return services;
     }
 }

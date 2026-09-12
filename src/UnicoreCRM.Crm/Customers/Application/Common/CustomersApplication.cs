@@ -29,9 +29,12 @@ internal interface ICustomersPersistence
         DateTimeOffset? cursorCreatedAt, string? cursorCustomerId, int take, CancellationToken cancellationToken);
     Task<Customer?> LoadCustomerAsync(string workspaceId, string customerId, CancellationToken cancellationToken);
     Task<bool> SubjectExistsAsync(string workspaceId, string relationshipType, string relationshipId, CancellationToken cancellationToken);
+    Task<Customer?> LoadBySubjectAsync(string workspaceId, string relationshipType, string relationshipId, CancellationToken cancellationToken);
     void AddCustomer(Customer customer);
     Task<CustomerIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddIdempotency(CustomerIdempotencyRecord record);
+    void AddLeadConversionProvenance(CustomerLeadConversionProvenance provenance);
+    Task<CustomerLeadConversionProvenance?> LoadLeadConversionProvenanceAsync(string workspaceId,string workflowId,CancellationToken cancellationToken);
     void AddAudit(CustomerAuditRecord record);
     void AddOutbox(CustomerOutboxMessage message);
     Task<ICustomersTransaction> BeginSerializableAsync(CancellationToken cancellationToken);

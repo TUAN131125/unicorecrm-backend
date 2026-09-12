@@ -30,6 +30,7 @@ internal static class ContactsModule
         services.AddScoped<Contracts.IOrganizationContactReadParticipant, Application.ReadOrganizationContacts.Participant>();
         services.AddScoped<Contracts.IContactCustomerSubjectParticipant, Application.CustomerParticipants.SubjectParticipant>();
         services.AddScoped<Contracts.ICustomerStakeholderReadParticipant, Application.CustomerParticipants.StakeholderParticipant>();
+        services.AddScoped<Contracts.ILeadCustomerStakeholderParticipant, Application.CustomerParticipants.LeadConversionStakeholderParticipant>();
         // The Lead qualification participant. It is an internal owner boundary consumed by the
         // Workflows coordinator; it maps no route and widens no public Contacts surface.
         services.AddScoped<Contracts.IContactQualificationParticipant,

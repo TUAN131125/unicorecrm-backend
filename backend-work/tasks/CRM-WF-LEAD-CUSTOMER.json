@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "4.2.1",
+  "kind": "UnicoreCRMBackendTaskPacket",
+  "identity": {
+    "taskId": "CRM-WF-LEAD-CUSTOMER",
+    "operationId": "convertLeadToCustomer",
+    "canonicalOwner": "leads",
+    "area": "CRM",
+    "status": "PRODUCTION_CONTRACT_READY",
+    "primaryWriter": "codex-primary",
+    "reviewer": "wf-independent-reviewer",
+    "baseCommit": "a5e375ee9b58019fbac2a2e123c3d0f360db1ab6",
+    "baseline": {
+      "canonicalDesignVersion": "2.0-reconciled",
+      "openApiVersion": "0.23.20-contract.0",
+      "openApiSha256": "54665adc1852e2119c3a625926760098ff9172116f47fd5c3d5594a47fa9649c"
+    }
+  },
+  "risk": {
+    "tier": "CRITICAL",
+    "score": 8,
+    "reasons": [
+      "mutation",
+      "idempotency",
+      "concurrency",
+      "security/tenancy",
+      "event/outbox"
+    ],
+    "specialists": [
+      "CONTRACT_API",
+      "PERSISTENCE_RELIABILITY",
+      "SECURITY_TENANCY"
+    ]
+  },
+  "scope": {
+    "inScope": [
+      "convertLeadToCustomer vertical slice"
+    ],
+    "outOfScope": ["Direct Sale", "Deals", "Quotes", "Orders", "Purchase Evidence reconciliation"],
+    "allowedWritePaths": ["src/UnicoreCRM.Workflows/**", "src/UnicoreCRM.Crm/Leads/**", "src/UnicoreCRM.Crm/Customers/**", "src/UnicoreCRM.Crm/Contacts/**", "src/UnicoreCRM.Crm/Organizations/**", "src/UnicoreCRM.ApiHost/Program.cs", "scripts/**", "backend-work/tasks/**"],
+    "forbiddenWritePaths": [
+      "design-authority/**",
+      "roles/backend-execution/**",
+      "backend-design/frozen/**",
+      "architecture/**"
+    ]
+  },
+  "authorityEvidence": [
+    {
+      "claimId": "AUTH-OPERATION",
+      "classification": "CANONICAL_FACT",
+      "claim": "operation admission/wire metadata",
+      "sourceFile": "design-authority/contracts/openapi.json",
+      "locator": "#/paths/~1workflows~1lead-customer-conversion~1{leadId}/post",
+      "sourceSha256": "54665adc1852e2119c3a625926760098ff9172116f47fd5c3d5594a47fa9649c",
+      "derivedFrom": [],
+      "value": "PRODUCTION_CONTRACT_READY"
+    }
+  ],
+  "architecture": {
+    "domainFiles": [],
+    "applicationSlice": "convertLeadToCustomer",
+    "infrastructureFiles": [],
+    "apiFiles": [],
+    "crossOwnerEdges": [],
+    "persistence": {
+      "owner": "leads",
+      "dbContext": "UnicoreCRM.Crm.Leads.Infrastructure.Persistence.LeadsDbContext",
+      "schema": "leads",
+      "migrationRoot": "backend/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/Migrations"
+    }
+  },
+  "policies": {
+    "authorization": "leads.convert_to_customer",
+    "additionalCapabilities": [],
+    "workspaceRequired": true,
+    "actorRequired": true,
+    "credentialsPolicy": null,
+    "resourceScope": "RESOURCE",
+    "dataScope": "WORKSPACE",
+    "workspaceDataScope": "WORKSPACE",
+    "idempotency": "REQUIRED",
+    "concurrency": "IF_MATCH_REQUIRED_AT_ADMISSION_THEN_SEMANTIC_RECOVERY",
+    "transactionBoundary": "DURABLE_MULTI_OWNER_LEAD_CUSTOMER_CONVERSION",
+    "audit": "IMMUTABLE_OWNER_AUDIT_AND_DURABLE_WORKFLOW_EVIDENCE",
+    "eventOutbox": "CUSTOMER_CREATED_WHEN_NEEDED_AND_LEAD_CUSTOMER_CONVERSION_RECORDED",
+    "workflow": null,
+    "provider": null,
+    "retentionPrivacy": null
+  },
+  "implementationFreedom": {
+    "allowedChoices": [],
+    "approvalRequired": []
+  },
+  "verification": {
+    "unit": [],
+    "integration": [
+      "TEST-IDEM-SAME",
+      "TEST-IDEM-INPROGRESS",
+      "TEST-CONC-STALE",
+      "TEST-TX-ROLLBACK",
+      "TEST-AUDIT",
+      "TEST-OUTBOX-ATOMIC"
+    ],
+    "contract": [
+      "TEST-CONTRACT-EXACT"
+    ],
+    "architecture": [],
+    "negative": [
+      "TEST-AUTH-DENY",
+      "TEST-IDEM-REUSE"
+    ],
+    "twoWorkspaceIsolation": [
+      "TEST-TENANT-CROSS"
+    ],
+    "providerConformance": [],
+    "externalConformance": {
+      "required": false
+    }
+  },
+  "stopConditions": [
+    "AUTHORITY_GAP",
+    "BLOCKED_OPERATION",
+    "UNAPPROVED_CROSS_OWNER_DEPENDENCY",
+    "FOREIGN_PERSISTENCE_REQUIRED",
+    "PERSISTENCE_OWNER_UNASSIGNED",
+    "CANONICAL_CONFLICT",
+    "BASELINE_DRIFT",
+    "WRITE_SCOPE_VIOLATION",
+    "AUTHORITY_UNVERIFIED"
+  ],
+  "completion": {
+    "changedFiles": [],
+    "migrations": [],
+    "testsExecuted": [],
+    "deviations": [],
+    "remainingRisks": []
+  }
+}

@@ -69,6 +69,7 @@ internal sealed class Lead
     /// scalar, not an EF navigation and not the older redundant qualifiedDealId property.
     /// </summary>
     public string? DealRef { get; private set; }
+    public string? CustomerRef { get; private set; }
 
     public long Version { get; private set; }
 
@@ -179,6 +180,17 @@ internal sealed class Lead
         return true;
     }
 
+    internal LeadCustomerConversionRecordResult RecordCustomerConversion(string customerId, DateTimeOffset now)
+    {
+        if (CustomerRef == customerId) return LeadCustomerConversionRecordResult.Replayed;
+        if (CustomerRef is not null) return LeadCustomerConversionRecordResult.ConflictingCustomer;
+        if (ArchivedAt is not null || WorkState != LeadWorkState.Closed || QualificationOutcome != LeadQualificationOutcome.Opportunity)
+            return LeadCustomerConversionRecordResult.Ineligible;
+        CustomerRef = customerId;
+        Touch(now);
+        return LeadCustomerConversionRecordResult.Recorded;
+    }
+
     internal bool Archive(string? reason, DateTimeOffset now)
     {
         if (ArchivedAt is not null)
@@ -218,3 +230,4 @@ internal static class LeadRelationshipTypes
     internal const string Contact = "CONTACT";
 }
 internal enum LeadTransitionResult { Succeeded, InvalidTransition, ProfileIncomplete }
+internal enum LeadCustomerConversionRecordResult { Recorded, Replayed, ConflictingCustomer, Ineligible }

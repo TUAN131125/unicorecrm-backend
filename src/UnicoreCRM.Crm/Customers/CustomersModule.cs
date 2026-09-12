@@ -27,6 +27,7 @@ internal static class CustomersModule
         services.AddScoped<Application.CreateCustomer.Handler>();
         services.AddScoped<Application.UpdateCustomer.Handler>();
         services.AddScoped<Application.ArchiveCustomer.Handler>();
+        services.AddScoped<ILeadCustomerConversionParticipant, Application.ResolveForLeadConversion.Participant>();
         services.AddScoped<ICustomerRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideCustomerRecordAccessFacts.CustomerRecordAccessFactProvider>();
         return services;

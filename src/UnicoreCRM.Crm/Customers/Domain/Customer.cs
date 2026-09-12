@@ -65,6 +65,14 @@ internal sealed class Customer
         Version++;
     }
 
+    internal void CompleteLeadConversion(string sourceLeadId, string initiatedBy, string correlationId, string resolution, DateTimeOffset now)
+    {
+        if (Profile.SourceLeadId != sourceLeadId || Profile.ConversionCompletedAt is not null) return;
+        Profile = Profile with { ConversionCompletedAt = now, ConversionInitiatedBy = initiatedBy,
+            ConversionCorrelationId = correlationId, ConversionResult = resolution };
+        UpdatedAt = now; Version++;
+    }
+
     private void SyncQueryProjections()
     {
         Segment = Normalize(Profile.Segment, 160);
@@ -83,6 +91,10 @@ internal sealed class Customer
 
 internal sealed record CustomerProfile
 {
+    public string? SourceLeadId { get; init; }
+    public DateTimeOffset? ConversionCompletedAt { get; init; }
+    public string? ConversionInitiatedBy { get; init; }
+    public string? ConversionResult { get; init; }
     public string? CalculatedHealth { get; init; }
     public string? ManualHealthOverride { get; init; }
     public string? OnboardingStatus { get; init; }
@@ -118,6 +130,21 @@ internal sealed class CustomerIdempotencyRecord
     internal string Fingerprint { get; private set; } = null!;
     internal string ResponseJson { get; private set; } = null!;
     internal DateTimeOffset CreatedAt { get; private set; }
+}
+
+internal sealed class CustomerLeadConversionProvenance
+{
+    private CustomerLeadConversionProvenance() { }
+    internal CustomerLeadConversionProvenance(string workspaceId,string workflowId,string customerId,string sourceLeadId,
+        string policyVersion,string correlationId,string initiatedBy,string resolution)
+    { WorkspaceId=workspaceId;WorkflowId=workflowId;CustomerId=customerId;SourceLeadId=sourceLeadId;PolicyVersion=policyVersion;CorrelationId=correlationId;InitiatedBy=initiatedBy;Resolution=resolution; }
+    internal string WorkspaceId { get; private set; }=null!; internal string WorkflowId { get; private set; }=null!;
+    internal string CustomerId { get; private set; }=null!; internal string SourceLeadId { get; private set; }=null!;
+    internal string PolicyVersion { get; private set; }=null!; internal string CorrelationId { get; private set; }=null!;
+    internal string InitiatedBy { get; private set; }=null!; internal string Resolution { get; private set; }=null!;
+    internal DateTimeOffset? CompletedAt { get; private set; }
+    internal string? CompletionEventId { get; private set; } internal string? CompletionAuditId { get; private set; }
+    internal void Complete(DateTimeOffset now,string eventId,string auditId) { if(CompletedAt is not null)return;CompletedAt=now;CompletionEventId=eventId;CompletionAuditId=auditId; }
 }
 
 internal sealed class CustomerAuditRecord

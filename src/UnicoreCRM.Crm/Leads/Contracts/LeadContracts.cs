@@ -9,6 +9,7 @@ public static class LeadCapabilities
     public static AccessRequirement Create { get; } = AccessRequirement.ForCanonicalCapability("leads.create");
     public static AccessRequirement Update { get; } = AccessRequirement.ForCanonicalCapability("leads.update");
     public static AccessRequirement Qualify { get; } = AccessRequirement.ForCanonicalCapability("leads.qualify");
+    public static AccessRequirement ConvertToCustomer { get; } = AccessRequirement.ForCanonicalCapability("leads.convert_to_customer");
     public static AccessRequirement Delete { get; } = AccessRequirement.ForCanonicalCapability("leads.delete");
 }
 
@@ -146,6 +147,7 @@ public sealed record LeadDocument(
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public LeadRelationshipRefDocument? RelationshipRef { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DealRef { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? CustomerRef { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? NextFollowUpAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Priority { get; init; }
