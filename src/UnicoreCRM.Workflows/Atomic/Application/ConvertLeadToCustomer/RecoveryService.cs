@@ -11,7 +11,7 @@ internal sealed class RecoveryService(IServiceScopeFactory scopes,TimeProvider t
         using var timer=new PeriodicTimer(TimeSpan.FromSeconds(30),timeProvider);
         do
         {
-            try { await using var scope=scopes.CreateAsyncScope(); await scope.ServiceProvider.GetRequiredService<ILeadCustomerConversionRecoveryRunner>().ResumeDueAsync("workflow-recovery",stoppingToken); }
+            try { await using var scope=scopes.CreateAsyncScope(); await scope.ServiceProvider.GetRequiredService<ILeadCustomerConversionRecoveryRunner>().ResumeDueAsync(Handler.RecoveryPrincipal,stoppingToken); }
             catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested){break;}
             catch(Exception ex){logger.LogError(ex,"Lead customer conversion recovery scan failed");}
         } while(await timer.WaitForNextTickAsync(stoppingToken));

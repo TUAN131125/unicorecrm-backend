@@ -184,8 +184,13 @@ internal sealed class Lead
     {
         if (CustomerRef == customerId) return LeadCustomerConversionRecordResult.Replayed;
         if (CustomerRef is not null) return LeadCustomerConversionRecordResult.ConflictingCustomer;
-        if (ArchivedAt is not null || WorkState != LeadWorkState.Closed || QualificationOutcome != LeadQualificationOutcome.Opportunity)
+        if (ArchivedAt is not null || (WorkState == LeadWorkState.Closed && QualificationOutcome == LeadQualificationOutcome.Disqualified))
             return LeadCustomerConversionRecordResult.Ineligible;
+        if (WorkState != LeadWorkState.Closed)
+        {
+            WorkState = LeadWorkState.Closed;
+            QualificationOutcome = LeadQualificationOutcome.Customer;
+        }
         CustomerRef = customerId;
         Touch(now);
         return LeadCustomerConversionRecordResult.Recorded;
@@ -223,7 +228,7 @@ internal enum LeadWorkState { New, Contacting, Verifying, Closed }
 /// The implemented terminal outcomes. Direct Sale remains absent because its downstream workflow is
 /// not implemented.
 /// </summary>
-internal enum LeadQualificationOutcome { Disqualified, Nurture, Opportunity }
+internal enum LeadQualificationOutcome { Disqualified, Nurture, Opportunity, Customer }
 
 internal static class LeadRelationshipTypes
 {

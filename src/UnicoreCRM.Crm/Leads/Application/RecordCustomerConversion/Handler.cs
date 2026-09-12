@@ -33,9 +33,8 @@ internal sealed class Handler(LeadAuthorization authorization, ILeadsPersistence
         var lead = await persistence.ReadLeadAsync(authorized.TrustedWorkspace!.WorkspaceId, command.LeadId, cancellationToken);
         if (lead is null) return Failed(LeadErrors.NotFound());
         if (lead.Version != command.ExpectedVersion) return Failed(LeadErrors.VersionConflict(lead.LeadId, command.ExpectedVersion, lead.Version));
-        if (lead.ArchivedAt is not null || lead.WorkState != LeadWorkState.Closed || lead.QualificationOutcome != LeadQualificationOutcome.Opportunity)
+        if (lead.ArchivedAt is not null || (lead.WorkState == LeadWorkState.Closed && lead.QualificationOutcome == LeadQualificationOutcome.Disqualified))
             return new(false, null, null, null, null, null, "LEAD_CONVERSION_INELIGIBLE", 409, lead.Version);
-        if (lead.CustomerRef is not null) return new(false, null, null, null, null, null, "LEAD_ALREADY_CONVERTED", 409, lead.Version);
         return authorized;
     }
 
@@ -61,8 +60,8 @@ internal sealed class Handler(LeadAuthorization authorization, ILeadsPersistence
         if (result == LeadCustomerConversionRecordResult.Replayed)
             return new(true, true, lead.Version, null, [], [], null, null);
         var metadata = new LeadCommandMetadata(command.RequestId, command.CorrelationId, command.ParticipantKey, before,
-            ActorId: command.OriginalActorId, ActorType: command.RecoveryExecutorId == command.OriginalActorId ? "HUMAN" : "WORKFLOW_RECOVERY",
-            SourceReference: command.WorkflowId);
+            ActorId: command.ExecutorPrincipalId, ActorType: command.ExecutorPrincipalId == command.OriginalPrincipalId ? "HUMAN" : "WORKFLOW_RECOVERY",
+            DelegatedSubjectId: command.OriginalPrincipalId, SourceReference: command.WorkflowId);
         var response = LeadCommandSupport.RecordCommit(persistence, lead, command.TrustedWorkspace, metadata, Operation,
             "LEAD_CUSTOMER_CONVERSION_RECORDED", scope, command.LeadId, fingerprint, before, timeProvider.GetUtcNow());
         try { await persistence.SaveChangesAsync(cancellationToken); }

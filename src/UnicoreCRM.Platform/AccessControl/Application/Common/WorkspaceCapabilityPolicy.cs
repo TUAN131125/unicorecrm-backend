@@ -36,6 +36,7 @@ internal static class WorkspaceCapabilityPolicy
         "leads.create",
         "leads.delete",
         "leads.export",
+        "leads.convert_to_customer",
         "leads.qualify",
         "leads.read",
         "leads.update",

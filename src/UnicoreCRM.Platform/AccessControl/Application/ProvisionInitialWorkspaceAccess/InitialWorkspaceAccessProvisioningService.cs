@@ -32,6 +32,7 @@ internal sealed class InitialWorkspaceAccessProvisioningService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(membershipId);
+        await persistence.EnsureRecoveryServiceGrantAsync(workspaceId, cancellationToken);
         var capabilities = InitialWorkspaceAccessPolicy.Validated();
 
         for (var attempt = 0; attempt < ConvergenceAttempts; attempt++)

@@ -6,7 +6,7 @@ public sealed record PrepareLeadCustomerConversionCommand(string LeadId, string 
 public sealed record LeadCustomerConversionPreparation(bool IsSuccess, TrustedWorkspaceContext? TrustedWorkspace, string? OwnerId,
     long? Version, bool? DoNotCall, bool? DoNotEmail, string? ErrorCode, int? ErrorStatus, long? CurrentVersion = null);
 public sealed record RecordLeadCustomerConversionCommand(TrustedWorkspaceContext TrustedWorkspace, string LeadId, string CustomerId,
-    string WorkflowId, string ParticipantKey, string RequestId, string CorrelationId, string OriginalActorId, string RecoveryExecutorId);
+    string WorkflowId, string ParticipantKey, string RequestId, string CorrelationId, string OriginalPrincipalId, string ExecutorPrincipalId);
 public sealed record LeadCustomerConversionRecord(bool IsSuccess, bool Replayed, long? LeadVersion, string? CommandId,
     IReadOnlyList<string> EmittedEventIds, IReadOnlyList<string> AuditEvidenceIds, string? ErrorCode, int? ErrorStatus);
 

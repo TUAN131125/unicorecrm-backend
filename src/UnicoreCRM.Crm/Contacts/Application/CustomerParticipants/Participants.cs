@@ -24,19 +24,6 @@ internal sealed class SubjectParticipant(ContactAuthorization authorization, ICo
             projected.MobilePhone ?? projected.WorkPhone, contact.ArchivedAt is null, contact.Version);
     }
 
-    public async Task<ContactCustomerSubject?> ResolveAcceptedWorkflowAsync(TrustedWorkspaceContext trusted, string contactId,
-        string workflowId, string recoveryExecutorId, CancellationToken cancellationToken)
-    {
-        if (!workflowId.StartsWith("conversion_",StringComparison.Ordinal) || recoveryExecutorId != "workflow-recovery") return null;
-        var contact = await persistence.ReadContactAsync(trusted.WorkspaceId, contactId, cancellationToken);
-        if (contact is null) return null;
-        persistence.AddReadAudit(new ContactReadAuditRecord("recoverLeadCustomerConversion",trusted.WorkspaceId,
-            trusted.MemberId,contact.ContactId,workflowId,recoveryExecutorId,contact.Version,timeProvider.GetUtcNow()));
-        await persistence.SaveChangesAsync(cancellationToken);
-        var projected = ContactProjection.Document(contact);
-        return new(projected.Id, projected.FullName, projected.PersonalEmail ?? projected.WorkEmail,
-            projected.MobilePhone ?? projected.WorkPhone, contact.ArchivedAt is null, contact.Version);
-    }
 }
 
 internal sealed class StakeholderParticipant(ContactAuthorization authorization, IContactsPersistence persistence, TimeProvider timeProvider)

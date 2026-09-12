@@ -55,12 +55,12 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
         {
             entity.ToTable("LeadCustomerConversionAnchors"); entity.HasKey(x=>x.ScopeKey); entity.Property(x=>x.ScopeKey).HasMaxLength(64);
             entity.Property(x=>x.ConversionId).HasMaxLength(128).IsRequired(); entity.HasIndex(x=>x.ConversionId).IsUnique();
-            foreach(var name in new[]{"WorkspaceId","LeadId","ConversionType","IdempotencyKey","OriginalAccountId","OriginalMemberId","OriginalMembershipId","CorrelationId","RequestId","SubjectType","SubjectMode","SelectedSubjectId","SubjectId","CustomerId","StakeholderRelationshipId","RecoveryExecutorId","FrozenLeadOwnerId"}) entity.Property(name).HasMaxLength(128);
-            entity.Property(x=>x.ExpectedLeadVersion); entity.Property(x=>x.SubjectVersion); entity.Property(x=>x.SubjectCreated);
-            entity.Property(x=>x.FrozenDoNotCall); entity.Property(x=>x.FrozenDoNotEmail); entity.Property(x=>x.CustomerVersion);
+            foreach(var name in new[]{"WorkspaceId","LeadId","ConversionType","IdempotencyKey","OriginalAccountId","OriginalMemberId","OriginalMembershipId","OriginalPrincipalId","CorrelationId","RequestId","SubjectType","SubjectId","CustomerId","FrozenLeadOwnerId","ExecutionAttemptId","ExecutionPrincipalId"}) entity.Property(name).HasMaxLength(128);
+            entity.Property(x=>x.ExpectedLeadVersion); entity.Property(x=>x.SubjectVersion); entity.Property(x=>x.CustomerVersion);
             entity.Property(x=>x.LeadVersion); entity.Property(x=>x.AttemptCount); entity.Property(x=>x.CreatedAt).HasPrecision(7);
             entity.Property(x=>x.UpdatedAt).HasPrecision(7); entity.Property(x=>x.CompletedAt).HasPrecision(7);
-            entity.Property(x=>x.Fingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.NewContactJson).HasColumnType("nvarchar(max)"); entity.Property(x=>x.StakeholderJson).HasColumnType("nvarchar(max)"); entity.Property(x=>x.ResponseJson).HasColumnType("nvarchar(max)");
+            entity.Property(x=>x.ExecutionLeaseAcquiredAt).HasPrecision(7); entity.Property(x=>x.ExecutionLeaseExpiresAt).HasPrecision(7);
+            entity.Property(x=>x.RequestFingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.BusinessIntentFingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.ResponseJson).HasColumnType("nvarchar(max)");
             entity.Property(x=>x.EmittedEventIdsJson).HasColumnType("nvarchar(max)"); entity.Property(x=>x.AuditEvidenceIdsJson).HasColumnType("nvarchar(max)");
             entity.Property(x=>x.CustomerResolution).HasMaxLength(16); entity.Property(x=>x.LastErrorCategory).HasMaxLength(32); entity.Property(x=>x.LastErrorCode).HasMaxLength(128);
             entity.Property(x=>x.Stage).HasConversion<string>().HasMaxLength(40); entity.Property(x=>x.RowVersion).IsRowVersion();

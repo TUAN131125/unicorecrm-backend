@@ -93,8 +93,4 @@ public sealed record CustomerDocument(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<string>? Tags { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? NextCareAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LastCareAt { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SourceLeadId { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ConversionCompletedAt { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ConversionInitiatedBy { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ConversionResult { get; init; }
 }

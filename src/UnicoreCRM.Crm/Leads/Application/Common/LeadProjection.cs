@@ -118,6 +118,7 @@ internal static class LeadProjection
         LeadQualificationOutcome.Disqualified => "DISQUALIFIED",
         LeadQualificationOutcome.Nurture => "NURTURE",
         LeadQualificationOutcome.Opportunity => "OPPORTUNITY",
+        LeadQualificationOutcome.Customer => "CUSTOMER",
         _ => null
     };
 }

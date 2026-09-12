@@ -38,6 +38,7 @@ internal static class AccessControlModule
         services.AddScoped<IAccessAuthorizer, AccessAuthorizer>();
         services.AddScoped<IDelegatedAccessAuthorizer, AccessAuthorizer>();
         services.AddScoped<IAccessContextAuthorizer, AccessAuthorizer>();
+        services.AddScoped<IServiceAccessAuthorizer, ServiceAccessAuthorizer>();
         services.AddScoped<Application.GetCurrentAuthorizationContext.Handler>();
         services.AddScoped<Application.CreateAccessRole.ICreateAccessRolePersistence, EfCreateAccessRolePersistence>();
         services.AddScoped<IAccessDirectoryPersistence, EfAccessDirectoryPersistence>();

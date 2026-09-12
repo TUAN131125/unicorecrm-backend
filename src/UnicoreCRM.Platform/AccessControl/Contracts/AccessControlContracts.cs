@@ -66,6 +66,14 @@ public interface IDelegatedAccessAuthorizer
         CancellationToken cancellationToken);
 }
 
+public sealed record ServiceAccessAuthorizationDecision(bool IsAllowed, string Code, string DecisionId);
+
+public interface IServiceAccessAuthorizer
+{
+    Task<ServiceAccessAuthorizationDecision> AuthorizeAsync(string workspaceId, string servicePrincipalId,
+        AccessRequirement requirement, string correlationId, CancellationToken cancellationToken);
+}
+
 public interface ICurrentAuthorizationContext
 {
     bool IsResolved { get; }

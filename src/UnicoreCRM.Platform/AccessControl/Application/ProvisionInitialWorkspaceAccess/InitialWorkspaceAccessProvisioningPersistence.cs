@@ -9,6 +9,7 @@ internal sealed record InitialWorkspaceAccessAnchor(MembershipRoleAssignment Ass
 
 internal interface IInitialWorkspaceAccessPersistence
 {
+    Task EnsureRecoveryServiceGrantAsync(string workspaceId, CancellationToken cancellationToken);
     /// <summary>
     /// The canonical provisioning anchor: the role this membership is already assigned to inside
     /// AccessControl. It is identity-based, so it keeps working after an admitted

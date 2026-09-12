@@ -21,6 +21,8 @@ internal static class AtomicModule
         services.AddScoped<Contracts.ILeadOpportunityQualificationWorkflow,
             Application.QualifyLeadForOpportunity.Handler>();
         services.AddScoped<Application.ConvertLeadToCustomer.Handler>();
+        services.AddSingleton<Application.ConvertLeadToCustomer.ILeadCustomerConversionFaultInjector,
+            Application.ConvertLeadToCustomer.NoopLeadCustomerConversionFaultInjector>();
         services.AddScoped<Contracts.ILeadCustomerConversionWorkflow>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
         services.AddScoped<Application.ConvertLeadToCustomer.ILeadCustomerConversionRecoveryRunner>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
         services.AddHostedService<Application.ConvertLeadToCustomer.RecoveryService>();

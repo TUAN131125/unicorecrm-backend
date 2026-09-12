@@ -36,9 +36,9 @@ $expectedInitialCapabilities = @(
     'customers.view',
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',
     'invoices.create', 'invoices.create_credit_note', 'invoices.edit', 'invoices.issue', 'invoices.read', 'invoices.send', 'invoices.update_draft', 'invoices.void',
-    'leads.assign', 'leads.bulk', 'leads.create', 'leads.delete', 'leads.export', 'leads.qualify', 'leads.read', 'leads.update',
+    'leads.assign', 'leads.bulk', 'leads.convert_to_customer', 'leads.create', 'leads.delete', 'leads.export', 'leads.qualify', 'leads.read', 'leads.update',
     'orders.complete', 'orders.confirm', 'orders.create', 'orders.credit_approval.decide', 'orders.credit_approval.request', 'orders.delete', 'orders.read', 'orders.update',
-    'organizations.read',
+    'organizations.create', 'organizations.delete', 'organizations.read', 'organizations.update',
     'payments.allocate', 'payments.intent.cancel', 'payments.intent.create', 'payments.plan.activate', 'payments.plan.read', 'payments.plan.supersede', 'payments.plan.update_draft', 'payments.read', 'payments.reconcile', 'payments.record_manual', 'payments.refund', 'payments.reverse_allocation',
     'products.create', 'products.delete', 'products.edit', 'products.read',
     'quotes.approve', 'quotes.create', 'quotes.delete', 'quotes.read', 'quotes.update',
@@ -333,6 +333,8 @@ try {
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='contacts.read';") -eq 1) 'C: initial Workspace provisioning grants contacts.read exactly once'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='contacts.create';") -eq 1) 'C: initial Workspace provisioning grants contacts.create exactly once'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability LIKE 'contacts.%' AND c.Capability NOT IN ('contacts.read','contacts.create','contacts.update','contacts.delete');") -eq 0) 'C: initial role grants no unsupported Contacts capability'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.WorkspaceServiceCapabilityGrants WHERE WorkspaceId='$workspaceA' AND ServicePrincipalId='svc_lead_customer_conversion_recovery' AND Capability='leads.convert_to_customer.recover';") -eq 1) 'C: recovery service grant is provisioned exactly once'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities c JOIN access.Roles r ON r.RoleId=c.RoleId WHERE r.WorkspaceId='$workspaceA' AND c.Capability='leads.convert_to_customer.recover';") -eq 0) 'C: recovery capability is absent from human roles'
     $listAfterFinish = Get-Workspaces $tokenA
     Assert-True ($listAfterFinish.items.Count -eq 1 -and $listAfterFinish.items[0].workspaceId -eq $workspaceA) 'C: listMyWorkspaces returns the new Workspace'
     Assert-True ($listAfterFinish.items[0].workspaceKey -eq $finishBody.workspace.workspaceKey) 'C: response carries the authoritative Workspace key'
@@ -358,6 +360,7 @@ try {
     Assert-True ([int](Invoke-SqlScalar 'SELECT COUNT(*) FROM workspace.Workspaces;') -eq 1) 'E/G: no duplicate Workspace'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountAId';") -eq 1) 'E/G: no duplicate membership'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.MembershipRoleAssignments WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate access assignment'
+    Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM access.WorkspaceServiceCapabilityGrants WHERE WorkspaceId='$workspaceA' AND ServicePrincipalId='svc_lead_customer_conversion_recovery' AND Capability='leads.convert_to_customer.recover';") -eq 1) 'E/G: recovery service grant remains idempotent'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections WHERE WorkspaceId='$workspaceA';") -eq 1) 'E/G: no duplicate configuration'
     Assert-True ((Invoke-SqlScalar "SELECT RequestFingerprint FROM workspace.InitialProvisioningRecords WHERE AccountId='$accountAId';") -eq $storedFingerprint) 'E/G: replay preserves the committed provisioning fingerprint'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.BootstrapProjections b WHERE WorkspaceId='$workspaceA' AND (SELECT COUNT(*) FROM OPENJSON(b.EnabledModuleKeysJson))=13 AND (SELECT STRING_AGG(CONVERT(nvarchar(max),j.value),',') WITHIN GROUP (ORDER BY CONVERT(int,j.[key])) FROM OPENJSON(b.EnabledModuleKeysJson) j)='leads,customers,contacts,deals,quotes,orders,support,organizations,tasks,payments,invoices,shipping,returns';") -eq 1) 'E/G: replay preserves the committed enabled-module intent'
@@ -384,6 +387,7 @@ try {
     Assert-Status $taskResponse 201 'I: createTask in the provisioned Workspace'
     $leadResponse = Send-Json 'POST' '/leads' (@{
         displayName = 'Initial provisioning regression lead'
+        email = 'initial.provisioning.lead@example.test'
         source = 'Direct'
         ownerId = $memberA
         estimatedValue = @{ amount = '10.00'; currency = 'VND' }

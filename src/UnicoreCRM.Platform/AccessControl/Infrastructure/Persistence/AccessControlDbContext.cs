@@ -19,6 +19,8 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
     internal DbSet<AccessDirectoryReadEvidence> AccessDirectoryReadEvidence => Set<AccessDirectoryReadEvidence>();
     internal DbSet<MemberAccessVersionAnchor> MemberAccessVersions => Set<MemberAccessVersionAnchor>();
     internal DbSet<MemberAccessCommandIdempotencyRecord> MemberAccessCommandIdempotencyRecords => Set<MemberAccessCommandIdempotencyRecord>();
+    internal DbSet<WorkspaceServiceCapabilityGrant> WorkspaceServiceCapabilityGrants => Set<WorkspaceServiceCapabilityGrant>();
+    internal DbSet<ServiceAuthorizationDecisionRecord> ServiceAuthorizationDecisions => Set<ServiceAuthorizationDecisionRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -109,6 +111,24 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.Property(x => x.RequiredCapability).HasMaxLength(160);
             entity.Property(x => x.CorrelationId).HasMaxLength(128);
             entity.HasIndex(x => new { x.WorkspaceId, x.MembershipId, x.EvaluatedAt });
+        });
+
+        modelBuilder.Entity<WorkspaceServiceCapabilityGrant>(entity =>
+        {
+            entity.ToTable("WorkspaceServiceCapabilityGrants");
+            entity.HasKey(x => new { x.WorkspaceId, x.ServicePrincipalId, x.Capability });
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.ServicePrincipalId).HasMaxLength(128);
+            entity.Property(x => x.Capability).HasMaxLength(160);
+            entity.Property(x => x.GrantedAt).HasPrecision(7);
+        });
+        modelBuilder.Entity<ServiceAuthorizationDecisionRecord>(entity =>
+        {
+            entity.ToTable("ServiceAuthorizationDecisions"); entity.HasKey(x => x.DecisionId);
+            entity.Property(x => x.DecisionId).HasMaxLength(128); entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.ServicePrincipalId).HasMaxLength(128); entity.Property(x => x.RequiredCapability).HasMaxLength(160);
+            entity.Property(x => x.CorrelationId).HasMaxLength(128); entity.Property(x => x.EvaluatedAt).HasPrecision(7);
+            entity.HasIndex(x => new { x.WorkspaceId, x.ServicePrincipalId, x.EvaluatedAt });
         });
 
         modelBuilder.Entity<RecordAccessDecisionRecord>(entity =>

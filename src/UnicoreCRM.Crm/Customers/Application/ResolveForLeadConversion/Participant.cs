@@ -28,10 +28,11 @@ internal sealed class Participant(ICustomersPersistence persistence, TimeProvide
         if (existing is not null) { customer = existing; resolution = "REUSED"; events = []; audits = []; }
         else
         {
-            customer = new Customer(command.TrustedWorkspace.WorkspaceId, command.OriginalActorId, command.SubjectType, command.SubjectId,
-                new CustomerProfile { SourceLeadId = command.SourceLeadId, ConversionPolicyVersion = "LEAD_CUSTOMER_V1", SourceSystem = "LEAD_CONVERSION" }, now);
+            customer = new Customer(command.TrustedWorkspace.WorkspaceId, command.LeadOwnerId, command.SubjectType, command.SubjectId,
+                new CustomerProfile { CreatedFromEvidenceId = command.WorkflowId, ConversionPolicyVersion = "LEAD_CUSTOMER_V1",
+                    ConversionCorrelationId = command.CorrelationId, SourceSystem = "LEAD_CONVERSION" }, now);
             persistence.AddCustomer(customer);
-            var audit = new CustomerAuditRecord("resolveOrCreateForLeadConversion", command.TrustedWorkspace.WorkspaceId, command.OriginalActorId, customer.CustomerId, command.RequestId, command.CorrelationId, customer.Version, now);
+            var audit = new CustomerAuditRecord("resolveOrCreateForLeadConversion", command.TrustedWorkspace.WorkspaceId, command.ExecutorPrincipalId, customer.CustomerId, command.RequestId, command.CorrelationId, customer.Version, now);
             var message = new CustomerOutboxMessage("CUSTOMER_CREATED_FROM_LEAD", customer.CustomerId, command.TrustedWorkspace.WorkspaceId, command.CorrelationId,
                 JsonSerializer.Serialize(new { customerId = customer.CustomerId, sourceLeadId = command.SourceLeadId, workflowId = command.WorkflowId }, Json), now);
             persistence.AddAudit(audit); persistence.AddOutbox(message); resolution = "CREATED"; events = [message.EventId]; audits = [audit.AuditId];
@@ -39,9 +40,9 @@ internal sealed class Participant(ICustomersPersistence persistence, TimeProvide
         var committed = new StoredResult(customer.CustomerId, customer.Version, resolution,events,audits);
         persistence.AddLeadConversionProvenance(new CustomerLeadConversionProvenance(command.TrustedWorkspace.WorkspaceId,
             command.WorkflowId,customer.CustomerId,command.SourceLeadId,"LEAD_CUSTOMER_V1",command.CorrelationId,
-            command.OriginalActorId,resolution));
+            command.OriginalPrincipalId,resolution,now));
         persistence.AddIdempotency(new CustomerIdempotencyRecord(scope, command.TrustedWorkspace.WorkspaceId,
-            "resolveOrCreateForLeadConversion", command.OriginalActorId, command.SubjectId, command.ParticipantKey,
+            "resolveOrCreateForLeadConversion", command.ExecutorPrincipalId, command.SubjectId, command.ParticipantKey,
             fingerprint, JsonSerializer.Serialize(committed, Json), now));
         try { await persistence.SaveChangesAsync(cancellationToken); }
         catch (CustomerBusinessKeyConflictException) { return Failure("INTERNAL_ERROR", 503); }
@@ -57,10 +58,10 @@ internal sealed class Participant(ICustomersPersistence persistence, TimeProvide
         if(provenance is null||customer is null||provenance.SourceLeadId!=command.SourceLeadId)return Failure("INTERNAL_ERROR",503);
         if(provenance.CompletedAt is not null)return new(true,customer.CustomerId,customer.Version,command.Resolution,
             provenance.CompletionEventId is null?[]:[provenance.CompletionEventId],provenance.CompletionAuditId is null?[]:[provenance.CompletionAuditId],null,null);
-        var now=timeProvider.GetUtcNow(); customer.CompleteLeadConversion(command.SourceLeadId,command.OriginalActorId,command.CorrelationId,command.Resolution,now);
-        var audit=new CustomerAuditRecord("completeLeadCustomerConversion",command.TrustedWorkspace.WorkspaceId,command.OriginalActorId,customer.CustomerId,command.RequestId,command.CorrelationId,customer.Version,now);
+        var now=timeProvider.GetUtcNow();
+        var audit=new CustomerAuditRecord("completeLeadCustomerConversion",command.TrustedWorkspace.WorkspaceId,command.ExecutorPrincipalId,customer.CustomerId,command.RequestId,command.CorrelationId,customer.Version,now);
         var message=new CustomerOutboxMessage("LEAD_CUSTOMER_CONVERSION_COMPLETED",customer.CustomerId,command.TrustedWorkspace.WorkspaceId,command.CorrelationId,JsonSerializer.Serialize(new{command.WorkflowId,command.SourceLeadId,command.Resolution},Json),now);
-        provenance.Complete(now,message.EventId,audit.AuditId);persistence.AddAudit(audit);persistence.AddOutbox(message);
+        provenance.Complete(now,command.ExecutorPrincipalId,message.EventId,audit.AuditId);persistence.AddAudit(audit);persistence.AddOutbox(message);
         try{await persistence.SaveChangesAsync(cancellationToken);}catch(CustomersPersistenceConcurrencyException){return Failure("INTERNAL_ERROR",503);}
         await transaction.CommitAsync(cancellationToken);return new(true,customer.CustomerId,customer.Version,command.Resolution,[message.EventId],[audit.AuditId]);
     }

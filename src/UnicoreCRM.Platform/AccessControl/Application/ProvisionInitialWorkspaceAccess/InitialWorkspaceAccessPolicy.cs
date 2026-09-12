@@ -68,6 +68,11 @@ internal static class InitialWorkspaceAccessPolicy
             .Where(capability => capability is not "contacts.delete")
             .ToArray();
 
+    private static IReadOnlyList<string> PreLeadCustomerConversionOwnerCapabilities { get; } =
+        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+            .Where(capability => capability is not "leads.convert_to_customer")
+            .ToArray();
+
     internal static IReadOnlyList<string> Capabilities { get; } =
         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities;
 
@@ -85,10 +90,12 @@ internal static class InitialWorkspaceAccessPolicy
         var v2 = Validate(RestrictedOwnerCapabilitiesV2, "The V2 initial Workspace access capability set is not canonical.");
         var preContactUpdate = Validate(PreContactUpdateOwnerCapabilities, "The pre-Contact-update Workspace Owner capability set is not canonical.");
         var preContactArchive = Validate(PreContactArchiveOwnerCapabilities, "The pre-Contact-archive Workspace Owner capability set is not canonical.");
+        var preLeadCustomerConversion = Validate(PreLeadCustomerConversionOwnerCapabilities, "The pre-Lead-customer-conversion Workspace Owner capability set is not canonical.");
         return storedCapabilities.SequenceEqual(v1, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v2, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preContactUpdate, StringComparer.Ordinal)
-            || storedCapabilities.SequenceEqual(preContactArchive, StringComparer.Ordinal);
+            || storedCapabilities.SequenceEqual(preContactArchive, StringComparer.Ordinal)
+            || storedCapabilities.SequenceEqual(preLeadCustomerConversion, StringComparer.Ordinal);
     }
 
     /// <summary>

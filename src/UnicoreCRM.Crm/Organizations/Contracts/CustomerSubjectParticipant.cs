@@ -7,6 +7,4 @@ public interface IOrganizationCustomerSubjectParticipant
 {
     Task<OrganizationCustomerSubject?> ResolveVisibleAsync(TrustedWorkspaceContext trusted, string organizationId,
         string requestId, string correlationId, CancellationToken cancellationToken);
-    Task<OrganizationCustomerSubject?> ResolveAcceptedWorkflowAsync(TrustedWorkspaceContext trusted, string organizationId,
-        string workflowId, string recoveryExecutorId, CancellationToken cancellationToken);
 }

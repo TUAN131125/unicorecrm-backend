@@ -7,8 +7,6 @@ public interface IContactCustomerSubjectParticipant
 {
     Task<ContactCustomerSubject?> ResolveVisibleAsync(TrustedWorkspaceContext trusted, string contactId,
         string requestId, string correlationId, CancellationToken cancellationToken);
-    Task<ContactCustomerSubject?> ResolveAcceptedWorkflowAsync(TrustedWorkspaceContext trusted, string contactId,
-        string workflowId, string recoveryExecutorId, CancellationToken cancellationToken);
 }
 
 internal sealed record CustomerStakeholderContact(string RelationshipId, string ContactId, string DisplayName,
