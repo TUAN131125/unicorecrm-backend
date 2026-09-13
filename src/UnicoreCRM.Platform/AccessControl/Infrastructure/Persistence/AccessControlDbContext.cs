@@ -128,6 +128,7 @@ internal sealed class AccessControlDbContext(DbContextOptions<AccessControlDbCon
             entity.Property(x => x.DecisionId).HasMaxLength(128); entity.Property(x => x.WorkspaceId).HasMaxLength(128);
             entity.Property(x => x.ServicePrincipalId).HasMaxLength(128); entity.Property(x => x.RequiredCapability).HasMaxLength(160);
             entity.Property(x => x.CorrelationId).HasMaxLength(128); entity.Property(x => x.EvaluatedAt).HasPrecision(7);
+            entity.Property(x => x.Allowed).IsRequired(false);
             entity.HasIndex(x => new { x.WorkspaceId, x.ServicePrincipalId, x.EvaluatedAt });
         });
 

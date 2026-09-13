@@ -4,6 +4,7 @@
     <AssemblyName>UnicoreCRM.Workflows</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="UnicoreCRM.LeadCustomerConversion.RealVerifier" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

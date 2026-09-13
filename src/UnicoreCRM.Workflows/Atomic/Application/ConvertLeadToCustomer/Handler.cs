@@ -42,18 +42,20 @@ internal sealed class Handler(WorkflowsDbContext db, LeadParticipant leads, ICon
         var trusted=authorization.TrustedWorkspace!;var subject=command.Request.AccountSubject!;
         var normalizedType=subject.Type!.Trim().ToUpperInvariant();var normalizedId=subject.Id!.Trim();
         var requestFingerprint=Hash(JsonSerializer.Serialize(new{command.LeadId,command.ExpectedVersion,SubjectType=normalizedType,SubjectMode="EXISTING",SubjectId=normalizedId},Json));
+        var legacyRequestFingerprint=Hash(JsonSerializer.Serialize(new{command.LeadId,command.ExpectedVersion,subject,command.Request.Stakeholder},Json));
         var businessFingerprint=Hash(JsonSerializer.Serialize(new{trusted.WorkspaceId,command.LeadId,ConversionType="LEAD_TO_CUSTOMER",SubjectType=normalizedType,SubjectId=normalizedId},Json));
         var scope=Hash($"{trusted.WorkspaceId}\n{Operation}\n{command.LeadId}\n{command.IdempotencyKey}");
         var existing=await db.LeadCustomerConversionAnchors.AsNoTracking().SingleOrDefaultAsync(x=>x.ScopeKey==scope,cancellationToken);
         if(existing is not null)
         {
-            if(existing.RequestFingerprint!=requestFingerprint)return Failure("IDEMPOTENCY_KEY_REUSED",409,idempotency:command.IdempotencyKey);
+            var matches=string.IsNullOrEmpty(existing.BusinessIntentFingerprint)?existing.RequestFingerprint==legacyRequestFingerprint:existing.RequestFingerprint==requestFingerprint;
+            if(!matches)return Failure("IDEMPOTENCY_KEY_REUSED",409,idempotency:command.IdempotencyKey);
             return await ResumeAsync(existing.ScopeKey,trusted.MemberId,$"execution_{Guid.NewGuid():N}",cancellationToken,true);
         }
         var winner=await db.LeadCustomerConversionAnchors.AsNoTracking().SingleOrDefaultAsync(x=>x.WorkspaceId==trusted.WorkspaceId&&x.LeadId==command.LeadId&&x.ConversionType=="LEAD_TO_CUSTOMER",cancellationToken);
         if(winner is not null)
         {
-            if(winner.BusinessIntentFingerprint!=businessFingerprint)return Failure("LEAD_ALREADY_CONVERTED",409);
+            if(!MatchesBusiness(winner,trusted.WorkspaceId,command.LeadId,normalizedType,normalizedId,businessFingerprint))return Failure("LEAD_ALREADY_CONVERTED",409);
             return await ResumeAsync(winner.ScopeKey,trusted.MemberId,$"execution_{Guid.NewGuid():N}",cancellationToken,true);
         }
         var preparation=await leads.PrepareAsync(new(command.LeadId,command.RequestId,command.CorrelationId,command.ExpectedVersion),cancellationToken);
@@ -81,7 +83,7 @@ internal sealed class Handler(WorkflowsDbContext db, LeadParticipant leads, ICon
         {
             db.ChangeTracker.Clear();winner=await db.LeadCustomerConversionAnchors.AsNoTracking().SingleOrDefaultAsync(x=>x.WorkspaceId==trusted.WorkspaceId&&x.LeadId==command.LeadId&&x.ConversionType=="LEAD_TO_CUSTOMER",cancellationToken);
             if(winner is null)return Failure("INTERNAL_ERROR",503);
-            if(winner.BusinessIntentFingerprint!=businessFingerprint)return Failure("LEAD_ALREADY_CONVERTED",409);
+            if(!MatchesBusiness(winner,trusted.WorkspaceId,command.LeadId,normalizedType,normalizedId,businessFingerprint))return Failure("LEAD_ALREADY_CONVERTED",409);
             return await ResumeAsync(winner.ScopeKey,trusted.MemberId,$"execution_{Guid.NewGuid():N}",cancellationToken,true);
         }
         return await ResumeAsync(scope,trusted.MemberId,$"execution_{Guid.NewGuid():N}",cancellationToken,false);
@@ -115,17 +117,23 @@ internal sealed class Handler(WorkflowsDbContext db, LeadParticipant leads, ICon
             a.AcquireLease(attemptId,executor,now,LeaseDuration);
             try{await db.SaveChangesAsync(ct);}catch(DbUpdateConcurrencyException){return Failure("LEAD_CONVERSION_IN_PROGRESS",409);}
             var trusted=new TrustedWorkspaceContext(a.WorkspaceId,a.OriginalAccountId,a.OriginalMemberId,a.OriginalMembershipId);
-            if(a.Stage==LeadCustomerConversionStage.SubjectResolved)
+            if(a.Stage==LeadCustomerConversionStage.SubjectResolved && a.ProtocolVersion>=2)
+            {
+                var r=await leads.ReserveAsync(new(trusted,a.LeadId,a.ConversionId,$"{a.ConversionId}:lead-reserve",a.ExpectedLeadVersion,a.RequestId,a.CorrelationId,a.OriginalPrincipalId,executor),ct);
+                if(!r.IsSuccess)return r.ErrorCode=="INTERNAL_ERROR"?await TransientAsync(a,attemptId,r.ErrorCode,ct):await TerminalAsync(a,attemptId,r.ErrorCode??"LEAD_CONVERSION_INELIGIBLE",trusted,executor,ct);
+                a.RecordLeadReservation(attemptId,r.LeadVersion!.Value,r.OwnerId!,r.EmittedEventIds,r.AuditEvidenceIds,timeProvider.GetUtcNow());
+            }
+            else if(a.Stage==LeadCustomerConversionStage.SubjectResolved || a.Stage==LeadCustomerConversionStage.LeadReserved)
             {
                 var r=await customers.ResolveOrCreateAsync(new(trusted,a.SubjectType,a.SubjectId,a.LeadId,a.ConversionId,$"{a.ConversionId}:customer-resolve",a.RequestId,a.CorrelationId,a.OriginalPrincipalId,a.FrozenLeadOwnerId,executor),ct);
-                if(!r.IsSuccess)return r.ErrorCode=="LIFECYCLE_CONFLICT"?await TerminalAsync(a,attemptId,"LIFECYCLE_CONFLICT",ct):await TransientAsync(a,attemptId,r.ErrorCode??"INTERNAL_ERROR",ct);
+                if(!r.IsSuccess)return r.ErrorCode=="LIFECYCLE_CONFLICT"?await TerminalAsync(a,attemptId,"LIFECYCLE_CONFLICT",trusted,executor,ct):await TransientAsync(a,attemptId,r.ErrorCode??"INTERNAL_ERROR",ct);
                 await faults.AfterParticipantCommitAsync(LeadCustomerConversionFaultPoint.AfterCustomerCommit,ct);
                 a.RecordCustomer(attemptId,r.CustomerId!,r.CustomerVersion!.Value,r.Resolution!,r.EmittedEventIds,r.AuditEvidenceIds,timeProvider.GetUtcNow());
             }
             else if(a.Stage==LeadCustomerConversionStage.CustomerResolved)
             {
-                var r=await leads.RecordAsync(new(trusted,a.LeadId,a.CustomerId!,a.ConversionId,$"{a.ConversionId}:lead-record",a.RequestId,a.CorrelationId,a.OriginalPrincipalId,executor),ct);
-                if(!r.IsSuccess)return r.ErrorCode=="INTERNAL_ERROR"?await TransientAsync(a,attemptId,r.ErrorCode,ct):await TerminalAsync(a,attemptId,r.ErrorCode??"LEAD_CONVERSION_MANUAL_REVIEW",ct);
+                var r=await leads.RecordAsync(new(trusted,a.LeadId,a.CustomerId!,a.ConversionId,a.ProtocolVersion,$"{a.ConversionId}:lead-record",a.RequestId,a.CorrelationId,a.OriginalPrincipalId,executor),ct);
+                if(!r.IsSuccess)return r.ErrorCode=="INTERNAL_ERROR"?await TransientAsync(a,attemptId,r.ErrorCode,ct):await TerminalAsync(a,attemptId,r.ErrorCode??"LEAD_CONVERSION_MANUAL_REVIEW",trusted,executor,ct);
                 await faults.AfterParticipantCommitAsync(LeadCustomerConversionFaultPoint.AfterLeadCommit,ct);
                 a.RecordLead(attemptId,r.LeadVersion!.Value,r.EmittedEventIds,r.AuditEvidenceIds,timeProvider.GetUtcNow());
             }
@@ -146,11 +154,23 @@ internal sealed class Handler(WorkflowsDbContext db, LeadParticipant leads, ICon
         }
     }
 
-    private async Task<ConvertLeadToCustomerResult> TerminalAsync(LeadCustomerConversionAnchor a,string attempt,string code,CancellationToken ct){a.ManualReview(attempt,code,timeProvider.GetUtcNow());await db.SaveChangesAsync(ct);return Failure(code,409);}
+    private async Task<ConvertLeadToCustomerResult> TerminalAsync(LeadCustomerConversionAnchor a,string attempt,string code,TrustedWorkspaceContext trusted,string executor,CancellationToken ct)
+    {
+        if(a.ProtocolVersion>=2 && a.Stage is LeadCustomerConversionStage.LeadReserved or LeadCustomerConversionStage.CustomerResolved)
+        {
+            var released=await leads.ReleaseAsync(new(trusted,a.LeadId,a.ConversionId,$"{a.ConversionId}:lead-reservation-release",a.RequestId,a.CorrelationId,a.OriginalPrincipalId,executor),ct);
+            if(!released.IsSuccess)return await TransientAsync(a,attempt,released.ErrorCode??"INTERNAL_ERROR",ct);
+        }
+        a.ManualReview(attempt,code,timeProvider.GetUtcNow());await db.SaveChangesAsync(ct);return Failure(code,409);
+    }
     private async Task<ConvertLeadToCustomerResult> TransientAsync(LeadCustomerConversionAnchor a,string attempt,string code,CancellationToken ct){var now=timeProvider.GetUtcNow();a.Retry(attempt,code,now.AddMinutes(1),now);await db.SaveChangesAsync(ct);return Failure(code,503);}
     private static IReadOnlyDictionary<string,string[]>? Validate(ConvertLeadToCustomerRequest r){var f=new Dictionary<string,string[]>();var s=r.AccountSubject;if(s is null)f["accountSubject"]=["accountSubject is required."];else{if(s.Type is not("CONTACT" or "ORGANIZATION_ACCOUNT"))f["accountSubject.type"]=["Unsupported subject type."];if(s.Mode!="EXISTING")f["accountSubject.mode"]=["Only EXISTING subjects are admitted."];if(string.IsNullOrWhiteSpace(s.Id))f["accountSubject.id"]=["id is required for EXISTING."];if(s.Contact is not null)f["accountSubject.contact"]=["contact is forbidden for EXISTING."];if(r.Stakeholder is not null)f["stakeholder"]=["Stakeholder creation is not admitted."];}return f.Count==0?null:f;}
     private static string MapLeadCode(string? c)=>c=="RESOURCE_VERSION_CONFLICT"?"VERSION_CONFLICT":c??"INTERNAL_ERROR";
     private static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+    private static bool MatchesBusiness(LeadCustomerConversionAnchor anchor,string workspaceId,string leadId,string subjectType,string subjectId,string fingerprint)
+        => string.IsNullOrEmpty(anchor.BusinessIntentFingerprint)
+            ? anchor.WorkspaceId==workspaceId&&anchor.LeadId==leadId&&anchor.ConversionType=="LEAD_TO_CUSTOMER"&&anchor.SubjectType==subjectType&&anchor.SubjectId==subjectId
+            : anchor.BusinessIntentFingerprint==fingerprint;
     private static ConvertLeadToCustomerResult Success(LeadCustomerConversionResponse response)=>new(true,response);
     private static ConvertLeadToCustomerResult Failure(string code,int status,IReadOnlyDictionary<string,string[]>? fields=null,long? expected=null,long? current=null,string? idempotency=null)=>new(false,null,code,status,fields,expected,current,idempotency);
 }

@@ -60,7 +60,7 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
             entity.Property(x=>x.LeadVersion); entity.Property(x=>x.AttemptCount); entity.Property(x=>x.CreatedAt).HasPrecision(7);
             entity.Property(x=>x.UpdatedAt).HasPrecision(7); entity.Property(x=>x.CompletedAt).HasPrecision(7);
             entity.Property(x=>x.ExecutionLeaseAcquiredAt).HasPrecision(7); entity.Property(x=>x.ExecutionLeaseExpiresAt).HasPrecision(7);
-            entity.Property(x=>x.RequestFingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.BusinessIntentFingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.ResponseJson).HasColumnType("nvarchar(max)");
+            entity.Property(x=>x.RequestFingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.BusinessIntentFingerprint).HasMaxLength(64).IsRequired(); entity.Property(x=>x.ProtocolVersion).HasDefaultValue(2); entity.Property(x=>x.ResponseJson).HasColumnType("nvarchar(max)");
             entity.Property(x=>x.EmittedEventIdsJson).HasColumnType("nvarchar(max)"); entity.Property(x=>x.AuditEvidenceIdsJson).HasColumnType("nvarchar(max)");
             entity.Property(x=>x.CustomerResolution).HasMaxLength(16); entity.Property(x=>x.LastErrorCategory).HasMaxLength(32); entity.Property(x=>x.LastErrorCode).HasMaxLength(128);
             entity.Property(x=>x.Stage).HasConversion<string>().HasMaxLength(40); entity.Property(x=>x.RowVersion).IsRowVersion();

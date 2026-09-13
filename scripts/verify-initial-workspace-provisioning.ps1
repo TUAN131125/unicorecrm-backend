@@ -70,6 +70,9 @@ function Initialize-Database {
         @{ Project = 'src/UnicoreCRM.Crm'; Context = 'LeadsDbContext' },
         @{ Project = 'src/UnicoreCRM.Crm'; Context = 'DealsDbContext' },
         @{ Project = 'src/UnicoreCRM.Crm'; Context = 'ContactsDbContext' },
+        @{ Project = 'src/UnicoreCRM.Crm'; Context = 'OrganizationsDbContext' },
+        @{ Project = 'src/UnicoreCRM.Crm'; Context = 'CustomersDbContext' },
+        @{ Project = 'src/UnicoreCRM.Workflows'; Context = 'WorkflowsDbContext' },
         @{ Project = 'src/UnicoreCRM.Integrations'; Context = 'IntegrationsDbContext' },
         @{ Project = 'src/UnicoreCRM.PlatformOperations'; Context = 'InboxDbContext' }
     )
@@ -168,7 +171,8 @@ function Send-Json([string] $method, [string] $path, [string] $body, [hashtable]
         $setCookie = (@($cookieHeader[0].Value) -join '; ')
     }
     $message.Dispose()
-    return [pscustomobject] @{ Status = [int] $response.StatusCode; Body = $text; SetCookie = $setCookie }
+    $etag = if ($null -ne $response.Headers.ETag) { $response.Headers.ETag.ToString() } else { $null }
+    return [pscustomobject] @{ Status = [int] $response.StatusCode; Body = $text; SetCookie = $setCookie; ETag = $etag }
 }
 
 function Get-RefreshCookie([string] $setCookie) {
@@ -393,6 +397,47 @@ try {
         estimatedValue = @{ amount = '10.00'; currency = 'VND' }
     } | ConvertTo-Json -Compress -Depth 5) (New-Headers $tokenA $workspaceA ('idem-lead-' + [Guid]::NewGuid().ToString('N')))
     Assert-Status $leadResponse 201 'I: createLead in the provisioned Workspace'
+    $leadDocument = $leadResponse.Body | ConvertFrom-Json
+    $contactResponse = Send-Json 'POST' '/contacts' (@{ fullName='Conversion Contact'; ownerId=$memberA; workEmail='conversion.contact@example.test'; mobilePhone='0901000001' } | ConvertTo-Json -Compress) (New-Headers $tokenA $workspaceA ('idem-contact-' + [Guid]::NewGuid().ToString('N')))
+    Assert-Status $contactResponse 201 'I: create Contact for real B2C conversion'
+    $contactId = (($contactResponse.Body | ConvertFrom-Json).result.contact.id)
+    $organizationResponse = Send-Json 'POST' '/organizations' (@{ displayName='Conversion Organization'; email='conversion.organization@example.test'; phone='0901000002' } | ConvertTo-Json -Compress) (New-Headers $tokenA $workspaceA ('idem-organization-' + [Guid]::NewGuid().ToString('N')))
+    Assert-Status $organizationResponse 200 'I: create Organization for real B2B conversion'
+    $organizationId = (($organizationResponse.Body | ConvertFrom-Json).result.id)
+    $conversionHeaders = New-Headers $tokenA $workspaceA 'idem-real-b2c'; $conversionHeaders['If-Match'] = '"' + $leadDocument.version + '"'
+    $b2c = Send-Json 'POST' ("/workflows/lead-customer-conversion/" + $leadDocument.aggregateId) (@{ accountSubject=@{type='CONTACT';mode='EXISTING';id=$contactId} } | ConvertTo-Json -Compress -Depth 5) $conversionHeaders
+    Assert-Status $b2c 200 'I: real HTTP B2C conversion'
+    $b2cBody=$b2c.Body|ConvertFrom-Json; Assert-True ($b2cBody.result.customerResolution -eq 'CREATED') 'I: real B2C Customer CREATED'
+    Assert-True ($b2c.ETag -eq ('"'+$b2cBody.result.leadVersion+'"')) 'I: HTTP ETag equals final authoritative Lead version'
+    $b2cReplay=Send-Json 'POST' ("/workflows/lead-customer-conversion/" + $leadDocument.aggregateId) (@{ accountSubject=@{type='CONTACT';mode='EXISTING';id=$contactId} } | ConvertTo-Json -Compress -Depth 5) $conversionHeaders
+    Assert-Status $b2cReplay 200 'I: same-key HTTP replay'; Assert-True ((($b2cReplay.Body|ConvertFrom-Json).outcome)-eq 'REPLAYED') 'I: same-key replay outcome'
+    $convergeHeaders=New-Headers $tokenA $workspaceA 'idem-real-b2c-converge';$convergeHeaders['If-Match']='"999"';Assert-Status (Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$leadDocument.aggregateId) (@{accountSubject=@{type='CONTACT';mode='EXISTING';id=$contactId}}|ConvertTo-Json -Compress -Depth 5) $convergeHeaders) 200 'I: different-key same-intent HTTP convergence'
+    $conflictHeaders=New-Headers $tokenA $workspaceA 'idem-real-b2c-conflict';$conflictHeaders['If-Match']='"'+$leadDocument.version+'"';$httpConflict=Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$leadDocument.aggregateId) (@{accountSubject=@{type='ORGANIZATION_ACCOUNT';mode='EXISTING';id=$organizationId}}|ConvertTo-Json -Compress -Depth 5) $conflictHeaders;Assert-Status $httpConflict 409 'I: different-key conflicting HTTP subject';Assert-True ((($httpConflict.Body|ConvertFrom-Json).code)-eq 'LEAD_ALREADY_CONVERTED') 'I: conflicting HTTP subject error code'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM customers.LeadConversionProvenance WHERE SourceLeadId='$($leadDocument.aggregateId)' AND InitiatedAt IS NOT NULL;") -eq '1') 'I: real provenance InitiatedAt persisted'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$($leadDocument.aggregateId)' AND PendingCustomerConversionId IS NULL AND CustomerRef IS NOT NULL;") -eq '1') 'I: successful conversion consumes Lead reservation'
+    $lead2=Send-Json 'POST' '/leads' (@{displayName='B2B conversion lead';email='b2b.lead@example.test';source='Direct';ownerId=$memberA;estimatedValue=@{amount='10.00';currency='VND'}}|ConvertTo-Json -Compress -Depth 5) (New-Headers $tokenA $workspaceA ('idem-lead-'+[Guid]::NewGuid().ToString('N')))
+    Assert-Status $lead2 201 'I: create B2B Lead';$lead2Body=$lead2.Body|ConvertFrom-Json;$b2bHeaders=New-Headers $tokenA $workspaceA 'idem-real-b2b';$b2bHeaders['If-Match']='"'+$lead2Body.version+'"'
+    $b2b=Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$lead2Body.aggregateId) (@{accountSubject=@{type='ORGANIZATION_ACCOUNT';mode='EXISTING';id=$organizationId}}|ConvertTo-Json -Compress -Depth 5) $b2bHeaders
+    Assert-Status $b2b 200 'I: real HTTP B2B conversion';Assert-True ((($b2b.Body|ConvertFrom-Json).result.customerResolution)-eq 'CREATED') 'I: real B2B Customer CREATED'
+    $lead3=Send-Json 'POST' '/leads' (@{displayName='Reuse conversion lead';email='reuse.lead@example.test';source='Direct';ownerId=$memberA;estimatedValue=@{amount='10.00';currency='VND'}}|ConvertTo-Json -Compress -Depth 5) (New-Headers $tokenA $workspaceA ('idem-lead-'+[Guid]::NewGuid().ToString('N')))
+    Assert-Status $lead3 201 'I: create reuse Lead';$lead3Body=$lead3.Body|ConvertFrom-Json;$reuseHeaders=New-Headers $tokenA $workspaceA 'idem-real-reuse';$reuseHeaders['If-Match']='"'+$lead3Body.version+'"'
+    $reuse=Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$lead3Body.aggregateId) (@{accountSubject=@{type='CONTACT';mode='EXISTING';id=$contactId}}|ConvertTo-Json -Compress -Depth 5) $reuseHeaders
+    Assert-Status $reuse 200 'I: real HTTP exact-subject reuse';$reuseBody=$reuse.Body|ConvertFrom-Json;Assert-True ($reuseBody.result.customerResolution -eq 'REUSED') 'I: exact-subject Customer REUSED';Assert-True ($reuseBody.result.customerId -eq $b2cBody.result.customerId) 'I: two Leads reuse one Customer'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM customers.LeadConversionProvenance WHERE CustomerId='$($b2cBody.result.customerId)';") -eq '2') 'I: one Customer has two provenance rows'
+    Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM customers.Customers WHERE CustomerId='$($b2cBody.result.customerId)' AND OwnerId='$memberA';") -eq '1') 'I: Customer inherits reserved Lead owner'
+    $lead4=Send-Json 'POST' '/leads' (@{displayName='HTTP negative conversion lead';email='negative.lead@example.test';source='Direct';ownerId=$memberA;estimatedValue=@{amount='10.00';currency='VND'}}|ConvertTo-Json -Compress -Depth 5) (New-Headers $tokenA $workspaceA ('idem-lead-'+[Guid]::NewGuid().ToString('N')))
+    Assert-Status $lead4 201 'I: create HTTP negative Lead';$lead4Body=$lead4.Body|ConvertFrom-Json;$conversionBody=@{accountSubject=@{type='CONTACT';mode='EXISTING';id=$contactId}}|ConvertTo-Json -Compress -Depth 5
+    $missingKeyHeaders=New-Headers $tokenA $workspaceA;$missingKeyHeaders['If-Match']='"'+$lead4Body.version+'"';Assert-Status (Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$lead4Body.aggregateId) $conversionBody $missingKeyHeaders) 422 'I: missing Idempotency-Key rejected'
+    $missingMatchHeaders=New-Headers $tokenA $workspaceA 'idem-missing-match';Assert-Status (Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$lead4Body.aggregateId) $conversionBody $missingMatchHeaders) 422 'I: missing If-Match rejected'
+    $staleHeaders=New-Headers $tokenA $workspaceA 'idem-stale-match';$staleHeaders['If-Match']='"999"';Assert-Status (Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$lead4Body.aggregateId) $conversionBody $staleHeaders) 412 'I: stale If-Match rejected'
+    & sqlcmd -S $server -d $DatabaseName -b -Q "DELETE rc FROM access.RoleCapabilities rc INNER JOIN access.Roles r ON r.RoleId=rc.RoleId WHERE r.WorkspaceId='$workspaceA' AND rc.Capability='leads.convert_to_customer'" | Out-Null
+    $deniedHeaders=New-Headers $tokenA $workspaceA 'idem-capability-denied';$deniedHeaders['If-Match']='"'+$lead4Body.version+'"';Assert-Status (Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$lead4Body.aggregateId) $conversionBody $deniedHeaders) 403 'I: missing conversion capability forbidden'
+    & sqlcmd -S $server -d $DatabaseName -b -Q "INSERT INTO access.RoleCapabilities(RoleId,Capability) SELECT TOP(1) RoleId,'leads.convert_to_customer' FROM access.Roles WHERE WorkspaceId='$workspaceA'" | Out-Null
+    & sqlcmd -S $server -d $DatabaseName -b -Q "DELETE FROM workflow.LeadCustomerConversionAnchors WHERE LeadId='$($leadDocument.aggregateId)'" | Out-Null
+    $beforeCustomers=Invoke-SqlScalar 'SELECT COUNT(*) FROM customers.Customers';$beforeProvenance=Invoke-SqlScalar 'SELECT COUNT(*) FROM customers.LeadConversionProvenance'
+    $convertedAgainHeaders=New-Headers $tokenA $workspaceA 'idem-already-converted';$convertedAgainHeaders['If-Match']='"'+$b2cBody.result.leadVersion+'"'
+    $convertedAgain=Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$leadDocument.aggregateId) (@{accountSubject=@{type='ORGANIZATION_ACCOUNT';mode='EXISTING';id=$organizationId}}|ConvertTo-Json -Compress -Depth 5) $convertedAgainHeaders
+    Assert-Status $convertedAgain 409 'I: already-converted Lead without anchor rejected';Assert-True ((($convertedAgain.Body|ConvertFrom-Json).code)-eq 'LEAD_ALREADY_CONVERTED') 'I: already-converted error code';Assert-True ((Invoke-SqlScalar 'SELECT COUNT(*) FROM customers.Customers') -eq $beforeCustomers) 'I: already-converted creates no Customer';Assert-True ((Invoke-SqlScalar 'SELECT COUNT(*) FROM customers.LeadConversionProvenance') -eq $beforeProvenance) 'I: already-converted creates no provenance'
     $sessionRead = Send-Json 'GET' '/auth/session' $null (New-Headers $tokenA)
     Assert-Status $sessionRead 200 'I: getCurrentSession'
     $registerResponse = Send-Json 'POST' '/auth/accounts' (@{
@@ -428,6 +473,12 @@ try {
     Assert-True ((($bootstrapB.configuration.enabledModuleKeys) -join ',') -eq ($expectedEnabledModuleKeys -join ',')) 'D: exact server-owned enabled modules applied'
     Assert-True ((($bootstrapB.configuration.availableProductSpaces) -join ',') -eq 'crm,studio,people') 'D: server-owned product spaces applied'
     Assert-True ([int](Invoke-SqlScalar "SELECT COUNT(*) FROM workspace.Memberships WHERE AccountId='$accountBId' AND Status='Active';") -eq 1) 'D: exactly one ACTIVE membership for the skip account'
+    $foreignContact=Send-Json 'POST' '/contacts' (@{fullName='Foreign Workspace Contact';workEmail='foreign.conversion@example.test';mobilePhone='0901000099'}|ConvertTo-Json -Compress) (New-Headers $tokenB $workspaceB ('idem-foreign-contact-'+[Guid]::NewGuid().ToString('N')))
+    Assert-Status $foreignContact 201 'D: create foreign-Workspace Contact';$foreignContactId=(($foreignContact.Body|ConvertFrom-Json).result.contact.id)
+    $tenantLead=Send-Json 'POST' '/leads' (@{displayName='Tenant isolation Lead';email='tenant.lead@example.test';source='Direct';ownerId=$memberA;estimatedValue=@{amount='10.00';currency='VND'}}|ConvertTo-Json -Compress -Depth 5) (New-Headers $tokenA $workspaceA ('idem-tenant-lead-'+[Guid]::NewGuid().ToString('N')))
+    Assert-Status $tenantLead 201 'D: create tenant-isolation Lead';$tenantLeadBody=$tenantLead.Body|ConvertFrom-Json;$tenantHeaders=New-Headers $tokenA $workspaceA 'idem-tenant-conversion';$tenantHeaders['If-Match']='"'+$tenantLeadBody.version+'"'
+    $tenantDenied=Send-Json 'POST' ("/workflows/lead-customer-conversion/"+$tenantLeadBody.aggregateId) (@{accountSubject=@{type='CONTACT';mode='EXISTING';id=$foreignContactId}}|ConvertTo-Json -Compress -Depth 5) $tenantHeaders
+    Assert-Status $tenantDenied 404 'D: wrong-Workspace subject denied with anti-enumeration';Assert-True ((Invoke-SqlScalar "SELECT COUNT(*) FROM customers.LeadConversionProvenance WHERE SourceLeadId='$($tenantLeadBody.aggregateId)';") -eq '0') 'D: wrong-Workspace subject creates no provenance'
     Stop-ApiHost $hostProcess
     $hostProcess = $null
 

@@ -129,7 +129,7 @@ internal sealed class CustomerLeadConversionProvenance
     internal string WorkspaceId { get; private set; }=null!; internal string WorkflowId { get; private set; }=null!;
     internal string CustomerId { get; private set; }=null!; internal string SourceLeadId { get; private set; }=null!;
     internal string PolicyVersion { get; private set; }=null!; internal string CorrelationId { get; private set; }=null!;
-    internal string OriginalPrincipalId { get; private set; }=null!; internal DateTimeOffset InitiatedAt { get; private set; }
+    internal string OriginalPrincipalId { get; private set; }=null!; internal DateTimeOffset? InitiatedAt { get; private set; }
     internal string Resolution { get; private set; }=null!;
     internal DateTimeOffset? CompletedAt { get; private set; }
     internal string? CompletionExecutorPrincipalId { get; private set; }

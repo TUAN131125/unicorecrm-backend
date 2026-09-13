@@ -70,6 +70,7 @@ internal sealed class Lead
     /// </summary>
     public string? DealRef { get; private set; }
     public string? CustomerRef { get; private set; }
+    public string? PendingCustomerConversionId { get; private set; }
 
     public long Version { get; private set; }
 
@@ -87,7 +88,7 @@ internal sealed class Lead
         LeadVerificationProfile verification,
         DateTimeOffset now)
     {
-        if (WorkState == LeadWorkState.Closed
+        if (PendingCustomerConversionId is not null || WorkState == LeadWorkState.Closed
             || target == LeadWorkState.Closed
             || (WorkState != target
                 && (WorkState, target) is not (LeadWorkState.New, LeadWorkState.Contacting)
@@ -110,7 +111,7 @@ internal sealed class Lead
 
     internal bool Disqualify(string reason, string? evidence, string actorId, DateTimeOffset now)
     {
-        if (WorkState == LeadWorkState.Closed)
+        if (PendingCustomerConversionId is not null || WorkState == LeadWorkState.Closed)
             return false;
         WorkState = LeadWorkState.Closed;
         QualificationOutcome = LeadQualificationOutcome.Disqualified;
@@ -132,7 +133,7 @@ internal sealed class Lead
     /// </summary>
     internal bool QualifyForNurture(string contactId, DateTimeOffset now)
     {
-        if (WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
+        if (PendingCustomerConversionId is not null || WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
             return false;
 
         WorkState = LeadWorkState.Closed;
@@ -146,7 +147,7 @@ internal sealed class Lead
 
     internal bool QualifyForOpportunity(string contactId, string dealId, DateTimeOffset now)
     {
-        if (WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
+        if (PendingCustomerConversionId is not null || WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
             return false;
 
         WorkState = LeadWorkState.Closed;
@@ -160,7 +161,7 @@ internal sealed class Lead
 
     internal bool Reopen(DateTimeOffset now)
     {
-        if (WorkState != LeadWorkState.Closed
+        if (PendingCustomerConversionId is not null || WorkState != LeadWorkState.Closed
             || QualificationOutcome != LeadQualificationOutcome.Disqualified
             || !Profile.HasProgressiveProfile())
         {
@@ -180,11 +181,31 @@ internal sealed class Lead
         return true;
     }
 
-    internal LeadCustomerConversionRecordResult RecordCustomerConversion(string customerId, DateTimeOffset now)
+    internal LeadCustomerConversionReservationResult ReserveCustomerConversion(string conversionId, DateTimeOffset now)
+    {
+        if (CustomerRef is not null) return LeadCustomerConversionReservationResult.AlreadyConverted;
+        if (PendingCustomerConversionId == conversionId) return LeadCustomerConversionReservationResult.Replayed;
+        if (PendingCustomerConversionId is not null) return LeadCustomerConversionReservationResult.ConflictingReservation;
+        if (ArchivedAt is not null || !IsEligibleForCustomerConversion()) return LeadCustomerConversionReservationResult.Ineligible;
+        PendingCustomerConversionId = conversionId;
+        Touch(now);
+        return LeadCustomerConversionReservationResult.Reserved;
+    }
+
+    internal bool ReleaseCustomerConversion(string conversionId, DateTimeOffset now)
+    {
+        if (CustomerRef is not null || PendingCustomerConversionId != conversionId) return false;
+        PendingCustomerConversionId = null;
+        Touch(now);
+        return true;
+    }
+
+    internal LeadCustomerConversionRecordResult RecordCustomerConversion(string conversionId, bool reservationRequired, string customerId, DateTimeOffset now)
     {
         if (CustomerRef == customerId) return LeadCustomerConversionRecordResult.Replayed;
         if (CustomerRef is not null) return LeadCustomerConversionRecordResult.ConflictingCustomer;
-        if (ArchivedAt is not null || (WorkState == LeadWorkState.Closed && QualificationOutcome == LeadQualificationOutcome.Disqualified))
+        if (reservationRequired && PendingCustomerConversionId != conversionId) return LeadCustomerConversionRecordResult.ConflictingReservation;
+        if (ArchivedAt is not null || !IsEligibleForCustomerConversion())
             return LeadCustomerConversionRecordResult.Ineligible;
         if (WorkState != LeadWorkState.Closed)
         {
@@ -192,13 +213,14 @@ internal sealed class Lead
             QualificationOutcome = LeadQualificationOutcome.Customer;
         }
         CustomerRef = customerId;
+        if (reservationRequired) PendingCustomerConversionId = null;
         Touch(now);
         return LeadCustomerConversionRecordResult.Recorded;
     }
 
     internal bool Archive(string? reason, DateTimeOffset now)
     {
-        if (ArchivedAt is not null)
+        if (PendingCustomerConversionId is not null || ArchivedAt is not null)
             return false;
 
         ArchivedAt = now;
@@ -212,6 +234,9 @@ internal sealed class Lead
         UpdatedAt = now;
         Version++;
     }
+
+    private bool IsEligibleForCustomerConversion() => WorkState != LeadWorkState.Closed
+        || QualificationOutcome is LeadQualificationOutcome.Nurture or LeadQualificationOutcome.Opportunity;
 
     private static string BuildSearchText(string leadId, LeadProfile profile) =>
         string.Join('\n', leadId, profile.DisplayName).ToUpperInvariant();
@@ -235,4 +260,5 @@ internal static class LeadRelationshipTypes
     internal const string Contact = "CONTACT";
 }
 internal enum LeadTransitionResult { Succeeded, InvalidTransition, ProfileIncomplete }
-internal enum LeadCustomerConversionRecordResult { Recorded, Replayed, ConflictingCustomer, Ineligible }
+internal enum LeadCustomerConversionReservationResult { Reserved, Replayed, AlreadyConverted, ConflictingReservation, Ineligible }
+internal enum LeadCustomerConversionRecordResult { Recorded, Replayed, ConflictingCustomer, ConflictingReservation, Ineligible }

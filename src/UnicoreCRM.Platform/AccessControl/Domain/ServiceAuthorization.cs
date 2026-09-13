@@ -25,7 +25,7 @@ internal sealed class ServiceAuthorizationDecisionRecord
     internal string WorkspaceId { get; private set; } = null!;
     internal string ServicePrincipalId { get; private set; } = null!;
     internal string RequiredCapability { get; private set; } = null!;
-    internal bool Allowed { get; private set; }
+    internal bool? Allowed { get; private set; }
     internal string CorrelationId { get; private set; } = null!;
     internal DateTimeOffset EvaluatedAt { get; private set; }
 }

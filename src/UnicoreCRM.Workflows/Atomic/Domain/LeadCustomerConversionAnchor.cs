@@ -1,6 +1,6 @@
 namespace UnicoreCRM.Workflows.Atomic.Domain;
 
-internal enum LeadCustomerConversionStage { SubjectResolved, CustomerResolved, LeadConversionRecorded, ProvenanceFinalized, Completed, ManualReview }
+internal enum LeadCustomerConversionStage { SubjectResolved, LeadReserved, CustomerResolved, LeadConversionRecorded, ProvenanceFinalized, Completed, ManualReview }
 
 internal sealed class LeadCustomerConversionAnchor
 {
@@ -13,6 +13,7 @@ internal sealed class LeadCustomerConversionAnchor
         ScopeKey=scopeKey; ConversionId=WorkflowIds.New("conversion"); WorkspaceId=workspaceId; LeadId=leadId;
         ConversionType="LEAD_TO_CUSTOMER"; IdempotencyKey=idempotencyKey; RequestFingerprint=requestFingerprint;
         BusinessIntentFingerprint=businessIntentFingerprint; ExpectedLeadVersion=expectedLeadVersion;
+        ProtocolVersion=2;
         OriginalAccountId=accountId; OriginalMemberId=memberId; OriginalMembershipId=membershipId;
         OriginalPrincipalId=originalPrincipalId; CorrelationId=correlationId; RequestId=requestId;
         SubjectType=subjectType; SubjectId=subjectId; SubjectVersion=subjectVersion; FrozenLeadOwnerId=leadOwnerId;
@@ -23,6 +24,7 @@ internal sealed class LeadCustomerConversionAnchor
     internal string ConversionType { get; private set; }=null!; internal string IdempotencyKey { get; private set; }=null!;
     internal string RequestFingerprint { get; private set; }=null!; internal string BusinessIntentFingerprint { get; private set; }=null!;
     internal long ExpectedLeadVersion { get; private set; }
+    internal int ProtocolVersion { get; private set; }
     internal string OriginalAccountId { get; private set; }=null!; internal string OriginalMemberId { get; private set; }=null!;
     internal string OriginalMembershipId { get; private set; }=null!; internal string OriginalPrincipalId { get; private set; }=null!;
     internal string CorrelationId { get; private set; }=null!; internal string RequestId { get; private set; }=null!;
@@ -44,6 +46,8 @@ internal sealed class LeadCustomerConversionAnchor
     internal void AcquireLease(string attemptId,string principalId,DateTimeOffset now,TimeSpan duration)
     { ExecutionAttemptId=attemptId;ExecutionPrincipalId=principalId;ExecutionLeaseAcquiredAt=now;ExecutionLeaseExpiresAt=now.Add(duration);UpdatedAt=now; }
     internal bool OwnsLease(string attemptId,DateTimeOffset now) => ExecutionAttemptId==attemptId && ExecutionLeaseExpiresAt>now;
+    internal void RecordLeadReservation(string attemptId,long version,string ownerId,IReadOnlyList<string> events,IReadOnlyList<string> audits,DateTimeOffset now)
+    { RequireLease(attemptId,now);LeadVersion=version;FrozenLeadOwnerId=ownerId;MergeEvidence(events,audits);Stage=LeadCustomerConversionStage.LeadReserved;ReleaseLease(now); }
     internal void RecordCustomer(string attemptId,string id,long version,string resolution,IReadOnlyList<string> events,IReadOnlyList<string> audits,DateTimeOffset now)
     { RequireLease(attemptId,now);CustomerId=id;CustomerVersion=version;CustomerResolution=resolution;MergeEvidence(events,audits);Stage=LeadCustomerConversionStage.CustomerResolved;ReleaseLease(now); }
     internal void RecordLead(string attemptId,long version,IReadOnlyList<string> events,IReadOnlyList<string> audits,DateTimeOffset now)

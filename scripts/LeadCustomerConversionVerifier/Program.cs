@@ -4,6 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using UnicoreCRM.Crm.Contacts.Contracts;
 using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Crm.Leads.Contracts;
@@ -30,9 +33,9 @@ await using var provider=services.BuildServiceProvider();
 await ClearAnchors();
 VerifyOwnerDomainSemantics();
 await VerifyCustomerSemantics();
-await VerifySameKeyOverlap();await VerifySameIntentOverlap();await VerifyConflictingIntentOverlap();await VerifyFingerprintSeparation();
-await VerifyRecoveryDenied();
-await VerifyCrashRecovery(CrashPoint.Customer);await VerifyCrashRecovery(CrashPoint.Lead);await VerifyCrashRecovery(CrashPoint.Finalize);
+await VerifySameKeyOverlap();await VerifySameIntentOverlap();await VerifyConflictingIntentOverlap();await VerifyFingerprintSeparation();await VerifyLegacyFingerprintCompatibility();
+await VerifyAlreadyConvertedPreSideEffect();await VerifyRecoveryDenied();
+await VerifyCrashRecovery(CrashPoint.Reservation);await VerifyCrashRecovery(CrashPoint.Customer);await VerifyCrashRecovery(CrashPoint.Lead);await VerifyCrashRecovery(CrashPoint.Finalize);
 Console.WriteLine("Lead customer conversion concurrency/recovery verifier PASS");
 
 void VerifyOwnerDomainSemantics()
@@ -42,13 +45,15 @@ void VerifyOwnerDomainSemantics()
     var record=leadType.GetMethod("RecordCustomerConversion",BindingFlags.Instance|BindingFlags.NonPublic)!;
     object Lead(string state,string? outcome,string? customer=null,bool archived=false)
     {var value=RuntimeHelpers.GetUninitializedObject(leadType);Set(value,"WorkState",Enum.Parse(stateType,state));Set(value,"QualificationOutcome",outcome is null?null:Enum.Parse(outcomeType,outcome));Set(value,"CustomerRef",customer);Set(value,"ArchivedAt",archived?clock.GetUtcNow():null);Set(value,"UpdatedAt",clock.GetUtcNow());return value;}
-    foreach(var state in new[]{"New","Contacting","Verifying"}){var lead=Lead(state,null);Assert(record.Invoke(lead,["customer",clock.GetUtcNow()])!.ToString()!="Ineligible",$"{state} Lead converts without Deal");Assert(Get(lead,"WorkState")!.ToString()=="Closed"&&Get(lead,"QualificationOutcome")!.ToString()=="Customer",$"{state} closes with CUSTOMER outcome");}
-    var nurture=Lead("Closed","Nurture");Set(nurture,"RelationshipType","CONTACT");Set(nurture,"RelationshipId","contact_history");record.Invoke(nurture,["customer",clock.GetUtcNow()]);Assert(Get(nurture,"QualificationOutcome")!.ToString()=="Nurture"&&Get(nurture,"RelationshipId")!.ToString()=="contact_history","NURTURE history is preserved");
-    var opportunity=Lead("Closed","Opportunity");Set(opportunity,"DealRef","deal_history");record.Invoke(opportunity,["customer",clock.GetUtcNow()]);Assert(Get(opportunity,"QualificationOutcome")!.ToString()=="Opportunity"&&Get(opportunity,"DealRef")!.ToString()=="deal_history","OPPORTUNITY and DealRef history are preserved");
-    Assert(record.Invoke(Lead("Closed","Disqualified"),["customer",clock.GetUtcNow()])!.ToString()=="Ineligible","DISQUALIFIED Lead is rejected");
-    Assert(record.Invoke(Lead("New",null,archived:true),["customer",clock.GetUtcNow()])!.ToString()=="Ineligible","archived Lead is rejected");
-    Assert(record.Invoke(Lead("Closed","Customer","same"),["same",clock.GetUtcNow()])!.ToString()=="Replayed","same CustomerRef replays");
-    Assert(record.Invoke(Lead("Closed","Customer","other"),["same",clock.GetUtcNow()])!.ToString()=="ConflictingCustomer","different CustomerRef conflicts");
+    foreach(var state in new[]{"New","Contacting","Verifying"}){var lead=Lead(state,null);Assert(record.Invoke(lead,["conversion",false,"customer",clock.GetUtcNow()])!.ToString()!="Ineligible",$"{state} Lead converts without Deal");Assert(Get(lead,"WorkState")!.ToString()=="Closed"&&Get(lead,"QualificationOutcome")!.ToString()=="Customer",$"{state} closes with CUSTOMER outcome");}
+    var nurture=Lead("Closed","Nurture");Set(nurture,"RelationshipType","CONTACT");Set(nurture,"RelationshipId","contact_history");record.Invoke(nurture,["conversion",false,"customer",clock.GetUtcNow()]);Assert(Get(nurture,"QualificationOutcome")!.ToString()=="Nurture"&&Get(nurture,"RelationshipId")!.ToString()=="contact_history","NURTURE history is preserved");
+    var opportunity=Lead("Closed","Opportunity");Set(opportunity,"DealRef","deal_history");record.Invoke(opportunity,["conversion",false,"customer",clock.GetUtcNow()]);Assert(Get(opportunity,"QualificationOutcome")!.ToString()=="Opportunity"&&Get(opportunity,"DealRef")!.ToString()=="deal_history","OPPORTUNITY and DealRef history are preserved");
+    Assert(record.Invoke(Lead("Closed","Disqualified"),["conversion",false,"customer",clock.GetUtcNow()])!.ToString()=="Ineligible","DISQUALIFIED Lead is rejected");
+    Assert(record.Invoke(Lead("Closed",null),["conversion",false,"customer",clock.GetUtcNow()])!.ToString()=="Ineligible","malformed CLOSED/null Lead fails closed");
+    Assert(record.Invoke(Lead("Closed","Customer"),["conversion",false,"customer",clock.GetUtcNow()])!.ToString()=="Ineligible","malformed CLOSED/CUSTOMER without CustomerRef fails closed");
+    Assert(record.Invoke(Lead("New",null,archived:true),["conversion",false,"customer",clock.GetUtcNow()])!.ToString()=="Ineligible","archived Lead is rejected");
+    Assert(record.Invoke(Lead("Closed","Customer","same"),["conversion",false,"same",clock.GetUtcNow()])!.ToString()=="Replayed","same CustomerRef replays");
+    Assert(record.Invoke(Lead("Closed","Customer","other"),["conversion",false,"same",clock.GetUtcNow()])!.ToString()=="ConflictingCustomer","different CustomerRef conflicts");
     var profile=assembly.GetType("UnicoreCRM.Crm.Customers.Domain.CustomerProfile",true)!;
     foreach(var removed in new[]{"SourceLeadId","ConversionCompletedAt","ConversionInitiatedBy","ConversionResult"})Assert(profile.GetProperty(removed) is null,$"Customer profile omits singular {removed}");
     var provenance=assembly.GetType("UnicoreCRM.Crm.Customers.Domain.CustomerLeadConversionProvenance",true)!;
@@ -97,6 +102,17 @@ async Task VerifyFingerprintSeparation()
     var changedSubject=await Execute(lead,"key-d",7,"contact_other");Assert(changedSubject.ErrorCode=="IDEMPOTENCY_KEY_REUSED","same key changed subject rejected");
     var converged=await Execute(lead,"key-d2",8,"contact_d");Assert(converged.IsSuccess,"different key/version same business intent converges");
 }
+async Task VerifyLegacyFingerprintCompatibility()
+{
+    participants.Reset();var lead="lead_legacy_fingerprint";var key="legacy-key";var subjectId="contact_legacy";var original=Command(lead,key,11,subjectId);
+    Assert((await Execute(lead,key,11,subjectId)).IsSuccess,"legacy fixture completes before downgrade seeding");
+    var old=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new{original.LeadId,original.ExpectedVersion,subject=original.Request.AccountSubject,original.Request.Stakeholder},new JsonSerializerOptions(JsonSerializerDefaults.Web)))));
+    await using(var sql=new SqlConnection(connection)){await sql.OpenAsync();await using var update=new SqlCommand("UPDATE workflow.LeadCustomerConversionAnchors SET RequestFingerprint=@fingerprint,BusinessIntentFingerprint='',ProtocolVersion=1 WHERE LeadId=@lead",sql);update.Parameters.AddWithValue("@fingerprint",old);update.Parameters.AddWithValue("@lead",lead);await update.ExecuteNonQueryAsync();}
+    Assert((await Execute(lead,key,11,subjectId)).IsSuccess,"completed legacy anchor same-key exact old request replays");
+    Assert((await Execute(lead,key,12,subjectId)).ErrorCode=="IDEMPOTENCY_KEY_REUSED","legacy same key changed expected version is rejected");
+    Assert((await Execute(lead,"legacy-other-key",12,subjectId)).IsSuccess,"legacy different key same subject converges despite version change");
+    Assert((await Execute(lead,"legacy-conflict-key",11,"contact_other")).ErrorCode=="LEAD_ALREADY_CONVERTED","legacy different key different subject conflicts");
+}
 async Task VerifyCrashRecovery(CrashPoint point)
 {
     participants.Reset();participants.Crash=point;var lead=$"lead_crash_{point}";
@@ -115,6 +131,7 @@ async Task VerifyRecoveryDenied()
     Assert(await task==0,"missing Workspace service grant denies recovery");Assert(participants.CustomerCalls==1,"denied recovery mutates no owner state");
     participants.ServiceAllowed=true;var retry=(Task<int>)recoveryRunnerType.GetMethod("ResumeDueAsync")!.Invoke(runner,["svc_lead_customer_conversion_recovery",CancellationToken.None])!;Assert(await retry==1,"Workspace grant allows recovery");
 }
+async Task VerifyAlreadyConvertedPreSideEffect(){participants.Reset();participants.AlreadyConvertedLead=true;var result=await Execute("lead_already_converted","new-key",1,"contact_new");Assert(result.ErrorCode=="LEAD_ALREADY_CONVERTED","already-converted Lead is rejected before anchor admission");Assert(participants.CustomerCalls==0,"already-converted Lead invokes no Customer participant");}
 async Task<ConvertLeadToCustomerResult> Execute(string lead,string key,long version,string subject,string type="CONTACT")
 { await using var scope=provider.CreateAsyncScope();return await scope.ServiceProvider.GetRequiredService<ILeadCustomerConversionWorkflow>().ExecuteAsync(Command(lead,key,version,subject,type),CancellationToken.None); }
 static ConvertLeadToCustomerCommand Command(string lead,string key,long version,string subject,string type="CONTACT")=>new(lead,new(new(type,"EXISTING",subject)),"request","correlation",key,version);
@@ -122,18 +139,22 @@ async Task ClearAnchors(){await using var sql=new SqlConnection(connection);awai
 async Task<int> WinnerCount(string lead){await using var sql=new SqlConnection(connection);await sql.OpenAsync();await using var command=new SqlCommand("SELECT COUNT(*) FROM workflow.LeadCustomerConversionAnchors WHERE LeadId=@lead",sql);command.Parameters.AddWithValue("@lead",lead);return Convert.ToInt32(await command.ExecuteScalarAsync());}
 static void Assert(bool value,string claim){if(!value)throw new InvalidOperationException("FAIL: "+claim);Console.WriteLine("PASS: "+claim);}
 
-enum CrashPoint{None,Customer,Lead,Finalize}
+enum CrashPoint{None,Reservation,Customer,Lead,Finalize}
 sealed class InjectedCrashException:Exception;
 sealed class MutableTimeProvider(DateTimeOffset now):TimeProvider{private DateTimeOffset current=now;public override DateTimeOffset GetUtcNow()=>current;public void Advance(TimeSpan value)=>current+=value;}
 sealed class Participants : LeadParticipant,IContactCustomerSubjectParticipant,IOrganizationCustomerSubjectParticipant,
     UnicoreCRM.Crm.Customers.Contracts.ILeadCustomerConversionParticipant,IServiceAccessAuthorizer
 {
-    readonly HashSet<string> effects=[];readonly Dictionary<string,string> customers=[];public readonly HashSet<string> ProvenanceWorkflows=[];public string? LastLeadOwner;public int CustomerCalls;public int DuplicateEffects;public bool BlockCustomer;public bool ServiceAllowed=true;public CrashPoint Crash;
+    readonly HashSet<string> effects=[];readonly Dictionary<string,string> customers=[];public readonly HashSet<string> ProvenanceWorkflows=[];public string? LastLeadOwner;public int CustomerCalls;public int DuplicateEffects;public bool BlockCustomer;public bool ServiceAllowed=true;public bool AlreadyConvertedLead;public CrashPoint Crash;
     public TaskCompletionSource CustomerEntered=new(TaskCreationOptions.RunContinuationsAsynchronously);public TaskCompletionSource ReleaseCustomer=new(TaskCreationOptions.RunContinuationsAsynchronously);
-    public void Reset(){effects.Clear();customers.Clear();ProvenanceWorkflows.Clear();LastLeadOwner=null;CustomerCalls=DuplicateEffects=0;BlockCustomer=false;ServiceAllowed=true;Crash=CrashPoint.None;CustomerEntered=new(TaskCreationOptions.RunContinuationsAsynchronously);ReleaseCustomer=new(TaskCreationOptions.RunContinuationsAsynchronously);}
+    public void Reset(){effects.Clear();customers.Clear();ProvenanceWorkflows.Clear();LastLeadOwner=null;CustomerCalls=DuplicateEffects=0;BlockCustomer=false;ServiceAllowed=true;AlreadyConvertedLead=false;Crash=CrashPoint.None;CustomerEntered=new(TaskCreationOptions.RunContinuationsAsynchronously);ReleaseCustomer=new(TaskCreationOptions.RunContinuationsAsynchronously);}
     static readonly TrustedWorkspaceContext Trusted=new("ws_conversion","account","member","membership");
     public Task<LeadCustomerConversionPreparation> AuthorizeAsync(PrepareLeadCustomerConversionCommand c,CancellationToken t)=>Task.FromResult(new LeadCustomerConversionPreparation(true,Trusted,"lead-owner",c.ExpectedVersion,null,null,null,null));
-    public Task<LeadCustomerConversionPreparation> PrepareAsync(PrepareLeadCustomerConversionCommand c,CancellationToken t)=>AuthorizeAsync(c,t);
+    public Task<LeadCustomerConversionPreparation> PrepareAsync(PrepareLeadCustomerConversionCommand c,CancellationToken t)=>AlreadyConvertedLead?Task.FromResult(new LeadCustomerConversionPreparation(false,null,null,null,null,null,"LEAD_ALREADY_CONVERTED",409,c.ExpectedVersion)):AuthorizeAsync(c,t);
+    public Task<LeadCustomerConversionReservation> ReserveAsync(ReserveLeadCustomerConversionCommand c,CancellationToken t)
+    {Effect(c.ParticipantKey);if(Crash==CrashPoint.Reservation){Crash=CrashPoint.None;throw new InjectedCrashException();}return Task.FromResult(new LeadCustomerConversionReservation(true,false,c.ExpectedLeadVersion+1,"lead-owner",["lead-reserved"],["lead-reserve-audit"],null,null));}
+    public Task<LeadCustomerConversionReservation> ReleaseAsync(ReleaseLeadCustomerConversionCommand c,CancellationToken t)
+    {Effect(c.ParticipantKey);return Task.FromResult(new LeadCustomerConversionReservation(true,false,0,"lead-owner",["lead-released"],["lead-release-audit"],null,null));}
     Task<ContactCustomerSubject?> IContactCustomerSubjectParticipant.ResolveVisibleAsync(TrustedWorkspaceContext t,string id,string r,string c,CancellationToken x)=>Task.FromResult<ContactCustomerSubject?>(new(id,"Contact",null,null,true,3));
     Task<OrganizationCustomerSubject?> IOrganizationCustomerSubjectParticipant.ResolveVisibleAsync(TrustedWorkspaceContext t,string id,string r,string c,CancellationToken x)=>Task.FromResult<OrganizationCustomerSubject?>(new(id,"Organization",null,null,true,3));
     public async Task<ResolveLeadConversionCustomerResult> ResolveOrCreateAsync(ResolveLeadConversionCustomerCommand c,CancellationToken t)

@@ -4,6 +4,7 @@
     <AssemblyName>UnicoreCRM.Platform</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="UnicoreCRM.LeadCustomerConversion.RealVerifier" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
