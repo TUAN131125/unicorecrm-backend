@@ -190,6 +190,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
     private static void ConfigureExport(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<ContactOutboxMessage> entity)
     {
         entity.Property(x => x.IntegrationEnvelopeJson).HasColumnType("nvarchar(max)"); entity.Property(x => x.ExportState).HasMaxLength(16);
+        entity.Property(x => x.ExportAttemptCount).HasDefaultValue(0);
         entity.Property(x => x.RelayAttemptId).HasMaxLength(64); entity.Property(x => x.LeaseExpiresAt).HasPrecision(7);
         entity.Property(x => x.NextEligibleAt).HasPrecision(7); entity.Property(x => x.PublishedAt).HasPrecision(7); entity.Property(x => x.LastRelayError).HasMaxLength(512);
         entity.HasIndex(x => new { x.ExportState, x.NextEligibleAt, x.LeaseExpiresAt, x.OccurredAt });

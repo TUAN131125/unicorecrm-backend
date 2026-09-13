@@ -149,6 +149,8 @@ internal sealed class OutboundWebhookSenderProcessor(IntegrationsDbContext db, I
         var secret = protection.CreateProtector("UnicoreCRM.Integrations.Webhooks.Outbound.SigningSecret.v1").Unprotect(subscription.ProtectedSecret);
         var result = await transport.SendAsync(new Uri(subscription.EndpointUrl), leased.DeliveryId, leased.EventId, leased.EventType, leased.CanonicalPayloadJson, secret, ct);
         var completedAt = clock.GetUtcNow(); var success = result.Status is >= 200 and <= 299; var retryable = result.Status is null or 408 or 425 or 429 or >= 500;
+        db.ChangeTracker.Clear();
+        leased = await db.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == deliveryId, ct);
         try
         {
             if (success) leased.Succeed(attemptId, completedAt, result.Status!.Value); else leased.Fail(attemptId, completedAt, result.Status, result.Error ?? $"HTTP_{result.Status}", retryable);
@@ -156,7 +158,7 @@ internal sealed class OutboundWebhookSenderProcessor(IntegrationsDbContext db, I
             attempt.Complete(completedAt, success ? "SUCCEEDED" : retryable ? "RETRY_SCHEDULED" : "DEAD_LETTER", result.Status, result.Error ?? (success ? null : $"HTTP_{result.Status}"));
             await db.SaveChangesAsync(ct);
         }
-        catch (InvalidOperationException) { log.LogWarning("Stale webhook execution {AttemptId} could not update delivery {DeliveryId}", attemptId, deliveryId); }
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); log.LogWarning("Stale webhook execution {AttemptId} could not update delivery {DeliveryId}", attemptId, deliveryId); }
         return true;
     }
 }

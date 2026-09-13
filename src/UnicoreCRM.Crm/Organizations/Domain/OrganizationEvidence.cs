@@ -55,7 +55,7 @@ internal sealed class OrganizationOutboxMessage
             using var payload = JsonDocument.Parse(payloadJson);
             var data = payload.RootElement.Clone();
             IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId,
-                IntegrationEventCatalog.OrganizationChanged, workspaceId, "Organizations", "ORGANIZATION",
+                OrganizationIntegrationEvents.Changed, workspaceId, "Organizations", "ORGANIZATION",
                 aggregateId, data.GetProperty("resourceVersion").GetInt64(), occurredAt, correlationId, data);
             ExportState = "PENDING";
         }

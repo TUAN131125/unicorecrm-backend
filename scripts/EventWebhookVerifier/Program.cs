@@ -17,6 +17,7 @@ using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 if (args.Length != 1) throw new ArgumentException("Pass one isolated migrated SQL Server connection string.");
 var connection = args[0];
 var clock = new MutableClock(DateTimeOffset.Parse("2026-09-13T08:00:00Z"));
+var eventCatalog = new TestCatalog();
 var contactsOptions = new DbContextOptionsBuilder<ContactsDbContext>().UseSqlServer(connection).Options;
 var journalOptions = new DbContextOptionsBuilder<IntegrationEventJournalDbContext>().UseSqlServer(connection).Options;
 var integrationsOptions = new DbContextOptionsBuilder<IntegrationsDbContext>().UseSqlServer(connection).Options;
@@ -49,11 +50,15 @@ await using (var db = new ContactsDbContext(contactsOptions))
     var source = new ContactIntegrationEventSource(db, clock);
     var first = await source.ClaimAsync(10, TimeSpan.FromMinutes(1), default);
     Check(first is { Events.Count: 2 }, "historical/internal row excluded from real owner claim");
+    db.ChangeTracker.Clear();
+    Check((await db.OutboxMessages.Where(x => x.IntegrationEnvelopeJson != null).ToArrayAsync()).All(x => x.ExportAttemptCount == 1), "owner relay attempt count survives SQL reload after claim");
     Check(await source.ClaimAsync(10, TimeSpan.FromMinutes(1), default) is null, "concurrent claim cannot own active lease");
     var stale = first!.RelayAttemptId;
     clock.Advance(TimeSpan.FromMinutes(2));
     var reclaimed = await source.ClaimAsync(10, TimeSpan.FromMinutes(1), default);
     Check(reclaimed is { Events.Count: 2 } && reclaimed.RelayAttemptId != stale, "expired owner lease is recoverable");
+    db.ChangeTracker.Clear();
+    Check((await db.OutboxMessages.Where(x => x.IntegrationEnvelopeJson != null).ToArrayAsync()).All(x => x.ExportAttemptCount == 2), "owner relay attempt count survives SQL reload after reclaim");
     reclaimedLease = reclaimed!;
     try { await source.AcknowledgeAsync(stale, reclaimedLease.Events.Select(x => x.EventId).ToArray(), default); Check(false, "stale acknowledgement rejected"); }
     catch (InvalidOperationException) { Check(true, "stale acknowledgement rejected"); }
@@ -66,7 +71,7 @@ await using (var db = new ContactsDbContext(contactsOptions))
     var lease = reclaimedLease;
     draft = lease.Events[0];
     await using var journalDb = new IntegrationEventJournalDbContext(journalOptions);
-    var journal = new IntegrationEventJournal(journalDb, clock);
+    var journal = new IntegrationEventJournal(journalDb, eventCatalog, clock);
     await journal.AdmitAsync(lease.Events, default);
     Check(await journal.GetTailSequenceAsync(default) == 2, "owner events admitted to actual immutable journal");
     await journal.AdmitAsync(lease.Events, default);
@@ -75,7 +80,7 @@ await using (var db = new ContactsDbContext(contactsOptions))
 }
 await using (var db = new IntegrationEventJournalDbContext(journalOptions))
 {
-    var journal = new IntegrationEventJournal(db, clock);
+    var journal = new IntegrationEventJournal(db, eventCatalog, clock);
     var changed = new IntegrationEventDraft(draft.EventId, draft.CanonicalEnvelopeJson.Replace("contact_1", "contact_changed"));
     try { await journal.AdmitAsync([changed], default); Check(false, "different immutable replay fails closed"); }
     catch (InvalidOperationException) { Check(true, "different immutable replay fails closed"); }
@@ -94,7 +99,7 @@ await using (var db = new IntegrationsDbContext(integrationsOptions)) { db.Outbo
 await using (var journalDb = new IntegrationEventJournalDbContext(journalOptions))
 await using (var db = new IntegrationsDbContext(integrationsOptions))
 {
-    var feed = new IntegrationEventJournal(journalDb, clock); var consumer = new OutboundWebhookConsumerProcessor(db, feed, clock);
+    var feed = new IntegrationEventJournal(journalDb, eventCatalog, clock); var consumer = new OutboundWebhookConsumerProcessor(db, feed, clock);
     await consumer.ProcessOnceAsync(default);
     Check((await db.OutboundWebhookConsumerCursors.SingleAsync()).LastProcessedSequence == await feed.GetTailSequenceAsync(default), "initial cursor begins at current journal tail without backfill");
     var nextJson = IntegrationEventSerialization.CreateEnvelope("event_future", IntegrationEventCatalog.ContactChanged, "ws_1", "Contacts", "CONTACT", "contact_2", 1, clock.GetUtcNow(), "corr_future_1", new { contactId = "contact_2", changeType = "CREATED", resourceVersion = 1 });
@@ -124,7 +129,8 @@ Check(!await WebhookDestinationPolicy.IsSafeAsync(new Uri("https://example.test"
 var blockedTransport = new SafeOutboundWebhookTransport(new StaticResolver(IPAddress.Loopback), clock);
 var blockedResult = await blockedTransport.SendAsync(new Uri("https://example.test/hook"), "delivery_blocked", "event_blocked", IntegrationEventCatalog.ContactChanged, "{}", plain, default);
 Check(blockedResult.Item2 == "DESTINATION_BLOCKED", "connect-time resolved-address SSRF validation cannot be bypassed");
-var retryDelivery = new OutboundWebhookDelivery(active, "event_retry", 99, IntegrationEventCatalog.ContactChanged, "{\"eventId\":\"event_retry\"}", clock.GetUtcNow());
+var replaySubscription = new OutboundWebhookSubscription("ws_1", "replay", IntegrationEventCatalog.ContactChanged, "https://example.com/hook", protector.Protect(plain), "member_1", clock.GetUtcNow()); replaySubscription.Activate("member_1", clock.GetUtcNow());
+var retryDelivery = new OutboundWebhookDelivery(replaySubscription, "event_retry", 99, IntegrationEventCatalog.ContactChanged, "{\"eventId\":\"event_retry\"}", clock.GetUtcNow());
 for (var attemptNumber = 1; attemptNumber <= 6; attemptNumber++)
 {
     var attemptId = $"attempt_{attemptNumber}"; retryDelivery.Lease(attemptId, clock.GetUtcNow(), clock.GetUtcNow().AddMinutes(2));
@@ -134,6 +140,37 @@ for (var attemptNumber = 1; attemptNumber <= 6; attemptNumber++)
 Check(retryDelivery.Status == "DEAD_LETTER" && retryDelivery.AttemptCount == 6, "six retryable failures reach the fixed dead-letter ceiling");
 var stableDeliveryId = retryDelivery.DeliveryId; retryDelivery.Replay(clock.GetUtcNow());
 Check(retryDelivery.Status == "PENDING" && retryDelivery.DeliveryId == stableDeliveryId && retryDelivery.EventId == "event_retry", "manual replay preserves DeliveryId and EventId");
+await using (var db = new IntegrationsDbContext(integrationsOptions))
+{
+    foreach (var subscription in await db.OutboundWebhookSubscriptions.ToArrayAsync())
+        if (subscription.Status == "ACTIVE") subscription.Pause("member_1", clock.GetUtcNow());
+    db.OutboundWebhookSubscriptions.Add(replaySubscription);
+    db.OutboundWebhookDeliveries.Add(retryDelivery);
+    for (var number = 1; number <= 6; number++) { var evidence = new OutboundWebhookDeliveryAttempt($"historic_{number}", retryDelivery.DeliveryId, number, clock.GetUtcNow()); evidence.Complete(clock.GetUtcNow(), number == 6 ? "DEAD_LETTER" : "RETRY_SCHEDULED", 503, "HTTP_503"); db.OutboundWebhookDeliveryAttempts.Add(evidence); }
+    await db.SaveChangesAsync();
+}
+var replayTransport = new CaptureTransport((200, null));
+await using (var db = new IntegrationsDbContext(integrationsOptions))
+{
+    await new OutboundWebhookSenderProcessor(db, protectorProvider, replayTransport, clock, NullLogger.Instance).ProcessOnceAsync(default);
+    db.ChangeTracker.Clear();
+    var persisted = await db.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == stableDeliveryId);
+    var attempts = await db.OutboundWebhookDeliveryAttempts.Where(x => x.DeliveryId == stableDeliveryId).OrderBy(x => x.AttemptNumber).ToArrayAsync();
+    Check(persisted.Status == "SUCCEEDED" && attempts.Length == 7 && attempts[^1].AttemptNumber == 7, "dead-letter replay appends attempt 7 and executes through the real sender");
+}
+var raceDelivery = new OutboundWebhookDelivery(replaySubscription, "event_race", 102, IntegrationEventCatalog.ContactChanged, "{}", clock.GetUtcNow());
+await using (var workerA = new IntegrationsDbContext(integrationsOptions))
+{
+    workerA.OutboundWebhookDeliveries.Add(raceDelivery); raceDelivery.Lease("lease_A", clock.GetUtcNow(), clock.GetUtcNow().AddMinutes(1)); await workerA.SaveChangesAsync();
+    clock.Advance(TimeSpan.FromMinutes(2));
+    await using var workerB = new IntegrationsDbContext(integrationsOptions);
+    var current = await workerB.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == raceDelivery.DeliveryId); current.Lease("lease_B", clock.GetUtcNow(), clock.GetUtcNow().AddMinutes(2)); await workerB.SaveChangesAsync();
+    raceDelivery.Succeed("lease_A", clock.GetUtcNow(), 200);
+    try { await workerA.SaveChangesAsync(); Check(false, "stale independent sender is rejected by SQL concurrency"); } catch (DbUpdateConcurrencyException) { Check(true, "stale independent sender is rejected by SQL concurrency"); workerA.ChangeTracker.Clear(); }
+    workerB.ChangeTracker.Clear(); current = await workerB.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == raceDelivery.DeliveryId);
+    Check(current.Owns("lease_B"), "stale sender cannot overwrite the newer persisted lease"); current.Succeed("lease_B", clock.GetUtcNow(), 200); await workerB.SaveChangesAsync();
+    Check((await workerB.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == raceDelivery.DeliveryId)).Status == "SUCCEEDED", "authoritative reclaimed sender completes normally");
+}
 var terminal = new OutboundWebhookDelivery(active, "event_400", 100, IntegrationEventCatalog.ContactChanged, "{}", clock.GetUtcNow()); terminal.Lease("terminal_attempt", clock.GetUtcNow(), clock.GetUtcNow().AddMinutes(2)); terminal.Fail("terminal_attempt", clock.GetUtcNow(), 400, "HTTP_400", false);
 Check(terminal.Status == "DEAD_LETTER", "deterministic 4xx dead-letters immediately");
 var staleDelivery = new OutboundWebhookDelivery(active, "event_stale", 101, IntegrationEventCatalog.ContactChanged, "{}", clock.GetUtcNow()); staleDelivery.Lease("new_attempt", clock.GetUtcNow(), clock.GetUtcNow().AddMinutes(2));
@@ -143,6 +180,8 @@ Console.WriteLine("Event/Webhook persistence and transport verifier completed.")
 static void Check(bool value, string name) { if (!value) throw new InvalidOperationException($"FAIL: {name}"); Console.WriteLine($"OK: {name}"); }
 
 sealed class MutableClock(DateTimeOffset value) : TimeProvider { private DateTimeOffset current = value; public override DateTimeOffset GetUtcNow() => current; public void Advance(TimeSpan by) => current += by; }
+static class IntegrationEventCatalog { internal const string ContactChanged="crm.contact.changed"; internal const string CustomerChanged="crm.customer.changed"; }
+sealed class TestCatalog : IIntegrationEventCatalog { public IReadOnlyList<IntegrationEventDescriptor> Events { get; }=[new("crm.contact.changed",1,"Contact changed","Contact changed","CRM"),new("crm.relationship.changed",1,"Relationship changed","Relationship changed","CRM")]; public bool Admits(string eventType,int schemaVersion)=>Events.Any(x=>x.EventType==eventType&&x.SchemaVersion==schemaVersion); }
 sealed class StaticResolver(IPAddress address) : IWebhookHostResolver { public Task<IPAddress[]> ResolveAsync(string host, CancellationToken ct) => Task.FromResult(new[] { address }); }
 sealed class CaptureTransport((int? Status, string? Error) result) : IOutboundWebhookTransport
 {

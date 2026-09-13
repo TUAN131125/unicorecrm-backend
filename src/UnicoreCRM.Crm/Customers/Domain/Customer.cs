@@ -174,7 +174,7 @@ internal sealed class CustomerOutboxMessage
         {
             using var payload = JsonDocument.Parse(payloadJson); var root = payload.RootElement;
             var data = JsonSerializer.SerializeToElement(new { customerId = aggregateId, changeType, resourceVersion = root.GetProperty("resourceVersion").GetInt64() }, IntegrationEventSerialization.Options);
-            IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId, IntegrationEventCatalog.CustomerChanged, workspaceId, "Customers", "CUSTOMER", aggregateId, data.GetProperty("resourceVersion").GetInt64(), occurredAt, correlationId, data);
+            IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId, CustomerIntegrationEvents.Changed, workspaceId, "Customers", "CUSTOMER", aggregateId, data.GetProperty("resourceVersion").GetInt64(), occurredAt, correlationId, data);
             ExportState = "PENDING";
         }
     }

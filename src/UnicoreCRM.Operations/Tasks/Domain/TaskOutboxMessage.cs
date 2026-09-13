@@ -25,7 +25,7 @@ internal sealed class TaskOutboxMessage
         if (eventType == "ACTIVITY_LOGGED")
         {
             using var payload = JsonDocument.Parse(payloadJson); var data = payload.RootElement.Clone();
-            IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId, IntegrationEventCatalog.ActivityLogged,
+            IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId, TaskIntegrationEvents.ActivityLogged,
                 workspaceId, "Tasks", "ACTIVITY", aggregateId, data.GetProperty("resourceVersion").GetInt64(), occurredAt, correlationId, data);
             ExportState = "PENDING";
         }

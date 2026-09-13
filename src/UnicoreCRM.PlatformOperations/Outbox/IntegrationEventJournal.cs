@@ -13,6 +13,11 @@ public interface IIntegrationEventFeed
     Task<long> GetTailSequenceAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<JournalIntegrationEvent>> ReadAfterAsync(long sequence, int batchSize, CancellationToken cancellationToken);
 }
+internal sealed class AggregatedIntegrationEventCatalog(IEnumerable<IIntegrationEventSource> sources) : IIntegrationEventCatalog
+{
+    public IReadOnlyList<IntegrationEventDescriptor> Events { get; } = sources.SelectMany(x => x.EventDescriptors).OrderBy(x => x.EventType, StringComparer.Ordinal).ToArray();
+    public bool Admits(string eventType, int schemaVersion) => Events.Any(x => x.EventType == eventType && x.SchemaVersion == schemaVersion);
+}
 
 internal sealed class IntegrationEventJournalRecord
 {
@@ -32,11 +37,11 @@ internal sealed class IntegrationEventJournalDbContext(DbContextOptions<Integrat
     protected override void OnModelCreating(ModelBuilder b) { b.HasDefaultSchema("ops"); b.Entity<IntegrationEventJournalRecord>(e => { e.ToTable("IntegrationEventJournal"); e.HasKey(x => x.Sequence); e.Property(x => x.Sequence).UseIdentityColumn(); e.HasIndex(x => x.EventId).IsUnique(); e.Property(x => x.EventId).HasMaxLength(128); e.Property(x => x.EventType).HasMaxLength(160); e.Property(x => x.SchemaVersion); e.Property(x => x.WorkspaceId).HasMaxLength(128); e.Property(x => x.SourceOwner).HasMaxLength(80); e.Property(x => x.SubjectType).HasMaxLength(80); e.Property(x => x.SubjectId).HasMaxLength(128); e.Property(x => x.SubjectVersion); e.Property(x => x.CorrelationId).HasMaxLength(128); e.Property(x => x.CanonicalEnvelopeJson).HasColumnType("nvarchar(max)"); e.Property(x => x.OccurredAt).HasPrecision(7); e.Property(x => x.RecordedAt).HasPrecision(7); e.HasIndex(x => new { x.WorkspaceId, x.EventType, x.Sequence }); }); }
 }
 
-internal sealed class IntegrationEventJournal(IntegrationEventJournalDbContext db, TimeProvider clock) : IIntegrationEventFeed
+internal sealed class IntegrationEventJournal(IntegrationEventJournalDbContext db, IIntegrationEventCatalog catalog, TimeProvider clock) : IIntegrationEventFeed
 {
     internal async Task AdmitAsync(IReadOnlyList<IntegrationEventDraft> drafts, CancellationToken ct)
     {
-        foreach (var draft in drafts) { var existing = await db.Events.SingleOrDefaultAsync(x => x.EventId == draft.EventId, ct); if (existing is not null) { if (existing.CanonicalEnvelopeJson != draft.CanonicalEnvelopeJson) throw new InvalidOperationException($"Integration Event {draft.EventId} was replayed with different immutable content."); continue; } var envelope = JsonSerializer.Deserialize<IntegrationEventEnvelope>(draft.CanonicalEnvelopeJson, IntegrationEventSerialization.Options) ?? throw new InvalidOperationException("Invalid Integration Event envelope."); if (envelope.EventId != draft.EventId || !IntegrationEventCatalog.EventTypes.Contains(envelope.EventType) || envelope.SchemaVersion != 1) throw new InvalidOperationException("Integration Event envelope failed catalog validation."); db.Events.Add(new(envelope, draft.CanonicalEnvelopeJson, clock.GetUtcNow())); }
+        foreach (var draft in drafts) { var existing = await db.Events.SingleOrDefaultAsync(x => x.EventId == draft.EventId, ct); if (existing is not null) { if (existing.CanonicalEnvelopeJson != draft.CanonicalEnvelopeJson) throw new InvalidOperationException($"Integration Event {draft.EventId} was replayed with different immutable content."); continue; } var envelope = JsonSerializer.Deserialize<IntegrationEventEnvelope>(draft.CanonicalEnvelopeJson, IntegrationEventSerialization.Options) ?? throw new InvalidOperationException("Invalid Integration Event envelope."); if (envelope.EventId != draft.EventId || !catalog.Admits(envelope.EventType, envelope.SchemaVersion)) throw new InvalidOperationException("Integration Event envelope failed catalog validation."); db.Events.Add(new(envelope, draft.CanonicalEnvelopeJson, clock.GetUtcNow())); }
         try { await db.SaveChangesAsync(ct); } catch (DbUpdateException) { db.ChangeTracker.Clear(); foreach (var draft in drafts) { var existing = await db.Events.AsNoTracking().SingleAsync(x => x.EventId == draft.EventId, ct); if (existing.CanonicalEnvelopeJson != draft.CanonicalEnvelopeJson) throw new InvalidOperationException($"Integration Event {draft.EventId} conflicts with immutable journal content."); } }
     }
     public async Task<long> GetTailSequenceAsync(CancellationToken ct) => await db.Events.Select(x => (long?)x.Sequence).MaxAsync(ct) ?? 0;

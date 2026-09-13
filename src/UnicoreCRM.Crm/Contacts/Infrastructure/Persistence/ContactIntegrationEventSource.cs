@@ -1,12 +1,14 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using UnicoreCRM.BuildingBlocks;
+using UnicoreCRM.Crm.Contacts.Domain;
 
 namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence;
 
 internal sealed class ContactIntegrationEventSource(ContactsDbContext db, TimeProvider clock) : IIntegrationEventSource
 {
     public string SourceOwner => "Contacts";
+    public IReadOnlyList<IntegrationEventDescriptor> EventDescriptors { get; } = [new(ContactIntegrationEvents.ContactChanged,1,"Contact changed","A Contact was created, updated, or archived.","CRM"),new(ContactIntegrationEvents.RelationshipChanged,1,"Relationship changed","A Contact relationship changed.","CRM")];
     public async Task<IntegrationEventLease?> ClaimAsync(int batchSize, TimeSpan leaseDuration, CancellationToken ct)
     {
         var now=clock.GetUtcNow(); await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);

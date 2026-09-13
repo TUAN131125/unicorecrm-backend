@@ -107,14 +107,14 @@ internal sealed class ContactOutboxMessage
         var data = payload.RootElement;
         string? publicType = type switch
         {
-            "CONTACT_CREATED" or "CONTACT_UPDATED" or "CONTACT_ARCHIVED" => IntegrationEventCatalog.ContactChanged,
+            "CONTACT_CREATED" or "CONTACT_UPDATED" or "CONTACT_ARCHIVED" => ContactIntegrationEvents.ContactChanged,
             "CONTACT_ORGANIZATION_RELATIONSHIP_CREATED" or "CONTACT_ORGANIZATION_RELATIONSHIP_UPDATED" or "CONTACT_ORGANIZATION_RELATIONSHIP_ENDED"
-                or "CONTACT_CUSTOMER_RELATIONSHIP_CREATED" or "CONTACT_CUSTOMER_RELATIONSHIP_UPDATED" or "CONTACT_CUSTOMER_RELATIONSHIP_ENDED" => IntegrationEventCatalog.RelationshipChanged,
+                or "CONTACT_CUSTOMER_RELATIONSHIP_CREATED" or "CONTACT_CUSTOMER_RELATIONSHIP_UPDATED" or "CONTACT_CUSTOMER_RELATIONSHIP_ENDED" => ContactIntegrationEvents.RelationshipChanged,
             _ => null
         };
         if (publicType is null) return;
         IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId, publicType, WorkspaceId,
-            "Contacts", publicType == IntegrationEventCatalog.RelationshipChanged ? "RELATIONSHIP" : "CONTACT",
+            "Contacts", publicType == ContactIntegrationEvents.RelationshipChanged ? "RELATIONSHIP" : "CONTACT",
             data.TryGetProperty("relationshipId", out var relationship) ? relationship.GetString() ?? AggregateId : AggregateId,
             data.TryGetProperty("resourceVersion", out var version) ? version.GetInt64() : data.TryGetProperty("contactVersion", out var contactVersion) ? contactVersion.GetInt64() : null,
             OccurredAt, CorrelationId, data);

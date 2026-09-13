@@ -2,22 +2,9 @@ using System.Text.Json;
 
 namespace UnicoreCRM.BuildingBlocks;
 
-public static class IntegrationEventCatalog
-{
-    public const int CurrentSchemaVersion = 1;
-    public const string ContactChanged = "crm.contact.changed";
-    public const string OrganizationChanged = "crm.organization.changed";
-    public const string CustomerChanged = "crm.customer.changed";
-    public const string RelationshipChanged = "crm.relationship.changed";
-    public const string LeadCustomerConverted = "crm.lead.customer_converted";
-    public const string ActivityLogged = "crm.activity.logged";
-
-    public static readonly IReadOnlySet<string> EventTypes = new HashSet<string>(StringComparer.Ordinal)
-    {
-        ContactChanged, OrganizationChanged, CustomerChanged, RelationshipChanged,
-        LeadCustomerConverted, ActivityLogged
-    };
-}
+public static class IntegrationEventSchema { public const int CurrentVersion = 1; }
+public sealed record IntegrationEventDescriptor(string EventType, int SchemaVersion, string Name, string Description, string SourceCategory);
+public interface IIntegrationEventCatalog { IReadOnlyList<IntegrationEventDescriptor> Events { get; } bool Admits(string eventType, int schemaVersion); }
 
 public sealed record IntegrationEventEnvelope(
     string EventId,
@@ -44,6 +31,7 @@ public sealed record IntegrationEventLease(
 public interface IIntegrationEventSource
 {
     string SourceOwner { get; }
+    IReadOnlyList<IntegrationEventDescriptor> EventDescriptors { get; }
     Task<IntegrationEventLease?> ClaimAsync(int batchSize, TimeSpan leaseDuration, CancellationToken cancellationToken);
     Task AcknowledgeAsync(string relayAttemptId, IReadOnlyCollection<string> eventIds, CancellationToken cancellationToken);
     Task ReleaseAsync(string relayAttemptId, IReadOnlyCollection<string> eventIds, string errorCode,
@@ -62,7 +50,7 @@ public static class IntegrationEventSerialization
         string subjectType, string subjectId, long? subjectVersion, DateTimeOffset occurredAt,
         string correlationId, object data, string? causationId = null) =>
         JsonSerializer.Serialize(new IntegrationEventEnvelope(
-            eventId, eventType, IntegrationEventCatalog.CurrentSchemaVersion, workspaceId, sourceOwner,
+            eventId, eventType, IntegrationEventSchema.CurrentVersion, workspaceId, sourceOwner,
             subjectType, subjectId, subjectVersion, occurredAt, correlationId,
             JsonSerializer.SerializeToElement(data, Options), causationId), Options);
 }

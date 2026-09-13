@@ -11,7 +11,7 @@ internal sealed class WorkflowIntegrationOutboxMessage
         OccurredAt=occurredAt; ExportState="PENDING";
         var data=new { conversionId=anchor.ConversionId, leadId=anchor.LeadId, customerId=anchor.CustomerId!, subjectType=anchor.SubjectType,
             subjectId=anchor.SubjectId, customerResolution=anchor.CustomerResolution!, leadVersion=anchor.LeadVersion!.Value, customerVersion=anchor.CustomerVersion!.Value };
-        IntegrationEnvelopeJson=IntegrationEventSerialization.CreateEnvelope(EventId,IntegrationEventCatalog.LeadCustomerConverted,
+        IntegrationEnvelopeJson=IntegrationEventSerialization.CreateEnvelope(EventId,WorkflowIntegrationEvents.LeadCustomerConverted,
             anchor.WorkspaceId,"Workflows","LEAD_CUSTOMER_CONVERSION",anchor.ConversionId,anchor.LeadVersion,occurredAt,anchor.CorrelationId,data);
     }
     internal string EventId{get;private set;}=null!; internal string WorkspaceId{get;private set;}=null!; internal string CorrelationId{get;private set;}=null!;

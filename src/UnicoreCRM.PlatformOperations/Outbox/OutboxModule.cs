@@ -13,6 +13,7 @@ internal static class OutboxModule
         services.AddDbContext<IntegrationEventJournalDbContext>(options => options.UseSqlServer(connectionString,
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "ops")));
         services.AddScoped<IntegrationEventJournal>();
+        services.AddScoped<IIntegrationEventCatalog, AggregatedIntegrationEventCatalog>();
         services.AddScoped<IIntegrationEventFeed>(provider => provider.GetRequiredService<IntegrationEventJournal>());
         services.Configure<IntegrationEventRelayOptions>(configuration.GetSection(IntegrationEventRelayOptions.Section));
         services.AddHostedService<IntegrationEventRelayWorker>();

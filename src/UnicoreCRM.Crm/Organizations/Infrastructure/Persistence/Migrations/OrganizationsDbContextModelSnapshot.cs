@@ -206,6 +206,11 @@ namespace UnicoreCRM.Crm.Organizations.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("ExportAttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("ExportState")
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");

@@ -3,56 +3,50 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
+using UnicoreCRM.Crm.Organizations.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
+namespace UnicoreCRM.Crm.Organizations.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(CustomersDbContext))]
-    partial class CustomersDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(OrganizationsDbContext))]
+    [Migration("20260913134445_PersistOrganizationExportAttemptCount")]
+    partial class PersistOrganizationExportAttemptCount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("customers")
+                .HasDefaultSchema("organizations")
                 .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.Customer", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Organizations.Domain.Organization", b =>
                 {
                     b.Property<string>("WorkspaceId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("CustomerId")
+                    b.Property<string>("OrganizationId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasPrecision(7)
-                        .HasColumnType("datetimeoffset(7)");
+                        .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("CustomerCode")
+                    b.Property<string>("DisplayName")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
-                    b.Property<DateTimeOffset?>("FirstPurchaseAt")
-                        .HasPrecision(7)
-                        .HasColumnType("datetimeoffset(7)");
-
-                    b.Property<string>("Health")
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<DateTimeOffset?>("LastPurchaseAt")
-                        .HasPrecision(7)
-                        .HasColumnType("datetimeoffset(7)");
+                    b.Property<string>("Industry")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
 
                     b.Property<string>("OwnerId")
                         .HasMaxLength(128)
@@ -62,80 +56,42 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RelationshipId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("RelationshipType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
                     b.Property<string>("SearchText")
                         .IsRequired()
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
+                        .HasMaxLength(800)
+                        .HasColumnType("nvarchar(800)");
 
-                    b.Property<string>("Segment")
-                        .HasMaxLength(160)
-                        .HasColumnType("nvarchar(160)");
+                    b.Property<string>("SizeBand")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
-                    b.Property<string>("Tier")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(8)
-                        .HasColumnType("nvarchar(8)");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasPrecision(7)
-                        .HasColumnType("datetimeoffset(7)");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<long>("Version")
-                        .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
-                    b.HasKey("WorkspaceId", "CustomerId");
+                    b.HasKey("WorkspaceId", "OrganizationId");
 
-                    b.HasIndex("WorkspaceId", "CustomerCode")
-                        .IsUnique();
+                    b.HasIndex("WorkspaceId", "Industry");
 
-                    b.HasIndex("WorkspaceId", "Segment");
+                    b.HasIndex("WorkspaceId", "SizeBand");
 
-                    b.HasIndex("WorkspaceId", "Tier");
-
-                    b.HasIndex("WorkspaceId", "Type");
-
-                    b.HasIndex("WorkspaceId", "RelationshipType", "RelationshipId")
-                        .IsUnique();
-
-                    b.HasIndex("WorkspaceId", "Status", "CreatedAt", "CustomerId")
+                    b.HasIndex("WorkspaceId", "Status", "CreatedAt", "OrganizationId")
                         .IsDescending(false, false, true, false);
 
-                    b.HasIndex("WorkspaceId", "OwnerId", "Status", "CreatedAt", "CustomerId")
+                    b.HasIndex("WorkspaceId", "OwnerId", "Status", "CreatedAt", "OrganizationId")
                         .IsDescending(false, false, false, true, false);
 
-                    b.ToTable("Customers", "customers", t =>
-                        {
-                            t.HasCheckConstraint("CK_Customers_Health", "(([Health] COLLATE Latin1_General_100_BIN2 = N'GOOD' AND DATALENGTH([Health]) = DATALENGTH(N'GOOD')) OR ([Health] COLLATE Latin1_General_100_BIN2 = N'WATCH' AND DATALENGTH([Health]) = DATALENGTH(N'WATCH')) OR ([Health] COLLATE Latin1_General_100_BIN2 = N'RISK' AND DATALENGTH([Health]) = DATALENGTH(N'RISK')))");
-
-                            t.HasCheckConstraint("CK_Customers_RelationshipType", "(([RelationshipType] COLLATE Latin1_General_100_BIN2 = N'CONTACT' AND DATALENGTH([RelationshipType]) = DATALENGTH(N'CONTACT')) OR ([RelationshipType] COLLATE Latin1_General_100_BIN2 = N'ORGANIZATION_ACCOUNT' AND DATALENGTH([RelationshipType]) = DATALENGTH(N'ORGANIZATION_ACCOUNT')))");
-
-                            t.HasCheckConstraint("CK_Customers_Status", "(([Status] COLLATE Latin1_General_100_BIN2 = N'NEW' AND DATALENGTH([Status]) = DATALENGTH(N'NEW')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'ACTIVE' AND DATALENGTH([Status]) = DATALENGTH(N'ACTIVE')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'AT_RISK' AND DATALENGTH([Status]) = DATALENGTH(N'AT_RISK')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'INACTIVE' AND DATALENGTH([Status]) = DATALENGTH(N'INACTIVE')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'CHURNED' AND DATALENGTH([Status]) = DATALENGTH(N'CHURNED')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'DO_NOT_CONTACT' AND DATALENGTH([Status]) = DATALENGTH(N'DO_NOT_CONTACT')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'ARCHIVED' AND DATALENGTH([Status]) = DATALENGTH(N'ARCHIVED')))");
-
-                            t.HasCheckConstraint("CK_Customers_Type", "(([Type] COLLATE Latin1_General_100_BIN2 = N'B2C' AND DATALENGTH([Type]) = DATALENGTH(N'B2C')) OR ([Type] COLLATE Latin1_General_100_BIN2 = N'B2B' AND DATALENGTH([Type]) = DATALENGTH(N'B2B')))");
-                        });
+                    b.ToTable("Organizations", "organizations");
                 });
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.CustomerAuditRecord", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Organizations.Domain.OrganizationAuditRecord", b =>
                 {
                     b.Property<string>("AuditId")
                         .HasMaxLength(128)
@@ -180,10 +136,10 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
 
                     b.HasKey("AuditId");
 
-                    b.ToTable("AuditRecords", "customers");
+                    b.ToTable("AuditRecords", "organizations");
                 });
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.CustomerIdempotencyRecord", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Organizations.Domain.OrganizationIdempotencyRecord", b =>
                 {
                     b.Property<string>("ScopeKey")
                         .HasMaxLength(64)
@@ -229,79 +185,10 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
 
                     b.HasKey("ScopeKey");
 
-                    b.ToTable("IdempotencyRecords", "customers");
+                    b.ToTable("IdempotencyRecords", "organizations");
                 });
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.CustomerLeadConversionProvenance", b =>
-                {
-                    b.Property<string>("WorkspaceId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("WorkflowId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("CompletionAuditId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("CompletionEventId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("CompletionExecutorPrincipalId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("CustomerId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<DateTimeOffset?>("InitiatedAt")
-                        .HasPrecision(7)
-                        .HasColumnType("datetimeoffset(7)");
-
-                    b.Property<string>("OriginalPrincipalId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("PolicyVersion")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Resolution")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<string>("SourceLeadId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.HasKey("WorkspaceId", "WorkflowId");
-
-                    b.HasIndex("WorkspaceId", "SourceLeadId")
-                        .IsUnique();
-
-                    b.HasIndex("WorkspaceId", "CustomerId", "CompletedAt");
-
-                    b.ToTable("LeadConversionProvenance", "customers");
-                });
-
-            modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.CustomerOutboxMessage", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Organizations.Domain.OrganizationOutboxMessage", b =>
                 {
                     b.Property<string>("EventId")
                         .HasMaxLength(128)
@@ -371,10 +258,10 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExportState", "NextEligibleAt", "LeaseExpiresAt", "OccurredAt");
 
-                    b.ToTable("OutboxMessages", "customers");
+                    b.ToTable("OutboxMessages", "organizations");
                 });
 
-            modelBuilder.Entity("UnicoreCRM.Crm.Customers.Domain.CustomerReadAuditRecord", b =>
+            modelBuilder.Entity("UnicoreCRM.Crm.Organizations.Domain.OrganizationReadAuditRecord", b =>
                 {
                     b.Property<string>("AuditId")
                         .HasMaxLength(128)
@@ -390,13 +277,6 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("CustomerId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<long?>("CustomerVersion")
-                        .HasColumnType("bigint");
-
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
@@ -405,6 +285,13 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("OrganizationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long?>("OrganizationVersion")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("RequestId")
                         .IsRequired()
@@ -420,9 +307,9 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "OccurredAt");
 
-                    b.HasIndex("WorkspaceId", "CustomerId", "OccurredAt");
+                    b.HasIndex("WorkspaceId", "OrganizationId", "OccurredAt");
 
-                    b.ToTable("ReadAuditRecords", "customers");
+                    b.ToTable("ReadAuditRecords", "organizations");
                 });
 #pragma warning restore 612, 618
         }
