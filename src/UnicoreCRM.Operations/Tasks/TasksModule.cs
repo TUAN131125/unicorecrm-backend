@@ -16,6 +16,7 @@ internal static class TasksModule
         services.AddDbContext<TasksDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "tasks")));
         services.AddScoped<ITasksPersistence, EfTasksPersistence>();
+        services.AddScoped<IIntegrationEventSource, TaskIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "tasks",
             (provider, cancellationToken) => provider.GetRequiredService<TasksDbContext>().Database.MigrateAsync(cancellationToken));

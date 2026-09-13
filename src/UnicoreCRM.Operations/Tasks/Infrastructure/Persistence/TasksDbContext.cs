@@ -107,7 +107,12 @@ internal sealed class TasksDbContext(DbContextOptions<TasksDbContext> options) :
             entity.Property(item => item.WorkspaceId).HasMaxLength(128);
             entity.Property(item => item.CorrelationId).HasMaxLength(128);
             entity.Property(item => item.PayloadJson).HasColumnType("nvarchar(max)");
+            entity.Property(item => item.IntegrationEnvelopeJson).HasColumnType("nvarchar(max)");
+            entity.Property(item => item.ExportState).HasMaxLength(16); entity.Property(item => item.RelayAttemptId).HasMaxLength(64);
+            entity.Property(item => item.LeaseExpiresAt).HasPrecision(7); entity.Property(item => item.NextEligibleAt).HasPrecision(7);
+            entity.Property(item => item.PublishedAt).HasPrecision(7); entity.Property(item => item.LastRelayError).HasMaxLength(512);
             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt });
+            entity.HasIndex(item => new { item.ExportState, item.NextEligibleAt, item.LeaseExpiresAt, item.OccurredAt });
         });
     }
 }

@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="UnicoreCRM.LeadCustomerConversion.RealVerifier" />
+    <InternalsVisibleTo Include="UnicoreCRM.EventWebhook.Verifier" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

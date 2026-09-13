@@ -17,6 +17,7 @@ internal static class OrganizationsModule
         services.AddDbContext<OrganizationsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "organizations")));
         services.AddScoped<IOrganizationsPersistence, EfOrganizationsPersistence>();
+        services.AddScoped<IIntegrationEventSource, OrganizationIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "organizations",
             (provider, cancellationToken) => provider.GetRequiredService<OrganizationsDbContext>().Database.MigrateAsync(cancellationToken));

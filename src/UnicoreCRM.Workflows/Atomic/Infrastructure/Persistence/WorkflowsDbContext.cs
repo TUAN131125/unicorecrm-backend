@@ -12,6 +12,7 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
 {
     internal DbSet<LeadQualificationAnchor> LeadQualificationAnchors => Set<LeadQualificationAnchor>();
     internal DbSet<LeadCustomerConversionAnchor> LeadCustomerConversionAnchors => Set<LeadCustomerConversionAnchor>();
+    internal DbSet<WorkflowIntegrationOutboxMessage> IntegrationOutboxMessages => Set<WorkflowIntegrationOutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,5 +67,6 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
             entity.Property(x=>x.Stage).HasConversion<string>().HasMaxLength(40); entity.Property(x=>x.RowVersion).IsRowVersion();
             entity.HasIndex(x=>new{x.WorkspaceId,x.LeadId,x.ConversionType}).IsUnique(); entity.HasIndex(x=>new{x.Stage,x.NextRetryAt,x.UpdatedAt});
         });
+        modelBuilder.Entity<WorkflowIntegrationOutboxMessage>(entity=>{entity.ToTable("IntegrationOutboxMessages");entity.HasKey(x=>x.EventId);entity.Property(x=>x.EventId).HasMaxLength(128);entity.Property(x=>x.WorkspaceId).HasMaxLength(128);entity.Property(x=>x.CorrelationId).HasMaxLength(128);entity.Property(x=>x.IntegrationEnvelopeJson).HasColumnType("nvarchar(max)");entity.Property(x=>x.ExportState).HasMaxLength(16);entity.Property(x=>x.RelayAttemptId).HasMaxLength(64);entity.Property(x=>x.LeaseExpiresAt).HasPrecision(7);entity.Property(x=>x.NextEligibleAt).HasPrecision(7);entity.Property(x=>x.PublishedAt).HasPrecision(7);entity.Property(x=>x.LastRelayError).HasMaxLength(512);entity.HasIndex(x=>new{x.ExportState,x.NextEligibleAt,x.LeaseExpiresAt,x.OccurredAt});});
     }
 }

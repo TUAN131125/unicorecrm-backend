@@ -19,8 +19,9 @@ internal static class OrganizationMutationSupport
         string target, string fingerprint, DateTimeOffset now)
     {
         var audit = new OrganizationAuditRecord(operation, trusted.WorkspaceId, trusted.MemberId, organization.OrganizationId, metadata.RequestId, metadata.CorrelationId, organization.Version, now);
+        var changeType = eventType switch { "ORGANIZATION_CREATED" => "CREATED", "ORGANIZATION_UPDATED" => "UPDATED", "ORGANIZATION_ARCHIVED" => "ARCHIVED", _ => eventType };
         var message = new OrganizationOutboxMessage(eventType, organization.OrganizationId, trusted.WorkspaceId, metadata.CorrelationId,
-            JsonSerializer.Serialize(new { organizationId = organization.OrganizationId, resourceVersion = organization.Version }, Json), now);
+            JsonSerializer.Serialize(new { organizationId = organization.OrganizationId, changeType, resourceVersion = organization.Version }, Json), now);
         var response = new OrganizationMutationResponse($"command_{Guid.NewGuid():N}", metadata.CorrelationId,
             organization.OrganizationId, "ORGANIZATION", organization.Version, OrganizationProjection.TimestampValue(now),
             "COMMITTED", OrganizationProjection.Document(organization), [], [message.EventId], [audit.AuditId]);

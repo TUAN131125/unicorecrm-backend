@@ -321,6 +321,60 @@ namespace UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.Migrations
 
                     b.ToTable("LeadQualificationAnchors", "workflow");
                 });
+
+            modelBuilder.Entity("UnicoreCRM.Workflows.Atomic.Domain.WorkflowIntegrationOutboxMessage", b =>
+                {
+                    b.Property<string>("EventId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ExportState")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("IntegrationEnvelopeJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastRelayError")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<DateTimeOffset?>("NextEligibleAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("RelayAttemptId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("ExportState", "NextEligibleAt", "LeaseExpiresAt", "OccurredAt");
+
+                    b.ToTable("IntegrationOutboxMessages", "workflow");
+                });
 #pragma warning restore 612, 618
         }
     }

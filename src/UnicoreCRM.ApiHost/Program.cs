@@ -25,6 +25,7 @@ using UnicoreCRM.Sales.Orders.Contracts;
 using UnicoreCRM.Billing.Invoices.Contracts;
 using UnicoreCRM.Billing.Payments.Contracts;
 using UnicoreCRM.Integrations.Webhooks.Inbound.Contracts;
+using UnicoreCRM.Integrations.Webhooks.Outbound.Contracts;
 using UnicoreCRM.Workflows.Atomic.Contracts;
 using UnicoreCRM.Workflows.Durable.Contracts;
 using UnicoreCRM.AI.Gateway;
@@ -149,6 +150,7 @@ app.MapPaymentIntentEndpoints();
 app.MapPaymentRecordEndpoints();
 app.MapInvoiceEndpoints();
 app.MapInboundLeadWebhookEndpoints();
+app.MapOutboundWebhookEndpoints();
 app.MapAiEndpoints();
 
 app.Run();

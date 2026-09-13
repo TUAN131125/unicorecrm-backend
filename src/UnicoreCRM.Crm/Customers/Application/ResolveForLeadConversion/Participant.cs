@@ -34,7 +34,7 @@ internal sealed class Participant(ICustomersPersistence persistence, TimeProvide
             persistence.AddCustomer(customer);
             var audit = new CustomerAuditRecord("resolveOrCreateForLeadConversion", command.TrustedWorkspace.WorkspaceId, command.ExecutorPrincipalId, customer.CustomerId, command.RequestId, command.CorrelationId, customer.Version, now);
             var message = new CustomerOutboxMessage("CUSTOMER_CREATED_FROM_LEAD", customer.CustomerId, command.TrustedWorkspace.WorkspaceId, command.CorrelationId,
-                JsonSerializer.Serialize(new { customerId = customer.CustomerId, sourceLeadId = command.SourceLeadId, workflowId = command.WorkflowId }, Json), now);
+                JsonSerializer.Serialize(new { customerId = customer.CustomerId, sourceLeadId = command.SourceLeadId, workflowId = command.WorkflowId, resourceVersion = customer.Version }, Json), now);
             persistence.AddAudit(audit); persistence.AddOutbox(message); resolution = "CREATED"; events = [message.EventId]; audits = [audit.AuditId];
         }
         var committed = new StoredResult(customer.CustomerId, customer.Version, resolution,events,audits);

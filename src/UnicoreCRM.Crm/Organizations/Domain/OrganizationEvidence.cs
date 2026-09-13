@@ -1,3 +1,6 @@
+using System.Text.Json;
+using UnicoreCRM.BuildingBlocks;
+
 namespace UnicoreCRM.Crm.Organizations.Domain;
 
 internal sealed class OrganizationIdempotencyRecord
@@ -47,6 +50,15 @@ internal sealed class OrganizationOutboxMessage
     {
         EventId = $"organization_event_{Guid.NewGuid():N}"; EventType = type; AggregateId = aggregateId;
         WorkspaceId = workspaceId; CorrelationId = correlationId; PayloadJson = payloadJson; OccurredAt = occurredAt;
+        if (type is "ORGANIZATION_CREATED" or "ORGANIZATION_UPDATED" or "ORGANIZATION_ARCHIVED")
+        {
+            using var payload = JsonDocument.Parse(payloadJson);
+            var data = payload.RootElement.Clone();
+            IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId,
+                IntegrationEventCatalog.OrganizationChanged, workspaceId, "Organizations", "ORGANIZATION",
+                aggregateId, data.GetProperty("resourceVersion").GetInt64(), occurredAt, correlationId, data);
+            ExportState = "PENDING";
+        }
     }
     internal string EventId { get; private set; } = null!;
     internal string EventType { get; private set; } = null!;
@@ -55,4 +67,15 @@ internal sealed class OrganizationOutboxMessage
     internal string CorrelationId { get; private set; } = null!;
     internal string PayloadJson { get; private set; } = null!;
     internal DateTimeOffset OccurredAt { get; private set; }
+    internal string? IntegrationEnvelopeJson { get; private set; }
+    internal string? ExportState { get; private set; }
+    internal int ExportAttemptCount { get; private set; }
+    internal string? RelayAttemptId { get; private set; }
+    internal DateTimeOffset? LeaseExpiresAt { get; private set; }
+    internal DateTimeOffset? NextEligibleAt { get; private set; }
+    internal DateTimeOffset? PublishedAt { get; private set; }
+    internal string? LastRelayError { get; private set; }
+    internal void Lease(string id, DateTimeOffset until) { ExportState="LEASED"; RelayAttemptId=id; LeaseExpiresAt=until; ExportAttemptCount++; }
+    internal void Publish(string id, DateTimeOffset now) { if(RelayAttemptId!=id||ExportState!="LEASED")throw new InvalidOperationException("Stale relay attempt.");ExportState="PUBLISHED";PublishedAt=now;RelayAttemptId=null;LeaseExpiresAt=null;LastRelayError=null; }
+    internal void Release(string id,string error,DateTimeOffset next) { if(RelayAttemptId!=id||ExportState!="LEASED")return;ExportState="PENDING";RelayAttemptId=null;LeaseExpiresAt=null;NextEligibleAt=next;LastRelayError=error[..Math.Min(512,error.Length)]; }
 }

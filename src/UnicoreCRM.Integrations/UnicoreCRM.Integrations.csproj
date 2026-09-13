@@ -3,6 +3,7 @@
     <RootNamespace>UnicoreCRM.Integrations</RootNamespace>
     <AssemblyName>UnicoreCRM.Integrations</AssemblyName>
   </PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.EventWebhook.Verifier" /></ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

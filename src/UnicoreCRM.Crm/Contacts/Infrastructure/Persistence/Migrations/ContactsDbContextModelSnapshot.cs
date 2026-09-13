@@ -419,6 +419,25 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ExportState")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("IntegrationEnvelopeJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastRelayError")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<DateTimeOffset?>("NextEligibleAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
@@ -426,6 +445,14 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence.Migrations
                     b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("RelayAttemptId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("WorkspaceId")
                         .IsRequired()
@@ -435,6 +462,8 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence.Migrations
                     b.HasKey("EventId");
 
                     b.HasIndex("WorkspaceId", "OccurredAt");
+
+                    b.HasIndex("ExportState", "NextEligibleAt", "LeaseExpiresAt", "OccurredAt");
 
                     b.ToTable("OutboxMessages", "contacts");
                 });

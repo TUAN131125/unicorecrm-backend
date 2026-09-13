@@ -322,6 +322,25 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ExportState")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("IntegrationEnvelopeJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastRelayError")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<DateTimeOffset?>("NextEligibleAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
@@ -330,12 +349,22 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("RelayAttemptId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("WorkspaceId")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
                     b.HasKey("EventId");
+
+                    b.HasIndex("ExportState", "NextEligibleAt", "LeaseExpiresAt", "OccurredAt");
 
                     b.ToTable("OutboxMessages", "customers");
                 });

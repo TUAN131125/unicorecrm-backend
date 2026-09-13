@@ -13,6 +13,7 @@ internal static class AtomicModule
         var connectionString = configuration.GetConnectionString("UnicoreCRM");
         services.AddDbContext<WorkflowsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "workflow")));
+        services.AddScoped<IIntegrationEventSource, WorkflowIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "workflow",
             (provider, cancellationToken) => provider.GetRequiredService<WorkflowsDbContext>().Database.MigrateAsync(cancellationToken));

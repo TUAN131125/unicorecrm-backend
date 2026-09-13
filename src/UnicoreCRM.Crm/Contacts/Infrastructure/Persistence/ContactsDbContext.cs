@@ -152,6 +152,7 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.Property(item => item.CorrelationId).HasMaxLength(128).IsRequired();
             entity.Property(item => item.PayloadJson).HasColumnType("nvarchar(max)").IsRequired();
             entity.Property(item => item.OccurredAt).HasPrecision(7);
+            ConfigureExport(entity);
             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt });
         });
 
@@ -184,6 +185,14 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt });
             entity.HasIndex(item => new { item.ContactId, item.OccurredAt });
         });
+    }
+
+    private static void ConfigureExport(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<ContactOutboxMessage> entity)
+    {
+        entity.Property(x => x.IntegrationEnvelopeJson).HasColumnType("nvarchar(max)"); entity.Property(x => x.ExportState).HasMaxLength(16);
+        entity.Property(x => x.RelayAttemptId).HasMaxLength(64); entity.Property(x => x.LeaseExpiresAt).HasPrecision(7);
+        entity.Property(x => x.NextEligibleAt).HasPrecision(7); entity.Property(x => x.PublishedAt).HasPrecision(7); entity.Property(x => x.LastRelayError).HasMaxLength(512);
+        entity.HasIndex(x => new { x.ExportState, x.NextEligibleAt, x.LeaseExpiresAt, x.OccurredAt });
     }
 
     private sealed class ContactProfileValueConverter() : ValueConverter<ContactProfile, string>(

@@ -16,6 +16,7 @@ internal static class ContactsModule
         services.AddDbContext<ContactsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "contacts")));
         services.AddScoped<IContactsPersistence, EfContactsPersistence>();
+        services.AddScoped<IIntegrationEventSource, ContactIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "contacts",
             (provider, cancellationToken) => provider.GetRequiredService<ContactsDbContext>().Database.MigrateAsync(cancellationToken));

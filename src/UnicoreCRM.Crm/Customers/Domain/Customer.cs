@@ -1,3 +1,6 @@
+using System.Text.Json;
+using UnicoreCRM.BuildingBlocks;
+
 namespace UnicoreCRM.Crm.Customers.Domain;
 
 /// <summary>Customers-owned commercial account aggregate.</summary>
@@ -166,6 +169,14 @@ internal sealed class CustomerOutboxMessage
     {
         EventId = $"customer_event_{Guid.NewGuid():N}"; EventType = type; AggregateId = aggregateId;
         WorkspaceId = workspaceId; CorrelationId = correlationId; PayloadJson = payloadJson; OccurredAt = occurredAt;
+        var changeType = type switch { "CUSTOMER_CREATED" or "CUSTOMER_CREATED_FROM_LEAD" => "CREATED", "CUSTOMER_PROFILE_UPDATED" => "PROFILE_UPDATED", "CUSTOMER_LIFECYCLE_CHANGED" => "LIFECYCLE_CHANGED", "CUSTOMER_ARCHIVED" => "ARCHIVED", _ => null };
+        if (changeType is not null)
+        {
+            using var payload = JsonDocument.Parse(payloadJson); var root = payload.RootElement;
+            var data = JsonSerializer.SerializeToElement(new { customerId = aggregateId, changeType, resourceVersion = root.GetProperty("resourceVersion").GetInt64() }, IntegrationEventSerialization.Options);
+            IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId, IntegrationEventCatalog.CustomerChanged, workspaceId, "Customers", "CUSTOMER", aggregateId, data.GetProperty("resourceVersion").GetInt64(), occurredAt, correlationId, data);
+            ExportState = "PENDING";
+        }
     }
     internal string EventId { get; private set; } = null!;
     internal string EventType { get; private set; } = null!;
@@ -174,6 +185,13 @@ internal sealed class CustomerOutboxMessage
     internal string CorrelationId { get; private set; } = null!;
     internal string PayloadJson { get; private set; } = null!;
     internal DateTimeOffset OccurredAt { get; private set; }
+    internal string? IntegrationEnvelopeJson { get; private set; } internal string? ExportState { get; private set; }
+    internal int ExportAttemptCount { get; private set; } internal string? RelayAttemptId { get; private set; }
+    internal DateTimeOffset? LeaseExpiresAt { get; private set; } internal DateTimeOffset? NextEligibleAt { get; private set; }
+    internal DateTimeOffset? PublishedAt { get; private set; } internal string? LastRelayError { get; private set; }
+    internal void Lease(string id,DateTimeOffset until){ExportState="LEASED";RelayAttemptId=id;LeaseExpiresAt=until;ExportAttemptCount++;}
+    internal void Publish(string id,DateTimeOffset now){if(RelayAttemptId!=id||ExportState!="LEASED")throw new InvalidOperationException("Stale relay attempt.");ExportState="PUBLISHED";PublishedAt=now;RelayAttemptId=null;LeaseExpiresAt=null;LastRelayError=null;}
+    internal void Release(string id,string error,DateTimeOffset next){if(RelayAttemptId!=id||ExportState!="LEASED")return;ExportState="PENDING";RelayAttemptId=null;LeaseExpiresAt=null;NextEligibleAt=next;LastRelayError=error[..Math.Min(512,error.Length)];}
 }
 
 /// <summary>

@@ -148,6 +148,7 @@ internal sealed class Handler(WorkflowsDbContext db, LeadParticipant leads, ICon
             {
                 var events=JsonSerializer.Deserialize<string[]>(a.EmittedEventIdsJson,Json)??[];var audits=JsonSerializer.Deserialize<string[]>(a.AuditEvidenceIdsJson,Json)??[];
                 var completed=timeProvider.GetUtcNow();var response=new LeadCustomerConversionResponse(WorkflowIds.New("command"),a.CorrelationId,a.ConversionId,"LEAD_CUSTOMER_CONVERSION",a.LeadVersion!.Value,completed.UtcDateTime.ToString("O"),replay?"REPLAYED":"COMMITTED",new(a.ConversionId,a.LeadId,a.CustomerId!,a.CustomerResolution!,new(a.SubjectType,a.SubjectId),a.LeadVersion.Value,a.CustomerVersion!.Value){ContactId=a.SubjectType=="CONTACT"?a.SubjectId:null,OrganizationId=a.SubjectType=="ORGANIZATION_ACCOUNT"?a.SubjectId:null},[],events,audits);
+                db.IntegrationOutboxMessages.Add(new WorkflowIntegrationOutboxMessage(a,completed));
                 a.Complete(JsonSerializer.Serialize(response with{Outcome="COMMITTED"},Json),completed);await db.SaveChangesAsync(ct);return Success(response);
             }
             try{await db.SaveChangesAsync(ct);}catch(DbUpdateConcurrencyException){return Failure("LEAD_CONVERSION_IN_PROGRESS",409);}

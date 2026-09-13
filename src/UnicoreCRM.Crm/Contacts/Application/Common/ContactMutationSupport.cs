@@ -49,9 +49,13 @@ internal static class ContactMutationSupport
     {
         var audit = new ContactAuditRecord(operation, trusted.WorkspaceId, trusted.MemberId, contact.ContactId,
             metadata.RequestId, metadata.CorrelationId, "COMMITTED", contact.Version, now);
+        object eventData = organizationRelationship is not null
+            ? new { relationshipKind = "CONTACT_ORGANIZATION", changeType = RelationshipChange(eventType), contactId = contact.ContactId, relationshipId = organizationRelationship.RelationshipId, targetType = "ORGANIZATION", targetId = organizationRelationship.Target.RecordId, contactVersion = contact.Version }
+            : customerRelationship is not null
+                ? new { relationshipKind = "CONTACT_CUSTOMER", changeType = RelationshipChange(eventType), contactId = contact.ContactId, relationshipId = customerRelationship.RelationshipId, targetType = "CUSTOMER", targetId = customerRelationship.Target.RecordId, contactVersion = contact.Version }
+                : new { contactId = contact.ContactId, changeType = ContactChange(eventType), resourceVersion = contact.Version };
         var message = new ContactOutboxMessage(eventType, contact.ContactId, trusted.WorkspaceId,
-            metadata.CorrelationId,
-            JsonSerializer.Serialize(new { contactId = contact.ContactId, relationshipId = organizationRelationship?.RelationshipId ?? customerRelationship?.RelationshipId, resourceVersion = contact.Version }, JsonOptions), now);
+            metadata.CorrelationId, JsonSerializer.Serialize(eventData, JsonOptions), now);
         var response = new ContactMutationResponse(ContactIds.New("command"), metadata.CorrelationId,
             contact.ContactId, "CONTACT", contact.Version, ContactProjection.TimestampValue(now), "COMMITTED",
             new ContactMutationResult(ContactProjection.Document(contact))
@@ -69,4 +73,10 @@ internal static class ContactMutationSupport
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+
+    private static string ContactChange(string eventType) => eventType switch
+    { "CONTACT_CREATED" => "CREATED", "CONTACT_UPDATED" => "UPDATED", "CONTACT_ARCHIVED" => "ARCHIVED", _ => eventType };
+
+    private static string RelationshipChange(string eventType) => eventType.EndsWith("_CREATED", StringComparison.Ordinal)
+        ? "CREATED" : eventType.EndsWith("_UPDATED", StringComparison.Ordinal) ? "UPDATED" : "ENDED";
 }

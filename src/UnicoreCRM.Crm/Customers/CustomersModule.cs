@@ -17,6 +17,7 @@ internal static class CustomersModule
         services.AddDbContext<CustomersDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "customers")));
         services.AddScoped<ICustomersPersistence, EfCustomersPersistence>();
+        services.AddScoped<IIntegrationEventSource, CustomerIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "customers",
             (provider, cancellationToken) => provider.GetRequiredService<CustomersDbContext>().Database.MigrateAsync(cancellationToken));

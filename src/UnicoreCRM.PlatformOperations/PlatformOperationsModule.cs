@@ -12,7 +12,7 @@ public static class PlatformOperationsModule
 {
     public static IServiceCollection AddPlatformOperationsModule(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOutboxModule();
+        services.AddOutboxModule(configuration);
         services.AddInboxModule(configuration);
         services.AddIdempotencyModule();
         services.AddBackgroundJobsModule();

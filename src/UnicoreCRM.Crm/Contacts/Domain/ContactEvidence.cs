@@ -1,3 +1,6 @@
+using System.Text.Json;
+using UnicoreCRM.BuildingBlocks;
+
 namespace UnicoreCRM.Crm.Contacts.Domain;
 
 /// <summary>
@@ -72,6 +75,7 @@ internal sealed class ContactOutboxMessage
         CorrelationId = correlationId;
         PayloadJson = payloadJson;
         OccurredAt = occurredAt;
+        Admit(eventType, payloadJson);
     }
 
     internal string EventId { get; private set; } = null!;
@@ -81,6 +85,41 @@ internal sealed class ContactOutboxMessage
     internal string CorrelationId { get; private set; } = null!;
     internal string PayloadJson { get; private set; } = null!;
     internal DateTimeOffset OccurredAt { get; private set; }
+    internal string? IntegrationEnvelopeJson { get; private set; }
+    internal string? ExportState { get; private set; }
+    internal int ExportAttemptCount { get; private set; }
+    internal string? RelayAttemptId { get; private set; }
+    internal DateTimeOffset? LeaseExpiresAt { get; private set; }
+    internal DateTimeOffset? NextEligibleAt { get; private set; }
+    internal DateTimeOffset? PublishedAt { get; private set; }
+    internal string? LastRelayError { get; private set; }
+
+    internal void Lease(string attemptId, DateTimeOffset expiresAt)
+    { ExportState = "LEASED"; RelayAttemptId = attemptId; LeaseExpiresAt = expiresAt; ExportAttemptCount++; }
+    internal void Publish(string attemptId, DateTimeOffset now)
+    { if (RelayAttemptId != attemptId || ExportState != "LEASED") throw new InvalidOperationException("Stale relay attempt."); ExportState = "PUBLISHED"; PublishedAt = now; RelayAttemptId = null; LeaseExpiresAt = null; LastRelayError = null; }
+    internal void Release(string attemptId, string error, DateTimeOffset next)
+    { if (RelayAttemptId != attemptId || ExportState != "LEASED") return; ExportState = "PENDING"; RelayAttemptId = null; LeaseExpiresAt = null; NextEligibleAt = next; LastRelayError = error[..Math.Min(512, error.Length)]; }
+
+    private void Admit(string type, string payloadJson)
+    {
+        using var payload = JsonDocument.Parse(payloadJson);
+        var data = payload.RootElement;
+        string? publicType = type switch
+        {
+            "CONTACT_CREATED" or "CONTACT_UPDATED" or "CONTACT_ARCHIVED" => IntegrationEventCatalog.ContactChanged,
+            "CONTACT_ORGANIZATION_RELATIONSHIP_CREATED" or "CONTACT_ORGANIZATION_RELATIONSHIP_UPDATED" or "CONTACT_ORGANIZATION_RELATIONSHIP_ENDED"
+                or "CONTACT_CUSTOMER_RELATIONSHIP_CREATED" or "CONTACT_CUSTOMER_RELATIONSHIP_UPDATED" or "CONTACT_CUSTOMER_RELATIONSHIP_ENDED" => IntegrationEventCatalog.RelationshipChanged,
+            _ => null
+        };
+        if (publicType is null) return;
+        IntegrationEnvelopeJson = IntegrationEventSerialization.CreateEnvelope(EventId, publicType, WorkspaceId,
+            "Contacts", publicType == IntegrationEventCatalog.RelationshipChanged ? "RELATIONSHIP" : "CONTACT",
+            data.TryGetProperty("relationshipId", out var relationship) ? relationship.GetString() ?? AggregateId : AggregateId,
+            data.TryGetProperty("resourceVersion", out var version) ? version.GetInt64() : data.TryGetProperty("contactVersion", out var contactVersion) ? contactVersion.GetInt64() : null,
+            OccurredAt, CorrelationId, data);
+        ExportState = "PENDING";
+    }
 }
 
 /// <summary>

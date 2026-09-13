@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>UnicoreCRM.EventWebhook.Verifier</AssemblyName></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Integrations/UnicoreCRM.Integrations.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Workflows/UnicoreCRM.Workflows.csproj" />
+  </ItemGroup>
+</Project>
