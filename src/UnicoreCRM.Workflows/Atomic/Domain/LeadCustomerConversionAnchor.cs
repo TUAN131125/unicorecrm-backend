@@ -46,8 +46,8 @@ internal sealed class LeadCustomerConversionAnchor
     internal void AcquireLease(string attemptId,string principalId,DateTimeOffset now,TimeSpan duration)
     { ExecutionAttemptId=attemptId;ExecutionPrincipalId=principalId;ExecutionLeaseAcquiredAt=now;ExecutionLeaseExpiresAt=now.Add(duration);UpdatedAt=now; }
     internal bool OwnsLease(string attemptId,DateTimeOffset now) => ExecutionAttemptId==attemptId && ExecutionLeaseExpiresAt>now;
-    internal void RecordLeadReservation(string attemptId,long version,string ownerId,IReadOnlyList<string> events,IReadOnlyList<string> audits,DateTimeOffset now)
-    { RequireLease(attemptId,now);LeadVersion=version;FrozenLeadOwnerId=ownerId;MergeEvidence(events,audits);Stage=LeadCustomerConversionStage.LeadReserved;ReleaseLease(now); }
+    internal void RecordLeadReservation(string attemptId,long version,IReadOnlyList<string> events,IReadOnlyList<string> audits,DateTimeOffset now)
+    { RequireLease(attemptId,now);LeadVersion=version;MergeEvidence(events,audits);Stage=LeadCustomerConversionStage.LeadReserved;ReleaseLease(now); }
     internal void RecordCustomer(string attemptId,string id,long version,string resolution,IReadOnlyList<string> events,IReadOnlyList<string> audits,DateTimeOffset now)
     { RequireLease(attemptId,now);CustomerId=id;CustomerVersion=version;CustomerResolution=resolution;MergeEvidence(events,audits);Stage=LeadCustomerConversionStage.CustomerResolved;ReleaseLease(now); }
     internal void RecordLead(string attemptId,long version,IReadOnlyList<string> events,IReadOnlyList<string> audits,DateTimeOffset now)

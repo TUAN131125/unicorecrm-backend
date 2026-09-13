@@ -121,7 +121,7 @@ internal sealed class Handler(WorkflowsDbContext db, LeadParticipant leads, ICon
             {
                 var r=await leads.ReserveAsync(new(trusted,a.LeadId,a.ConversionId,$"{a.ConversionId}:lead-reserve",a.ExpectedLeadVersion,a.RequestId,a.CorrelationId,a.OriginalPrincipalId,executor),ct);
                 if(!r.IsSuccess)return r.ErrorCode=="INTERNAL_ERROR"?await TransientAsync(a,attemptId,r.ErrorCode,ct):await TerminalAsync(a,attemptId,r.ErrorCode??"LEAD_CONVERSION_INELIGIBLE",trusted,executor,ct);
-                a.RecordLeadReservation(attemptId,r.LeadVersion!.Value,r.OwnerId!,r.EmittedEventIds,r.AuditEvidenceIds,timeProvider.GetUtcNow());
+                a.RecordLeadReservation(attemptId,r.LeadVersion!.Value,r.EmittedEventIds,r.AuditEvidenceIds,timeProvider.GetUtcNow());
             }
             else if(a.Stage==LeadCustomerConversionStage.SubjectResolved || a.Stage==LeadCustomerConversionStage.LeadReserved)
             {
