@@ -14,14 +14,30 @@ using UnicoreCRM.PlatformOperations.Outbox;
 using UnicoreCRM.Workflows.Atomic.Domain;
 using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 
-if (args.Length != 1) throw new ArgumentException("Pass one isolated migrated SQL Server connection string.");
+if (args.Length is < 1 or > 2) throw new ArgumentException("Pass one isolated SQL Server connection string and optional upgrade-data mode.");
 var connection = args[0];
 var clock = new MutableClock(DateTimeOffset.Parse("2026-09-13T08:00:00Z"));
 var eventCatalog = new TestCatalog();
 var contactsOptions = new DbContextOptionsBuilder<ContactsDbContext>().UseSqlServer(connection).Options;
 var journalOptions = new DbContextOptionsBuilder<IntegrationEventJournalDbContext>().UseSqlServer(connection).Options;
-var integrationsOptions = new DbContextOptionsBuilder<IntegrationsDbContext>().UseSqlServer(connection).Options;
+var integrationsOptions = new DbContextOptionsBuilder<IntegrationsDbContext>().UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "integration")).Options;
 var workflowsOptions = new DbContextOptionsBuilder<WorkflowsDbContext>().UseSqlServer(connection).Options;
+
+if (args.Length == 2 && args[1] == "upgrade-data")
+{
+    await using var upgradeDb = new IntegrationsDbContext(integrationsOptions);
+    await upgradeDb.Database.MigrateAsync();
+    var pending = await upgradeDb.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == "upgrade_pending");
+    var retry = await upgradeDb.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == "upgrade_retry");
+    var dead = await upgradeDb.OutboundWebhookDeliveries.SingleAsync(x => x.DeliveryId == "upgrade_dead");
+    Check(pending.RetryCycleAttemptCount == 0, "upgrade preserves pending zero-attempt cycle");
+    Check(retry.RetryCycleAttemptCount == 5, "upgrade restores retry-cycle count from lifetime attempts");
+    Check(dead.Status == "DEAD_LETTER" && dead.RetryCycleAttemptCount == 6, "upgrade preserves terminal dead-letter state and bounded cycle");
+    retry.Lease("upgrade_attempt_6", clock.GetUtcNow(), clock.GetUtcNow().AddMinutes(2)); retry.Fail("upgrade_attempt_6", clock.GetUtcNow(), 503, "HTTP_503", true); await upgradeDb.SaveChangesAsync();
+    Check(retry.Status == "DEAD_LETTER" && retry.AttemptCount == 6, "post-upgrade sender cycle still dead-letters at attempt six");
+    Console.WriteLine("Event/Webhook retry-cycle upgrade-data verifier completed.");
+    return;
+}
 
 var contact = new ContactOutboxMessage("CONTACT_CREATED", "contact_1", "ws_1", "corr_12345678", "{\"contactId\":\"contact_1\",\"changeType\":\"CREATED\",\"resourceVersion\":1}", clock.GetUtcNow());
 var relationship = new ContactOutboxMessage("CONTACT_ORGANIZATION_RELATIONSHIP_CREATED", "contact_1", "ws_1", "corr_12345678", "{\"relationshipKind\":\"CONTACT_ORGANIZATION\",\"changeType\":\"CREATED\",\"contactId\":\"contact_1\",\"relationshipId\":\"rel_1\",\"targetType\":\"ORGANIZATION\",\"targetId\":\"org_1\",\"contactVersion\":2}", clock.GetUtcNow());

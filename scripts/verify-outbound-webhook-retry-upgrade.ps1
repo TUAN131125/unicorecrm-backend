@@ -1,0 +1,7 @@
+param([Parameter(Mandatory=$true)][string]$DatabaseName)
+$ErrorActionPreference='Stop';$server='(localdb)\MSSQLLocalDB';$connection="Server=$server;Database=$DatabaseName;Trusted_Connection=True;TrustServerCertificate=True"
+& sqlcmd -S $server -d master -b -Q "IF DB_ID('$DatabaseName') IS NOT NULL BEGIN ALTER DATABASE [$DatabaseName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DatabaseName]; END; CREATE DATABASE [$DatabaseName];"|Out-Null
+& dotnet ef database update HardenOutboundWebhookDeliveryLease --context IntegrationsDbContext --project "$PSScriptRoot/../src/UnicoreCRM.Integrations/UnicoreCRM.Integrations.csproj" --connection $connection|Out-Null
+$insert="INSERT integration.OutboundWebhookDeliveries(DeliveryId,SubscriptionId,WorkspaceId,EventId,EventSequence,EventType,CanonicalPayloadJson,Status,AttemptCount,RetryCycleAttemptCount,NextAttemptAt,CreatedAt) VALUES ('upgrade_pending','s','w','e0',0,'crm.contact.changed','{}','PENDING',0,0,SYSUTCDATETIME(),SYSUTCDATETIME()),('upgrade_retry','s','w','e5',5,'crm.contact.changed','{}','RETRY_SCHEDULED',5,0,SYSUTCDATETIME(),SYSUTCDATETIME()),('upgrade_dead','s','w','e6',6,'crm.contact.changed','{}','DEAD_LETTER',9,0,SYSUTCDATETIME(),SYSUTCDATETIME())"
+& sqlcmd -S $server -d $DatabaseName -b -Q $insert|Out-Null
+& dotnet run --project "$PSScriptRoot/EventWebhookVerifier/UnicoreCRM.EventWebhook.Verifier.csproj" -- $connection upgrade-data
