@@ -9,6 +9,7 @@
   <Project Path="src/UnicoreCRM.CommercialEvidence/UnicoreCRM.CommercialEvidence.csproj" />
   <Project Path="src/UnicoreCRM.Workflows/UnicoreCRM.Workflows.csproj" />
   <Project Path="src/UnicoreCRM.Integrations/UnicoreCRM.Integrations.csproj" />
+  <Project Path="src/UnicoreCRM.Communications/UnicoreCRM.Communications.csproj" />
   <Project Path="scripts/EventWebhookVerifier/UnicoreCRM.EventWebhook.Verifier.csproj" />
   <Project Path="src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" />
   <Project Path="src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
