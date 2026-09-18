@@ -14,6 +14,7 @@
     <ProjectReference Include="../UnicoreCRM.CommercialEvidence/UnicoreCRM.CommercialEvidence.csproj" />
     <ProjectReference Include="../UnicoreCRM.Workflows/UnicoreCRM.Workflows.csproj" />
     <ProjectReference Include="../UnicoreCRM.Integrations/UnicoreCRM.Integrations.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Communications/UnicoreCRM.Communications.csproj" />
     <ProjectReference Include="../UnicoreCRM.AI/UnicoreCRM.AI.csproj" />
     <ProjectReference Include="../UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
   </ItemGroup>
