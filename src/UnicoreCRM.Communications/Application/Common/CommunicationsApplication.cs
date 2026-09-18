@@ -59,5 +59,10 @@ internal interface ICommunicationsPersistence
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
-internal sealed class CommunicationsPersistenceConcurrencyException : Exception;
-internal sealed class CommunicationsPersistenceConflictException : Exception;
+internal sealed class CommunicationsPersistenceConcurrencyException : Exception
+{
+}
+
+internal sealed class CommunicationsPersistenceConflictException : Exception
+{
+}
