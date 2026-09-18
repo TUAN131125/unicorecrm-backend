@@ -7,6 +7,7 @@ using UnicoreCRM.Operations;
 using UnicoreCRM.CommercialEvidence;
 using UnicoreCRM.Workflows;
 using UnicoreCRM.Integrations;
+using UnicoreCRM.Communications;
 using UnicoreCRM.AI;
 using UnicoreCRM.PlatformOperations;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
@@ -90,6 +91,7 @@ builder.Services.AddOperationsModule(builder.Configuration);
 builder.Services.AddCommercialEvidenceModule(builder.Configuration);
 builder.Services.AddWorkflowsModule(builder.Configuration);
 builder.Services.AddIntegrationsModule(builder.Configuration);
+builder.Services.AddCommunicationsModule(builder.Configuration);
 builder.Services.AddAIModule(builder.Configuration, builder.Environment);
 builder.Services.AddPlatformOperationsModule(builder.Configuration);
 
