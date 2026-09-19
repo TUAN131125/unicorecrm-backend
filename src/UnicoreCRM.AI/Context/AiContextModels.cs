@@ -3,7 +3,10 @@ namespace UnicoreCRM.AI.Context;
 internal sealed record AiContextItem(
     string EntityType,
     string EntityId,
-    IReadOnlyDictionary<string, string> Fields);
+    IReadOnlyDictionary<string, string> Fields,
+    string? DisplayLabel = null,
+    long? Version = null,
+    string? ContextType = null);
 
 internal enum AiContextLoadStatus
 {

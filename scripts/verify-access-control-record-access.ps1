@@ -1288,14 +1288,18 @@ SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$res
     $advisoryBody = @{
         question          = 'What should I focus on next?'
         locale            = 'en'
-        contextReferences = @{ leadId = $leadOwnId; dealId = $dealOwnId; taskId = $taskOwnId }
+        contextReferences = @(
+            @{ type = 'lead'; id = $leadOwnId }
+            @{ type = 'deal'; id = $dealOwnId }
+            @{ type = 'task'; id = $taskOwnId }
+        )
     } | ConvertTo-Json -Compress -Depth 6
 
     $advisoryWorkspace = Invoke-Support -Method 'POST' -Path '/ai/advisories' -Body $advisoryBody
     Add-Result 'ai: advisory still resolves every summary reader' '200' $advisoryWorkspace.Status
-    Add-Result 'ai: advisory resolves the Lead reference' $leadOwnId $advisoryWorkspace.Body.contextReferences.leadId
-    Add-Result 'ai: advisory resolves the Deal reference' $dealOwnId $advisoryWorkspace.Body.contextReferences.dealId
-    Add-Result 'ai: advisory resolves the Task reference' $taskOwnId $advisoryWorkspace.Body.contextReferences.taskId
+    Add-Result 'ai: advisory resolves the Lead reference' $leadOwnId ([string]($advisoryWorkspace.Body.contextReferences | Where-Object type -eq 'lead').id)
+    Add-Result 'ai: advisory resolves the Deal reference' $dealOwnId ([string]($advisoryWorkspace.Body.contextReferences | Where-Object type -eq 'deal').id)
+    Add-Result 'ai: advisory resolves the Task reference' $taskOwnId ([string]($advisoryWorkspace.Body.contextReferences | Where-Object type -eq 'task').id)
 
     # Under OWN scope the readers must refuse a record the caller does not own, exactly as the
     # module read endpoints do - the rewrite must not have widened what AI can see.
@@ -1303,7 +1307,11 @@ SELECT COUNT(*) AS N FROM access.RecordAccessDecisions WHERE ResourceKey = '$res
     $advisoryHidden = @{
         question          = 'What should I focus on next?'
         locale            = 'en'
-        contextReferences = @{ leadId = $leadOtherId; dealId = $dealOtherId; taskId = $taskOtherId }
+        contextReferences = @(
+            @{ type = 'lead'; id = $leadOtherId }
+            @{ type = 'deal'; id = $dealOtherId }
+            @{ type = 'task'; id = $taskOtherId }
+        )
     } | ConvertTo-Json -Compress -Depth 6
     $advisoryDenied = Invoke-Support -Method 'POST' -Path '/ai/advisories' -Body $advisoryHidden
     Add-Result 'ai: a hidden record is not summarised for AI' 'True' `
@@ -2079,7 +2087,7 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
     # never a withheld value into a returned one.
     Set-GateField -Resource 'tasks' -Field 'title' -Access 'Hidden'
     $summaryUnderHidden = Invoke-Support -Method 'POST' -Path '/ai/advisories' `
-        -Body (@{ question = 'What next?'; locale = 'en'; contextReferences = @{ taskId = $taskOwnId } } | ConvertTo-Json -Compress -Depth 6)
+        -Body (@{ question = 'What next?'; locale = 'en'; contextReferences = @(@{ type = 'task'; id = $taskOwnId }) } | ConvertTo-Json -Compress -Depth 6)
     Add-Result 'representation: the summary contract withholds a required-elsewhere field' '200' $summaryUnderHidden.Status
     Add-Result 'representation: the withheld title never reaches the summary consumer' 'True' `
         ($summaryUnderHidden.Raw -notmatch 'Retro task own').ToString()

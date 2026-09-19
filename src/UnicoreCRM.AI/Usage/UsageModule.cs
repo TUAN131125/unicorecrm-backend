@@ -6,7 +6,7 @@ internal static class UsageModule
 {
     internal static IServiceCollection AddUsageModule(this IServiceCollection services)
     {
-        services.AddSingleton<IAiUsageRecorder, LoggingAiUsageRecorder>();
+        services.AddScoped<IAiUsageRecorder, DurableAiUsageRecorder>();
         return services;
     }
 }

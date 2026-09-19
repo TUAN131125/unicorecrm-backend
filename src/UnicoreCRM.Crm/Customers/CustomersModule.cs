@@ -24,6 +24,7 @@ internal static class CustomersModule
         services.AddScoped<CustomerAuthorization>();
         services.AddScoped<Application.ListCustomers.Handler>();
         services.AddScoped<Application.GetCustomer.Handler>();
+        services.AddScoped<ICustomerSummaryReader, Application.ReadCustomerSummary.CustomerSummaryReader>();
         services.AddScoped<Application.GetCustomer360.Handler>();
         services.AddScoped<Application.CreateCustomer.Handler>();
         services.AddScoped<Application.UpdateCustomer.Handler>();

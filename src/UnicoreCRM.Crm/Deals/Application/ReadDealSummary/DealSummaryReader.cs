@@ -66,7 +66,8 @@ internal sealed class DealSummaryReader(
             policy.CanRead("opportunityScore") ? document.OpportunityScore : null,
             policy.CanRead("expectedCloseDate") ? document.ExpectedCloseDate : null,
             policy.CanRead("nextActionAt") ? document.NextActionAt : null,
-            policy.CanRead("nextActionSummary") ? document.NextActionSummary : null);
+            policy.CanRead("nextActionSummary") ? document.NextActionSummary : null,
+            deal.Version);
 
         persistence.AddAudit(new DealAuditRecord(
             "readDealSummary",

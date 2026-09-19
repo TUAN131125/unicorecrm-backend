@@ -97,13 +97,14 @@ internal sealed class OrganizationAuthorization(IRecordAccessEvaluator evaluator
     internal async Task<OrganizationOperationResult<OrganizationAccess>> AuthorizeAsync(
         OrganizationRequestMetadata metadata,
         AccessRequirement requirement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RecordAccessRepresentation? representation = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
             requirement.Capability,
             OrganizationFieldSecurity.FieldKeys,
-            RecordAccessRepresentation.Full,
+            representation ?? RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
 

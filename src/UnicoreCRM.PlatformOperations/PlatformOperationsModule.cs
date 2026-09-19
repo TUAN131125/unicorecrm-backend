@@ -5,6 +5,7 @@ using UnicoreCRM.PlatformOperations.Inbox;
 using UnicoreCRM.PlatformOperations.Idempotency;
 using UnicoreCRM.PlatformOperations.BackgroundJobs;
 using UnicoreCRM.PlatformOperations.RuntimeState;
+using UnicoreCRM.PlatformOperations.AiExecution;
 
 namespace UnicoreCRM.PlatformOperations;
 
@@ -17,6 +18,7 @@ public static class PlatformOperationsModule
         services.AddIdempotencyModule();
         services.AddBackgroundJobsModule();
         services.AddRuntimeStateModule();
+        services.AddAiExecutionModule(configuration);
 
         return services;
     }

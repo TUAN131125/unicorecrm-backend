@@ -63,7 +63,8 @@ internal sealed class LeadSummaryReader(
             policy.CanRead("leadWorkState") ? document.LeadWorkState : null,
             policy.CanRead("score") ? document.Score : null,
             policy.CanRead("priority") ? document.Priority : null,
-            policy.CanRead("nextFollowUpAt") ? document.NextFollowUpAt : null);
+            policy.CanRead("nextFollowUpAt") ? document.NextFollowUpAt : null,
+            lead.Version);
 
         persistence.AddAudit(new LeadAuditRecord(
             "readLeadSummary",

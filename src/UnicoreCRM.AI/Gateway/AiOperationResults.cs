@@ -43,6 +43,24 @@ internal static class AiErrors
     internal static AiOperationError ProviderTimeout() =>
         new("AI_PROVIDER_TIMEOUT", 504, "AI provider timed out", true);
 
+    internal static AiOperationError ProviderRateLimited() =>
+        new("AI_PROVIDER_RATE_LIMITED", 429, "AI provider rate limit exceeded", true);
+
     internal static AiOperationError InvalidProviderResponse() =>
         new("AI_PROVIDER_RESPONSE_INVALID", 502, "AI provider returned an invalid response", true);
+
+    internal static AiOperationError ConfigurationAccessDenied() =>
+        new("AI_CONFIGURATION_ACCESS_DENIED", 403, "AI configuration access denied");
+
+    internal static AiOperationError ConfigurationVersionConflict() =>
+        new("AI_CONFIGURATION_VERSION_CONFLICT", 409, "AI configuration version conflict");
+
+    internal static AiOperationError IdempotencyKeyReused() =>
+        new("AI_IDEMPOTENCY_KEY_REUSED", 409, "AI configuration idempotency key was reused");
+
+    internal static AiOperationError ConfigurationNotValidated() =>
+        new("AI_CONFIGURATION_NOT_VALIDATED", 409, "AI configuration must pass validation before activation");
+
+    internal static AiOperationError ProviderSafetyRefusal() =>
+        new("AI_PROVIDER_SAFETY_REFUSAL", 422, "AI provider refused the request under its safety policy");
 }

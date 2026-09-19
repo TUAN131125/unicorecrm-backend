@@ -124,13 +124,14 @@ internal sealed class ContactAuthorization(IRecordAccessEvaluator evaluator)
     internal async Task<ContactOperationResult<ContactAccess>> AuthorizeAsync(
         ContactRequestMetadata metadata,
         AccessRequirement? requirement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RecordAccessRepresentation? representation = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
             (requirement ?? ContactCapabilities.Read).Capability,
             ContactFieldSecurity.FieldKeys,
-            RecordAccessRepresentation.Full,
+            representation ?? RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
 

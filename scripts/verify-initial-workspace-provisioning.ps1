@@ -32,6 +32,7 @@ $checks = [System.Collections.Generic.List[string]]::new()
 # read capability while production provisioning remains correct.
 $expectedInitialCapabilities = @(
     'access.configure', 'access.read',
+    'ai.configuration.manage', 'ai.configuration.read',
     'contacts.create', 'contacts.read', 'contacts.update', 'contacts.delete',
     'customers.view',
     'deals.assign', 'deals.bulk', 'deals.close', 'deals.create', 'deals.delete', 'deals.read', 'deals.update',

@@ -7,6 +7,7 @@ internal static class GatewayModule
     internal static IServiceCollection AddGatewayModule(this IServiceCollection services)
     {
         services.AddScoped<AiAdvisoryApplication>();
+        services.AddScoped<AiConfigurationApplication>();
         return services;
     }
 }

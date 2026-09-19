@@ -17,7 +17,8 @@ public sealed record DealSummaryProjection(
     string? OpportunityScore,
     string? ExpectedCloseDate,
     string? NextActionAt,
-    string? NextActionSummary);
+    string? NextActionSummary,
+    long Version);
 
 public sealed record DealSummaryReadResult(
     DealSummaryReadStatus Status,

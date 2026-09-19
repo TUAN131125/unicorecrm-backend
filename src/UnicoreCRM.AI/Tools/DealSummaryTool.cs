@@ -8,6 +8,7 @@ internal sealed class DealSummaryTool(IDealSummaryReader reader) : IAiContextToo
 {
     internal const string ToolName = "deal.summary.read";
     public string Name => ToolName;
+    public string EntityType => "deal";
 
     public async Task<AiContextToolResult> ExecuteAsync(
         string referenceId,
@@ -28,7 +29,7 @@ internal sealed class DealSummaryTool(IDealSummaryReader reader) : IAiContextToo
         Add(fields, "expectedCloseDate", summary.ExpectedCloseDate);
         Add(fields, "nextActionAt", summary.NextActionAt);
         Add(fields, "nextActionSummary", summary.NextActionSummary);
-        return new(AiContextLoadStatus.Succeeded, new AiContextItem("deal", summary.DealId, fields));
+        return new(AiContextLoadStatus.Succeeded, new AiContextItem("deal", summary.DealId, fields, summary.Name, summary.Version, ToolName));
     }
 
     private static AiContextLoadStatus Map(DealSummaryReadStatus status) => status switch

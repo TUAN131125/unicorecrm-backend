@@ -106,13 +106,14 @@ internal sealed class CustomerAuthorization(IRecordAccessEvaluator evaluator)
     internal async Task<CustomerOperationResult<CustomerAccess>> AuthorizeAsync(
         CustomerRequestMetadata metadata,
         AccessRequirement requirement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RecordAccessRepresentation? representation = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
             requirement.Capability,
             CustomerFieldSecurity.FieldKeys,
-            RecordAccessRepresentation.Full,
+            representation ?? RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
 

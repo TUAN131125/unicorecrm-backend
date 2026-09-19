@@ -15,7 +15,8 @@ public sealed record LeadSummaryProjection(
     string? WorkState,
     int? Score,
     string? Priority,
-    string? NextFollowUpAt);
+    string? NextFollowUpAt,
+    long Version);
 
 public sealed record LeadSummaryReadResult(
     LeadSummaryReadStatus Status,

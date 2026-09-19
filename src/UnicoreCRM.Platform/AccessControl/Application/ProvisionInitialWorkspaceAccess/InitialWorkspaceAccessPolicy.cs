@@ -73,6 +73,13 @@ internal static class InitialWorkspaceAccessPolicy
             .Where(capability => capability is not "leads.convert_to_customer")
             .ToArray();
 
+    // Exact owner projection immediately preceding CRM-AI-002 Workspace provider governance.
+    // Only this complete server-owned predecessor is eligible for automatic owner repair.
+    private static IReadOnlyList<string> PreAiConfigurationOwnerCapabilities { get; } =
+        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+            .Where(capability => capability is not "ai.configuration.read" and not "ai.configuration.manage")
+            .ToArray();
+
     internal static IReadOnlyList<string> Capabilities { get; } =
         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities;
 
@@ -91,11 +98,13 @@ internal static class InitialWorkspaceAccessPolicy
         var preContactUpdate = Validate(PreContactUpdateOwnerCapabilities, "The pre-Contact-update Workspace Owner capability set is not canonical.");
         var preContactArchive = Validate(PreContactArchiveOwnerCapabilities, "The pre-Contact-archive Workspace Owner capability set is not canonical.");
         var preLeadCustomerConversion = Validate(PreLeadCustomerConversionOwnerCapabilities, "The pre-Lead-customer-conversion Workspace Owner capability set is not canonical.");
+        var preAiConfiguration = Validate(PreAiConfigurationOwnerCapabilities, "The pre-AI-configuration Workspace Owner capability set is not canonical.");
         return storedCapabilities.SequenceEqual(v1, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v2, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preContactUpdate, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preContactArchive, StringComparer.Ordinal)
-            || storedCapabilities.SequenceEqual(preLeadCustomerConversion, StringComparer.Ordinal);
+            || storedCapabilities.SequenceEqual(preLeadCustomerConversion, StringComparer.Ordinal)
+            || storedCapabilities.SequenceEqual(preAiConfiguration, StringComparer.Ordinal);
     }
 
     /// <summary>

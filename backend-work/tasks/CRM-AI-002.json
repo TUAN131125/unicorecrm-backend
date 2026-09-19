@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "4.2.1",
+  "kind": "UnicoreCRMBackendTaskPacket",
+  "identity": {
+    "taskId": "CRM-AI-002",
+    "operationId": "requestAiAdvisory",
+    "canonicalOwner": "ai",
+    "area": "AI",
+    "status": "PRODUCTION_CONTRACT_READY",
+    "primaryWriter": "codex-primary",
+    "reviewer": "controller-independent-review",
+    "baseCommit": "cf1b9e08cfad3a41baf844a2e9a6cacec7b15bf7",
+    "baseline": {
+      "canonicalDesignVersion": "UNICORECRM_AI_PRODUCTION_MODULE_BUILD_PLAN_v1.0",
+      "openApiVersion": "0.24.0-contract.0",
+      "openApiSha256": "89cbe9a4c1d2bca319d37410105b440b1a860239aef032d96be6a6c423fff50e"
+    }
+  },
+  "risk": {
+    "tier": "CRITICAL",
+    "score": 9,
+    "reasons": ["credentials", "security/tenancy", "cross-owner reads", "provider failover", "durable evidence"],
+    "specialists": ["CONTRACT_API", "PERSISTENCE_RELIABILITY", "SECURITY_TENANCY"]
+  },
+  "scope": {
+    "inScope": ["CRM-AI-001 vendor-neutral foundation", "Gemini and OpenAI provider adapters", "Workspace AI configuration", "read-only grounded advisory chat"],
+    "outOfScope": ["AI mutations", "autonomous agents", "background proactive AI", "unrestricted RAG"],
+    "allowedWritePaths": ["src/UnicoreCRM.AI/**", "src/UnicoreCRM.PlatformOperations/AiExecution/**", "src/UnicoreCRM.Platform/AccessControl/**", "src/UnicoreCRM.Crm/**", "src/UnicoreCRM.Operations/Tasks/**", "src/UnicoreCRM.ApiHost/appsettings.Development.json", "scripts/**", "backend-work/tasks/**"],
+    "forbiddenWritePaths": ["design-authority/**", "roles/backend-execution/**", "backend-design/frozen/**", "architecture/**"]
+  },
+  "authorityEvidence": [
+    {
+      "claimId": "AUTH-AI-PRODUCTION-PLAN",
+      "classification": "CANONICAL_FACT",
+      "claim": "CRM-AI-002 provider, configuration, security, evidence, frontend, migration and verification semantics",
+      "sourceFile": "backend-work/plans/UNICORECRM_AI_PRODUCTION_MODULE_BUILD_PLAN_v1.0.md",
+      "locator": "sections 7-40",
+      "sourceSha256": "21fedcfd21b55396f93a5649b3dde81944893794023f931369ba6025896feb8a",
+      "derivedFrom": [],
+      "value": "Gemini default; OpenAI optional; Workspace-owned configuration; read-only advisory"
+    }
+  ],
+  "architecture": {
+    "applicationSlice": "workspace production AI advisory and configuration",
+    "crossOwnerEdges": ["owner-approved Lead/Contact/Organization/Customer/Deal/Task summary readers"],
+    "persistence": {
+      "owner": "platform-operations",
+      "dbContext": "UnicoreCRM.PlatformOperations.AiExecution.Infrastructure.AiExecutionDbContext",
+      "schema": "platform_ai",
+      "migrationRoot": "backend/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/Migrations"
+    }
+  },
+  "policies": {
+    "authorization": "ai.configuration.read / ai.configuration.manage plus owner read capabilities",
+    "additionalCapabilities": ["ai.configuration.read", "ai.configuration.manage"],
+    "workspaceRequired": true,
+    "actorRequired": true,
+    "credentialsPolicy": "server-side Data Protection for Workspace credentials; deployment configuration for deployment credentials",
+    "resourceScope": "RESOURCE",
+    "dataScope": "OWNER_AUTHORIZED",
+    "workspaceDataScope": "WORKSPACE",
+    "idempotency": "REQUIRED_FOR_CONFIGURATION_COMMANDS",
+    "concurrency": "IF_MATCH_REQUIRED",
+    "transactionBoundary": "PLATFORM_OPERATIONS_CONFIGURATION_AND_EVIDENCE",
+    "audit": "SAFE_CONFIGURATION_AUDIT_AND_EXECUTION_PROVIDER_ATTEMPTS",
+    "eventOutbox": null,
+    "workflow": null,
+    "provider": "GEMINI_DEFAULT_OPENAI_OPTIONAL_EXPLICIT_FAILOVER",
+    "retentionPrivacy": "NO_RAW_PROMPT_CONTEXT_OR_SECRET_PERSISTENCE"
+  },
+  "implementationFreedom": {
+    "allowedChoices": ["internal HTTP adapter mechanics", "circuit-breaker implementation", "safe configuration persistence layout"],
+    "approvalRequired": []
+  },
+  "verification": {
+    "unit": ["provider adapters", "resolver/retry/failover", "circuit breaker", "frontend AI contracts"],
+    "integration": ["real AI verifier", "AccessControl regression", "Workspace provisioning", "execution and provider-attempt ledger"],
+    "contract": ["canonical OpenAPI and generated client freshness"],
+    "architecture": ["owner DbContext isolation", "connected/demo runtime isolation"],
+    "negative": ["authorization denial", "credential non-disclosure", "provider failure mappings", "safety refusal no failover"],
+    "twoWorkspaceIsolation": ["AI context, configuration, execution evidence and browser conversation cleanup"],
+    "providerConformance": ["Gemini deterministic transport", "OpenAI deterministic transport"],
+    "externalConformance": { "required": false }
+  },
+  "stopConditions": ["AUTHORITY_GAP", "FOREIGN_PERSISTENCE_REQUIRED", "CANONICAL_CONFLICT", "BASELINE_DRIFT", "WRITE_SCOPE_VIOLATION"],
+  "completion": {
+    "migrations": ["20260914031233_CreateAiExecutionLedger", "20260919131617_AddAiProviderPlatform", "20260919132914_AddAiConfigurationReplaySnapshot"],
+    "deviations": [],
+    "remainingRisks": ["Live paid-provider smoke remains operational rather than mandatory CI evidence"]
+  }
+}

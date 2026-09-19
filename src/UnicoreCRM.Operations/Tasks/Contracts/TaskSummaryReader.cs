@@ -14,7 +14,8 @@ public sealed record TaskSummaryProjection(
     string? Title,
     string? Status,
     string? Priority,
-    string? DueAt);
+    string? DueAt,
+    long Version);
 
 public sealed record TaskSummaryReadResult(
     TaskSummaryReadStatus Status,

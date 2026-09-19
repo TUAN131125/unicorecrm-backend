@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><RootNamespace>UnicoreCRM.AI.ProviderVerifier</RootNamespace><AssemblyName>UnicoreCRM.AI.ProviderVerifier</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" /></ItemGroup>
+</Project>

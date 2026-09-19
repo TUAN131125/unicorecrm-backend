@@ -64,7 +64,8 @@ internal sealed class TaskSummaryReader(
             access.Value!.Authorization.CanRead("title") ? document.Title : null,
             access.Value!.Authorization.CanRead("status") ? document.Status : null,
             access.Value!.Authorization.CanRead("priority") ? document.Priority : null,
-            access.Value!.Authorization.CanRead("dueAt") ? document.DueAt : null);
+            access.Value!.Authorization.CanRead("dueAt") ? document.DueAt : null,
+            task.Version);
 
         persistence.AddAudit(new TaskAuditRecord(
             "readTaskSummary",

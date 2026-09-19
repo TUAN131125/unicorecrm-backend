@@ -20,6 +20,8 @@ internal sealed class DevelopmentDeterministicAiProvider(string mode) : IAiProvi
                 throw new InvalidOperationException("Unreachable after cancellation.");
             case "MALFORMED":
                 return new AiProviderResponse("{\"summary\":\"\",\"suggestedNextAction\":42}");
+            case "RATE_LIMITED":
+                throw new AiProviderRateLimitedException();
         }
 
         var vietnamese = string.Equals(request.Locale, "vi", StringComparison.Ordinal);

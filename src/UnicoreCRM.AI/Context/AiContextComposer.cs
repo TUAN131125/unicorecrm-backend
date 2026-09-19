@@ -6,42 +6,30 @@ namespace UnicoreCRM.AI.Context;
 internal sealed class AiContextComposer(AiToolRegistry toolRegistry)
 {
     internal async Task<AiContextCompositionResult> LoadAsync(
-        AiAdvisoryContextReferences references,
+        IReadOnlyList<AiContextReference> references,
         string requestId,
         string correlationId,
         CancellationToken cancellationToken)
     {
-        var requests = new List<(string ToolName, string ReferenceId)>(3);
-        Add(requests, LeadSummaryTool.ToolName, references.LeadId);
-        Add(requests, DealSummaryTool.ToolName, references.DealId);
-        Add(requests, TaskSummaryTool.ToolName, references.TaskId);
+        var requests = references.Select(reference => (EntityType: reference.Type!, ReferenceId: reference.Id!)).ToArray();
 
-        var items = new List<AiContextItem>(requests.Count);
-        var usedTools = new List<string>(requests.Count);
+        var items = new List<AiContextItem>(requests.Length);
+        var usedTools = new List<string>(requests.Length);
         foreach (var request in requests)
         {
             var result = await toolRegistry.ExecuteAsync(
-                request.ToolName,
+                request.EntityType,
                 request.ReferenceId,
                 requestId,
                 correlationId,
                 cancellationToken);
-            usedTools.Add(request.ToolName);
+            usedTools.Add(result.Item?.ContextType ?? request.EntityType);
             if (result.Status != AiContextLoadStatus.Succeeded)
                 return new([], usedTools, Error(result.Status));
             items.Add(result.Item!);
         }
 
         return new(items, usedTools, null);
-    }
-
-    private static void Add(
-        ICollection<(string ToolName, string ReferenceId)> requests,
-        string toolName,
-        string? referenceId)
-    {
-        if (!string.IsNullOrWhiteSpace(referenceId))
-            requests.Add((toolName, referenceId));
     }
 
     private static AiOperationError Error(AiContextLoadStatus status) => status switch

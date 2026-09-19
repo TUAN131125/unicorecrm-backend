@@ -8,6 +8,7 @@ internal sealed class TaskSummaryTool(ITaskSummaryReader reader) : IAiContextToo
 {
     internal const string ToolName = "task.summary.read";
     public string Name => ToolName;
+    public string EntityType => "task";
 
     public async Task<AiContextToolResult> ExecuteAsync(
         string referenceId,
@@ -25,7 +26,7 @@ internal sealed class TaskSummaryTool(ITaskSummaryReader reader) : IAiContextToo
         Add(fields, "status", summary.Status);
         Add(fields, "priority", summary.Priority);
         Add(fields, "dueAt", summary.DueAt);
-        return new(AiContextLoadStatus.Succeeded, new AiContextItem("task", summary.TaskId, fields));
+        return new(AiContextLoadStatus.Succeeded, new AiContextItem("task", summary.TaskId, fields, summary.Title, summary.Version, ToolName));
     }
 
     private static AiContextLoadStatus Map(TaskSummaryReadStatus status) => status switch

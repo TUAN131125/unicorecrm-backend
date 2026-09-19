@@ -29,18 +29,19 @@ internal sealed class AiAdvisoryApplication(
 
         var executionId = $"ai_exec_{Guid.NewGuid():N}";
         var started = timeProvider.GetTimestamp();
+        var startedAt = timeProvider.GetUtcNow();
         var trusted = currentWorkspace.Require();
         var contextResult = await contextComposer.LoadAsync(
             validation.ContextReferences!, executionId, correlationId, cancellationToken);
         if (!contextResult.IsSuccess)
         {
-            RecordUsage(executionId, trusted, contextResult.ToolNames, contextResult.Items, contextResult.Error!.Code, started);
+            await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, contextResult.Error!.Code, started, startedAt);
             return AiOperationResult<AiAdvisoryResponse>.Failure(contextResult.Error);
         }
 
-        var prompt = promptComposer.Compose(
-            validation.Question!, validation.Locale!, contextResult.Items);
+        var prompt = promptComposer.Compose(validation.Question!, validation.Locale!, contextResult.Items, validation.Conversation!);
         var providerRequest = new AiProviderRequest(
+            executionId,
             prompt.SystemInstruction,
             prompt.UserInstruction,
             prompt.ContextData,
@@ -56,19 +57,34 @@ internal sealed class AiAdvisoryApplication(
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            RecordUsage(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_TIMEOUT", started);
+            await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_TIMEOUT", started, startedAt);
             return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.ProviderTimeout());
         }
         catch (AiProviderUnavailableException)
         {
-            RecordUsage(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_UNAVAILABLE", started);
+            await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_UNAVAILABLE", started, startedAt);
             return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.ProviderUnavailable());
+        }
+        catch (AiProviderRateLimitedException)
+        {
+            await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_RATE_LIMITED", started, startedAt);
+            return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.ProviderRateLimited());
+        }
+        catch (AiProviderInvalidResponseException)
+        {
+            await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_RESPONSE_INVALID", started, startedAt);
+            return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.InvalidProviderResponse());
+        }
+        catch (AiProviderSafetyRefusalException)
+        {
+            await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_SAFETY_REFUSAL", started, startedAt);
+            return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.ProviderSafetyRefusal());
         }
 
         var advisory = outputValidator.Validate(providerResponse.Content);
         if (advisory is null)
         {
-            RecordUsage(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_RESPONSE_INVALID", started);
+            await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_RESPONSE_INVALID", started, startedAt, providerResponse);
             return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.InvalidProviderResponse());
         }
 
@@ -79,12 +95,13 @@ internal sealed class AiAdvisoryApplication(
             advisory.AttentionPoints,
             true,
             validation.ContextReferences!,
-            new AiAdvisoryProviderView(provider.Descriptor.Name, provider.Descriptor.Model));
-        RecordUsage(executionId, trusted, contextResult.ToolNames, contextResult.Items, "SUCCEEDED", started);
+            contextResult.Items.Select(item => new AiGroundingEvidence(item.EntityType, item.EntityId, item.DisplayLabel, item.Version, item.ContextType!)).ToArray(),
+            new AiAdvisoryProviderView(providerResponse.Provider ?? provider.Descriptor.Name, providerResponse.Model ?? provider.Descriptor.Model));
+        await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "SUCCEEDED", started, startedAt, providerResponse);
         return AiOperationResult<AiAdvisoryResponse>.Success(response);
     }
 
-    private static (string? Question, string? Locale, AiAdvisoryContextReferences? ContextReferences, AiOperationError? Error)
+    private static (string? Question, string? Locale, IReadOnlyList<AiContextReference>? ContextReferences, IReadOnlyList<AiConversationMessage>? Conversation, AiOperationError? Error)
         Validate(AiAdvisoryRequest request)
     {
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -96,40 +113,49 @@ internal sealed class AiAdvisoryApplication(
         if (locale is not ("en" or "vi"))
             fields["locale"] = ["locale must be en or vi."];
 
+        var supported = new HashSet<string>(["lead", "contact", "organization", "customer", "deal", "task"], StringComparer.OrdinalIgnoreCase);
         var references = request.ContextReferences;
-        var referenceCount = references is null
-            ? 0
-            : new[] { references.LeadId, references.DealId, references.TaskId }
-                .Count(value => !string.IsNullOrWhiteSpace(value));
-        if (referenceCount == 0)
-            fields["contextReferences"] = ["At least one Lead, Deal, or Task reference is required."];
+        if (references is null || references.Count is 0 || references.Count > 6)
+            fields["contextReferences"] = ["Between one and six context references are required."];
+        else if (references.Any(x => string.IsNullOrWhiteSpace(x.Type) || string.IsNullOrWhiteSpace(x.Id)))
+            fields["contextReferences"] = ["Every context reference requires a type and id."];
+        else if (references.Any(x => !supported.Contains(x.Type!)))
+            fields["contextReferences"] = ["A context reference type is unsupported."];
+
+        var conversation = request.Conversation ?? [];
+        if (conversation.Count > 12 || conversation.Any(x => x.Role is not ("user" or "assistant") || string.IsNullOrWhiteSpace(x.Content) || x.Content.Length > 2000) || conversation.Sum(x => x.Content!.Length) > 8000)
+            fields["conversation"] = ["Conversation must contain at most 12 user/assistant messages, 2000 characters each, and 8000 characters total."];
 
         return fields.Count == 0
-            ? (question, locale, new AiAdvisoryContextReferences(
-                references!.LeadId?.Trim(),
-                references.DealId?.Trim(),
-                references.TaskId?.Trim()), null)
-            : (null, null, null, AiErrors.Invalid(fields));
+            ? (question, locale, references!.Select(x => new AiContextReference(x.Type!.Trim().ToLowerInvariant(), x.Id!.Trim())).ToArray(), conversation.Select(x => new AiConversationMessage(x.Role, x.Content!.Trim())).ToArray(), null)
+            : (null, null, null, null, AiErrors.Invalid(fields));
     }
 
-    private void RecordUsage(
+    private Task RecordUsageAsync(
         string executionId,
         TrustedWorkspaceContext trusted,
         IReadOnlyList<string> toolNames,
         IReadOnlyList<AiContextItem> contextItems,
         string status,
-        long started)
+        long started,
+        DateTimeOffset startedAt,
+        AiProviderResponse? providerResponse = null)
     {
-        usageRecorder.Record(new AiUsageEvent(
+        return usageRecorder.RecordAsync(new AiUsageEvent(
             executionId,
             trusted.WorkspaceId,
             trusted.MemberId,
-            provider.Descriptor.Name,
-            provider.Descriptor.Model,
+            providerResponse?.Provider ?? provider.Descriptor.Name,
+            providerResponse?.Model ?? provider.Descriptor.Model,
             "requestAiAdvisory",
             toolNames,
             contextItems.SelectMany(item => item.Fields.Keys.Select(field => $"{item.EntityType}:{field}")).ToArray(),
             status,
-            timeProvider.GetElapsedTime(started)));
+            timeProvider.GetElapsedTime(started),
+            startedAt,
+            contextItems.Select(item => $"{item.EntityType}:{item.EntityId}").ToArray(),
+            providerResponse?.InputTokens,
+            providerResponse?.OutputTokens,
+            providerResponse?.RequestId), CancellationToken.None);
     }
 }

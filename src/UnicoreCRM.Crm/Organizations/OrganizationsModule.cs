@@ -24,6 +24,7 @@ internal static class OrganizationsModule
         services.AddScoped<OrganizationAuthorization>();
         services.AddScoped<Application.ListOrganizations.Handler>();
         services.AddScoped<Application.GetOrganization.Handler>();
+        services.AddScoped<IOrganizationSummaryReader, Application.ReadOrganizationSummary.OrganizationSummaryReader>();
         services.AddScoped<Application.GetOrganizationOverview.Handler>();
         services.AddScoped<Application.CreateOrganization.Handler>();
         services.AddScoped<Application.UpdateOrganization.Handler>();

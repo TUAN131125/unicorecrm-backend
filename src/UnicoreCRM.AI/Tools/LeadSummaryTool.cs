@@ -8,6 +8,7 @@ internal sealed class LeadSummaryTool(ILeadSummaryReader reader) : IAiContextToo
 {
     internal const string ToolName = "lead.summary.read";
     public string Name => ToolName;
+    public string EntityType => "lead";
 
     public async Task<AiContextToolResult> ExecuteAsync(
         string referenceId,
@@ -26,7 +27,7 @@ internal sealed class LeadSummaryTool(ILeadSummaryReader reader) : IAiContextToo
         Add(fields, "score", summary.Score?.ToString(CultureInfo.InvariantCulture));
         Add(fields, "priority", summary.Priority);
         Add(fields, "nextFollowUpAt", summary.NextFollowUpAt);
-        return new(AiContextLoadStatus.Succeeded, new AiContextItem("lead", summary.LeadId, fields));
+        return new(AiContextLoadStatus.Succeeded, new AiContextItem("lead", summary.LeadId, fields, summary.DisplayName, summary.Version, ToolName));
     }
 
     private static AiContextLoadStatus Map(LeadSummaryReadStatus status) => status switch

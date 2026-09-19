@@ -14,6 +14,23 @@ internal static class ProvidersModule
         var timeoutSeconds = Math.Clamp(configuration.GetValue("AI:Provider:TimeoutSeconds", 10), 1, 60);
         services.AddSingleton(new AiProviderRuntimeOptions(TimeSpan.FromSeconds(timeoutSeconds)));
         services.AddSingleton<AiProviderOutputValidator>();
+        services.AddSingleton<AiProviderCatalog>();
+        services.AddDataProtection();
+        var deterministicTransport = environment.IsDevelopment() && configuration.GetValue("AI:ProviderTesting:UseDeterministicTransport", false);
+        var gemini = services.AddHttpClient<GeminiAiProvider>(client => client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/"));
+        var openAi = services.AddHttpClient<OpenAiProvider>(client => client.BaseAddress = new Uri("https://api.openai.com/"));
+        if (deterministicTransport)
+        {
+            gemini.ConfigurePrimaryHttpMessageHandler(() => new DevelopmentDeterministicProviderHttpHandler());
+            openAi.ConfigurePrimaryHttpMessageHandler(() => new DevelopmentDeterministicProviderHttpHandler());
+        }
+        services.AddScoped<IProductionAiProviderAdapter>(provider => provider.GetRequiredService<GeminiAiProvider>());
+        services.AddScoped<IProductionAiProviderAdapter>(provider => provider.GetRequiredService<OpenAiProvider>());
+        services.AddScoped<WorkspaceAiProviderResolver>();
+        services.AddSingleton<AiProviderCircuitBreaker>();
+        services.AddSingleton(new AiWorkspaceGuardrails(TimeProvider.System,
+            Math.Clamp(configuration.GetValue("AI:Guardrails:WorkspaceConcurrency", 4), 1, 32),
+            Math.Clamp(configuration.GetValue("AI:Guardrails:WorkspaceRequestsPerMinute", 60), 1, 1000)));
 
         var kind = configuration["AI:Provider:Kind"];
         if (environment.IsDevelopment()
@@ -24,7 +41,7 @@ internal static class ProvidersModule
         }
         else
         {
-            services.AddSingleton<IAiProvider, UnavailableAiProvider>();
+            services.AddScoped<IAiProvider, WorkspaceProductionAiProvider>();
         }
 
         return services;

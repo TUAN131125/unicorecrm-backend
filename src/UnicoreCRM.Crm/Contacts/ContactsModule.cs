@@ -23,6 +23,7 @@ internal static class ContactsModule
         services.AddScoped<ContactAuthorization>();
         services.AddScoped<Application.ListContacts.Handler>();
         services.AddScoped<Application.GetContact.Handler>();
+        services.AddScoped<Contracts.IContactSummaryReader, Application.ReadContactSummary.ContactSummaryReader>();
         services.AddScoped<Application.CreateContact.Handler>();
         services.AddScoped<Application.UpdateContact.Handler>();
         services.AddScoped<Application.ArchiveContact.Handler>();

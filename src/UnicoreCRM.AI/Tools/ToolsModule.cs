@@ -9,6 +9,9 @@ internal static class ToolsModule
         services.AddScoped<IAiContextTool, LeadSummaryTool>();
         services.AddScoped<IAiContextTool, DealSummaryTool>();
         services.AddScoped<IAiContextTool, TaskSummaryTool>();
+        services.AddScoped<IAiContextTool, ContactSummaryTool>();
+        services.AddScoped<IAiContextTool, OrganizationSummaryTool>();
+        services.AddScoped<IAiContextTool, CustomerSummaryTool>();
         services.AddScoped<AiToolRegistry>();
         return services;
     }
