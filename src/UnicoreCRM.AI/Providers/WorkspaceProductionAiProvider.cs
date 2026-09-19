@@ -23,37 +23,47 @@ internal sealed class WorkspaceProductionAiProvider(
         var targets = new List<(ResolvedProviderTarget Target, string Kind)> { (policy.Primary, "PRIMARY"), (policy.Primary, "RETRY") };
         if (policy.Fallback is not null) targets.Add((policy.Fallback, "FALLBACK"));
         AiProviderExecutionException? last = null;
+        var primaryCircuitOpen = false;
+        var attemptNumber = 0;
         for (var index = 0; index < targets.Count; index++)
         {
             var (target, kind) = targets[index];
+            if (kind == "RETRY" && primaryCircuitOpen) continue;
             if (kind == "RETRY" && last is not null && !Retryable(last.Failure, policy.RetryRateLimited)) continue;
             if (kind == "FALLBACK" && last is not null && !FailoverEligible(last.Failure, policy.RetryRateLimited)) break;
             var scope = $"{currentWorkspace.Require().WorkspaceId}:{target.Provider}:{target.Model}";
-            if (!circuitBreaker.TryEnter(scope)) { last = new(AiProviderFailure.Unavailable, "Provider circuit is open."); continue; }
-            var adapter = adapters.SingleOrDefault(x => x.ProviderId == target.Provider) ?? throw new AiProviderUnavailableException();
+            attemptNumber++;
             var startedAt = timeProvider.GetUtcNow(); var started = timeProvider.GetTimestamp();
+            if (!circuitBreaker.TryEnter(scope))
+            {
+                last = new(AiProviderFailure.Unavailable, "Provider circuit is open.");
+                primaryCircuitOpen = kind == "PRIMARY";
+                await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "CIRCUIT_OPEN", null, last);
+                continue;
+            }
+            var adapter = adapters.SingleOrDefault(x => x.ProviderId == target.Provider) ?? throw new AiProviderUnavailableException();
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); timeout.CancelAfter(options.Timeout);
                 var result = await adapter.CompleteAsync(target.Model, target.Credential, request, timeout.Token);
                 circuitBreaker.Success(scope); descriptor = new(result.Provider, result.Model);
-                await RecordAttempt(request.ExecutionId, index + 1, kind, target, startedAt, started, "SUCCEEDED", result, null);
+                await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "SUCCEEDED", result, null);
                 return new(result.Content, result.ProviderRequestId, result.InputTokens, result.OutputTokens, result.Provider, result.Model);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 last = new(AiProviderFailure.Timeout, "Provider request timed out."); circuitBreaker.Failure(scope);
-                await RecordAttempt(request.ExecutionId, index + 1, kind, target, startedAt, started, "FAILED", null, last);
+                await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "TIMEOUT", null, last);
             }
             catch (OperationCanceledException)
             {
-                await RecordAttempt(request.ExecutionId, index + 1, kind, target, startedAt, started, "CANCELLED", null,
+                await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "CANCELLED", null,
                     new(AiProviderFailure.Cancelled, "Provider request was cancelled.")); throw;
             }
             catch (AiProviderExecutionException exception)
             {
                 last = exception; if (Retryable(exception.Failure, policy.RetryRateLimited)) circuitBreaker.Failure(scope);
-                await RecordAttempt(request.ExecutionId, index + 1, kind, target, startedAt, started, "FAILED", null, exception);
+                await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "FAILED", null, exception);
             }
         }
         throw Map(last);

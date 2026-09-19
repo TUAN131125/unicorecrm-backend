@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace UnicoreCRM.AI.Providers;
 
-internal sealed class DevelopmentDeterministicAiProvider(string mode) : IAiProvider
+internal sealed class DevelopmentDeterministicAiProvider(string mode, TimeSpan attemptTimeout) : IAiProvider
 {
     public AiProviderDescriptor Descriptor { get; } =
         new("development-deterministic", "deterministic-advisory-v1");
@@ -16,7 +16,11 @@ internal sealed class DevelopmentDeterministicAiProvider(string mode) : IAiProvi
             case "UNAVAILABLE":
                 throw new AiProviderUnavailableException();
             case "TIMEOUT":
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    timeout.CancelAfter(attemptTimeout);
+                    await Task.Delay(Timeout.InfiniteTimeSpan, timeout.Token);
+                }
                 throw new InvalidOperationException("Unreachable after cancellation.");
             case "MALFORMED":
                 return new AiProviderResponse("{\"summary\":\"\",\"suggestedNextAction\":42}");

@@ -365,10 +365,66 @@ try {
     $pendingVersion = ($pendingResponse.Body | ConvertFrom-Json).configuration.version
     $failedTestHeaders = $headersA.Clone(); $failedTestHeaders['If-Match'] = '"' + $pendingVersion + '"'; $failedTestHeaders['Idempotency-Key'] = 'idem-ai-config-failed-test-0001'
     Assert-Status (Send-Json 'POST' '/ai/configuration/test' '{}' $failedTestHeaders) 503 'AI failed pending configuration test'
+    $activeWithPending = Send-Json 'GET' '/ai/configuration' $null $headersA
+    Assert-Status $activeWithPending 200 'AI active configuration read with failed pending draft'
+    $activeWithPendingBody = $activeWithPending.Body | ConvertFrom-Json
+    if ($activeWithPendingBody.status -ne 'ACTIVE' -or $activeWithPendingBody.primaryProvider -ne 'GEMINI' -or
+        $null -eq $activeWithPendingBody.pendingDraft -or $activeWithPendingBody.pendingDraft.status -ne 'DRAFT' -or
+        $activeWithPendingBody.pendingDraft.primaryProvider -ne 'OPENAI' -or $activeWithPendingBody.pendingDraft.isValidated) {
+        throw 'Failed pending AI configuration was not separated from the active configuration.'
+    }
     $activeSnapshotCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.WorkspaceAiConfigurations WHERE WorkspaceId='$workspaceA' AND ActivePolicyJson LIKE '%GEMINI%' AND ActivePrimaryProtectedCredential IS NOT NULL;")
     if ($activeSnapshotCount -ne 1) { throw 'Failed pending AI configuration destroyed the active provider snapshot.' }
+    $disableHeaders = $headersA.Clone(); $disableHeaders['If-Match'] = '"' + $pendingVersion + '"'; $disableHeaders['Idempotency-Key'] = 'idem-ai-config-disable-with-pending-0001'
+    $disableResponse = Send-Json 'POST' '/ai/configuration/disable' '{}' $disableHeaders
+    Assert-Status $disableResponse 200 'AI active configuration disable while pending draft exists'
+    $disabledVersion = ($disableResponse.Body | ConvertFrom-Json).configuration.version
+    $disabledBody = (Send-Json 'GET' '/ai/configuration' $null $headersA).Body | ConvertFrom-Json
+    if ($disabledBody.status -ne 'DRAFT' -or $disabledBody.primaryProvider -ne 'OPENAI' -or $null -ne $disabledBody.pendingDraft) {
+        throw 'Disabling the active AI configuration did not preserve the pending draft.'
+    }
+    $restoreHeaders = $headersA.Clone(); $restoreHeaders['If-Match'] = '"' + $disabledVersion + '"'; $restoreHeaders['Idempotency-Key'] = 'idem-ai-config-restore-gemini-0001'
+    $restoreResponse = Send-Json 'PUT' '/ai/configuration' $draftBody $restoreHeaders
+    Assert-Status $restoreResponse 200 'AI Gemini draft restore after disable'
+    $restoreVersion = ($restoreResponse.Body | ConvertFrom-Json).configuration.version
+    $restoreTestHeaders = $headersA.Clone(); $restoreTestHeaders['If-Match'] = '"' + $restoreVersion + '"'; $restoreTestHeaders['Idempotency-Key'] = 'idem-ai-config-restore-test-0001'
+    $restoreTestResponse = Send-Json 'POST' '/ai/configuration/test' '{}' $restoreTestHeaders
+    Assert-Status $restoreTestResponse 200 'AI restored Gemini configuration validation'
+    $restoreValidatedVersion = ($restoreTestResponse.Body | ConvertFrom-Json).configuration.version
+    $restoreActivateHeaders = $headersA.Clone(); $restoreActivateHeaders['If-Match'] = '"' + $restoreValidatedVersion + '"'; $restoreActivateHeaders['Idempotency-Key'] = 'idem-ai-config-restore-activate-0001'
+    $restoreActivateResponse = Send-Json 'POST' '/ai/configuration/activate' '{}' $restoreActivateHeaders
+    Assert-Status $restoreActivateResponse 200 'AI restored Gemini configuration activation'
+    $restoredActiveVersion = ($restoreActivateResponse.Body | ConvertFrom-Json).configuration.version
+
+    $promoteDraftHeaders = $headersA.Clone(); $promoteDraftHeaders['If-Match'] = '"' + $restoredActiveVersion + '"'; $promoteDraftHeaders['Idempotency-Key'] = 'idem-ai-config-promote-openai-0001'
+    $promoteDraftBody = @{ primaryProvider='OPENAI'; primaryModel='gpt-5-mini'; primaryCredentialSource='WORKSPACE'; fallbackEnabled=$false; retryRateLimited=$false } | ConvertTo-Json -Compress
+    $promoteDraftResponse = Send-Json 'PUT' '/ai/configuration' $promoteDraftBody $promoteDraftHeaders
+    Assert-Status $promoteDraftResponse 200 'AI pending OpenAI draft for promotion'
+    $promoteDraftVersion = ($promoteDraftResponse.Body | ConvertFrom-Json).configuration.version
+    $promoteTestHeaders = $headersA.Clone(); $promoteTestHeaders['If-Match'] = '"' + $promoteDraftVersion + '"'; $promoteTestHeaders['Idempotency-Key'] = 'idem-ai-config-promote-test-0001'
+    $promoteTestResponse = Send-Json 'POST' '/ai/configuration/test' '{}' $promoteTestHeaders
+    Assert-Status $promoteTestResponse 200 'AI pending OpenAI validation'
+    $promoteValidatedVersion = ($promoteTestResponse.Body | ConvertFrom-Json).configuration.version
+    $promoteActivateHeaders = $headersA.Clone(); $promoteActivateHeaders['If-Match'] = '"' + $promoteValidatedVersion + '"'; $promoteActivateHeaders['Idempotency-Key'] = 'idem-ai-config-promote-activate-0001'
+    $promoteActivateResponse = Send-Json 'POST' '/ai/configuration/activate' '{}' $promoteActivateHeaders
+    Assert-Status $promoteActivateResponse 200 'AI validated pending OpenAI promotion'
+    $promoted = (Send-Json 'GET' '/ai/configuration' $null $headersA).Body | ConvertFrom-Json
+    if ($promoted.status -ne 'ACTIVE' -or $promoted.primaryProvider -ne 'OPENAI' -or $null -ne $promoted.pendingDraft) {
+        throw 'Validated pending AI configuration was not promoted atomically to active.'
+    }
+
+    $finalRestoreHeaders = $headersA.Clone(); $finalRestoreHeaders['If-Match'] = '"' + $promoted.version + '"'; $finalRestoreHeaders['Idempotency-Key'] = 'idem-ai-config-final-gemini-0001'
+    $finalRestoreDraft = Send-Json 'PUT' '/ai/configuration' $draftBody $finalRestoreHeaders
+    Assert-Status $finalRestoreDraft 200 'AI final Gemini draft restore'
+    $finalRestoreDraftVersion = ($finalRestoreDraft.Body | ConvertFrom-Json).configuration.version
+    $finalRestoreTestHeaders = $headersA.Clone(); $finalRestoreTestHeaders['If-Match'] = '"' + $finalRestoreDraftVersion + '"'; $finalRestoreTestHeaders['Idempotency-Key'] = 'idem-ai-config-final-test-0001'
+    $finalRestoreTest = Send-Json 'POST' '/ai/configuration/test' '{}' $finalRestoreTestHeaders
+    Assert-Status $finalRestoreTest 200 'AI final Gemini validation'
+    $finalRestoreValidatedVersion = ($finalRestoreTest.Body | ConvertFrom-Json).configuration.version
+    $finalRestoreActivateHeaders = $headersA.Clone(); $finalRestoreActivateHeaders['If-Match'] = '"' + $finalRestoreValidatedVersion + '"'; $finalRestoreActivateHeaders['Idempotency-Key'] = 'idem-ai-config-final-activate-0001'
+    Assert-Status (Send-Json 'POST' '/ai/configuration/activate' '{}' $finalRestoreActivateHeaders) 200 'AI final Gemini activation'
     $checks.Add('Workspace AI configuration concurrency/idempotency/credential protection=PASS')
-    $checks.Add('Validated activation and failed-pending active preservation=PASS')
+    $checks.Add('Active/pending separation, disable-with-draft, promotion, and failed-pending preservation=PASS')
 
     $oversizedConversation = 1..13 | ForEach-Object { @{ role = 'user'; content = "bounded message $_" } }
     Assert-Status (Send-Json 'POST' '/ai/advisories' (@{

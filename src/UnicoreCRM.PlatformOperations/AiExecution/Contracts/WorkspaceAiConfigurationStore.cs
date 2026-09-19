@@ -27,7 +27,21 @@ public sealed record WorkspaceAiConfigurationState(
     bool IsValidated,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? ActivatedAt);
+    DateTimeOffset? ActivatedAt,
+    WorkspaceAiActiveConfigurationState? ActiveConfiguration);
+
+public sealed record WorkspaceAiActiveConfigurationState(
+    string PrimaryProvider,
+    string PrimaryModel,
+    string PrimaryCredentialSource,
+    bool PrimaryCredentialConfigured,
+    bool FallbackEnabled,
+    string? FallbackProvider,
+    string? FallbackModel,
+    string? FallbackCredentialSource,
+    bool FallbackCredentialConfigured,
+    bool RetryRateLimited,
+    DateTimeOffset ActivatedAt);
 
 public sealed record WorkspaceAiConfigurationDraft(
     string PrimaryProvider,

@@ -40,7 +40,7 @@ internal sealed class EfWorkspaceAiConfigurationStore(AiExecutionDbContext db) :
             row.PrimaryCredentialSource = draft.PrimaryCredentialSource; row.FallbackEnabled = draft.FallbackEnabled;
             row.FallbackProvider = draft.FallbackProvider; row.FallbackModel = draft.FallbackModel;
             row.FallbackCredentialSource = draft.FallbackCredentialSource; row.RetryRateLimited = draft.RetryRateLimited;
-            row.IsValidated = false; row.ActivatedAt = null;
+            row.IsValidated = false;
         }, cancellationToken);
 
     public Task<AiConfigurationCommit> SetCredentialAsync(string workspaceId, string memberId, bool fallback, string protectedCredential,
@@ -50,6 +50,7 @@ internal sealed class EfWorkspaceAiConfigurationStore(AiExecutionDbContext db) :
             {
                 if (fallback) row.FallbackProtectedCredential = protectedCredential; else row.PrimaryProtectedCredential = protectedCredential;
                 row.IsValidated = false;
+                if (row.ActivePolicyJson is not null) row.Status = AiConfigurationValues.Draft;
             }, cancellationToken);
 
     public Task<AiConfigurationCommit> SetValidationAsync(string workspaceId, string memberId, bool succeeded, long expectedVersion,
@@ -73,7 +74,13 @@ internal sealed class EfWorkspaceAiConfigurationStore(AiExecutionDbContext db) :
     public Task<AiConfigurationCommit> DisableAsync(string workspaceId, string memberId, long expectedVersion, string idempotencyKey,
         string fingerprint, string correlationId, DateTimeOffset now, CancellationToken cancellationToken)
         => CommitAsync("DISABLE", workspaceId, memberId, expectedVersion, idempotencyKey, fingerprint, correlationId, now,
-            row => { row.Status = AiConfigurationValues.Disabled; row.ActivatedAt = null; row.ActivePolicyJson = null; row.ActivePrimaryProtectedCredential = null; row.ActiveFallbackProtectedCredential = null; }, cancellationToken);
+            row =>
+            {
+                var pendingDraftExists = row.Status == AiConfigurationValues.Draft;
+                row.Status = pendingDraftExists ? AiConfigurationValues.Draft : AiConfigurationValues.Disabled;
+                row.ActivatedAt = null; row.ActivePolicyJson = null;
+                row.ActivePrimaryProtectedCredential = null; row.ActiveFallbackProtectedCredential = null;
+            }, cancellationToken);
 
     private async Task<AiConfigurationCommit> CommitAsync(string operation, string workspaceId, string memberId, long expectedVersion,
         string idempotencyKey, string fingerprint, string correlationId, DateTimeOffset now, Action<WorkspaceAiConfigurationRow> mutation,
@@ -124,9 +131,22 @@ internal sealed class EfWorkspaceAiConfigurationStore(AiExecutionDbContext db) :
         return new(AiConfigurationCommitStatus.Committed, resultState);
     }
 
-    private static WorkspaceAiConfigurationState? Project(WorkspaceAiConfigurationRow? row) => row is null ? null : new(
-        row.WorkspaceId, row.Status, row.PrimaryProvider, row.PrimaryModel, row.PrimaryCredentialSource,
-        row.PrimaryProtectedCredential is not null, row.FallbackEnabled, row.FallbackProvider, row.FallbackModel,
-        row.FallbackCredentialSource, row.FallbackProtectedCredential is not null, row.RetryRateLimited, row.Version,
-        row.IsValidated, row.CreatedAt, row.UpdatedAt, row.ActivatedAt);
+    private static WorkspaceAiConfigurationState? Project(WorkspaceAiConfigurationRow? row)
+    {
+        if (row is null) return null;
+        WorkspaceAiActiveConfigurationState? active = null;
+        if (row.ActivePolicyJson is not null)
+        {
+            var policy = JsonSerializer.Deserialize<WorkspaceAiConfigurationDraft>(row.ActivePolicyJson);
+            if (policy is not null)
+                active = new(policy.PrimaryProvider, policy.PrimaryModel, policy.PrimaryCredentialSource,
+                    row.ActivePrimaryProtectedCredential is not null, policy.FallbackEnabled, policy.FallbackProvider,
+                    policy.FallbackModel, policy.FallbackCredentialSource, row.ActiveFallbackProtectedCredential is not null,
+                    policy.RetryRateLimited, row.ActivatedAt ?? row.UpdatedAt);
+        }
+        return new(row.WorkspaceId, row.Status, row.PrimaryProvider, row.PrimaryModel, row.PrimaryCredentialSource,
+            row.PrimaryProtectedCredential is not null, row.FallbackEnabled, row.FallbackProvider, row.FallbackModel,
+            row.FallbackCredentialSource, row.FallbackProtectedCredential is not null, row.RetryRateLimited, row.Version,
+            row.IsValidated, row.CreatedAt, row.UpdatedAt, row.ActivatedAt, active);
+    }
 }

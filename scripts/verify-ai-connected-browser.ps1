@@ -29,7 +29,7 @@ function Set-Environment([string] $workspaceKey) {
     $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__Key = 'ai-browser-foreign'; $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__Name = 'AI Browser Foreign'; $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__LogoText = 'AF'; $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__Locale = 'en'; $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__TimeZone = 'UTC'; $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__BaseCurrency = 'USD'; $env:Workspace__DevelopmentBootstrap__NonMemberWorkspace__AvailableProductSpaces__0 = 'crm'
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'true'; $env:AccessControl__DevelopmentBootstrap__ApplyMigrations = 'false'; $env:AccessControl__DevelopmentBootstrap__IdentityEmail = $email; $env:AccessControl__DevelopmentBootstrap__WorkspaceKey = $workspaceKey; $env:AccessControl__DevelopmentBootstrap__RoleName = 'AI Browser Owner'
     @('access.read','workspace.context.resolve','contacts.read','contacts.create','leads.read','deals.read','tasks.read','organizations.read','customers.view','ai.configuration.read','ai.configuration.manage') | ForEach-Object -Begin { $i=0 } -Process { Set-Item "env:AccessControl__DevelopmentBootstrap__Capabilities__$i" $_; $i++ }
-    $env:AI__Provider__Kind = 'DevelopmentDeterministic'; $env:AI__Provider__DevelopmentMode = 'Normal'; $env:AI__Provider__TimeoutSeconds = '10'; $env:AI__ProviderTesting__UseDeterministicTransport = 'true'
+    $env:AI__Provider__Kind = 'WorkspaceProduction'; $env:AI__Provider__TimeoutSeconds = '10'; $env:AI__ProviderTesting__UseDeterministicTransport = 'true'
 }
 
 $hostProcess = $null
@@ -48,10 +48,13 @@ try {
     try { & node node_modules/@playwright/test/cli.js test --config playwright.ai-connected.config.ts; if ($LASTEXITCODE -ne 0) { throw 'Connected AI browser E2E failed.' } }
     finally { Pop-Location }
     $ledger = ((& sqlcmd -S $server -d $DatabaseName -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM platform_ai.AiExecutions WHERE WorkspaceId='$($workspaceA.Trim())' AND Status='SUCCEEDED' AND ContextTypesJson LIKE '%contact.summary.read%';") | Where-Object { $_.Trim() }) -join ''
-    if ([int]$ledger.Trim() -lt 1) { throw 'Successful Contact AI execution evidence was not persisted.' }
+    if ([int]$ledger.Trim() -lt 2) { throw 'Successful Contact AI execution evidence was not persisted for primary and fallback journeys.' }
+    $geminiAttempts = ((& sqlcmd -S $server -d $DatabaseName -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM platform_ai.AiProviderAttempts WHERE WorkspaceId='$($workspaceA.Trim())' AND Provider='GEMINI';") | Where-Object { $_.Trim() }) -join ''
+    $openAiAttempts = ((& sqlcmd -S $server -d $DatabaseName -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM platform_ai.AiProviderAttempts WHERE WorkspaceId='$($workspaceA.Trim())' AND Provider='OPENAI' AND Status='SUCCEEDED';") | Where-Object { $_.Trim() }) -join ''
+    if ([int]$geminiAttempts.Trim() -lt 4 -or [int]$openAiAttempts.Trim() -ne 1) { throw 'Production provider attempt ordering/evidence was not persisted.' }
     $activeAi = ((& sqlcmd -S $server -d $DatabaseName -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM platform_ai.WorkspaceAiConfigurations WHERE WorkspaceId='$($workspaceA.Trim())' AND Status='ACTIVE' AND ActivePolicyJson LIKE '%GEMINI%' AND ActivePrimaryProtectedCredential IS NOT NULL;") | Where-Object { $_.Trim() }) -join ''
     if ([int]$activeAi.Trim() -ne 1) { throw 'Connected AI Settings did not persist an active protected Workspace provider configuration.' }
-    Write-Output "CONNECTED AI BROWSER E2E: PASS (ledger=$($ledger.Trim()), activeAi=$($activeAi.Trim()))"
+    Write-Output "CONNECTED AI BROWSER E2E: PASS (ledger=$($ledger.Trim()), geminiAttempts=$($geminiAttempts.Trim()), openAiSuccess=$($openAiAttempts.Trim()), activeAi=$($activeAi.Trim()))"
 }
 finally {
     if ($hostProcess -and -not $hostProcess.HasExited) { Stop-Process -Id $hostProcess.Id -Force; $hostProcess.WaitForExit() }

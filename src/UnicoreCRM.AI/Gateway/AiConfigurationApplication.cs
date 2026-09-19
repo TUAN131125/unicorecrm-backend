@@ -203,11 +203,27 @@ internal sealed class AiConfigurationApplication(
         _ => AiOperationResult<AiConfigurationMutationResponse>.Failure(AiErrors.IdempotencyKeyReused())
     };
 
-    private static AiConfigurationView Project(WorkspaceAiConfigurationState state) => new(state.Status, state.PrimaryProvider, state.PrimaryModel,
-        state.PrimaryCredentialSource, state.PrimaryCredentialConfigured, state.FallbackEnabled, state.FallbackProvider, state.FallbackModel,
-        state.FallbackCredentialSource, state.FallbackCredentialConfigured, state.RetryRateLimited, state.IsValidated, state.Version,
-        state.CreatedAt, state.UpdatedAt, state.ActivatedAt);
+    private static AiConfigurationView Project(WorkspaceAiConfigurationState state)
+    {
+        var active = state.ActiveConfiguration;
+        var pending = active is not null && state.Status == AiConfigurationValues.Draft
+            ? new AiPendingConfigurationView(AiConfigurationValues.Draft, state.PrimaryProvider, state.PrimaryModel,
+                state.PrimaryCredentialSource, state.PrimaryCredentialConfigured, state.FallbackEnabled, state.FallbackProvider,
+                state.FallbackModel, state.FallbackCredentialSource, state.FallbackCredentialConfigured,
+                state.RetryRateLimited, state.IsValidated)
+            : null;
+        return active is null
+            ? new(state.Status, state.PrimaryProvider, state.PrimaryModel, state.PrimaryCredentialSource,
+                state.PrimaryCredentialConfigured, state.FallbackEnabled, state.FallbackProvider, state.FallbackModel,
+                state.FallbackCredentialSource, state.FallbackCredentialConfigured, state.RetryRateLimited,
+                state.IsValidated, state.Version, state.CreatedAt, state.UpdatedAt, state.ActivatedAt, null)
+            : new(AiConfigurationValues.Active, active.PrimaryProvider, active.PrimaryModel, active.PrimaryCredentialSource,
+                active.PrimaryCredentialConfigured, active.FallbackEnabled, active.FallbackProvider, active.FallbackModel,
+                active.FallbackCredentialSource, active.FallbackCredentialConfigured, active.RetryRateLimited,
+                true, state.Version, state.CreatedAt, state.UpdatedAt, active.ActivatedAt, pending);
+    }
     private static AiConfigurationView Unconfigured() => new(AiConfigurationValues.Unconfigured, "GEMINI", "gemini-2.5-flash",
-        AiConfigurationValues.DeploymentCredential, false, false, null, null, null, false, false, false, 0, DateTimeOffset.MinValue, DateTimeOffset.MinValue, null);
+        AiConfigurationValues.DeploymentCredential, false, false, null, null, null, false, false, false, 0,
+        DateTimeOffset.MinValue, DateTimeOffset.MinValue, null, null);
     private static string Fingerprint(string operation, object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(operation + ":" + JsonSerializer.Serialize(value))));
 }

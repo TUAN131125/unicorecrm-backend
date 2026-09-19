@@ -12,7 +12,6 @@ internal sealed class AiAdvisoryApplication(
     AiPromptComposer promptComposer,
     IAiProvider provider,
     AiProviderOutputValidator outputValidator,
-    AiProviderRuntimeOptions providerOptions,
     IAiUsageRecorder usageRecorder,
     TimeProvider timeProvider)
 {
@@ -49,11 +48,9 @@ internal sealed class AiAdvisoryApplication(
             contextResult.Items.Count);
 
         AiProviderResponse providerResponse;
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(providerOptions.Timeout);
         try
         {
-            providerResponse = await provider.CompleteAsync(providerRequest, timeout.Token);
+            providerResponse = await provider.CompleteAsync(providerRequest, cancellationToken);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
