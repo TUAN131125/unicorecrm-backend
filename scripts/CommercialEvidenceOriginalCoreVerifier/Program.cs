@@ -213,6 +213,40 @@ internal sealed class CommercialEvidenceVerifier(string connectionString)
         Check("purchase health reader isolates Workspace", 0,
             (await healthReader.ReadBatchAsync(Trusted("workspace_foreign"),
                 [new(PurchaseEvidenceBuyerRefType.Contact, "contact_primary")], occurredAt.AddDays(1), CancellationToken.None)).Count);
+
+        await ExecuteAsync("""
+            ;WITH Numbers AS
+            (
+                SELECT 1 AS Number
+                UNION ALL
+                SELECT Number + 1 FROM Numbers WHERE Number < 1000
+            )
+            INSERT INTO commercial_evidence.PurchaseEvidence
+                (WorkspaceId, EvidenceId, EvidenceType, BuyerRefType, BuyerRefId, SourceType, SourceSystem, SourceId, OccurredAt, PolicyVersion, CorrelationId)
+            SELECT N'workspace_primary', CONCAT(N'pe_health_large_', Number), N'HISTORICAL_PURCHASE_IMPORTED',
+                   N'CONTACT', N'contact_health_large', N'HISTORICAL_IMPORT', N'health-load-verifier',
+                   CONCAT(N'health-large-', Number), DATEADD(minute, -Number, CAST('2026-08-29T12:00:00+00:00' AS datetimeoffset)),
+                   N'policy-A', CONCAT(N'corr-health-large-', Number)
+            FROM Numbers
+            OPTION (MAXRECURSION 1000);
+            """);
+        var largeAsOf = new DateTimeOffset(2026, 8, 29, 12, 1, 0, TimeSpan.Zero);
+        var largeBuyer = new CustomerPurchaseHealthBuyerRef(PurchaseEvidenceBuyerRefType.Contact, "contact_health_large");
+        var largeHistory = await healthReader.ReadAsync(workspace, largeBuyer, largeAsOf, CancellationToken.None);
+        Check("large history count remains authoritative", 1000, largeHistory!.PurchaseCount);
+        Check("large history recent timestamps remain bounded", 6, largeHistory.RecentPurchaseTimestamps.Count);
+        Check("large history recent timestamps are descending", true,
+            largeHistory.RecentPurchaseTimestamps.SequenceEqual(largeHistory.RecentPurchaseTimestamps.OrderDescending()));
+        var persistence = scope.ServiceProvider.GetRequiredService<ICommercialEvidencePersistence>();
+        var projectedRows = await persistence.ReadPurchaseHealthSignalsAsync(
+            "workspace_primary", [largeBuyer], largeAsOf, CancellationToken.None);
+        Check("persistence transports at most six rows for a large buyer history", 6, projectedRows.Count);
+        Check("bounded projection carries aggregate purchase count", 1000L, projectedRows[0].PurchaseCount);
+        var boundedPage = await healthReader.ReadBatchAsync(workspace,
+            [new(PurchaseEvidenceBuyerRefType.Contact, "contact_primary"), largeBuyer], largeAsOf, CancellationToken.None);
+        Check("one batch enriches all admitted buyers", 2, boundedPage.Count);
+        Check("page enrichment remains six timestamps per buyer", true,
+            boundedPage.All(signal => signal.RecentPurchaseTimestamps.Count <= 6));
     }
 
     private async Task VerifyExactSourceEqualityAsync(ServiceProvider provider)

@@ -38,8 +38,9 @@ internal sealed class CustomerPurchaseHealthSignalReader(ICommercialEvidencePers
             .Select(group =>
             {
                 var timestamps = group.Select(row => row.OccurredAt).OrderByDescending(value => value).ToArray();
-                return new CustomerPurchaseHealthSignalSnapshot(group.Key, timestamps.Length,
-                    timestamps[^1], timestamps[0], timestamps.Take(6).ToArray());
+                var facts = group.First();
+                return new CustomerPurchaseHealthSignalSnapshot(group.Key, checked((int)facts.PurchaseCount),
+                    facts.FirstPurchaseAt, facts.LastPurchaseAt, timestamps);
             })
             .ToArray();
     }

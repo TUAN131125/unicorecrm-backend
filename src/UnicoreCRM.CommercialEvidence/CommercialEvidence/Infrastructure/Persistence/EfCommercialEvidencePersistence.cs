@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using UnicoreCRM.CommercialEvidence.CommercialEvidence.Application;
 using UnicoreCRM.CommercialEvidence.CommercialEvidence.Domain;
 
@@ -14,14 +15,37 @@ internal sealed class EfCommercialEvidencePersistence(CommercialEvidenceDbContex
         DateTimeOffset asOf,
         CancellationToken cancellationToken)
     {
-        var buyerIds = buyerRefs.Select(reference => reference.Id).Distinct().ToArray();
-        var admitted = buyerRefs.Select(reference =>
-            $"{CommercialEvidenceValidation.PersistedBuyerRefType(reference.Type)}\n{reference.Id}").ToHashSet(StringComparer.Ordinal);
-        var rows = await dbContext.PurchaseEvidence.AsNoTracking()
-            .Where(item => item.WorkspaceId == workspaceId && item.OccurredAt <= asOf && buyerIds.Contains(item.BuyerRefId))
-            .Select(item => new PurchaseHealthSignalRow(item.BuyerRefType, item.BuyerRefId, item.OccurredAt))
+        var admittedJson = JsonSerializer.Serialize(buyerRefs.Select(reference => new
+        {
+            BuyerRefType = CommercialEvidenceValidation.PersistedBuyerRefType(reference.Type),
+            BuyerRefId = reference.Id
+        }));
+        const string sql = """
+            WITH admitted AS (
+                SELECT BuyerRefType, BuyerRefId
+                FROM OPENJSON(@buyerRefs)
+                WITH (BuyerRefType nvarchar(40) '$.BuyerRefType', BuyerRefId nvarchar(128) '$.BuyerRefId')
+            ), ranked AS (
+                SELECT evidence.BuyerRefType, evidence.BuyerRefId, evidence.OccurredAt,
+                       COUNT_BIG(*) OVER (PARTITION BY evidence.BuyerRefType, evidence.BuyerRefId) AS PurchaseCount,
+                       MIN(evidence.OccurredAt) OVER (PARTITION BY evidence.BuyerRefType, evidence.BuyerRefId) AS FirstPurchaseAt,
+                       MAX(evidence.OccurredAt) OVER (PARTITION BY evidence.BuyerRefType, evidence.BuyerRefId) AS LastPurchaseAt,
+                       ROW_NUMBER() OVER (PARTITION BY evidence.BuyerRefType, evidence.BuyerRefId
+                                          ORDER BY evidence.OccurredAt DESC, evidence.EvidenceId DESC) AS RecentRank
+                FROM commercial_evidence.PurchaseEvidence AS evidence
+                INNER JOIN admitted ON admitted.BuyerRefType = evidence.BuyerRefType
+                                   AND admitted.BuyerRefId = evidence.BuyerRefId
+                WHERE evidence.WorkspaceId = @workspaceId AND evidence.OccurredAt <= @asOf
+            )
+            SELECT BuyerRefType, BuyerRefId, PurchaseCount, FirstPurchaseAt, LastPurchaseAt, OccurredAt
+            FROM ranked
+            WHERE RecentRank <= 6
+            """;
+        return await dbContext.Database.SqlQueryRaw<PurchaseHealthSignalRow>(sql,
+                new SqlParameter("@buyerRefs", admittedJson),
+                new SqlParameter("@workspaceId", workspaceId),
+                new SqlParameter("@asOf", asOf))
             .ToListAsync(cancellationToken);
-        return rows.Where(row => admitted.Contains($"{row.BuyerRefType}\n{row.BuyerRefId}")).ToArray();
     }
 
     public Task<PurchaseEvidence?> FindOriginalByOrderSourceAsync(

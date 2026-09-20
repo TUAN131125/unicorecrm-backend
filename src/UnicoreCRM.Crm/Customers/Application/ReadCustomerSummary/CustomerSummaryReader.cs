@@ -21,7 +21,9 @@ internal sealed class CustomerSummaryReader(CustomerAuthorization authorization,
         if (record is null || await authorization.EnforceRecordAsync(access.Value, record, "readCustomerSummary", metadata, ct) is not null) return new(CustomerSummaryReadStatus.NotFound);
         var document = CustomerFieldSecurity.Project(CustomerProjection.Document(record), access.Value.Authorization);
         var policy = access.Value.Authorization;
-        var assessment = await health.AssessAsync(access.Value.Trusted, record, ct);
+        var assessment = policy.CanRead("health")
+            ? await health.AssessAsync(access.Value.Trusted, record, ct)
+            : null;
         var projection = new CustomerSummaryProjection(record.CustomerId, policy.CanRead("customerCode") ? document.CustomerCode : null, policy.CanRead("status") ? document.Status : null, policy.CanRead("health") ? document.Health : null, policy.CanRead("tier") ? document.Tier : null, policy.CanRead("segment") ? document.Segment : null, policy.CanRead("nextCareAt") ? document.NextCareAt : null, record.Version)
         { HealthAssessment = assessment };
         persistence.AddReadAudit(new CustomerReadAuditRecord("readCustomerSummary", access.Value.Trusted.WorkspaceId, access.Value.Trusted.MemberId, record.CustomerId, requestId, correlationId, record.Version, clock.GetUtcNow()));

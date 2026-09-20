@@ -616,6 +616,49 @@ try {
     $checks.Add('Field-level context filtering before provider=PASS')
     Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_ai_task_title';"
 
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId,RoleId,ResourceKey,FieldKey,Access,WorkspaceId) VALUES ('field_ai_customer_health','$roleA','customers','health','Hidden','$workspaceA');"
+    $hostProcess = Start-ApiHost
+    $token = Sign-In
+    $headersA = New-Headers $token $workspaceA
+    Assert-Status (Send-Json 'POST' '/ai/advisories' (@{
+        question = 'Summarize the Customer without hidden Health data.'
+        contextReferences = @(@{ type = 'customer'; id = $recordsA.CustomerId })
+    } | ConvertTo-Json -Compress -Depth 4) $headersA) 200 'AI hidden Customer Health filtering'
+    Stop-ApiHost $hostProcess
+    $hostProcess = $null
+    $hiddenCustomerHealthLog = Get-Content -Raw -LiteralPath $latestHostLog
+    $hiddenCustomerHealthKeys = @(
+        'customer:health', 'customer:healthScore', 'customer:healthBand', 'customer:churnRisk',
+        'customer:healthConfidence', 'customer:purchaseCount', 'customer:lastPurchaseAt',
+        'customer:daysSinceLastPurchase', 'customer:expectedPurchaseCadenceDays',
+        'customer:healthReasonCode', 'customer:healthAlgorithmVersion'
+    )
+    foreach ($hiddenKey in $hiddenCustomerHealthKeys) {
+        if ($hiddenCustomerHealthLog -match [regex]::Escape($hiddenKey)) {
+            throw "Hidden Customer Health key reached the provider context shape: $hiddenKey"
+        }
+    }
+    if ($hiddenCustomerHealthLog -notmatch 'customer:status') {
+        throw 'Customer summary lost admitted non-Health context while Health was hidden.'
+    }
+    Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_ai_customer_health';"
+
+    $hostProcess = Start-ApiHost
+    $token = Sign-In
+    $headersA = New-Headers $token $workspaceA
+    Assert-Status (Send-Json 'POST' '/ai/advisories' (@{
+        question = 'Summarize the Customer with restored Health visibility.'
+        contextReferences = @(@{ type = 'customer'; id = $recordsA.CustomerId })
+    } | ConvertTo-Json -Compress -Depth 4) $headersA) 200 'AI restored Customer Health visibility'
+    Stop-ApiHost $hostProcess
+    $hostProcess = $null
+    $restoredCustomerHealthLog = Get-Content -Raw -LiteralPath $latestHostLog
+    if ($restoredCustomerHealthLog -notmatch 'customer:healthBand' -or
+        $restoredCustomerHealthLog -notmatch 'customer:healthReasonCode') {
+        throw 'Restored Customer Health context did not reach the provider.'
+    }
+    $checks.Add('Customer Health field security removes all derived AI context and restore policy=PASS')
+
     $capabilityCases = @(
         @{ Type = 'lead'; Id = $recordsA.LeadId; Capability = 'leads.read' },
         @{ Type = 'contact'; Id = $recordsA.ContactId; Capability = 'contacts.read' },
@@ -704,7 +747,7 @@ try {
     if ($unsafeExecutionRows -ne 0) { throw 'Raw question, CRM values, prompt injection, or secret-like fixture data reached the AI execution ledger.' }
     $workspaceBExecutionCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.AiExecutions WHERE WorkspaceId='$workspaceB';")
     if ($workspaceBExecutionCount -ne 0) { throw 'Workspace B received execution evidence from Workspace A requests.' }
-    $successfulEvidence = Invoke-SqlScalar "SELECT TOP (1) EvidenceIdentifiersJson FROM platform_ai.AiExecutions WHERE WorkspaceId='$workspaceA' AND Status='SUCCEEDED' AND ContextTypesJson LIKE '%customer.summary.read%' ORDER BY StartedAt DESC;"
+    $successfulEvidence = Invoke-SqlScalar "SELECT TOP (1) EvidenceIdentifiersJson FROM platform_ai.AiExecutions WHERE WorkspaceId='$workspaceA' AND Status='SUCCEEDED' AND ContextTypesJson LIKE '%lead.summary.read%' AND ContextTypesJson LIKE '%contact.summary.read%' AND ContextTypesJson LIKE '%organization.summary.read%' AND ContextTypesJson LIKE '%customer.summary.read%' AND ContextTypesJson LIKE '%deal.summary.read%' AND ContextTypesJson LIKE '%task.summary.read%' ORDER BY StartedAt DESC;"
     foreach ($expectedEvidence in @("lead:$($recordsA.LeadId)","contact:$($recordsA.ContactId)","organization:$($recordsA.OrganizationId)","customer:$($recordsA.CustomerId)","deal:$($recordsA.DealId)","task:$($recordsA.TaskId)")) {
         if ($successfulEvidence -notmatch [Regex]::Escape($expectedEvidence)) { throw "Safe admitted evidence identity $expectedEvidence was not persisted." }
     }

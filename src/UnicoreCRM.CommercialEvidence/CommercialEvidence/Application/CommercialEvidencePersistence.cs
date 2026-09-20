@@ -37,4 +37,12 @@ internal interface ICommercialEvidencePersistence
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
-internal sealed record PurchaseHealthSignalRow(string BuyerRefType, string BuyerRefId, DateTimeOffset OccurredAt);
+internal sealed class PurchaseHealthSignalRow
+{
+    public string BuyerRefType { get; init; } = null!;
+    public string BuyerRefId { get; init; } = null!;
+    public long PurchaseCount { get; init; }
+    public DateTimeOffset FirstPurchaseAt { get; init; }
+    public DateTimeOffset LastPurchaseAt { get; init; }
+    public DateTimeOffset OccurredAt { get; init; }
+}
