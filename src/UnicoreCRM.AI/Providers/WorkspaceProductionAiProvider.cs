@@ -34,7 +34,8 @@ internal sealed class WorkspaceProductionAiProvider(
             var scope = $"{currentWorkspace.Require().WorkspaceId}:{target.Provider}:{target.Model}";
             attemptNumber++;
             var startedAt = timeProvider.GetUtcNow(); var started = timeProvider.GetTimestamp();
-            if (!circuitBreaker.TryEnter(scope))
+            using var circuitAdmission = circuitBreaker.Admit(scope);
+            if (!circuitAdmission.IsAdmitted)
             {
                 last = new(AiProviderFailure.Unavailable, "Provider circuit is open.");
                 primaryCircuitOpen = kind == "PRIMARY";
@@ -46,23 +47,26 @@ internal sealed class WorkspaceProductionAiProvider(
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); timeout.CancelAfter(options.Timeout);
                 var result = await adapter.CompleteAsync(target.Model, target.Credential, request, timeout.Token);
-                circuitBreaker.Success(scope); descriptor = new(result.Provider, result.Model);
+                circuitAdmission.Success(); descriptor = new(result.Provider, result.Model);
                 await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "SUCCEEDED", result, null);
                 return new(result.Content, result.ProviderRequestId, result.InputTokens, result.OutputTokens, result.Provider, result.Model);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                last = new(AiProviderFailure.Timeout, "Provider request timed out."); circuitBreaker.Failure(scope);
+                last = new(AiProviderFailure.Timeout, "Provider request timed out."); circuitAdmission.TransientFailure();
                 await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "TIMEOUT", null, last);
             }
             catch (OperationCanceledException)
             {
+                circuitAdmission.Release();
                 await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "CANCELLED", null,
                     new(AiProviderFailure.Cancelled, "Provider request was cancelled.")); throw;
             }
             catch (AiProviderExecutionException exception)
             {
-                last = exception; if (Retryable(exception.Failure, policy.RetryRateLimited)) circuitBreaker.Failure(scope);
+                last = exception;
+                if (Retryable(exception.Failure, policy.RetryRateLimited)) circuitAdmission.TransientFailure();
+                else circuitAdmission.Release();
                 await RecordAttempt(request.ExecutionId, attemptNumber, kind, target, startedAt, started, "FAILED", null, exception);
             }
         }

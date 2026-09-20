@@ -36,6 +36,10 @@ internal sealed class EfWorkspaceAiConfigurationStore(AiExecutionDbContext db) :
         long expectedVersion, string idempotencyKey, string fingerprint, string correlationId, DateTimeOffset now, CancellationToken cancellationToken)
         => CommitAsync("SAVE_DRAFT", workspaceId, memberId, expectedVersion, idempotencyKey, fingerprint, correlationId, now, row =>
         {
+            if (!string.Equals(row.PrimaryProvider, draft.PrimaryProvider, StringComparison.Ordinal))
+                row.PrimaryProtectedCredential = null;
+            if (!string.Equals(row.FallbackProvider, draft.FallbackProvider, StringComparison.Ordinal))
+                row.FallbackProtectedCredential = null;
             row.Status = AiConfigurationValues.Draft; row.PrimaryProvider = draft.PrimaryProvider; row.PrimaryModel = draft.PrimaryModel;
             row.PrimaryCredentialSource = draft.PrimaryCredentialSource; row.FallbackEnabled = draft.FallbackEnabled;
             row.FallbackProvider = draft.FallbackProvider; row.FallbackModel = draft.FallbackModel;

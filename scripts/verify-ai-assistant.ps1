@@ -358,11 +358,29 @@ try {
     $activateResponse = Send-Json 'POST' '/ai/configuration/activate' '{}' $activateHeaders
     Assert-Status $activateResponse 200 'AI configuration activation'
     $activeVersion = ($activateResponse.Body | ConvertFrom-Json).configuration.version
-    $pendingHeaders = $headersA.Clone(); $pendingHeaders['If-Match'] = '"' + $activeVersion + '"'; $pendingHeaders['Idempotency-Key'] = 'idem-ai-config-pending-0001'
-    $pendingBody = @{ primaryProvider='OPENAI'; primaryModel='gpt-5-mini'; primaryCredentialSource='DEPLOYMENT'; fallbackEnabled=$false; retryRateLimited=$false } | ConvertTo-Json -Compress
+
+    $modelDraftHeaders = $headersA.Clone(); $modelDraftHeaders['If-Match'] = '"' + $activeVersion + '"'; $modelDraftHeaders['Idempotency-Key'] = 'idem-ai-config-model-only-0001'
+    $modelDraftBody = @{ primaryProvider='GEMINI'; primaryModel='gemini-2.5-pro'; primaryCredentialSource='WORKSPACE'; fallbackEnabled=$false; retryRateLimited=$false } | ConvertTo-Json -Compress
+    $modelDraftResponse = Send-Json 'PUT' '/ai/configuration' $modelDraftBody $modelDraftHeaders
+    Assert-Status $modelDraftResponse 200 'AI same-provider model draft preserves credential'
+    $modelDraft = ($modelDraftResponse.Body | ConvertFrom-Json).configuration
+    if (-not $modelDraft.pendingDraft.primaryCredentialConfigured) { throw 'Changing only the model destroyed a valid provider-bound Workspace credential.' }
+
+    $deploymentHeaders = $headersA.Clone(); $deploymentHeaders['If-Match'] = '"' + $modelDraft.version + '"'; $deploymentHeaders['Idempotency-Key'] = 'idem-ai-config-deployment-source-0001'
+    $deploymentBody = @{ primaryProvider='GEMINI'; primaryModel='gemini-2.5-pro'; primaryCredentialSource='DEPLOYMENT'; fallbackEnabled=$false; retryRateLimited=$false } | ConvertTo-Json -Compress
+    $deploymentResponse = Send-Json 'PUT' '/ai/configuration' $deploymentBody $deploymentHeaders
+    Assert-Status $deploymentResponse 200 'AI deployment-source draft save'
+    $deploymentVersion = ($deploymentResponse.Body | ConvertFrom-Json).configuration.version
+    $deploymentTestHeaders = $headersA.Clone(); $deploymentTestHeaders['If-Match'] = '"' + $deploymentVersion + '"'; $deploymentTestHeaders['Idempotency-Key'] = 'idem-ai-config-deployment-test-0001'
+    Assert-Status (Send-Json 'POST' '/ai/configuration/test' '{}' $deploymentTestHeaders) 503 'AI deployment source never uses stored Workspace credential'
+
+    $pendingHeaders = $headersA.Clone(); $pendingHeaders['If-Match'] = '"' + $deploymentVersion + '"'; $pendingHeaders['Idempotency-Key'] = 'idem-ai-config-pending-0001'
+    $pendingBody = @{ primaryProvider='OPENAI'; primaryModel='gpt-5-mini'; primaryCredentialSource='WORKSPACE'; fallbackEnabled=$false; retryRateLimited=$false } | ConvertTo-Json -Compress
     $pendingResponse = Send-Json 'PUT' '/ai/configuration' $pendingBody $pendingHeaders
     Assert-Status $pendingResponse 200 'AI pending configuration save preserves active'
-    $pendingVersion = ($pendingResponse.Body | ConvertFrom-Json).configuration.version
+    $pendingConfiguration = ($pendingResponse.Body | ConvertFrom-Json).configuration
+    $pendingVersion = $pendingConfiguration.version
+    if ($pendingConfiguration.pendingDraft.primaryCredentialConfigured) { throw 'OpenAI pending draft inherited the Gemini Workspace credential.' }
     $failedTestHeaders = $headersA.Clone(); $failedTestHeaders['If-Match'] = '"' + $pendingVersion + '"'; $failedTestHeaders['Idempotency-Key'] = 'idem-ai-config-failed-test-0001'
     Assert-Status (Send-Json 'POST' '/ai/configuration/test' '{}' $failedTestHeaders) 503 'AI failed pending configuration test'
     $activeWithPending = Send-Json 'GET' '/ai/configuration' $null $headersA
@@ -375,6 +393,17 @@ try {
     }
     $activeSnapshotCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.WorkspaceAiConfigurations WHERE WorkspaceId='$workspaceA' AND ActivePolicyJson LIKE '%GEMINI%' AND ActivePrimaryProtectedCredential IS NOT NULL;")
     if ($activeSnapshotCount -ne 1) { throw 'Failed pending AI configuration destroyed the active provider snapshot.' }
+    if ([int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.WorkspaceAiConfigurations WHERE WorkspaceId='$workspaceA' AND PrimaryProtectedCredential IS NULL;") -ne 1) { throw 'Provider switch did not invalidate the pending slot credential.' }
+
+    Stop-ApiHost $hostProcess; $hostProcess = $null
+    $hostProcess = Start-ApiHost 'ai-smoke-a' 'ai-smoke-b' 'Normal' 10 $true 'WorkspaceProduction'
+    $token = Sign-In; $headersA = New-Headers $token $workspaceA
+    $activeDuringPending = Send-Json 'POST' '/ai/advisories' (@{ question='Active Gemini must remain usable during OpenAI draft replacement.'; contextReferences=@(@{ type='lead'; id=$recordsA.LeadId }) } | ConvertTo-Json -Compress -Depth 4) $headersA
+    Assert-Status $activeDuringPending 200 'AI active Gemini remains usable during pending provider replacement'
+    if (($activeDuringPending.Body | ConvertFrom-Json).provider.name -ne 'GEMINI') { throw 'Pending provider replacement altered the active provider snapshot.' }
+    Stop-ApiHost $hostProcess; $hostProcess = $null
+    $hostProcess = Start-ApiHost; $token = Sign-In; $headersA = New-Headers $token $workspaceA
+
     $disableHeaders = $headersA.Clone(); $disableHeaders['If-Match'] = '"' + $pendingVersion + '"'; $disableHeaders['Idempotency-Key'] = 'idem-ai-config-disable-with-pending-0001'
     $disableResponse = Send-Json 'POST' '/ai/configuration/disable' '{}' $disableHeaders
     Assert-Status $disableResponse 200 'AI active configuration disable while pending draft exists'
@@ -387,7 +416,11 @@ try {
     $restoreResponse = Send-Json 'PUT' '/ai/configuration' $draftBody $restoreHeaders
     Assert-Status $restoreResponse 200 'AI Gemini draft restore after disable'
     $restoreVersion = ($restoreResponse.Body | ConvertFrom-Json).configuration.version
-    $restoreTestHeaders = $headersA.Clone(); $restoreTestHeaders['If-Match'] = '"' + $restoreVersion + '"'; $restoreTestHeaders['Idempotency-Key'] = 'idem-ai-config-restore-test-0001'
+    $restoreCredentialHeaders = $headersA.Clone(); $restoreCredentialHeaders['If-Match'] = '"' + $restoreVersion + '"'; $restoreCredentialHeaders['Idempotency-Key'] = 'idem-ai-config-restore-gemini-credential-0001'
+    $restoreCredentialResponse = Send-Json 'PUT' '/ai/configuration/credential' (@{ credential=$secretValue; fallback=$false } | ConvertTo-Json -Compress) $restoreCredentialHeaders
+    Assert-Status $restoreCredentialResponse 200 'AI explicit Gemini credential restore after disable'
+    $restoreCredentialVersion = ($restoreCredentialResponse.Body | ConvertFrom-Json).configuration.version
+    $restoreTestHeaders = $headersA.Clone(); $restoreTestHeaders['If-Match'] = '"' + $restoreCredentialVersion + '"'; $restoreTestHeaders['Idempotency-Key'] = 'idem-ai-config-restore-test-0001'
     $restoreTestResponse = Send-Json 'POST' '/ai/configuration/test' '{}' $restoreTestHeaders
     Assert-Status $restoreTestResponse 200 'AI restored Gemini configuration validation'
     $restoreValidatedVersion = ($restoreTestResponse.Body | ConvertFrom-Json).configuration.version
@@ -401,7 +434,12 @@ try {
     $promoteDraftResponse = Send-Json 'PUT' '/ai/configuration' $promoteDraftBody $promoteDraftHeaders
     Assert-Status $promoteDraftResponse 200 'AI pending OpenAI draft for promotion'
     $promoteDraftVersion = ($promoteDraftResponse.Body | ConvertFrom-Json).configuration.version
-    $promoteTestHeaders = $headersA.Clone(); $promoteTestHeaders['If-Match'] = '"' + $promoteDraftVersion + '"'; $promoteTestHeaders['Idempotency-Key'] = 'idem-ai-config-promote-test-0001'
+    $openAiSecret = 'workspace-openai-secret-never-reuse-gemini'
+    $promoteCredentialHeaders = $headersA.Clone(); $promoteCredentialHeaders['If-Match'] = '"' + $promoteDraftVersion + '"'; $promoteCredentialHeaders['Idempotency-Key'] = 'idem-ai-config-promote-openai-credential-0001'
+    $promoteCredentialResponse = Send-Json 'PUT' '/ai/configuration/credential' (@{ credential=$openAiSecret; fallback=$false } | ConvertTo-Json -Compress) $promoteCredentialHeaders
+    Assert-Status $promoteCredentialResponse 200 'AI explicit OpenAI Workspace credential set'
+    $promoteCredentialVersion = ($promoteCredentialResponse.Body | ConvertFrom-Json).configuration.version
+    $promoteTestHeaders = $headersA.Clone(); $promoteTestHeaders['If-Match'] = '"' + $promoteCredentialVersion + '"'; $promoteTestHeaders['Idempotency-Key'] = 'idem-ai-config-promote-test-0001'
     $promoteTestResponse = Send-Json 'POST' '/ai/configuration/test' '{}' $promoteTestHeaders
     Assert-Status $promoteTestResponse 200 'AI pending OpenAI validation'
     $promoteValidatedVersion = ($promoteTestResponse.Body | ConvertFrom-Json).configuration.version
@@ -413,17 +451,61 @@ try {
         throw 'Validated pending AI configuration was not promoted atomically to active.'
     }
 
-    $finalRestoreHeaders = $headersA.Clone(); $finalRestoreHeaders['If-Match'] = '"' + $promoted.version + '"'; $finalRestoreHeaders['Idempotency-Key'] = 'idem-ai-config-final-gemini-0001'
+    $fallbackDraftHeaders = $headersA.Clone(); $fallbackDraftHeaders['If-Match'] = '"' + $promoted.version + '"'; $fallbackDraftHeaders['Idempotency-Key'] = 'idem-ai-config-fallback-gemini-0001'
+    $fallbackDraftBody = @{ primaryProvider='OPENAI'; primaryModel='gpt-5-mini'; primaryCredentialSource='WORKSPACE'; fallbackEnabled=$true; fallbackProvider='GEMINI'; fallbackModel='gemini-2.5-flash'; fallbackCredentialSource='WORKSPACE'; retryRateLimited=$false } | ConvertTo-Json -Compress
+    $fallbackDraftResponse = Send-Json 'PUT' '/ai/configuration' $fallbackDraftBody $fallbackDraftHeaders
+    Assert-Status $fallbackDraftResponse 200 'AI fallback Gemini draft save'
+    $fallbackDraftVersion = ($fallbackDraftResponse.Body | ConvertFrom-Json).configuration.version
+    $fallbackGeminiSecret = 'workspace-fallback-gemini-secret'
+    $fallbackCredentialHeaders = $headersA.Clone(); $fallbackCredentialHeaders['If-Match'] = '"' + $fallbackDraftVersion + '"'; $fallbackCredentialHeaders['Idempotency-Key'] = 'idem-ai-config-fallback-gemini-credential-0001'
+    $fallbackCredentialResponse = Send-Json 'PUT' '/ai/configuration/credential' (@{ credential=$fallbackGeminiSecret; fallback=$true } | ConvertTo-Json -Compress) $fallbackCredentialHeaders
+    Assert-Status $fallbackCredentialResponse 200 'AI explicit Gemini fallback credential set'
+    $fallbackCredentialVersion = ($fallbackCredentialResponse.Body | ConvertFrom-Json).configuration.version
+    $fallbackTestHeaders = $headersA.Clone(); $fallbackTestHeaders['If-Match'] = '"' + $fallbackCredentialVersion + '"'; $fallbackTestHeaders['Idempotency-Key'] = 'idem-ai-config-fallback-test-0001'
+    $fallbackTestResponse = Send-Json 'POST' '/ai/configuration/test' '{}' $fallbackTestHeaders
+    Assert-Status $fallbackTestResponse 200 'AI fallback Gemini validation'
+    $fallbackValidatedVersion = ($fallbackTestResponse.Body | ConvertFrom-Json).configuration.version
+    $fallbackActivateHeaders = $headersA.Clone(); $fallbackActivateHeaders['If-Match'] = '"' + $fallbackValidatedVersion + '"'; $fallbackActivateHeaders['Idempotency-Key'] = 'idem-ai-config-fallback-activate-0001'
+    $fallbackActivateResponse = Send-Json 'POST' '/ai/configuration/activate' '{}' $fallbackActivateHeaders
+    Assert-Status $fallbackActivateResponse 200 'AI fallback Gemini activation'
+    $fallbackActiveVersion = ($fallbackActivateResponse.Body | ConvertFrom-Json).configuration.version
+
+    $swapHeaders = $headersA.Clone(); $swapHeaders['If-Match'] = '"' + $fallbackActiveVersion + '"'; $swapHeaders['Idempotency-Key'] = 'idem-ai-config-provider-swap-0001'
+    $swapBody = @{ primaryProvider='GEMINI'; primaryModel='gemini-2.5-flash'; primaryCredentialSource='WORKSPACE'; fallbackEnabled=$true; fallbackProvider='OPENAI'; fallbackModel='gpt-5-mini'; fallbackCredentialSource='WORKSPACE'; retryRateLimited=$false } | ConvertTo-Json -Compress
+    $swapResponse = Send-Json 'PUT' '/ai/configuration' $swapBody $swapHeaders
+    Assert-Status $swapResponse 200 'AI primary and fallback provider swap invalidates slot credentials'
+    $swapped = ($swapResponse.Body | ConvertFrom-Json).configuration
+    if ($swapped.pendingDraft.primaryCredentialConfigured -or $swapped.pendingDraft.fallbackCredentialConfigured) { throw 'Provider swap reused a primary or fallback Workspace credential across provider identities.' }
+    $swappedPrimaryGeminiSecret = 'workspace-swapped-primary-gemini-secret'
+    $swapPrimaryCredentialHeaders = $headersA.Clone(); $swapPrimaryCredentialHeaders['If-Match'] = '"' + $swapped.version + '"'; $swapPrimaryCredentialHeaders['Idempotency-Key'] = 'idem-ai-config-provider-swap-primary-credential-0001'
+    $swapPrimaryCredentialResponse = Send-Json 'PUT' '/ai/configuration/credential' (@{ credential=$swappedPrimaryGeminiSecret; fallback=$false } | ConvertTo-Json -Compress) $swapPrimaryCredentialHeaders
+    Assert-Status $swapPrimaryCredentialResponse 200 'AI explicit swapped primary credential set'
+    $swapPrimaryCredentialConfiguration = ($swapPrimaryCredentialResponse.Body | ConvertFrom-Json).configuration
+    if ($swapPrimaryCredentialConfiguration.pendingDraft.fallbackCredentialConfigured) { throw 'Setting the swapped primary credential restored the old fallback credential.' }
+    $swapTestHeaders = $headersA.Clone(); $swapTestHeaders['If-Match'] = '"' + $swapPrimaryCredentialConfiguration.version + '"'; $swapTestHeaders['Idempotency-Key'] = 'idem-ai-config-provider-swap-test-0001'
+    Assert-Status (Send-Json 'POST' '/ai/configuration/test' '{}' $swapTestHeaders) 503 'AI swapped provider slots require explicit credentials'
+
+    $finalRestoreHeaders = $headersA.Clone(); $finalRestoreHeaders['If-Match'] = '"' + $swapPrimaryCredentialConfiguration.version + '"'; $finalRestoreHeaders['Idempotency-Key'] = 'idem-ai-config-final-gemini-0001'
     $finalRestoreDraft = Send-Json 'PUT' '/ai/configuration' $draftBody $finalRestoreHeaders
     Assert-Status $finalRestoreDraft 200 'AI final Gemini draft restore'
     $finalRestoreDraftVersion = ($finalRestoreDraft.Body | ConvertFrom-Json).configuration.version
-    $finalRestoreTestHeaders = $headersA.Clone(); $finalRestoreTestHeaders['If-Match'] = '"' + $finalRestoreDraftVersion + '"'; $finalRestoreTestHeaders['Idempotency-Key'] = 'idem-ai-config-final-test-0001'
+    $finalCredentialHeaders = $headersA.Clone(); $finalCredentialHeaders['If-Match'] = '"' + $finalRestoreDraftVersion + '"'; $finalCredentialHeaders['Idempotency-Key'] = 'idem-ai-config-final-gemini-credential-0001'
+    $finalCredentialResponse = Send-Json 'PUT' '/ai/configuration/credential' (@{ credential=$secretValue; fallback=$false } | ConvertTo-Json -Compress) $finalCredentialHeaders
+    Assert-Status $finalCredentialResponse 200 'AI final explicit Gemini credential restore'
+    $finalCredentialVersion = ($finalCredentialResponse.Body | ConvertFrom-Json).configuration.version
+    $finalRestoreTestHeaders = $headersA.Clone(); $finalRestoreTestHeaders['If-Match'] = '"' + $finalCredentialVersion + '"'; $finalRestoreTestHeaders['Idempotency-Key'] = 'idem-ai-config-final-test-0001'
     $finalRestoreTest = Send-Json 'POST' '/ai/configuration/test' '{}' $finalRestoreTestHeaders
     Assert-Status $finalRestoreTest 200 'AI final Gemini validation'
     $finalRestoreValidatedVersion = ($finalRestoreTest.Body | ConvertFrom-Json).configuration.version
     $finalRestoreActivateHeaders = $headersA.Clone(); $finalRestoreActivateHeaders['If-Match'] = '"' + $finalRestoreValidatedVersion + '"'; $finalRestoreActivateHeaders['Idempotency-Key'] = 'idem-ai-config-final-activate-0001'
     Assert-Status (Send-Json 'POST' '/ai/configuration/activate' '{}' $finalRestoreActivateHeaders) 200 'AI final Gemini activation'
+    $configurationReadBody = (Send-Json 'GET' '/ai/configuration' $null $headersA).Body
+    foreach ($providerSecret in @($secretValue, $openAiSecret, $fallbackGeminiSecret, $swappedPrimaryGeminiSecret)) {
+        if ($configurationReadBody -match [Regex]::Escape($providerSecret)) { throw 'AI configuration read echoed provider credential material.' }
+        if ([int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.AiConfigurationAudits WHERE WorkspaceId='$workspaceA' AND SafeSummaryJson LIKE '%$providerSecret%';") -ne 0) { throw 'Provider credential leaked into AI configuration audit.' }
+    }
     $checks.Add('Workspace AI configuration concurrency/idempotency/credential protection=PASS')
+    $checks.Add('Provider-bound primary/fallback credentials and deployment-source isolation=PASS')
     $checks.Add('Active/pending separation, disable-with-draft, promotion, and failed-pending preservation=PASS')
 
     $oversizedConversation = 1..13 | ForEach-Object { @{ role = 'user'; content = "bounded message $_" } }
@@ -487,7 +569,7 @@ try {
     Assert-Status (Send-Json 'GET' "/tasks/$($recordsA.TaskId)" $null $headersA) 200 'Tasks get after AI'
     Stop-ApiHost $hostProcess
     $hostProcess = $null
-    $normalLog = Get-Content -Raw -LiteralPath $latestHostLog
+    $normalLog = ((Get-ChildItem -LiteralPath $temporaryDirectory -Filter 'host-*.out.log' | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n")
     if ($normalLog -match 'ignore previous instructions' -or
         $normalLog -notmatch 'lead.summary.read,deal.summary.read,task.summary.read' -or
         $normalLog -notmatch 'lead:displayName' -or $normalLog -notmatch 'task:title') {
@@ -508,7 +590,7 @@ try {
     $hostProcess = $null
     $attemptCount = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.AiProviderAttempts WHERE WorkspaceId='$workspaceA' AND Provider='GEMINI' AND Status='SUCCEEDED';")
     if ($attemptCount -lt 1) { throw 'Production provider attempt evidence was not persisted.' }
-    $unsafeAttemptRows = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.AiProviderAttempts WHERE SafeDiagnostic LIKE '%$secretValue%' OR SafeDiagnostic LIKE '%Prompt injection Lead%';")
+    $unsafeAttemptRows = [int] (Invoke-SqlScalar "SELECT COUNT(*) FROM platform_ai.AiProviderAttempts WHERE SafeDiagnostic LIKE '%$secretValue%' OR SafeDiagnostic LIKE '%$openAiSecret%' OR SafeDiagnostic LIKE '%$fallbackGeminiSecret%' OR SafeDiagnostic LIKE '%$swappedPrimaryGeminiSecret%' OR SafeDiagnostic LIKE '%Prompt injection Lead%';")
     if ($unsafeAttemptRows -ne 0) { throw 'Provider attempt ledger persisted credential or CRM context material.' }
     $checks.Add('Workspace resolver and durable provider attempt evidence=PASS')
 

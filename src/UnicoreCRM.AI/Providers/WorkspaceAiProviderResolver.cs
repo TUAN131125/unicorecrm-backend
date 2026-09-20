@@ -56,24 +56,57 @@ internal sealed class AiProviderCircuitBreaker(TimeProvider timeProvider, int th
     private readonly object gate = new(); private readonly Dictionary<string, State> states = new(StringComparer.Ordinal);
     private readonly TimeSpan openDuration = cooldown ?? TimeSpan.FromSeconds(30);
 
-    internal bool TryEnter(string scope)
+    internal AiProviderCircuitAdmission Admit(string scope)
     {
         lock (gate)
         {
-            if (!states.TryGetValue(scope, out var state)) return true;
-            if (state.HalfOpenProbe) return false;
-            if (state.OpenUntil is null) return true;
-            if (state.OpenUntil <= timeProvider.GetUtcNow()) { states[scope] = new(state.Failures, null, true); return true; }
-            return false;
+            if (!states.TryGetValue(scope, out var state)) return new(this, scope, true, false);
+            if (state.HalfOpenProbe) return new(this, scope, false, false);
+            if (state.OpenUntil is null) return new(this, scope, true, false);
+            if (state.OpenUntil <= timeProvider.GetUtcNow())
+            {
+                states[scope] = new(state.Failures, null, true);
+                return new(this, scope, true, true);
+            }
+            return new(this, scope, false, false);
         }
     }
-    internal void Success(string scope) { lock (gate) states.Remove(scope); }
-    internal void Failure(string scope)
+
+    private void Success(string scope) { lock (gate) states.Remove(scope); }
+    private void TransientFailure(string scope)
     {
         lock (gate)
         {
             states.TryGetValue(scope, out var current); var failures = (current?.Failures ?? 0) + 1;
             states[scope] = new(failures, failures >= threshold || current?.HalfOpenProbe == true ? timeProvider.GetUtcNow().Add(openDuration) : null, false);
+        }
+    }
+
+    private void Release(string scope, bool halfOpen)
+    {
+        if (!halfOpen) return;
+        lock (gate)
+        {
+            if (states.TryGetValue(scope, out var current) && current.HalfOpenProbe)
+                states[scope] = new(current.Failures, timeProvider.GetUtcNow().Add(openDuration), false);
+        }
+    }
+
+    internal sealed class AiProviderCircuitAdmission(
+        AiProviderCircuitBreaker owner,
+        string scope,
+        bool isAdmitted,
+        bool halfOpen) : IDisposable
+    {
+        private int completed;
+        internal bool IsAdmitted { get; } = isAdmitted;
+        internal void Success() => Complete(() => owner.Success(scope));
+        internal void TransientFailure() => Complete(() => owner.TransientFailure(scope));
+        internal void Release() => Complete(() => owner.Release(scope, halfOpen));
+        public void Dispose() => Release();
+        private void Complete(Action transition)
+        {
+            if (IsAdmitted && Interlocked.Exchange(ref completed, 1) == 0) transition();
         }
     }
 }

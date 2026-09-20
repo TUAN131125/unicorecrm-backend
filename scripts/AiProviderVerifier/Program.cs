@@ -142,26 +142,89 @@ async Task VerifyCircuitBreaker()
 {
     var breaker = new AiProviderCircuitBreaker(TimeProvider.System, 3, TimeSpan.FromMilliseconds(5));
     const string scope = "workspace:provider:model";
-    Assert(breaker.TryEnter(scope), "Circuit begins closed"); breaker.Failure(scope);
-    Assert(breaker.TryEnter(scope), "Circuit stays closed below threshold"); breaker.Failure(scope);
-    Assert(breaker.TryEnter(scope), "Circuit permits threshold attempt"); breaker.Failure(scope);
-    Assert(!breaker.TryEnter(scope), "Circuit opens after repeated transient failures");
+    using (var admission = breaker.Admit(scope)) { Assert(admission.IsAdmitted, "Circuit begins closed"); admission.TransientFailure(); }
+    using (var admission = breaker.Admit(scope)) { Assert(admission.IsAdmitted, "Circuit stays closed below threshold"); admission.TransientFailure(); }
+    using (var admission = breaker.Admit(scope)) { Assert(admission.IsAdmitted, "Circuit permits threshold attempt"); admission.TransientFailure(); }
+    using (var admission = breaker.Admit(scope)) Assert(!admission.IsAdmitted, "Circuit opens after repeated transient failures");
     await Task.Delay(10);
-    Assert(breaker.TryEnter(scope), "Circuit admits one half-open probe");
-    Assert(!breaker.TryEnter(scope), "Circuit permits only one half-open probe");
-    breaker.Success(scope); Assert(breaker.TryEnter(scope), "Successful probe closes circuit");
+    using (var probe = breaker.Admit(scope))
+    {
+        Assert(probe.IsAdmitted, "Circuit admits one half-open probe");
+        using var blocked = breaker.Admit(scope); Assert(!blocked.IsAdmitted, "Circuit permits only one half-open probe");
+        probe.Success();
+    }
+    using (var admission = breaker.Admit(scope)) Assert(admission.IsAdmitted, "Successful probe closes circuit");
 
     var protection = new EphemeralDataProtectionProvider();
+    var protector = protection.CreateProtector("UnicoreCRM.WorkspaceAiCredential.v1");
     var active = new ActiveWorkspaceAiPolicy(new("GEMINI", "gemini-2.5-flash", "WORKSPACE", true, "OPENAI", "gpt-5-mini", "WORKSPACE", false),
-        protection.CreateProtector("UnicoreCRM.WorkspaceAiCredential.v1").Protect("primary"), protection.CreateProtector("UnicoreCRM.WorkspaceAiCredential.v1").Protect("fallback"));
+        protector.Protect("primary"), protector.Protect("fallback"));
+    var primaryOnly = new ActiveWorkspaceAiPolicy(new("GEMINI", "gemini-2.5-flash", "WORKSPACE", false, null, null, null, false), protector.Protect("primary"), null);
     var workspace = new FakeWorkspace(); var scopedBreaker = new AiProviderCircuitBreaker(TimeProvider.System, 3, TimeSpan.FromMinutes(1));
     var primaryScope = "workspace-a:GEMINI:gemini-2.5-flash";
-    scopedBreaker.Failure(primaryScope); scopedBreaker.Failure(primaryScope); scopedBreaker.Failure(primaryScope);
+    for (var index = 0; index < 3; index++) { using var admission = scopedBreaker.Admit(primaryScope); admission.TransientFailure(); }
     var skippedPrimary = new ScriptedAdapter("GEMINI", []); var successfulFallback = new ScriptedAdapter("OPENAI", []); var ledger = new FakeLedger();
     var result = await Provider(Resolver(active, workspace, protection), workspace, ledger, skippedPrimary, successfulFallback, breaker: scopedBreaker)
         .CompleteAsync(request with { ExecutionId = "execution-circuit-open" }, CancellationToken.None);
     Assert(result.Provider == "OPENAI" && skippedPrimary.Calls == 0 && successfulFallback.Calls == 1, "OPEN circuit skips primary transport and uses fallback");
     Assert(ledger.Attempts.Select(item => item.Status).SequenceEqual(["CIRCUIT_OPEN", "SUCCEEDED"]), "Circuit-open skip is auditable");
+
+    async Task<AiProviderCircuitBreaker> HalfOpenBreaker()
+    {
+        var value = new AiProviderCircuitBreaker(TimeProvider.System, 1, TimeSpan.FromMilliseconds(10));
+        using (var admission = value.Admit(primaryScope)) admission.TransientFailure();
+        await Task.Delay(20);
+        return value;
+    }
+    async Task AssertLaterProbe(AiProviderCircuitBreaker value, string name)
+    {
+        using (var blocked = value.Admit(primaryScope)) Assert(!blocked.IsAdmitted, $"{name} reopens for cooldown");
+        await Task.Delay(20);
+        using var later = value.Admit(primaryScope); Assert(later.IsAdmitted, $"{name} releases the half-open probe for a later request"); later.Release();
+    }
+
+    var successBreaker = await HalfOpenBreaker();
+    var successResult = await Provider(Resolver(primaryOnly, workspace, protection), workspace, new FakeLedger(),
+        new ScriptedAdapter("GEMINI", []), new ScriptedAdapter("OPENAI", []), breaker: successBreaker)
+        .CompleteAsync(request with { ExecutionId = "execution-half-open-success" }, CancellationToken.None);
+    Assert(successResult.Provider == "GEMINI", "HALF_OPEN success completes through WorkspaceProductionAiProvider");
+    using (var closed = successBreaker.Admit(primaryScope)) Assert(closed.IsAdmitted, "HALF_OPEN success closes the circuit");
+
+    foreach (var terminal in new[] { AiProviderFailure.SafetyRefusal, AiProviderFailure.AuthenticationFailure })
+    {
+        var terminalBreaker = await HalfOpenBreaker();
+        try
+        {
+            await Provider(Resolver(primaryOnly, workspace, protection), workspace, new FakeLedger(),
+                new ScriptedAdapter("GEMINI", [terminal]), new ScriptedAdapter("OPENAI", []), breaker: terminalBreaker)
+                .CompleteAsync(request with { ExecutionId = $"execution-half-open-{terminal}" }, CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is AiProviderSafetyRefusalException or AiProviderUnavailableException) { }
+        await AssertLaterProbe(terminalBreaker, $"HALF_OPEN {terminal}");
+    }
+
+    var cancellationBreaker = await HalfOpenBreaker();
+    using (var callerCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25)))
+    {
+        try
+        {
+            await Provider(Resolver(primaryOnly, workspace, protection), workspace, new FakeLedger(),
+                new BlockingAdapter("GEMINI"), new ScriptedAdapter("OPENAI", []), TimeSpan.FromSeconds(2), cancellationBreaker)
+                .CompleteAsync(request with { ExecutionId = "execution-half-open-cancel" }, callerCancellation.Token);
+        }
+        catch (OperationCanceledException) when (callerCancellation.IsCancellationRequested) { }
+    }
+    await AssertLaterProbe(cancellationBreaker, "HALF_OPEN caller cancellation");
+
+    var timeoutBreaker = await HalfOpenBreaker();
+    try
+    {
+        await Provider(Resolver(primaryOnly, workspace, protection), workspace, new FakeLedger(),
+            new BlockingAdapter("GEMINI"), new ScriptedAdapter("OPENAI", []), TimeSpan.FromMilliseconds(25), timeoutBreaker)
+            .CompleteAsync(request with { ExecutionId = "execution-half-open-timeout" }, CancellationToken.None);
+    }
+    catch (AiProviderUnavailableException) { }
+    using (var reopened = timeoutBreaker.Admit(primaryScope)) Assert(!reopened.IsAdmitted, "HALF_OPEN transient timeout reopens the circuit");
 }
 
 async Task VerifyDurableDataProtection()
