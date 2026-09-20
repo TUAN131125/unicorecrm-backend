@@ -30,6 +30,12 @@ internal static partial class CommercialEvidenceValidation
 
     internal static void ValidateEvidenceId(string evidenceId) => RequireEntityId(evidenceId, nameof(evidenceId));
 
+    internal static void ValidateBuyerRef(PurchaseEvidenceBuyerRefType type, string id)
+    {
+        _ = PersistedBuyerRefType(type);
+        RequireEntityId(id, nameof(id));
+    }
+
     internal static string PersistedBuyerRefType(PurchaseEvidenceBuyerRefType type) => type switch
     {
         PurchaseEvidenceBuyerRefType.Contact => CommercialEvidenceVocabulary.Contact,

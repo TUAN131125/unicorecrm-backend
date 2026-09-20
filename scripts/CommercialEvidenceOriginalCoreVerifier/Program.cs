@@ -200,6 +200,19 @@ internal sealed class CommercialEvidenceVerifier(string connectionString)
         Check("effective snapshot BuyerRef", "contact_primary", snapshot?.BuyerRef.Id);
         Check("unknown effective read returns null", null, await reader.GetByIdAsync(workspace, "pe_unknown", CancellationToken.None));
         Check("foreign Workspace effective read returns null", null, await reader.GetByIdAsync(Trusted("workspace_foreign"), first.EvidenceId, CancellationToken.None));
+
+        var healthReader = scope.ServiceProvider.GetRequiredService<ICustomerPurchaseHealthSignalReader>();
+        var health = await healthReader.ReadAsync(workspace,
+            new(PurchaseEvidenceBuyerRefType.Contact, "contact_primary"), occurredAt.AddDays(1), CancellationToken.None);
+        Check("purchase health reader count", 1, health!.PurchaseCount);
+        Check("purchase health reader exposes only timestamp facts", occurredAt.ToUniversalTime(), health.LastPurchaseAt);
+        var batch = await healthReader.ReadBatchAsync(workspace,
+            [new(PurchaseEvidenceBuyerRefType.Contact, "contact_primary"), new(PurchaseEvidenceBuyerRefType.Contact, "contact_missing")],
+            occurredAt.AddDays(1), CancellationToken.None);
+        Check("purchase health batch omits missing buyer", 1, batch.Count);
+        Check("purchase health reader isolates Workspace", 0,
+            (await healthReader.ReadBatchAsync(Trusted("workspace_foreign"),
+                [new(PurchaseEvidenceBuyerRefType.Contact, "contact_primary")], occurredAt.AddDays(1), CancellationToken.None)).Count);
     }
 
     private async Task VerifyExactSourceEqualityAsync(ServiceProvider provider)

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using UnicoreCRM.Crm.Customers.Application.Common;
+using UnicoreCRM.Crm.Customers.Application.Health;
 using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Crm.Customers.Domain;
 
@@ -10,6 +11,7 @@ internal sealed record Query(string CustomerId, CustomerRequestMetadata Metadata
 internal sealed partial class Handler(
     CustomerAuthorization authorization,
     ICustomersPersistence persistence,
+    CustomerHealthAssessmentService health,
     TimeProvider timeProvider)
 {
     internal async Task<CustomerOperationResult<CustomerDocument>> HandleAsync(
@@ -48,10 +50,11 @@ internal sealed partial class Handler(
             customer.Version,
             timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
+        var assessment = await health.AssessAsync(access.Value.Trusted, customer, cancellationToken);
         return CustomerOperationResult<CustomerDocument>.Success(
             CustomerFieldSecurity.Project(
                 CustomerProjection.Document(customer),
-                access.Value.Authorization));
+                access.Value.Authorization) with { HealthAssessment = assessment });
     }
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", RegexOptions.CultureInvariant)]

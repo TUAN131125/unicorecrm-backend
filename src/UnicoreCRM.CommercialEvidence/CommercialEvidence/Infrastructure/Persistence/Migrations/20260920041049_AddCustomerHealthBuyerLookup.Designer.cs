@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistenc
 namespace UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CommercialEvidenceDbContext))]
-    partial class CommercialEvidenceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920041049_AddCustomerHealthBuyerLookup")]
+    partial class AddCustomerHealthBuyerLookup
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

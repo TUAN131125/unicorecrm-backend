@@ -11,6 +11,7 @@
   <Project Path="src/UnicoreCRM.Integrations/UnicoreCRM.Integrations.csproj" />
   <Project Path="scripts/EventWebhookVerifier/UnicoreCRM.EventWebhook.Verifier.csproj" />
   <Project Path="scripts/AiProviderVerifier/UnicoreCRM.AI.ProviderVerifier.csproj" />
+  <Project Path="scripts/CustomerHealthVerifier/UnicoreCRM.CustomerHealth.Verifier.csproj" />
   <Project Path="src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" />
   <Project Path="src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
   <Project Path="src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj" />

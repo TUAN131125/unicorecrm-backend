@@ -8,6 +8,22 @@ namespace UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persis
 internal sealed class EfCommercialEvidencePersistence(CommercialEvidenceDbContext dbContext)
     : ICommercialEvidencePersistence
 {
+    public async Task<IReadOnlyList<PurchaseHealthSignalRow>> ReadPurchaseHealthSignalsAsync(
+        string workspaceId,
+        IReadOnlyCollection<Contracts.CustomerPurchaseHealthBuyerRef> buyerRefs,
+        DateTimeOffset asOf,
+        CancellationToken cancellationToken)
+    {
+        var buyerIds = buyerRefs.Select(reference => reference.Id).Distinct().ToArray();
+        var admitted = buyerRefs.Select(reference =>
+            $"{CommercialEvidenceValidation.PersistedBuyerRefType(reference.Type)}\n{reference.Id}").ToHashSet(StringComparer.Ordinal);
+        var rows = await dbContext.PurchaseEvidence.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && item.OccurredAt <= asOf && buyerIds.Contains(item.BuyerRefId))
+            .Select(item => new PurchaseHealthSignalRow(item.BuyerRefType, item.BuyerRefId, item.OccurredAt))
+            .ToListAsync(cancellationToken);
+        return rows.Where(row => admitted.Contains($"{row.BuyerRefType}\n{row.BuyerRefId}")).ToArray();
+    }
+
     public Task<PurchaseEvidence?> FindOriginalByOrderSourceAsync(
         string workspaceId,
         string orderId,

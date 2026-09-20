@@ -255,6 +255,9 @@ INSERT INTO organizations.Organizations (OrganizationId,WorkspaceId,DisplayName,
 VALUES ('$organizationId','$workspaceId','Organization AI $suffix','active',1,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}','$memberId','Software','organization ai $suffix');
 INSERT INTO customers.Customers (WorkspaceId,CustomerId,CustomerCode,Type,RelationshipType,RelationshipId,Status,Version,CreatedAt,UpdatedAt,Profile,OwnerId,SearchText,Segment,Tier)
 VALUES ('$workspaceId','$customerId','CUST-AI-$suffix','B2C','CONTACT','$contactId','ACTIVE',1,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}','$memberId','cust ai $suffix','priority','GOLD');
+INSERT INTO commercial_evidence.PurchaseEvidence
+(WorkspaceId,EvidenceId,EvidenceType,BuyerRefType,BuyerRefId,SourceType,SourceSystem,SourceId,OccurredAt,PolicyVersion,CorrelationId)
+VALUES ('$workspaceId','health_ai_$suffix','ORDER_COMPLETED','CONTACT','$contactId','ORDER',NULL,'health-ai-order-$suffix',DATEADD(day,-2,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-ai-$suffix');
 "@
 
     return [pscustomobject] @{
@@ -572,7 +575,8 @@ try {
     $normalLog = ((Get-ChildItem -LiteralPath $temporaryDirectory -Filter 'host-*.out.log' | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n")
     if ($normalLog -match 'ignore previous instructions' -or
         $normalLog -notmatch 'lead.summary.read,deal.summary.read,task.summary.read' -or
-        $normalLog -notmatch 'lead:displayName' -or $normalLog -notmatch 'task:title') {
+        $normalLog -notmatch 'lead:displayName' -or $normalLog -notmatch 'task:title' -or
+        $normalLog -notmatch 'customer:healthBand' -or $normalLog -notmatch 'customer:healthReasonCode') {
         throw 'Safe context-shape telemetry or prompt-content hygiene failed.'
     }
     $checks.Add('Prompt injection code boundary and safe context-shape evidence=PASS')

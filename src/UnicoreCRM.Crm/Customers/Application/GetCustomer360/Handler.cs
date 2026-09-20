@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using UnicoreCRM.Crm.Contacts.Contracts;
 using UnicoreCRM.Crm.Customers.Application.Common;
+using UnicoreCRM.Crm.Customers.Application.Health;
 using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Crm.Customers.Domain;
 using UnicoreCRM.Crm.Organizations.Contracts;
@@ -10,7 +11,7 @@ namespace UnicoreCRM.Crm.Customers.Application.GetCustomer360;
 internal sealed record Query(string CustomerId, CustomerRequestMetadata Metadata);
 internal sealed partial class Handler(CustomerAuthorization authorization, ICustomersPersistence persistence,
     IContactCustomerSubjectParticipant contacts, IOrganizationCustomerSubjectParticipant organizations,
-    ICustomerStakeholderReadParticipant stakeholders, TimeProvider timeProvider)
+    ICustomerStakeholderReadParticipant stakeholders, CustomerHealthAssessmentService health, TimeProvider timeProvider)
 {
     internal async Task<CustomerOperationResult<Customer360ReadModel>> HandleAsync(Query query, CancellationToken cancellationToken)
     {
@@ -55,9 +56,10 @@ internal sealed partial class Handler(CustomerAuthorization authorization, ICust
             customer.Version, timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
         var document = CustomerFieldSecurity.Project(CustomerProjection.Document(customer), access.Value.Authorization);
+        var assessment = await health.AssessAsync(access.Value.Trusted, customer, cancellationToken);
         return CustomerOperationResult<Customer360ReadModel>.Success(new(document, identity,
             new Dictionary<string, object>(), [], stakeholderDocuments, actions, customer.Version,
-            CustomerProjection.TimestampValue(timeProvider.GetUtcNow())));
+            CustomerProjection.TimestampValue(timeProvider.GetUtcNow())) { HealthAssessment = assessment });
     }
 
     private async Task<bool> CanMutateAsync(Customer customer, CustomerRequestMetadata metadata,

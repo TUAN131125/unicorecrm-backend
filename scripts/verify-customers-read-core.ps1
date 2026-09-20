@@ -582,6 +582,8 @@ VALUES
     Add-Result 'detail identity is Customer-owned ID' $customerA $customerDetail.Body.id
     Add-Result 'detail carries trusted Workspace' $script:WorkspaceId $customerDetail.Body.workspaceId
     Add-Result 'detail required customerCode present' 'CUS-A-001' $customerDetail.Body.customerCode
+    Add-Result 'no purchase evidence is UNKNOWN with NONE confidence' 'UNKNOWN|UNKNOWN|NONE|NO_PURCHASE_EVIDENCE' `
+        ("{0}|{1}|{2}|{3}" -f $customerDetail.Body.healthAssessment.healthBand, $customerDetail.Body.healthAssessment.churnRisk, $customerDetail.Body.healthAssessment.confidence, $customerDetail.Body.healthAssessment.reasonCode)
     Add-Result 'detail required version present' '4' ([string]$customerDetail.Body.version)
     $requiredCustomerFields = @(
         'id', 'workspaceId', 'customerCode', 'type', 'relationshipRef', 'status', 'health',
@@ -592,7 +594,7 @@ VALUES
             'calculatedHealth', 'manualHealthOverride', 'onboardingStatus', 'onboardingCompletedAt',
             'createdFromEvidenceId', 'conversionPolicyVersion', 'conversionCorrelationId', 'sourceSystem',
             'externalCustomerRef', 'tier', 'serviceLevel', 'careCadenceDays', 'careOwnerId', 'segment',
-            'tags', 'nextCareAt', 'lastCareAt'
+            'tags', 'nextCareAt', 'lastCareAt', 'healthAssessment'
         )
     )
     $actualCustomerFields = @($customerDetail.Body.PSObject.Properties.Name)
@@ -773,6 +775,32 @@ WHERE CustomerId IN ('$customerC', '$customerUnknown')
     Add-Result 'createCustomer does not fabricate health or purchase timestamps' 'True' `
         (($null -eq $createResult.Body.result.health) -and ($null -eq $createResult.Body.result.firstPurchaseAt) -and ($null -eq $createResult.Body.result.lastPurchaseAt)).ToString()
     $createdCustomerId = $createResult.Body.result.id
+    $createdVersionBeforeHealthRead = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM customers.Customers WHERE CustomerId = '$createdCustomerId'"
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO commercial_evidence.PurchaseEvidence
+(WorkspaceId,EvidenceId,EvidenceType,BuyerRefType,BuyerRefId,SourceType,SourceSystem,SourceId,OccurredAt,PolicyVersion,CorrelationId)
+VALUES
+('$($script:WorkspaceId)','health_contact_1','HISTORICAL_PURCHASE_IMPORTED','CONTACT','$subjectContactId','HISTORICAL_IMPORT','health-verifier','contact-health-1',DATEADD(day,-62,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-contact-1'),
+('$($script:WorkspaceId)','health_contact_2','EXTERNAL_PURCHASE_CONFIRMED','CONTACT','$subjectContactId','EXTERNAL_PURCHASE','health-verifier','contact-health-2',DATEADD(day,-32,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-contact-2'),
+('$($script:WorkspaceId)','health_contact_3','ORDER_COMPLETED','CONTACT','$subjectContactId','ORDER',NULL,'health-order-3',DATEADD(day,-2,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-contact-3'),
+('$($script:WorkspaceId)','health_contact_future','ORDER_COMPLETED','CONTACT','$subjectContactId','ORDER',NULL,'health-order-future',DATEADD(day,5,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-contact-future'),
+('$foreignWorkspaceId','health_contact_foreign','ORDER_COMPLETED','CONTACT','$subjectContactId','ORDER',NULL,'health-order-foreign',DATEADD(day,-400,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-contact-foreign');
+"@
+    $healthDetail = Invoke-Customer -Method 'GET' -Path "/customers/$createdCustomerId"
+    Add-Result 'Contact buyer authoritative Health is calculated from effective evidence' '200|100|HEALTHY|HIGH|3|30' `
+        ("{0}|{1}|{2}|{3}|{4}|{5}" -f $healthDetail.Status, $healthDetail.Body.healthAssessment.score, $healthDetail.Body.healthAssessment.healthBand, $healthDetail.Body.healthAssessment.confidence, $healthDetail.Body.healthAssessment.purchaseCount, $healthDetail.Body.healthAssessment.expectedPurchaseCadenceDays)
+    Add-Result 'future and foreign Workspace evidence are excluded' '2' ([string]$healthDetail.Body.healthAssessment.daysSinceLastPurchase)
+    $health360 = Invoke-Customer -Method 'GET' -Path "/customers/$createdCustomerId/360"
+    Add-Result 'Customer detail and Customer360 Health agree' `
+        ("{0}|{1}|{2}" -f $healthDetail.Body.healthAssessment.score, $healthDetail.Body.healthAssessment.healthBand, $healthDetail.Body.healthAssessment.reasonCode) `
+        ("{0}|{1}|{2}" -f $health360.Body.healthAssessment.score, $health360.Body.healthAssessment.healthBand, $health360.Body.healthAssessment.reasonCode)
+    $healthList = Invoke-Customer -Method 'GET' -Path '/customers?limit=250'
+    $healthListItem = @($healthList.Body.items) | Where-Object { $_.id -eq $createdCustomerId } | Select-Object -First 1
+    Add-Result 'Customer list and detail Health agree through batch enrichment' `
+        ("{0}|{1}|{2}" -f $healthDetail.Body.healthAssessment.score, $healthDetail.Body.healthAssessment.healthBand, $healthDetail.Body.healthAssessment.confidence) `
+        ("{0}|{1}|{2}" -f $healthListItem.healthAssessment.score, $healthListItem.healthAssessment.healthBand, $healthListItem.healthAssessment.confidence)
+    Add-Result 'read-time Health leaves Customer version unchanged' ([string]$createdVersionBeforeHealthRead) `
+        ([string](Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM customers.Customers WHERE CustomerId = '$createdCustomerId'"))
     $raceContactCreate = Invoke-Api -Method 'POST' -Path '/contacts' -Token $script:Token -WorkspaceId $script:WorkspaceId `
         -IdempotencyKey 'idem-customer-core-contact-race-0001' -Body '{"fullName":"Customer Concurrent Subject"}'
     Add-Result 'concurrent create fixture Contact succeeds' '201' $raceContactCreate.Status
@@ -835,9 +863,12 @@ WHERE CustomerId IN ('$customerC', '$customerUnknown')
     $b2bCustomerId = $b2bCreate.Body.result.id
     Add-Result 'direct B2B Organization Customer create succeeds' '201|B2B|ORGANIZATION_ACCOUNT' `
         ("{0}|{1}|{2}" -f $b2bCreate.Status, $b2bCreate.Body.result.type, $b2bCreate.Body.result.relationshipRef.type)
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO commercial_evidence.PurchaseEvidence (WorkspaceId,EvidenceId,EvidenceType,BuyerRefType,BuyerRefId,SourceType,SourceSystem,SourceId,OccurredAt,PolicyVersion,CorrelationId) VALUES ('$($script:WorkspaceId)','health_org_1','ORDER_COMPLETED','ORGANIZATION_ACCOUNT','$subjectOrganizationId','ORDER',NULL,'health-org-order-1',DATEADD(day,-1,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-org-1')"
     $b2b360 = Invoke-Customer -Method 'GET' -Path "/customers/$b2bCustomerId/360"
     Add-Result 'direct B2B Customer360 resolves authoritative Organization identity' '200|Customer Core Organization' `
         ("{0}|{1}" -f $b2b360.Status, $b2b360.Body.identity.displayName)
+    Add-Result 'Organization Account buyer Health uses owner-safe purchase evidence' 'HEALTHY|LOW|1' `
+        ("{0}|{1}|{2}" -f $b2b360.Body.healthAssessment.healthBand, $b2b360.Body.healthAssessment.confidence, $b2b360.Body.healthAssessment.purchaseCount)
     $b2bUpdate = Invoke-Customer -Method 'PATCH' -Path "/customers/$b2bCustomerId" -Body '{"segment":"enterprise","status":"ACTIVE"}' -IdempotencyKey 'idem-customer-core-b2b-update-0001' -IfMatch '"0"'
     Add-Result 'direct B2B update advances authoritative version' '200|ACTIVE|1' `
         ("{0}|{1}|{2}" -f $b2bUpdate.Status, $b2bUpdate.Body.result.status, $b2bUpdate.Body.result.version)
@@ -850,6 +881,7 @@ WHERE CustomerId IN ('$customerC', '$customerUnknown')
     $b2bArchivedDetail = Invoke-Customer -Method 'GET' -Path "/customers/$b2bCustomerId"
     Add-Result 'detail retains archived B2B Customer' '200|ARCHIVED|2' `
         ("{0}|{1}|{2}" -f $b2bArchivedDetail.Status, $b2bArchivedDetail.Body.status, $b2bArchivedDetail.Body.version)
+    Add-Result 'archived Customer has no active Health assessment' 'True' ($null -eq $b2bArchivedDetail.Body.healthAssessment).ToString()
     Add-Result 'B2B account subject is not manufactured as a stakeholder Contact' '0' `
         ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.CustomerRelationships WHERE CustomerId = '$b2bCustomerId'"))
     Add-Result 'B2C account subject is not manufactured as a stakeholder Contact' '0' `

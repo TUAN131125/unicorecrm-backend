@@ -56,10 +56,26 @@ public sealed record CustomerStakeholderContactDocument(string RelationshipId, s
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? EffectiveTo { get; init; }
 }
 
+public sealed record CustomerHealthAssessment(
+    int? Score,
+    string HealthBand,
+    string ChurnRisk,
+    string Confidence,
+    int PurchaseCount,
+    string? LastPurchaseAt,
+    int? ExpectedPurchaseCadenceDays,
+    int? DaysSinceLastPurchase,
+    string ReasonCode,
+    string AlgorithmVersion,
+    string EvaluatedAt);
+
 public sealed record Customer360ReadModel(CustomerDocument Customer, Customer360Identity Identity,
     IReadOnlyDictionary<string, object> Metrics, IReadOnlyList<object> LinkedRecords,
     IReadOnlyList<CustomerStakeholderContactDocument> StakeholderContacts,
-    IReadOnlyList<string> AllowedActions, long ProjectionVersion, string GeneratedAt);
+    IReadOnlyList<string> AllowedActions, long ProjectionVersion, string GeneratedAt)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public CustomerHealthAssessment? HealthAssessment { get; init; }
+}
 
 public sealed record CustomerDocument(
     string Id,
@@ -93,4 +109,5 @@ public sealed record CustomerDocument(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<string>? Tags { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? NextCareAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LastCareAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public CustomerHealthAssessment? HealthAssessment { get; init; }
 }

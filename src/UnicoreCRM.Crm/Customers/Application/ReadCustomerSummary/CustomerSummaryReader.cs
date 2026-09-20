@@ -1,12 +1,14 @@
 using System.Text.RegularExpressions;
 using UnicoreCRM.Crm.Customers.Application.Common;
+using UnicoreCRM.Crm.Customers.Application.Health;
 using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Crm.Customers.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Crm.Customers.Application.ReadCustomerSummary;
 
-internal sealed class CustomerSummaryReader(CustomerAuthorization authorization, ICustomersPersistence persistence, TimeProvider clock) : ICustomerSummaryReader
+internal sealed class CustomerSummaryReader(CustomerAuthorization authorization, ICustomersPersistence persistence,
+    CustomerHealthAssessmentService health, TimeProvider clock) : ICustomerSummaryReader
 {
     private static readonly RecordAccessRepresentation Representation = RecordAccessRepresentation.Create("customer.summary", "customerCode", "status", "health", "tier", "segment", "nextCareAt");
     public async Task<CustomerSummaryReadResult> ReadAsync(string id, string requestId, string correlationId, CancellationToken ct)
@@ -19,7 +21,9 @@ internal sealed class CustomerSummaryReader(CustomerAuthorization authorization,
         if (record is null || await authorization.EnforceRecordAsync(access.Value, record, "readCustomerSummary", metadata, ct) is not null) return new(CustomerSummaryReadStatus.NotFound);
         var document = CustomerFieldSecurity.Project(CustomerProjection.Document(record), access.Value.Authorization);
         var policy = access.Value.Authorization;
-        var projection = new CustomerSummaryProjection(record.CustomerId, policy.CanRead("customerCode") ? document.CustomerCode : null, policy.CanRead("status") ? document.Status : null, policy.CanRead("health") ? document.Health : null, policy.CanRead("tier") ? document.Tier : null, policy.CanRead("segment") ? document.Segment : null, policy.CanRead("nextCareAt") ? document.NextCareAt : null, record.Version);
+        var assessment = await health.AssessAsync(access.Value.Trusted, record, ct);
+        var projection = new CustomerSummaryProjection(record.CustomerId, policy.CanRead("customerCode") ? document.CustomerCode : null, policy.CanRead("status") ? document.Status : null, policy.CanRead("health") ? document.Health : null, policy.CanRead("tier") ? document.Tier : null, policy.CanRead("segment") ? document.Segment : null, policy.CanRead("nextCareAt") ? document.NextCareAt : null, record.Version)
+        { HealthAssessment = assessment };
         persistence.AddReadAudit(new CustomerReadAuditRecord("readCustomerSummary", access.Value.Trusted.WorkspaceId, access.Value.Trusted.MemberId, record.CustomerId, requestId, correlationId, record.Version, clock.GetUtcNow()));
         await persistence.SaveChangesAsync(ct);
         return new(CustomerSummaryReadStatus.Succeeded, projection);

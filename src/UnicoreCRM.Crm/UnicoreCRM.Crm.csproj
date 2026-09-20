@@ -4,6 +4,7 @@
     <AssemblyName>UnicoreCRM.Crm</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="UnicoreCRM.CustomerHealth.Verifier" />
     <InternalsVisibleTo Include="UnicoreCRM.LeadCustomerConversion.RealVerifier" />
     <InternalsVisibleTo Include="UnicoreCRM.EventWebhook.Verifier" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -13,6 +14,8 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
+    <!-- Customers consumes only CommercialEvidence's narrow purchase-health signal contract. -->
+    <ProjectReference Include="../UnicoreCRM.CommercialEvidence/UnicoreCRM.CommercialEvidence.csproj" />
     <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
     <!-- Leads consumes the narrow Products-owned snapshot reader contract only. -->
     <ProjectReference Include="../UnicoreCRM.Sales/UnicoreCRM.Sales.csproj" />

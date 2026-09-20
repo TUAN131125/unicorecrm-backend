@@ -23,6 +23,7 @@ internal static class CommercialEvidenceModule
         services.AddScoped<ICommercialEvidencePersistence, EfCommercialEvidencePersistence>();
         services.AddScoped<IOrderCompletedPurchaseEvidenceAppender, OrderCompletedPurchaseEvidenceAppender>();
         services.AddScoped<IEffectivePurchaseEvidenceReader, EffectivePurchaseEvidenceReader>();
+        services.AddScoped<ICustomerPurchaseHealthSignalReader, CustomerPurchaseHealthSignalReader>();
         services.TryAddSingleton<IPurchaseEvidenceIdGenerator, OpaquePurchaseEvidenceIdGenerator>();
         services.TryAddSingleton<ICommercialEvidencePolicyVersionProvider, CommercialEvidencePolicyVersionProvider>();
         services.TryAddSingleton(TimeProvider.System);

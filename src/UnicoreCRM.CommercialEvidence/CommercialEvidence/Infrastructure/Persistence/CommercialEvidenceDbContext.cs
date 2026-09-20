@@ -9,6 +9,7 @@ internal sealed class CommercialEvidenceDbContext(DbContextOptions<CommercialEvi
     internal const string Schema = "commercial_evidence";
     internal const string AggregatePrimaryKeyName = "PK_PurchaseEvidence";
     internal const string SourceUniqueIndexName = "UX_PurchaseEvidence_Workspace_Source";
+    internal const string BuyerOccurredAtIndexName = "IX_PurchaseEvidence_Workspace_Buyer_OccurredAt";
 
     internal DbSet<PurchaseEvidence> PurchaseEvidence => Set<PurchaseEvidence>();
     internal DbSet<CommercialEvidenceAuditRecord> AuditRecords => Set<CommercialEvidenceAuditRecord>();
@@ -69,6 +70,8 @@ internal sealed class CommercialEvidenceDbContext(DbContextOptions<CommercialEvi
                 .IsUnique()
                 .HasFilter(null)
                 .HasDatabaseName(SourceUniqueIndexName);
+            entity.HasIndex(item => new { item.WorkspaceId, item.BuyerRefType, item.BuyerRefId, item.OccurredAt })
+                .HasDatabaseName(BuyerOccurredAtIndexName);
         });
 
         modelBuilder.Entity<CommercialEvidenceAuditRecord>(entity =>

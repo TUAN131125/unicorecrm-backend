@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnicoreCRM.Crm.Customers.Application.Common;
+using UnicoreCRM.Crm.Customers.Application.Health;
 using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Crm.Customers.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
@@ -11,7 +12,8 @@ namespace UnicoreCRM.Crm.Customers.Application.ListCustomers;
 internal sealed record Query(CustomerRequestMetadata Metadata, string? Q, string? Type, string? Status,
     string? OwnerId, string? Segment, string? Tier, string? Cursor, int Limit);
 
-internal sealed partial class Handler(CustomerAuthorization authorization, ICustomersPersistence persistence, TimeProvider timeProvider)
+internal sealed partial class Handler(CustomerAuthorization authorization, ICustomersPersistence persistence,
+    CustomerHealthAssessmentService health, TimeProvider timeProvider)
 {
     private static readonly HashSet<string> Types = ["B2C", "B2B"];
     private static readonly HashSet<string> Statuses = ["NEW", "ACTIVE", "AT_RISK", "INACTIVE", "CHURNED", "DO_NOT_CONTACT", "ARCHIVED"];
@@ -53,7 +55,9 @@ internal sealed partial class Handler(CustomerAuthorization authorization, ICust
         var hasNext = candidates.Count > query.Limit;
         var page = hasNext ? candidates.Take(query.Limit).ToArray() : candidates;
         var next = hasNext ? CustomerListCursor.Encode(page[^1]) : null;
-        var items = page.Select(x => CustomerFieldSecurity.Project(CustomerProjection.Document(x), access.Value.Authorization)).ToArray();
+        var assessments = await health.AssessBatchAsync(access.Value.Trusted, page, cancellationToken);
+        var items = page.Select(x => CustomerFieldSecurity.Project(CustomerProjection.Document(x), access.Value.Authorization)
+            with { HealthAssessment = assessments[x.CustomerId] }).ToArray();
         return CustomerOperationResult<CustomerListResponse>.Success(new(items, new(next, hasNext)));
     }
 

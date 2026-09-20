@@ -17,6 +17,11 @@ internal sealed class CommercialEvidenceUniqueConflictException(
 
 internal interface ICommercialEvidencePersistence
 {
+    Task<IReadOnlyList<PurchaseHealthSignalRow>> ReadPurchaseHealthSignalsAsync(
+        string workspaceId,
+        IReadOnlyCollection<Contracts.CustomerPurchaseHealthBuyerRef> buyerRefs,
+        DateTimeOffset asOf,
+        CancellationToken cancellationToken);
     Task<PurchaseEvidence?> FindOriginalByOrderSourceAsync(
         string workspaceId,
         string orderId,
@@ -31,3 +36,5 @@ internal interface ICommercialEvidencePersistence
     void ClearTrackedChanges();
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
+
+internal sealed record PurchaseHealthSignalRow(string BuyerRefType, string BuyerRefId, DateTimeOffset OccurredAt);
