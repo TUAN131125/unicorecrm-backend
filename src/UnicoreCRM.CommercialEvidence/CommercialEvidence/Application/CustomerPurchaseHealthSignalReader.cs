@@ -4,7 +4,7 @@ using UnicoreCRM.Platform.Workspace.Contracts;
 namespace UnicoreCRM.CommercialEvidence.CommercialEvidence.Application;
 
 internal sealed class CustomerPurchaseHealthSignalReader(ICommercialEvidencePersistence persistence)
-    : ICustomerPurchaseHealthSignalReader
+    : ICustomerPurchaseHealthSignalReader, ISystemCustomerPurchaseHealthSignalReader
 {
     public async Task<CustomerPurchaseHealthSignalSnapshot?> ReadAsync(
         TrustedWorkspaceContext trustedWorkspace,
@@ -20,6 +20,19 @@ internal sealed class CustomerPurchaseHealthSignalReader(ICommercialEvidencePers
         CancellationToken cancellationToken)
     {
         CommercialEvidenceValidation.ValidateTrustedWorkspace(trustedWorkspace);
+        return await ReadCoreAsync(trustedWorkspace.WorkspaceId, buyerRefs, asOf, cancellationToken);
+    }
+
+    async Task<IReadOnlyList<CustomerPurchaseHealthSignalSnapshot>> ISystemCustomerPurchaseHealthSignalReader.ReadBatchAsync(
+        string workspaceId, IReadOnlyCollection<CustomerPurchaseHealthBuyerRef> buyerRefs, DateTimeOffset asOf, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceId) || workspaceId.Length > 128) throw new ArgumentException("Workspace identity is invalid.", nameof(workspaceId));
+        return await ReadCoreAsync(workspaceId, buyerRefs, asOf, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<CustomerPurchaseHealthSignalSnapshot>> ReadCoreAsync(
+        string workspaceId, IReadOnlyCollection<CustomerPurchaseHealthBuyerRef> buyerRefs, DateTimeOffset asOf, CancellationToken cancellationToken)
+    {
         if (buyerRefs.Count > 250) throw new ArgumentOutOfRangeException(nameof(buyerRefs));
         var normalized = buyerRefs.Distinct().ToArray();
         foreach (var buyerRef in normalized)
@@ -29,7 +42,7 @@ internal sealed class CustomerPurchaseHealthSignalReader(ICommercialEvidencePers
         if (normalized.Length == 0) return [];
 
         var rows = await persistence.ReadPurchaseHealthSignalsAsync(
-            trustedWorkspace.WorkspaceId,
+            workspaceId,
             normalized,
             asOf.ToUniversalTime(),
             cancellationToken);

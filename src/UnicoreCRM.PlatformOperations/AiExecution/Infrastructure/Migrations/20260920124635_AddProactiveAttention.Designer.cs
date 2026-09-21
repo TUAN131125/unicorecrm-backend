@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UnicoreCRM.PlatformOperations.AiExecution.Infrastructure;
 
@@ -11,9 +12,11 @@ using UnicoreCRM.PlatformOperations.AiExecution.Infrastructure;
 namespace UnicoreCRM.PlatformOperations.AiExecution.Infrastructure.Migrations
 {
     [DbContext(typeof(AiExecutionDbContext))]
-    partial class AiExecutionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920124635_AddProactiveAttention")]
+    partial class AddProactiveAttention
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

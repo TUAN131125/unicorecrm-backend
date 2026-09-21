@@ -12,4 +12,5 @@
     <ProjectReference Include="../UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.AI.ProviderVerifier" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.AI.ProactiveVerifier" /></ItemGroup>
 </Project>

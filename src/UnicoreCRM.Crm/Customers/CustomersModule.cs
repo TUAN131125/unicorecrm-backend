@@ -23,6 +23,7 @@ internal static class CustomersModule
             (provider, cancellationToken) => provider.GetRequiredService<CustomersDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<CustomerAuthorization>();
         services.AddScoped<Application.Health.CustomerHealthAssessmentService>();
+        services.AddScoped<IProactiveCustomerHealthReader, Application.Health.ProactiveCustomerHealthReader>();
         services.AddScoped<Application.ListCustomers.Handler>();
         services.AddScoped<Application.GetCustomer.Handler>();
         services.AddScoped<ICustomerSummaryReader, Application.ReadCustomerSummary.CustomerSummaryReader>();

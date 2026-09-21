@@ -48,6 +48,36 @@ internal sealed class AiConfigurationAuditRow
     public string CorrelationId { get; set; } = ""; public DateTimeOffset OccurredAt { get; set; }
 }
 
+internal sealed class ProactiveItemRow
+{
+    public string ItemId { get; set; } = ""; public string WorkspaceId { get; set; } = ""; public string OwnerMemberId { get; set; } = "";
+    public string TriggerType { get; set; } = ""; public string SubjectType { get; set; } = ""; public string SubjectId { get; set; } = "";
+    public string Severity { get; set; } = ""; public string ReasonCode { get; set; } = ""; public string TriggerFingerprint { get; set; } = "";
+    public string RiskCycleKey { get; set; } = ""; public string Status { get; set; } = ""; public DateTimeOffset FirstDetectedAt { get; set; }
+    public DateTimeOffset LastDetectedAt { get; set; } public DateTimeOffset? SeenAt { get; set; } public DateTimeOffset? SnoozedUntil { get; set; }
+    public DateTimeOffset? DismissedAt { get; set; } public DateTimeOffset? ResolvedAt { get; set; } public string? SourceVersion { get; set; }
+    public long Version { get; set; } public DateTimeOffset CreatedAt { get; set; } public DateTimeOffset UpdatedAt { get; set; }
+}
+internal sealed class WorkspaceProactivePolicyRow
+{
+    public string WorkspaceId { get; set; } = ""; public bool Enabled { get; set; } public long Version { get; set; }
+    public DateTimeOffset? LastEvaluationAt { get; set; } public DateTimeOffset? NextEvaluationAt { get; set; }
+    public string? LeaseId { get; set; } public DateTimeOffset? LeaseExpiresAt { get; set; } public string UpdatedBy { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } public byte[] RowVersion { get; set; } = [];
+}
+internal sealed class ProactiveCommandRow
+{
+    public string ScopeKey { get; set; } = ""; public string WorkspaceId { get; set; } = ""; public string MemberId { get; set; } = "";
+    public string Operation { get; set; } = ""; public string IdempotencyKey { get; set; } = ""; public string Fingerprint { get; set; } = "";
+    public string ResultJson { get; set; } = "{}"; public DateTimeOffset CreatedAt { get; set; }
+}
+internal sealed class ProactiveAuditRow
+{
+    public string AuditId { get; set; } = ""; public string WorkspaceId { get; set; } = ""; public string? MemberId { get; set; }
+    public string Action { get; set; } = ""; public string? ItemId { get; set; } public string? SubjectId { get; set; }
+    public string SafeSummaryJson { get; set; } = "{}"; public string CorrelationId { get; set; } = ""; public DateTimeOffset OccurredAt { get; set; }
+}
+
 internal sealed class AiExecutionDbContext(DbContextOptions<AiExecutionDbContext> options) : DbContext(options)
 {
     internal DbSet<AiExecutionRow> Executions => Set<AiExecutionRow>();
@@ -55,6 +85,10 @@ internal sealed class AiExecutionDbContext(DbContextOptions<AiExecutionDbContext
     internal DbSet<WorkspaceAiConfigurationRow> Configurations => Set<WorkspaceAiConfigurationRow>();
     internal DbSet<AiConfigurationCommandRow> ConfigurationCommands => Set<AiConfigurationCommandRow>();
     internal DbSet<AiConfigurationAuditRow> ConfigurationAudits => Set<AiConfigurationAuditRow>();
+    internal DbSet<ProactiveItemRow> ProactiveItems => Set<ProactiveItemRow>();
+    internal DbSet<WorkspaceProactivePolicyRow> ProactivePolicies => Set<WorkspaceProactivePolicyRow>();
+    internal DbSet<ProactiveCommandRow> ProactiveCommands => Set<ProactiveCommandRow>();
+    internal DbSet<ProactiveAuditRow> ProactiveAudits => Set<ProactiveAuditRow>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var row=modelBuilder.Entity<AiExecutionRow>(); row.ToTable("AiExecutions","platform_ai"); row.HasKey(x=>x.ExecutionId);
@@ -88,6 +122,27 @@ internal sealed class AiExecutionDbContext(DbContextOptions<AiExecutionDbContext
         audit.Property(x => x.AuditId).HasMaxLength(80); audit.Property(x => x.WorkspaceId).HasMaxLength(128); audit.Property(x => x.MemberId).HasMaxLength(128);
         audit.Property(x => x.Action).HasMaxLength(80); audit.Property(x => x.SafeSummaryJson).HasMaxLength(2000); audit.Property(x => x.CorrelationId).HasMaxLength(128);
         audit.HasIndex(x => new { x.WorkspaceId, x.OccurredAt });
+
+        var item = modelBuilder.Entity<ProactiveItemRow>(); item.ToTable("ProactiveItems", "platform_ai"); item.HasKey(x => x.ItemId);
+        item.Property(x => x.ItemId).HasMaxLength(80); item.Property(x => x.WorkspaceId).HasMaxLength(128); item.Property(x => x.OwnerMemberId).HasMaxLength(128);
+        item.Property(x => x.TriggerType).HasMaxLength(64); item.Property(x => x.SubjectType).HasMaxLength(32); item.Property(x => x.SubjectId).HasMaxLength(128);
+        item.Property(x => x.Severity).HasMaxLength(16); item.Property(x => x.ReasonCode).HasMaxLength(128); item.Property(x => x.TriggerFingerprint).HasMaxLength(128);
+        item.Property(x => x.RiskCycleKey).HasMaxLength(128); item.Property(x => x.Status).HasMaxLength(16); item.Property(x => x.SourceVersion).HasMaxLength(128);
+        item.Property(x => x.Version).IsConcurrencyToken(); item.HasIndex(x => new { x.WorkspaceId, x.OwnerMemberId, x.Status, x.UpdatedAt });
+        item.HasIndex(x => new { x.WorkspaceId, x.SubjectType, x.SubjectId, x.TriggerType, x.RiskCycleKey }).IsUnique();
+        item.HasIndex(x => new { x.WorkspaceId, x.SubjectType, x.SubjectId, x.TriggerType }).IsUnique()
+            .HasFilter("[Status] <> N'RESOLVED'");
+        var policy = modelBuilder.Entity<WorkspaceProactivePolicyRow>(); policy.ToTable("WorkspaceProactivePolicies", "platform_ai"); policy.HasKey(x => x.WorkspaceId);
+        policy.Property(x => x.WorkspaceId).HasMaxLength(128); policy.Property(x => x.LeaseId).HasMaxLength(80); policy.Property(x => x.UpdatedBy).HasMaxLength(128); policy.Property(x => x.RowVersion).IsRowVersion();
+        policy.HasIndex(x => new { x.Enabled, x.NextEvaluationAt, x.LeaseExpiresAt });
+        var proactiveCommand = modelBuilder.Entity<ProactiveCommandRow>(); proactiveCommand.ToTable("ProactiveCommands", "platform_ai"); proactiveCommand.HasKey(x => x.ScopeKey);
+        proactiveCommand.Property(x => x.ScopeKey).HasMaxLength(512); proactiveCommand.Property(x => x.WorkspaceId).HasMaxLength(128); proactiveCommand.Property(x => x.MemberId).HasMaxLength(128);
+        proactiveCommand.Property(x => x.Operation).HasMaxLength(80); proactiveCommand.Property(x => x.IdempotencyKey).HasMaxLength(128); proactiveCommand.Property(x => x.Fingerprint).HasMaxLength(128); proactiveCommand.Property(x => x.ResultJson).HasMaxLength(4000);
+        proactiveCommand.HasIndex(x => new { x.WorkspaceId, x.MemberId, x.Operation, x.IdempotencyKey }).IsUnique();
+        var proactiveAudit = modelBuilder.Entity<ProactiveAuditRow>(); proactiveAudit.ToTable("ProactiveAudits", "platform_ai"); proactiveAudit.HasKey(x => x.AuditId);
+        proactiveAudit.Property(x => x.AuditId).HasMaxLength(80); proactiveAudit.Property(x => x.WorkspaceId).HasMaxLength(128); proactiveAudit.Property(x => x.MemberId).HasMaxLength(128);
+        proactiveAudit.Property(x => x.Action).HasMaxLength(80); proactiveAudit.Property(x => x.ItemId).HasMaxLength(80); proactiveAudit.Property(x => x.SubjectId).HasMaxLength(128);
+        proactiveAudit.Property(x => x.SafeSummaryJson).HasMaxLength(2000); proactiveAudit.Property(x => x.CorrelationId).HasMaxLength(128); proactiveAudit.HasIndex(x => new { x.WorkspaceId, x.OccurredAt });
     }
 }
 

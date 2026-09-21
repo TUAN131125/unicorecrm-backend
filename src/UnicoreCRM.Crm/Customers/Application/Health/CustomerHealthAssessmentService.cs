@@ -10,6 +10,7 @@ namespace UnicoreCRM.Crm.Customers.Application.Health;
 
 internal sealed class CustomerHealthAssessmentService(
     ICustomerPurchaseHealthSignalReader signalReader,
+    ISystemCustomerPurchaseHealthSignalReader systemSignalReader,
     TimeProvider timeProvider,
     ILogger<CustomerHealthAssessmentService> logger)
 {
@@ -52,6 +53,22 @@ internal sealed class CustomerHealthAssessmentService(
             Stopwatch.GetElapsedTime(started).TotalMilliseconds,
             CustomerHealthVocabulary.AlgorithmVersion);
         return result;
+    }
+
+    internal async Task<IReadOnlyDictionary<string, CustomerHealthAssessment?>> AssessSystemBatchAsync(
+        string workspaceId, IReadOnlyCollection<Customer> customers, CancellationToken cancellationToken)
+    {
+        var asOf = timeProvider.GetUtcNow();
+        var assessable = customers.Where(customer => customer.Status != "ARCHIVED").ToArray();
+        var references = assessable.Select(BuyerRef).Distinct().ToArray();
+        var signals = references.Length == 0 ? [] : await systemSignalReader.ReadBatchAsync(workspaceId, references, asOf, cancellationToken);
+        var byBuyer = signals.ToDictionary(signal => signal.BuyerRef);
+        return customers.ToDictionary(customer => customer.CustomerId, customer =>
+        {
+            if (customer.Status == "ARCHIVED") return null;
+            byBuyer.TryGetValue(BuyerRef(customer), out var signal);
+            return Contract(CustomerHealthCalculator.Calculate(new(signal?.PurchaseCount ?? 0, signal?.RecentPurchaseTimestamps ?? []), asOf));
+        });
     }
 
     private static CustomerPurchaseHealthBuyerRef BuyerRef(Customer customer) =>

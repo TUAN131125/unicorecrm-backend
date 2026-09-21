@@ -7,6 +7,7 @@ using UnicoreCRM.AI.Prompts;
 using UnicoreCRM.AI.Providers;
 using UnicoreCRM.AI.Tools;
 using UnicoreCRM.AI.Usage;
+using UnicoreCRM.AI.Proactive;
 
 namespace UnicoreCRM.AI;
 
@@ -23,6 +24,7 @@ public static class AIModule
         services.AddToolsModule();
         services.AddProvidersModule(configuration, environment);
         services.AddUsageModule();
+        services.AddProactiveModule();
 
         return services;
     }

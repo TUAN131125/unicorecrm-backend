@@ -63,7 +63,7 @@ Check("deterministic replay", recent, Assess(1, now.AddDays(-1)));
 Check("algorithm version", "CUSTOMER_HEALTH_PURCHASE_RECENCY_V1", recent.AlgorithmVersion);
 
 var signalReader = new CountingSignalReader(now);
-var assessmentService = new CustomerHealthAssessmentService(signalReader,
+var assessmentService = new CustomerHealthAssessmentService(signalReader, signalReader,
     new FixedTimeProvider(now), NullLogger<CustomerHealthAssessmentService>.Instance);
 var trusted = new TrustedWorkspaceContext("workspace_health", "account_health", "member_health", "membership_health");
 var customers = new[]
@@ -82,7 +82,7 @@ sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     public override DateTimeOffset GetUtcNow() => now;
 }
 
-sealed class CountingSignalReader(DateTimeOffset now) : ICustomerPurchaseHealthSignalReader
+sealed class CountingSignalReader(DateTimeOffset now) : ICustomerPurchaseHealthSignalReader, ISystemCustomerPurchaseHealthSignalReader
 {
     internal int BatchCalls { get; private set; }
     public Task<CustomerPurchaseHealthSignalSnapshot?> ReadAsync(TrustedWorkspaceContext trustedWorkspace,
@@ -96,4 +96,7 @@ sealed class CountingSignalReader(DateTimeOffset now) : ICustomerPurchaseHealthS
             .Select(reference => new CustomerPurchaseHealthSignalSnapshot(reference, 1, now.AddDays(-1), now.AddDays(-1), [now.AddDays(-1)]))
             .ToArray());
     }
+    Task<IReadOnlyList<CustomerPurchaseHealthSignalSnapshot>> ISystemCustomerPurchaseHealthSignalReader.ReadBatchAsync(
+        string workspaceId, IReadOnlyCollection<CustomerPurchaseHealthBuyerRef> buyerRefs, DateTimeOffset asOf, CancellationToken cancellationToken) =>
+        ReadBatchAsync(new TrustedWorkspaceContext(workspaceId, "system", "system", "system"), buyerRefs, asOf, cancellationToken);
 }

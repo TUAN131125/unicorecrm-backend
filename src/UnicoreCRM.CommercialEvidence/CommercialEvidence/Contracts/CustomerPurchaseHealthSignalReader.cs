@@ -25,3 +25,13 @@ public interface ICustomerPurchaseHealthSignalReader
         DateTimeOffset asOf,
         CancellationToken cancellationToken);
 }
+
+/// <summary>Owner-to-owner system read used only by Customers for bounded background Health evaluation.</summary>
+public interface ISystemCustomerPurchaseHealthSignalReader
+{
+    Task<IReadOnlyList<CustomerPurchaseHealthSignalSnapshot>> ReadBatchAsync(
+        string workspaceId,
+        IReadOnlyCollection<CustomerPurchaseHealthBuyerRef> buyerRefs,
+        DateTimeOffset asOf,
+        CancellationToken cancellationToken);
+}
