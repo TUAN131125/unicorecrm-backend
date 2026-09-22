@@ -13,6 +13,8 @@ internal static class WorkspaceCapabilityPolicy
         "access.read",
         "ai.configuration.manage",
         "ai.configuration.read",
+        "ai.proactive.manage",
+        "ai.proactive.use",
         "contacts.create",
         "contacts.read",
         "contacts.update",

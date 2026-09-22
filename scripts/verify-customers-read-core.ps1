@@ -966,6 +966,35 @@ VALUES ('assignment-customers-second-real', '$($script:WorkspaceId)', '$secondMe
     Add-Result 'mutation probes changed no Customer state' ([string]$countBeforeMutationProbe) `
         ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM customers.Customers'))
 
+    # Exercise the production Attention route with real Customers and AccessControl persistence.
+    Set-CustomerScope -RoleId $roleId -Scope 'Workspace'
+    Clear-CustomerFields
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+IF NOT EXISTS (SELECT 1 FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='ai.proactive.use')
+INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$roleId','ai.proactive.use');
+UPDATE customers.Customers SET OwnerId='$callerMemberId' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA';
+INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES
+('field_customers_read_attention_owner','$($script:WorkspaceId)','$roleId','customers','ownerId','Hidden'),
+('field_customers_read_attention_version','$($script:WorkspaceId)','$roleId','customers','version','Hidden');
+INSERT INTO platform_ai.ProactiveItems(ItemId,WorkspaceId,OwnerMemberId,TriggerType,SubjectType,SubjectId,Severity,ReasonCode,TriggerFingerprint,RiskCycleKey,Status,FirstDetectedAt,LastDetectedAt,Version,CreatedAt,UpdatedAt)
+VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUSTOMER_HEALTH_RISK','CUSTOMER','$customerA','HIGH','PURCHASE_RECENCY_AT_RISK','security-fixture','security-cycle','OPEN',SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET(),0,SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET());
+"@
+    $attention = Invoke-Customer -Method 'GET' -Path '/ai/proactive/items'
+    Add-Result 'real Attention permits own Customer with hidden owner and Customer version' '200|1' "$($attention.Status)|$(@($attention.Body.items).Count)"
+    Add-Result 'Attention never exports raw owner identity' 'True' ($attention.Raw -notmatch 'ownerMemberId|ownerId' -and $attention.Raw -notmatch [regex]::Escape($callerMemberId)).ToString()
+    Add-Result 'Attention version belongs to item not hidden Customer' '0' ([string]$attention.Body.items[0].version)
+    foreach ($accessMode in @('Hidden','Masked')) {
+        Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES('field_customers_read_attention_health','$($script:WorkspaceId)','$roleId','customers','health','$accessMode')"
+        $hiddenAttention = Invoke-Customer -Method 'GET' -Path '/ai/proactive/items'
+        Add-Result "real Attention health $accessMode omits Customer" '200|0' "$($hiddenAttention.Status)|$(@($hiddenAttention.Body.items).Count)"
+        Add-Result "real Attention health $accessMode denies detail" '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
+        Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_customers_read_attention_health'"
+    }
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='member_reassigned' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
+    Add-Result 'real Attention reassigned Customer omitted for old owner' '0' ([string]@((Invoke-Customer -Method 'GET' -Path '/ai/proactive/items').Body.items).Count)
+    Add-Result 'real Attention reassigned Customer detail unavailable' '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
+    Clear-CustomerFields
+
     $healthy = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
     Add-Result 'ApiHost healthy after denied requests' '200' $healthy.Status
 

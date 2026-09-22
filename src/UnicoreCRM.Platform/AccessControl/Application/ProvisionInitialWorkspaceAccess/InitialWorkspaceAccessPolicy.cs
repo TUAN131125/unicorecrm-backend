@@ -58,27 +58,24 @@ internal static class InitialWorkspaceAccessPolicy
     // Exact owner projection immediately preceding authoritative Contact writes. Deriving it from
     // the current server-owned set keeps unrelated admitted module capabilities intact while still
     // refusing arbitrary subsets or caller-invented capabilities.
-    private static IReadOnlyList<string> PreContactUpdateOwnerCapabilities { get; } =
+    private static IReadOnlyList<string> PreProactiveOwnerCapabilities { get; } =
         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
-            .Where(capability => capability is not "contacts.update" and not "contacts.delete")
+            .Where(capability => capability is not "ai.proactive.use" and not "ai.proactive.manage")
             .ToArray();
 
-    private static IReadOnlyList<string> PreContactArchiveOwnerCapabilities { get; } =
-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
-            .Where(capability => capability is not "contacts.delete")
-            .ToArray();
+    // Historical snapshots form a predecessor chain. Later capabilities must never leak into an
+    // earlier frozen owner projection merely because the current owner role grows.
+    private static IReadOnlyList<string> PreAiConfigurationOwnerCapabilities { get; } =
+        PreProactiveOwnerCapabilities.Where(capability => capability is not "ai.configuration.read" and not "ai.configuration.manage").ToArray();
 
     private static IReadOnlyList<string> PreLeadCustomerConversionOwnerCapabilities { get; } =
-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
-            .Where(capability => capability is not "leads.convert_to_customer")
-            .ToArray();
+        PreAiConfigurationOwnerCapabilities.Where(capability => capability is not "leads.convert_to_customer").ToArray();
 
-    // Exact owner projection immediately preceding CRM-AI-002 Workspace provider governance.
-    // Only this complete server-owned predecessor is eligible for automatic owner repair.
-    private static IReadOnlyList<string> PreAiConfigurationOwnerCapabilities { get; } =
-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
-            .Where(capability => capability is not "ai.configuration.read" and not "ai.configuration.manage")
-            .ToArray();
+    private static IReadOnlyList<string> PreContactArchiveOwnerCapabilities { get; } =
+        PreLeadCustomerConversionOwnerCapabilities.Where(capability => capability is not "contacts.delete").ToArray();
+
+    private static IReadOnlyList<string> PreContactUpdateOwnerCapabilities { get; } =
+        PreContactArchiveOwnerCapabilities.Where(capability => capability is not "contacts.update").ToArray();
 
     internal static IReadOnlyList<string> Capabilities { get; } =
         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities;
@@ -99,12 +96,14 @@ internal static class InitialWorkspaceAccessPolicy
         var preContactArchive = Validate(PreContactArchiveOwnerCapabilities, "The pre-Contact-archive Workspace Owner capability set is not canonical.");
         var preLeadCustomerConversion = Validate(PreLeadCustomerConversionOwnerCapabilities, "The pre-Lead-customer-conversion Workspace Owner capability set is not canonical.");
         var preAiConfiguration = Validate(PreAiConfigurationOwnerCapabilities, "The pre-AI-configuration Workspace Owner capability set is not canonical.");
+        var preProactive = Validate(PreProactiveOwnerCapabilities, "The pre-Proactive Workspace Owner capability set is not canonical.");
         return storedCapabilities.SequenceEqual(v1, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v2, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preContactUpdate, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preContactArchive, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preLeadCustomerConversion, StringComparer.Ordinal)
-            || storedCapabilities.SequenceEqual(preAiConfiguration, StringComparer.Ordinal);
+            || storedCapabilities.SequenceEqual(preAiConfiguration, StringComparer.Ordinal)
+            || storedCapabilities.SequenceEqual(preProactive, StringComparer.Ordinal);
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ internal static class GatewayModule
     {
         services.AddScoped<AiAdvisoryApplication>();
         services.AddScoped<AiConfigurationApplication>();
+        services.AddScoped<ProactiveAttentionApplication>();
         return services;
     }
 }

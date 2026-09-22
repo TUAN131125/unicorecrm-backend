@@ -107,12 +107,13 @@ internal sealed class CustomerAuthorization(IRecordAccessEvaluator evaluator)
         CustomerRequestMetadata metadata,
         AccessRequirement requirement,
         CancellationToken cancellationToken,
-        RecordAccessRepresentation? representation = null)
+        RecordAccessRepresentation? representation = null,
+        IReadOnlyList<string>? requestedFields = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
             requirement.Capability,
-            CustomerFieldSecurity.FieldKeys,
+            requestedFields ?? CustomerFieldSecurity.FieldKeys,
             representation ?? RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);

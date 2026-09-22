@@ -5,15 +5,16 @@ namespace UnicoreCRM.AI.Proactive.Application;
 
 internal sealed class ProactiveWorkspaceEvaluator(IProactiveCustomerHealthReader customers, CustomerHealthRiskReconciler reconciler)
 {
-    internal async Task<int> EvaluateAsync(string workspaceId, string correlationId, CancellationToken ct)
+    internal async Task<int> EvaluateAsync(string workspaceId, string correlationId, Func<CancellationToken, Task> renewLease, CancellationToken ct)
     {
         string? cursor = null;
         var count = 0;
         do
         {
             var page = await customers.ReadPageAsync(workspaceId, cursor, 250, ct);
-            foreach (var fact in page.Items)
-                await reconciler.ReconcileAsync(workspaceId, fact, correlationId, ct);
+            await renewLease(ct);
+            await reconciler.ReconcilePageAsync(workspaceId, page.Items, correlationId, ct);
+            await renewLease(ct);
             count += page.Items.Count;
             cursor = page.NextCursor;
         } while (cursor is not null);

@@ -63,4 +63,9 @@ internal static class AiErrors
 
     internal static AiOperationError ProviderSafetyRefusal() =>
         new("AI_PROVIDER_SAFETY_REFUSAL", 422, "AI provider refused the request under its safety policy");
+
+    internal static AiOperationError ProactiveAccessDenied() => new("AI_PROACTIVE_ACCESS_DENIED", 403, "Proactive Attention access denied");
+    internal static AiOperationError ProactiveNotFound() => new("AI_PROACTIVE_ITEM_NOT_FOUND", 404, "Proactive Attention item was not found or is not visible");
+    internal static AiOperationError ProactiveVersionConflict() => new("AI_PROACTIVE_VERSION_CONFLICT", 409, "Proactive Attention version conflict");
+    internal static AiOperationError ProactiveIdempotencyConflict() => new("AI_PROACTIVE_IDEMPOTENCY_KEY_REUSED", 409, "Proactive Attention idempotency key was reused");
 }

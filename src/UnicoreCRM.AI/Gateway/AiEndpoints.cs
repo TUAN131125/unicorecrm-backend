@@ -26,7 +26,58 @@ public static class AiEndpoints
         endpoints.MapPost("/ai/configuration/test", TestConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("testAiConfiguration");
         endpoints.MapPost("/ai/configuration/activate", ActivateConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("activateAiConfiguration");
         endpoints.MapPost("/ai/configuration/disable", DisableConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("disableAiConfiguration");
+        endpoints.MapGet("/ai/proactive/items", ListProactiveItemsAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("listProactiveItems");
+        endpoints.MapGet("/ai/proactive/items/{itemId}", GetProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("getProactiveItem");
+        endpoints.MapPost("/ai/proactive/items/{itemId}/seen", SeenProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("seeProactiveItem");
+        endpoints.MapPost("/ai/proactive/items/{itemId}/snooze", SnoozeProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("snoozeProactiveItem");
+        endpoints.MapPost("/ai/proactive/items/{itemId}/dismiss", DismissProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("dismissProactiveItem");
+        endpoints.MapGet("/ai/proactive/configuration", GetProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("getProactiveConfiguration");
+        endpoints.MapPut("/ai/proactive/configuration", SaveProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("saveProactiveConfiguration");
         return endpoints;
+    }
+
+    private static async Task<IResult> ListProactiveItemsAsync(string? cursor, int? limit, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
+    {
+        var result = await application.ListAsync(cursor, limit ?? 50, RequestId(context), CorrelationId(context), ct);
+        if (result.IsSuccess && result.Value!.NextCursor is not null) context.Response.Headers["X-Next-Cursor"] = result.Value.NextCursor;
+        return Result(result, CorrelationId(context));
+    }
+
+    private static async Task<IResult> GetProactiveItemAsync(string itemId, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct) =>
+        Result(await application.DetailAsync(itemId, RequestId(context), CorrelationId(context), ct), CorrelationId(context));
+
+    private static async Task<IResult> SeenProactiveItemAsync(string itemId, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
+    {
+        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
+        var result=await application.SeenAsync(itemId,version,key!,RequestId(context),CorrelationId(context),ct);
+        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Item.Version}\"";return Result(result,CorrelationId(context));
+    }
+
+    private static async Task<IResult> SnoozeProactiveItemAsync(string itemId, SnoozeProactiveItemRequest request, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
+    {
+        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
+        var result=await application.SnoozeAsync(itemId,request.SnoozedUntil,version,key!,RequestId(context),CorrelationId(context),ct);
+        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Item.Version}\"";return Result(result,CorrelationId(context));
+    }
+
+    private static async Task<IResult> DismissProactiveItemAsync(string itemId, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
+    {
+        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
+        var result=await application.DismissAsync(itemId,version,key!,RequestId(context),CorrelationId(context),ct);
+        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Item.Version}\"";return Result(result,CorrelationId(context));
+    }
+
+    private static async Task<IResult> GetProactiveConfigurationAsync(HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
+    {
+        var result=await application.GetConfigurationAsync(CorrelationId(context),ct);
+        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Version}\"";return Result(result,CorrelationId(context));
+    }
+
+    private static async Task<IResult> SaveProactiveConfigurationAsync(SaveProactiveConfigurationRequest request, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
+    {
+        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
+        var result=await application.SaveConfigurationAsync(request.Enabled,version,key!,CorrelationId(context),ct);
+        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Version}\"";return Result(result,CorrelationId(context));
     }
 
     private static async Task<IResult> GetCatalogAsync(HttpContext context, AiConfigurationApplication application, CancellationToken cancellationToken)
@@ -155,6 +206,12 @@ public static class AiEndpoints
     private static string CorrelationId(HttpContext context)
     {
         var supplied = context.Request.Headers["X-Correlation-Id"].ToString();
+        return supplied.Length is >= 8 and <= 128 ? supplied : context.TraceIdentifier;
+    }
+
+    private static string RequestId(HttpContext context)
+    {
+        var supplied = context.Request.Headers["X-Request-Id"].ToString();
         return supplied.Length is >= 8 and <= 128 ? supplied : context.TraceIdentifier;
     }
 }

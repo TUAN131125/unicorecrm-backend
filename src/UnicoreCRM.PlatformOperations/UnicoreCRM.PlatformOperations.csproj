@@ -4,6 +4,7 @@
     <AssemblyName>UnicoreCRM.PlatformOperations</AssemblyName>
   </PropertyGroup>
   <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.EventWebhook.Verifier" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.AI.ProactiveVerifier" /></ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

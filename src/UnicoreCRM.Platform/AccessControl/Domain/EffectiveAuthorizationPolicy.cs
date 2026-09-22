@@ -79,7 +79,8 @@ internal static class EffectiveAuthorizationPolicy
         if (capabilities.Contains("studio.read", StringComparer.Ordinal)
             || capabilities.Contains("studio.configure", StringComparer.Ordinal)
             || capabilities.Contains("ai.configuration.read", StringComparer.Ordinal)
-            || capabilities.Contains("ai.configuration.manage", StringComparer.Ordinal))
+            || capabilities.Contains("ai.configuration.manage", StringComparer.Ordinal)
+            || capabilities.Contains("ai.proactive.manage", StringComparer.Ordinal))
             result.Add("studio");
         if (capabilities.Contains("access.read", StringComparer.Ordinal)
             || capabilities.Contains("access.configure", StringComparer.Ordinal)

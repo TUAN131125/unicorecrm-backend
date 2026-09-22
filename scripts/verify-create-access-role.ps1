@@ -252,7 +252,7 @@ try {
     Add-Result 'capability denial precedes validation' 'ACCESS_DENIED' $deniedMalformed.Body.code
     Invoke-SqlNonQuery "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$adminRoleId','access.configure');"
 
-    $happyBody = New-Body "  $([char]0x2003)Custom Managers$([char]0x2003)  " @('tasks.read','access.read','contacts.create','contacts.update','contacts.delete') @(
+    $happyBody = New-Body "  $([char]0x2003)Custom Managers$([char]0x2003)  " @('tasks.read','access.read','contacts.create','contacts.update','contacts.delete','ai.proactive.use','ai.proactive.manage') @(
         @{ resourceKey = ' Contacts '; scope = 'WORKSPACE' },
         @{ resourceKey = 'leads'; scope = 'CUSTOM'; allowedOwnerIds = @() },
         @{ resourceKey = 'deals'; scope = 'CUSTOM'; allowedOwnerIds = @('mem_owner_002','mem_owner_001') }
@@ -282,7 +282,7 @@ try {
     Add-Result 'opaque template provenance normalized' 'opaque-template-01' (Get-Scalar "SELECT SourceTemplateId FROM access.Roles WHERE RoleId='$roleId'")
     Add-Result 'role active' 'True' ([bool] (Get-Scalar "SELECT IsActive FROM access.Roles WHERE RoleId='$roleId'")).ToString()
     Add-Result 'role version persisted' 0 (Get-Scalar "SELECT Version FROM access.Roles WHERE RoleId='$roleId'")
-    Add-Result 'exact capabilities persisted' 'access.read,contacts.create,contacts.delete,contacts.update,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$roleId' ORDER BY Capability").Capability -join ',')
+    Add-Result 'exact capabilities persisted' 'access.read,ai.proactive.manage,ai.proactive.use,contacts.create,contacts.delete,contacts.update,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$roleId' ORDER BY Capability").Capability -join ',')
     Add-Result 'data scopes count' 3 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleDataScopes WHERE RoleId='$roleId'")
     Add-Result 'field security count' 2 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleFieldSecurity WHERE RoleId='$roleId'")
     Assert-True 'data-scope policy ID formats' (@(Invoke-Sql "SELECT PolicyId FROM access.RoleDataScopes WHERE RoleId='$roleId'" | Where-Object { $_.PolicyId -cnotmatch '^scope_[0-9a-f]{32}$' }).Count -eq 0)
