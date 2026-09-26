@@ -983,20 +983,93 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
     Add-Result 'real Attention permits own Customer with hidden owner and Customer version' '200|1' "$($attention.Status)|$(@($attention.Body.items).Count)"
     Add-Result 'Attention never exports raw owner identity' 'True' ($attention.Raw -notmatch 'ownerMemberId|ownerId' -and $attention.Raw -notmatch [regex]::Escape($callerMemberId)).ToString()
     Add-Result 'Attention version belongs to item not hidden Customer' '0' ([string]$attention.Body.items[0].version)
+    $suggestionPath = '/ai/proactive/items/attention_security_item/suggestion'
+    $customerBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"
+    $itemBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query "SELECT * FROM platform_ai.ProactiveItems WHERE ItemId='attention_security_item' FOR JSON PATH"
+    $tasksBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'
+    foreach ($locale in @('vi','en')) {
+        $suggestion = Invoke-Customer -Method 'POST' -Path $suggestionPath -Body ('{"locale":"' + $locale + '"}')
+        Add-Result "suggestion $locale success" '200' $suggestion.Status
+        Add-Result "suggestion $locale text-only draft" 'description,title' (($suggestion.Body.taskDraft.PSObject.Properties.Name | Sort-Object) -join ',')
+        Add-Result "suggestion $locale deterministic Why" 'PURCHASE_RECENCY_AT_RISK' $suggestion.Body.why.reasonCode
+        Add-Result "suggestion $locale correlated ledger" '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.AiExecutions WHERE ExecutionId='$($suggestion.Body.executionId)' AND Operation='requestProactiveSuggestion' AND Status='SUCCEEDED'"))
+        Add-Result "suggestion $locale safe audits" '2' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.ProactiveAudits WHERE ItemId='attention_security_item' AND JSON_VALUE(SafeSummaryJson,'$.executionId')='$($suggestion.Body.executionId)' AND Action IN ('AI_SUGGESTION_REQUESTED','AI_SUGGESTION_SUCCEEDED')"))
+    }
+    $suggestionExecutions = Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.AiExecutions WHERE Operation='requestProactiveSuggestion'"
+    foreach ($state in @('SNOOZED','DISMISSED','RESOLVED')) {
+        Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE platform_ai.ProactiveItems SET Status='$state' WHERE ItemId='attention_security_item'"
+        Add-Result "suggestion $state denied" '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+    }
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE platform_ai.ProactiveItems SET Status='OPEN' WHERE ItemId='attention_security_item'"
+    $invalidSuggestionLocale = Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{"locale":"fr"}'
+    Add-Result 'suggestion invalid locale' '422|AI_REQUEST_INVALID' "$($invalidSuggestionLocale.Status)|$($invalidSuggestionLocale.Body.code)"
+    foreach ($field in @('provider','model','apiKey','credential','credentialRef','question')) {
+        Add-Result "suggestion rejects $field override" '400' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body ('{"' + $field + '":"override"}')).Status
+    }
+    foreach ($capability in @('ai.proactive.use','customers.view')) {
+        Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='$capability'"
+        Add-Result "suggestion requires $capability" '403' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+        Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$roleId','$capability')"
+    }
+    Set-CustomerScope -RoleId $roleId -Scope 'Team'
+    Add-Result 'suggestion record scope denied' '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+    Set-CustomerScope -RoleId $roleId -Scope 'Workspace'
     foreach ($accessMode in @('Hidden','Masked')) {
         Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES('field_customers_read_attention_health','$($script:WorkspaceId)','$roleId','customers','health','$accessMode')"
         $hiddenAttention = Invoke-Customer -Method 'GET' -Path '/ai/proactive/items'
         Add-Result "real Attention health $accessMode omits Customer" '200|0' "$($hiddenAttention.Status)|$(@($hiddenAttention.Body.items).Count)"
         Add-Result "real Attention health $accessMode denies detail" '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
+        Add-Result "suggestion health $accessMode denies generation" '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
         Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_customers_read_attention_health'"
     }
     Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='member_reassigned' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
     Add-Result 'real Attention reassigned Customer omitted for old owner' '0' ([string]@((Invoke-Customer -Method 'GET' -Path '/ai/proactive/items').Body.items).Count)
     Add-Result 'real Attention reassigned Customer detail unavailable' '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
+    Add-Result 'suggestion reassigned Customer denied' '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='$callerMemberId' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
+    Add-Result 'suggestion denied cases produced zero executions' ([string]$suggestionExecutions) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.AiExecutions WHERE Operation='requestProactiveSuggestion'"))
+    Add-Result 'suggestion Customer unchanged' ([string]$customerBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"))
+    Add-Result 'suggestion item and version unchanged' ([string]$itemBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM platform_ai.ProactiveItems WHERE ItemId='attention_security_item' FOR JSON PATH"))
+    Add-Result 'suggestion zero Task created' ([string]$tasksBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'))
     Clear-CustomerFields
 
     $healthy = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
     Add-Result 'ApiHost healthy after denied requests' '200' $healthy.Status
+
+    # A second isolated listener exercises provider/validation failures through real Customers persistence.
+    $originalBaseUrl = $script:BaseUrl
+    foreach ($failureMode in @('UNAVAILABLE','MALFORMED')) {
+        $failureHost = $null
+        try {
+            $script:BaseUrl = "http://127.0.0.1:$($Port + 1)"
+            $env:ASPNETCORE_URLS = $script:BaseUrl
+            $env:AI__Provider__DevelopmentMode = $failureMode
+            $failureLog = "$logPath.suggestion-$failureMode"
+            $hostDll = Join-Path $repositoryRoot 'src/UnicoreCRM.ApiHost/bin/Debug/net10.0/UnicoreCRM.ApiHost.dll'
+            $failureHost = Start-Process -FilePath 'dotnet' -ArgumentList @($hostDll) -WorkingDirectory (Split-Path $hostProject) `
+                -PassThru -WindowStyle Hidden -RedirectStandardOutput $failureLog -RedirectStandardError "$failureLog.err"
+            $ready = $false
+            for ($attempt = 0; $attempt -lt $ReadyTimeoutSeconds; $attempt++) {
+                Start-Sleep -Seconds 1
+                if ($failureHost.HasExited) { throw "Suggestion failure fixture exited; see $failureLog" }
+                try { if ((Invoke-Api -Method 'GET' -Path '/auth/session').Status -gt 0) { $ready = $true; break } } catch { }
+            }
+            if (-not $ready) { throw 'Suggestion failure host did not become ready.' }
+            $failedSuggestion = Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}'
+            $expectedError = if ($failureMode -eq 'UNAVAILABLE') { 'AI_PROVIDER_UNAVAILABLE' } else { 'AI_PROVIDER_RESPONSE_INVALID' }
+            Add-Result "suggestion $failureMode failure" $expectedError $failedSuggestion.Body.code
+            Add-Result "suggestion $failureMode Customer unchanged" ([string]$customerBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"))
+            Add-Result "suggestion $failureMode item unchanged" ([string]$itemBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM platform_ai.ProactiveItems WHERE ItemId='attention_security_item' FOR JSON PATH"))
+            Add-Result "suggestion $failureMode zero Task created" ([string]$tasksBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'))
+            Add-Result "suggestion $failureMode failure audit" '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.ProactiveAudits WHERE ItemId='attention_security_item' AND Action='AI_SUGGESTION_FAILED' AND JSON_VALUE(SafeSummaryJson,'$.outcome')='$expectedError'"))
+        }
+        finally {
+            if ($null -ne $failureHost -and -not $failureHost.HasExited) { Stop-Process -Id $failureHost.Id -Force; $failureHost.WaitForExit(10000) | Out-Null }
+            $script:BaseUrl = $originalBaseUrl
+            $env:ASPNETCORE_URLS = $originalBaseUrl
+            Remove-Item Env:AI__Provider__DevelopmentMode -ErrorAction SilentlyContinue
+        }
+    }
 
     $logText = ''
     if (Test-Path -LiteralPath $logPath) { $logText += Get-Content -Raw -LiteralPath $logPath }

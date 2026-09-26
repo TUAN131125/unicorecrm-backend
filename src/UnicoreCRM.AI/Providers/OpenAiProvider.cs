@@ -17,7 +17,7 @@ internal sealed class OpenAiProvider(HttpClient httpClient, TimeProvider timePro
         {
             model, store = false, max_output_tokens = 2048,
             input = new[] { new { role = "system", content = request.SystemInstruction }, new { role = "user", content = request.UserInstruction + "\n" + request.ContextData } },
-            text = new { format = new { type = "json_schema", name = "crm_advisory", strict = true, schema = new
+            text = new { format = new { type = "json_schema", name = request.OutputContract == AiProviderOutputContract.ProactiveSuggestion ? "crm_proactive_suggestion" : "crm_advisory", strict = true, schema = request.OutputContract == AiProviderOutputContract.ProactiveSuggestion ? (object)ProactiveSuggestionOutputValidator.Schema : new
             {
                 type = "object", additionalProperties = false, required = new[] { "summary", "suggestedNextAction", "attentionPoints" }, properties = new
                 {

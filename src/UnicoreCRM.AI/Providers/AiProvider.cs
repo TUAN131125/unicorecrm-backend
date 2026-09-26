@@ -2,13 +2,16 @@ namespace UnicoreCRM.AI.Providers;
 
 internal sealed record AiProviderDescriptor(string Name, string Model);
 
+internal enum AiProviderOutputContract { Advisory, ProactiveSuggestion }
+
 internal sealed record AiProviderRequest(
     string ExecutionId,
     string SystemInstruction,
     string UserInstruction,
     string ContextData,
     string Locale,
-    int ContextCount);
+    int ContextCount,
+    AiProviderOutputContract OutputContract = AiProviderOutputContract.Advisory);
 
 internal sealed record AiProviderResponse(string Content, string? RequestId = null, int? InputTokens = null, int? OutputTokens = null,
     string? Provider = null, string? Model = null);

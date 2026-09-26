@@ -29,6 +29,17 @@ internal sealed class DevelopmentDeterministicAiProvider(string mode, TimeSpan a
         }
 
         var vietnamese = string.Equals(request.Locale, "vi", StringComparison.Ordinal);
+        if (request.OutputContract == AiProviderOutputContract.ProactiveSuggestion)
+            return new(JsonSerializer.Serialize(new
+            {
+                summary = vietnamese ? "Đã xem xét tình trạng sức khỏe khách hàng được cung cấp." : "Reviewed the supplied Customer Health context.",
+                suggestedNextStep = vietnamese ? "Xem xét liên hệ để tìm hiểu nhu cầu hiện tại." : "Consider contacting the customer to understand current needs.",
+                taskDraft = new
+                {
+                    title = vietnamese ? "Theo dõi khách hàng" : "Follow up with the customer",
+                    description = vietnamese ? "Tìm hiểu nhu cầu hiện tại và ghi nhận phản hồi." : "Understand current needs and record feedback."
+                }
+            }));
         var payload = new
         {
             summary = vietnamese

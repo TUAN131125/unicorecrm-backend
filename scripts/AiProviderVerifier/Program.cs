@@ -2,6 +2,7 @@ using System.Net;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using UnicoreCRM.AI.Providers;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
@@ -20,10 +21,62 @@ if (args.Length == 3 && args[0] is "dp-protect" or "dp-unprotect")
 var request = new AiProviderRequest("test", "system", "question", "{}", "en", 0);
 await VerifyGemini();
 await VerifyOpenAi();
+await VerifyProactiveSchemas();
+await VerifyProactivePlatform();
 await VerifyRetryAndFallback();
 await VerifyCircuitBreaker();
 await VerifyDurableDataProtection();
 Console.WriteLine("AI_PROVIDER_ADAPTER_VERIFIER_PASS");
+
+async Task VerifyProactiveSchemas()
+{
+    const string output = """{"summary":"ok","suggestedNextStep":"review","taskDraft":{"title":"follow up","description":"review needs"}}""";
+    foreach (var gemini in new[] { true, false })
+    {
+        var handler = new StubHandler(async (message, _) =>
+        {
+            using var body = JsonDocument.Parse(await message.Content!.ReadAsStringAsync());
+            var root = body.RootElement;
+            var schema = gemini ? root.GetProperty("generationConfig").GetProperty("responseSchema")
+                : root.GetProperty("text").GetProperty("format").GetProperty("schema");
+            Assert(schema.GetProperty("required").EnumerateArray().Select(x => x.GetString()).SequenceEqual(["summary", "suggestedNextStep", "taskDraft"]), "Proactive top-level schema");
+            var draft = schema.GetProperty("properties").GetProperty("taskDraft");
+            Assert(draft.GetProperty("required").EnumerateArray().Select(x => x.GetString()).SequenceEqual(["title", "description"]), "Proactive text-only task schema");
+            Assert(!schema.GetProperty("properties").TryGetProperty("why", out var whyProperty), "Provider has no Why authority");
+            if (!gemini) Assert(!schema.GetProperty("additionalProperties").GetBoolean() && !draft.GetProperty("additionalProperties").GetBoolean(), "Strict OpenAI proactive schema");
+            var envelope = gemini
+                ? JsonSerializer.Serialize(new { candidates = new[] { new { content = new { parts = new[] { new { text = output } } } } } })
+                : JsonSerializer.Serialize(new { status = "completed", output = new[] { new { content = new[] { new { type = "output_text", text = output } } } } });
+            return Json(HttpStatusCode.OK, envelope);
+        });
+        var http = new HttpClient(handler) { BaseAddress = new("https://example.invalid/") };
+        IProductionAiProviderAdapter adapter = gemini ? new GeminiAiProvider(http, TimeProvider.System) : new OpenAiProvider(http, TimeProvider.System);
+        var result = await adapter.CompleteAsync(gemini ? "gemini-2.5-flash" : "gpt-5-mini", "test-secret",
+            request with { OutputContract = AiProviderOutputContract.ProactiveSuggestion }, default);
+        Assert(ProactiveSuggestionOutputValidator.Validate(result.Content) is not null, "Proactive output traverses existing adapter");
+    }
+}
+
+async Task VerifyProactivePlatform()
+{
+    var protection = new EphemeralDataProtectionProvider();
+    var credential = protection.CreateProtector("UnicoreCRM.WorkspaceAiCredential.v1").Protect("proactive-test-secret");
+    var workspace = new FakeWorkspace();
+    foreach (var (name, model) in new[] { ("GEMINI", "gemini-2.5-flash"), ("OPENAI", "gpt-5-mini") })
+    {
+        var resolver = Resolver(new(new(name, model, "WORKSPACE", false, null, null, null, false), credential, null), workspace, protection);
+        var adapter = new ScriptedAdapter(name, []);
+        var ledger = new FakeLedger();
+        IAiProvider provider = new WorkspaceProductionAiProvider(resolver, [adapter], workspace, ledger,
+            new AiProviderCircuitBreaker(TimeProvider.System), new AiWorkspaceGuardrails(TimeProvider.System, 2, 100),
+            new AiProviderRuntimeOptions(TimeSpan.FromSeconds(2)), TimeProvider.System);
+        var execution = $"ai_exec_{Guid.NewGuid():N}";
+        var result = await provider.CompleteAsync(request with { ExecutionId = execution, OutputContract = AiProviderOutputContract.ProactiveSuggestion }, default);
+        Assert(result.Provider == name && result.Model == model && adapter.Calls == 1, "Proactive uses Workspace-selected production provider");
+        Assert(ProactiveSuggestionOutputValidator.Validate(result.Content) is not null, "Proactive contract survives production stack");
+        Assert(ledger.Attempts.Single().ExecutionId == execution, "Proactive provider attempt correlation");
+    }
+}
 
 async Task VerifyGemini()
 {
@@ -272,7 +325,10 @@ sealed class ScriptedAdapter(string providerId, Queue<AiProviderFailure> failure
     public Task<AiProviderAdapterResult> CompleteAsync(string model, string credential, AiProviderRequest request, CancellationToken cancellationToken)
     {
         Calls++; Requests.Add(request); if (failures.TryDequeue(out var failure)) throw new AiProviderExecutionException(failure, failure.ToString());
-        return Task.FromResult(new AiProviderAdapterResult(providerId, model, "{\"summary\":\"ok\",\"suggestedNextAction\":null,\"attentionPoints\":[]}", TimeSpan.FromMilliseconds(1)));
+        var content = request.OutputContract == AiProviderOutputContract.ProactiveSuggestion
+            ? """{"summary":"ok","suggestedNextStep":"review","taskDraft":{"title":"follow up","description":"review needs"}}"""
+            : "{\"summary\":\"ok\",\"suggestedNextAction\":null,\"attentionPoints\":[]}";
+        return Task.FromResult(new AiProviderAdapterResult(providerId, model, content, TimeSpan.FromMilliseconds(1)));
     }
 }
 sealed class BlockingAdapter(string providerId) : IProductionAiProviderAdapter

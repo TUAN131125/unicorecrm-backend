@@ -56,6 +56,7 @@ Check("actual pre-AI configuration snapshot admitted",true,InitialWorkspaceAcces
 Check("pre-AI snapshot excludes proactive",false,preAi.Any(x=>x.StartsWith("ai.proactive.",StringComparison.Ordinal)));
 Check("arbitrary historical subset rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preAi.Skip(1).ToArray()));
 Check("unexpected historical capability rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet([..preAi,"customers.unexpected"]));
+passed += await SuggestionVerifier.RunAsync(now);
 if(args.Length==1) passed += await SqlVerifier.RunAsync(args[0], now);
 Console.WriteLine($"PROACTIVE_SCENARIO_CORPUS_PASS cases={passed}");
 
@@ -316,7 +317,7 @@ static class SqlVerifier
             if((await db.ProactivePolicies.SingleAsync(x=>x.WorkspaceId=="workspace_after_failure")).LastEvaluationAt is null)throw new InvalidOperationException("one Workspace failure prevented later Workspace attempt");
         }
         Console.WriteLine("PASS | SQL stale scheduler vs Snooze/Dismiss; fresh retry; existing-policy concurrent replay/conflict; cursor long.MaxValue; clean failure audit and later Workspace");
-        return 79;
+        return 79 + await SuggestionSqlVerifier.RunAsync(options, now);
     }
 
     private static void RequireIsolatedDatabase(string database)

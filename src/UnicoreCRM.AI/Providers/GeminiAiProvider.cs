@@ -21,7 +21,15 @@ internal sealed class GeminiAiProvider(HttpClient httpClient, TimeProvider timeP
             {
                 maxOutputTokens = 2048,
                 responseMimeType = "application/json",
-                responseSchema = new { type = "object", required = new[] { "summary", "attentionPoints" }, properties = new
+                responseSchema = request.OutputContract == AiProviderOutputContract.ProactiveSuggestion ? (object)new
+                {
+                    type = "object", required = new[] { "summary", "suggestedNextStep", "taskDraft" }, properties = new
+                    {
+                        summary = new { type = "string" }, suggestedNextStep = new { type = "string" },
+                        taskDraft = new { type = "object", required = new[] { "title", "description" }, properties = new
+                        { title = new { type = "string" }, description = new { type = "string" } } }
+                    }
+                } : new { type = "object", required = new[] { "summary", "attentionPoints" }, properties = new
                 {
                     summary = new { type = "string" }, suggestedNextAction = new { type = "string", nullable = true },
                     attentionPoints = new { type = "array", maxItems = 5, items = new { type = "string" } }
