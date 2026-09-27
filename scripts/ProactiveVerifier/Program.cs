@@ -57,6 +57,7 @@ Check("pre-AI snapshot excludes proactive",false,preAi.Any(x=>x.StartsWith("ai.p
 Check("arbitrary historical subset rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preAi.Skip(1).ToArray()));
 Check("unexpected historical capability rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet([..preAi,"customers.unexpected"]));
 passed += await SuggestionVerifier.RunAsync(now);
+passed += await ConfirmationVerifier.RunAsync(now);
 if(args.Length==1) passed += await SqlVerifier.RunAsync(args[0], now);
 Console.WriteLine($"PROACTIVE_SCENARIO_CORPUS_PASS cases={passed}");
 
@@ -317,7 +318,7 @@ static class SqlVerifier
             if((await db.ProactivePolicies.SingleAsync(x=>x.WorkspaceId=="workspace_after_failure")).LastEvaluationAt is null)throw new InvalidOperationException("one Workspace failure prevented later Workspace attempt");
         }
         Console.WriteLine("PASS | SQL stale scheduler vs Snooze/Dismiss; fresh retry; existing-policy concurrent replay/conflict; cursor long.MaxValue; clean failure audit and later Workspace");
-        return 79 + await SuggestionSqlVerifier.RunAsync(options, now);
+        return 79 + await SuggestionSqlVerifier.RunAsync(options, now) + await ConfirmationSqlVerifier.RunAsync(options, now);
     }
 
     private static void RequireIsolatedDatabase(string database)
@@ -381,6 +382,7 @@ sealed class MemoryStore:IProactiveStore
     public Task SaveItemAsync(ProactiveItemState i,ProactiveAuditEvidence a,CancellationToken c){Active=i;Audits.Add(a);return Task.CompletedTask;}
     public Task SaveItemWithAuditsAsync(ProactiveItemState i,IReadOnlyCollection<ProactiveAuditEvidence> a,CancellationToken c){Active=i;Audits.AddRange(a);return Task.CompletedTask;}
     public Task RecordAuditAsync(ProactiveAuditEvidence a,CancellationToken c){Audits.Add(a);return Task.CompletedTask;}
+    public Task RecordAuditOnceAsync(ProactiveAuditEvidence a,CancellationToken c){if(!Audits.Any(x=>x.AuditId==a.AuditId))Audits.Add(a);return Task.CompletedTask;}
     public Task<WorkspaceProactivePolicyState?> ReadPolicyAsync(string w,CancellationToken c)=>Task.FromResult<WorkspaceProactivePolicyState?>(null);
     public Task<IReadOnlyList<WorkspaceProactivePolicyState>> ReadDuePoliciesAsync(DateTimeOffset n,int l,CancellationToken c)=>Task.FromResult<IReadOnlyList<WorkspaceProactivePolicyState>>([]);
     public Task<bool> TryClaimPolicyAsync(string w,long v,string l,DateTimeOffset n,DateTimeOffset u,CancellationToken c)=>Task.FromResult(false);

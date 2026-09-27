@@ -948,11 +948,12 @@ WHERE LeadId = '$leadRecovery';
         Add-Result "no $($pair[0]).$($pair[1]) row was written" '0' ([string]$rows)
     }
 
-    # ---------------------------------------------------------------- unexposed siblings
+    # ---------------------------------------------------------------- sibling route boundaries
 
     $opportunity = Invoke-Api -Method 'POST' -Path "/workflows/lead-qualification/$leadNew/opportunity" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-oppty-0001' -IfMatch '"0"' -Body '{}'
-    Add-Result 'qualifyLeadForOpportunity stays unexposed' '404' $opportunity.Status
+    # Opportunity is admitted by the accepted baseline; its empty intent remains invalid.
+    Add-Result 'qualifyLeadForOpportunity rejects empty intent' '422' $opportunity.Status
     $directSale = Invoke-Api -Method 'POST' -Path "/workflows/lead-qualification/$leadNew/direct-sale" `
         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-direct-0001' -IfMatch '"0"' -Body '{}'
     Add-Result 'qualifyLeadForDirectSale stays unexposed' '404' $directSale.Status

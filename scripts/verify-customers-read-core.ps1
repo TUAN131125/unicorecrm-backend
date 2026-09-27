@@ -984,6 +984,9 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
     Add-Result 'Attention never exports raw owner identity' 'True' ($attention.Raw -notmatch 'ownerMemberId|ownerId' -and $attention.Raw -notmatch [regex]::Escape($callerMemberId)).ToString()
     Add-Result 'Attention version belongs to item not hidden Customer' '0' ([string]$attention.Body.items[0].version)
     $suggestionPath = '/ai/proactive/items/attention_security_item/suggestion'
+    $confirmPath = '/ai/proactive/items/attention_security_item/confirm-task'
+    $confirmIntent = @{ title = 'Human-confirmed follow up'; description = 'User edited final intent'; assigneeId = $callerMemberId; dueAt = '2026-09-30T03:00:00Z' }
+    $confirmBody = $confirmIntent | ConvertTo-Json -Compress
     $customerBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"
     $itemBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query "SELECT * FROM platform_ai.ProactiveItems WHERE ItemId='attention_security_item' FOR JSON PATH"
     $tasksBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'
@@ -999,6 +1002,7 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
     foreach ($state in @('SNOOZED','DISMISSED','RESOLVED')) {
         Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE platform_ai.ProactiveItems SET Status='$state' WHERE ItemId='attention_security_item'"
         Add-Result "suggestion $state denied" '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+        Add-Result "confirmation $state denied" '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
     }
     Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE platform_ai.ProactiveItems SET Status='OPEN' WHERE ItemId='attention_security_item'"
     $invalidSuggestionLocale = Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{"locale":"fr"}'
@@ -1009,10 +1013,12 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
     foreach ($capability in @('ai.proactive.use','customers.view')) {
         Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='$capability'"
         Add-Result "suggestion requires $capability" '403' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+        Add-Result "confirmation requires $capability" '403' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
         Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$roleId','$capability')"
     }
     Set-CustomerScope -RoleId $roleId -Scope 'Team'
     Add-Result 'suggestion record scope denied' '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+    Add-Result 'confirmation record scope denied' '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
     Set-CustomerScope -RoleId $roleId -Scope 'Workspace'
     foreach ($accessMode in @('Hidden','Masked')) {
         Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES('field_customers_read_attention_health','$($script:WorkspaceId)','$roleId','customers','health','$accessMode')"
@@ -1020,12 +1026,14 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
         Add-Result "real Attention health $accessMode omits Customer" '200|0' "$($hiddenAttention.Status)|$(@($hiddenAttention.Body.items).Count)"
         Add-Result "real Attention health $accessMode denies detail" '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
         Add-Result "suggestion health $accessMode denies generation" '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+        Add-Result "confirmation health $accessMode denied" '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
         Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_customers_read_attention_health'"
     }
     Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='member_reassigned' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
     Add-Result 'real Attention reassigned Customer omitted for old owner' '0' ([string]@((Invoke-Customer -Method 'GET' -Path '/ai/proactive/items').Body.items).Count)
     Add-Result 'real Attention reassigned Customer detail unavailable' '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
     Add-Result 'suggestion reassigned Customer denied' '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
+    Add-Result 'confirmation reassigned Customer denied' '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
     Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='$callerMemberId' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
     Add-Result 'suggestion denied cases produced zero executions' ([string]$suggestionExecutions) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.AiExecutions WHERE Operation='requestProactiveSuggestion'"))
     Add-Result 'suggestion Customer unchanged' ([string]$customerBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"))
@@ -1070,6 +1078,51 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
             Remove-Item Env:AI__Provider__DevelopmentMode -ErrorAction SilentlyContinue
         }
     }
+
+    # PA-040: run after all PA-030 zero-Task assertions, against the same real owner/security fixtures.
+    $executionsBeforeConfirmation = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiExecutions'
+    $attemptsBeforeConfirmation = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiProviderAttempts'
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability IN ('tasks.create','tasks.assign')"
+    Add-Result 'confirmation Tasks capability denied' '403' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$roleId','tasks.create')"
+    Add-Result 'confirmation requires Idempotency-Key' '422' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody).Status
+    foreach ($field in @('taskId','customerId','ownerId','sourceRef','recordRef','relationshipRef','dedupeKey','healthBand','severity','reasonCode','provider','model','credential','credentialRef','suggestionExecutionId')) {
+        $override = @{} + $confirmIntent; $override[$field] = 'forbidden'
+        Add-Result "confirmation rejects $field" '400' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body ($override | ConvertTo-Json -Compress) -IdempotencyKey 'confirm-denied-key').Status
+    }
+    foreach ($field in @('title','description','assigneeId','dueAt','priority','sourceRef')) {
+        Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES('confirm_task_field','$($script:WorkspaceId)','$roleId','tasks','$field','ReadOnly')"
+        Add-Result "confirmation Tasks $field field-write denied" '403' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
+        Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='confirm_task_field'"
+    }
+    foreach ($test in @(@{title=''}, @{title=('x' * 301)}, @{description=('x' * 4001)}, @{assigneeId='inactive_member'}, @{dueAt='not-a-date'}, @{priority='normal'})) {
+        $invalid = @{} + $confirmIntent
+        foreach ($key in $test.Keys) { $invalid[$key] = $test[$key] }
+        $invalidResult = Invoke-Customer -Method 'POST' -Path $confirmPath -Body ($invalid | ConvertTo-Json -Compress) -IdempotencyKey 'confirm-denied-key'
+        Add-Result 'confirmation Tasks validation preserved' '422|VALIDATION_FAILED' "$($invalidResult.Status)|$($invalidResult.Body.code)"
+    }
+    Add-Result 'all denied confirmations create zero Tasks' ([string]$tasksBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'))
+    $confirmed = Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-human-intent-0001'
+    Add-Result 'confirmation commits without If-Match or tasks.assign' '200|COMMITTED|0' "$($confirmed.Status)|$($confirmed.Body.outcome)|$($confirmed.Body.taskVersion)"
+    $taskId = $confirmed.Body.taskId
+    $replayed = Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-human-intent-0001'
+    Add-Result 'confirmation replay same Task' "200|REPLAYED|$taskId" "$($replayed.Status)|$($replayed.Body.outcome)|$($replayed.Body.taskId)"
+    $changed = @{} + $confirmIntent; $changed.title = 'Changed human intent'
+    $conflict = Invoke-Customer -Method 'POST' -Path $confirmPath -Body ($changed | ConvertTo-Json -Compress) -IdempotencyKey 'confirm-human-intent-0001'
+    Add-Result 'confirmation changed-intent conflict' '409|IDEMPOTENCY_KEY_REUSED' "$($conflict.Status)|$($conflict.Body.code)"
+    Add-Result 'confirmation one Task' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.Tasks WHERE TaskId='$taskId' AND SourceType='PROACTIVE_AI' AND SourceId='attention_security_item' AND SourceEvidence IS NULL AND RecordModuleKey IS NULL AND RelationshipId IS NULL"))
+    Add-Result 'confirmation one Tasks command audit' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.AuditRecords WHERE AggregateId='$taskId' AND Operation='createTask'"))
+    Add-Result 'confirmation one TASK_CREATED outbox' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.OutboxMessages WHERE AggregateId='$taskId' AND EventType='TASK_CREATED'"))
+    Add-Result 'confirmation one Tasks idempotency record' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.IdempotencyRecords WHERE IdempotencyKey='confirm-human-intent-0001'"))
+    Add-Result 'confirmation one Proactive acceptance' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.ProactiveAudits WHERE ItemId='attention_security_item' AND Action='TASK_SUGGESTION_ACCEPTED' AND JSON_VALUE(SafeSummaryJson,'$.taskId')='$taskId'"))
+    $escapedMaxBody = '{"title":"' + ('\u4e00' * 300) + '","description":"' + ('\u4e00' * 4000) + '","assigneeId":"' + $confirmIntent.assigneeId + '","dueAt":"' + $confirmIntent.dueAt + '"}'
+    $escapedMax = Invoke-Customer -Method 'POST' -Path $confirmPath -Body $escapedMaxBody -IdempotencyKey 'confirm-unicode-max-0001'
+    Add-Result 'confirmation escaped Unicode at Tasks maximum lengths' '200|COMMITTED' "$($escapedMax.Status)|$($escapedMax.Body.outcome)"
+    Add-Result 'confirmation preserves maximum Unicode values' '300|4000' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(LEN(Title),'|',LEN(Description)) FROM tasks.Tasks WHERE TaskId='$($escapedMax.Body.taskId)'"))
+    Add-Result 'confirmation no Customer mutation' ([string]$customerBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"))
+    Add-Result 'confirmation no Attention lifecycle mutation' ([string]$itemBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM platform_ai.ProactiveItems WHERE ItemId='attention_security_item' FOR JSON PATH"))
+    Add-Result 'confirmation zero AI execution' ([string]$executionsBeforeConfirmation) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiExecutions'))
+    Add-Result 'confirmation zero provider attempt' ([string]$attemptsBeforeConfirmation) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiProviderAttempts'))
 
     $logText = ''
     if (Test-Path -LiteralPath $logPath) { $logText += Get-Content -Raw -LiteralPath $logPath }

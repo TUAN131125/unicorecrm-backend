@@ -201,6 +201,19 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
     public async Task RecordAuditAsync(ProactiveAuditEvidence audit, CancellationToken ct)
     { db.ProactiveAudits.Add(Row(audit)); await db.SaveChangesAsync(ct); }
 
+    public async Task RecordAuditOnceAsync(ProactiveAuditEvidence audit, CancellationToken ct)
+    {
+        if (await db.ProactiveAudits.AsNoTracking().AnyAsync(x => x.AuditId == audit.AuditId, ct)) return;
+        var row = Row(audit);
+        db.ProactiveAudits.Add(row);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            db.Entry(row).State = EntityState.Detached;
+            if (!await db.ProactiveAudits.AsNoTracking().AnyAsync(x => x.AuditId == audit.AuditId, ct)) throw;
+        }
+    }
+
     private static WorkspaceProactivePolicyState? Map(WorkspaceProactivePolicyRow? x) => x is null ? null :
         new(x.WorkspaceId, x.Enabled, x.Version, x.LastEvaluationAt, x.NextEvaluationAt, x.LeaseId, x.LeaseExpiresAt, x.UpdatedBy, x.UpdatedAt);
     private static ProactiveItemState? Map(ProactiveItemRow? x) => x is null ? null :

@@ -10,6 +10,8 @@ namespace UnicoreCRM.AI.Gateway;
 public static class AiEndpoints
 {
     private const long MaximumBodyBytes = 16_384;
+    // Accommodates JSON-escaped Unicode at the Tasks 300/4000 character maxima.
+    private const long MaximumConfirmationBodyBytes = 32_768;
     private static readonly JsonSerializerOptions RequestJsonOptions = new(JsonSerializerDefaults.Web);
 
     public static IEndpointRouteBuilder MapAiEndpoints(this IEndpointRouteBuilder endpoints)
@@ -32,9 +34,34 @@ public static class AiEndpoints
         endpoints.MapPost("/ai/proactive/items/{itemId}/snooze", SnoozeProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("snoozeProactiveItem");
         endpoints.MapPost("/ai/proactive/items/{itemId}/dismiss", DismissProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("dismissProactiveItem");
         endpoints.MapPost("/ai/proactive/items/{itemId}/suggestion", RequestProactiveSuggestionAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("requestProactiveSuggestion");
+        endpoints.MapPost("/ai/proactive/items/{itemId}/confirm-task", ConfirmProactiveTaskAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("confirmProactiveTask");
         endpoints.MapGet("/ai/proactive/configuration", GetProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("getProactiveConfiguration");
         endpoints.MapPut("/ai/proactive/configuration", SaveProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("saveProactiveConfiguration");
         return endpoints;
+    }
+
+    private static async Task<IResult> ConfirmProactiveTaskAsync(string itemId, HttpContext context, ProactiveTaskConfirmationApplication application, CancellationToken ct)
+    {
+        var correlationId = CorrelationId(context);
+        if (!context.Request.HasJsonContentType()) return Error(AiErrors.UnsupportedMediaType(), correlationId);
+        if (context.Request.ContentLength > MaximumConfirmationBodyBytes) return Error(AiErrors.TooLarge(), correlationId);
+        try
+        {
+            using var body = new MemoryStream();
+            var buffer = new byte[4096];
+            int read;
+            while ((read = await context.Request.Body.ReadAsync(buffer, ct)) != 0)
+            {
+                if (body.Length + read > MaximumConfirmationBodyBytes) return Error(AiErrors.TooLarge(), correlationId);
+                await body.WriteAsync(buffer.AsMemory(0, read), ct);
+            }
+            body.Position = 0;
+            var request = await JsonSerializer.DeserializeAsync<ProactiveTaskConfirmationRequest>(body, RequestJsonOptions, ct);
+            if (request is null) return Error(AiErrors.Malformed(), correlationId);
+            return Result(await application.HandleAsync(itemId, request, context.Request.Headers["Idempotency-Key"].ToString(),
+                RequestId(context), correlationId, ct), correlationId);
+        }
+        catch (JsonException) { return Error(AiErrors.Malformed(), correlationId); }
     }
 
     private static async Task<IResult> RequestProactiveSuggestionAsync(string itemId, HttpContext context, ProactiveSuggestionApplication application, CancellationToken ct)

@@ -10,6 +10,7 @@ internal static class GatewayModule
         services.AddScoped<AiConfigurationApplication>();
         services.AddScoped<ProactiveAttentionApplication>();
         services.AddScoped<ProactiveSuggestionApplication>();
+        services.AddScoped<ProactiveTaskConfirmationApplication>();
         return services;
     }
 }

@@ -53,6 +53,7 @@ public interface IProactiveStore
     Task<ProactiveItemCommit> CommitItemActionAsync(ProactiveItemState item, string memberId, string operation, long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, CancellationToken cancellationToken);
     Task<ProactivePolicyCommit> SavePolicyConfigurationAsync(string workspaceId, string memberId, bool enabled, long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, DateTimeOffset now, CancellationToken cancellationToken);
     Task RecordAuditAsync(ProactiveAuditEvidence audit, CancellationToken cancellationToken);
+    Task RecordAuditOnceAsync(ProactiveAuditEvidence audit, CancellationToken cancellationToken);
 }
 
 public sealed class ProactiveActiveCycleConflictException : Exception;
