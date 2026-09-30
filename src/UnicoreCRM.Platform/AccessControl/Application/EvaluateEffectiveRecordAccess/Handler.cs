@@ -88,11 +88,13 @@ internal sealed class Handler(
 
         var hasRead = authorization.IsAllowed;
         RecordAccessRecordDecision? recordDecision = null;
+        RecordAccessFacts? recordFacts = null;
         if (hasRead && request.RecordId is not null)
         {
             // The owner is consulted only after capability authorization allows the read, so a
             // caller without the capability never causes a business lookup for a record.
             var facts = await provider!.ReadFactsAsync(trusted, request.RecordId, context, cancellationToken);
+            recordFacts = facts;
             recordDecision = await evaluator.AuthorizeRecordAsync(
                 authorization, request.RecordId, facts, EnforcementPoint, context, cancellationToken);
         }
@@ -109,16 +111,15 @@ internal sealed class Handler(
         var mutationScope = recordDecision?.ReadOnlyScope != true;
         var commandGate = recordEvaluated ? canRead && mutationScope : true;
         var allowedCommands = new List<string>();
-        if (commandGate)
+        foreach (var command in request.RequestedCommands)
         {
-            foreach (var command in request.RequestedCommands)
-            {
-                if (descriptor.CommandCapabilities.TryGetValue(command, out var required)
-                    && authorization.Holds(required))
-                {
-                    allowedCommands.Add(command);
-                }
-            }
+            var isQueueClaim = command == descriptor.UnassignedClaimCommand;
+            var claimAllowed = isQueueClaim && canRead && authorization.CanReadUnassigned
+                && authorization.CanWrite("ownerId")
+                && (!recordEvaluated || recordFacts is { Status: RecordAccessFactStatus.Found, OwnerMemberId: null });
+            if ((isQueueClaim ? claimAllowed : commandGate)
+                && descriptor.CommandCapabilities.TryGetValue(command, out var required)
+                && authorization.Holds(required)) allowedCommands.Add(command);
         }
 
         var canUpdate = canRead && mutationScope && authorization.Holds(descriptor.UpdateCapability ?? string.Empty);

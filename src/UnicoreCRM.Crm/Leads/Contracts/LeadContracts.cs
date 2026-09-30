@@ -6,6 +6,7 @@ namespace UnicoreCRM.Crm.Leads.Contracts;
 public static class LeadCapabilities
 {
     public static AccessRequirement Read { get; } = AccessRequirement.ForCanonicalCapability("leads.read");
+    public static AccessRequirement Claim { get; } = AccessRequirement.ForCanonicalCapability("leads.claim");
     public static AccessRequirement QueueRead { get; } = AccessRequirement.ForCanonicalCapability("leads.queue.read");
     public static AccessRequirement Create { get; } = AccessRequirement.ForCanonicalCapability("leads.create");
     public static AccessRequirement Update { get; } = AccessRequirement.ForCanonicalCapability("leads.update");
@@ -257,3 +258,6 @@ public sealed record LeadProblemDetails(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ExpectedVersion = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? CurrentVersion = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? IdempotencyKey = null);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ClaimLeadFromQueueRequest;

@@ -25,13 +25,15 @@ internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence
         updateCapability: LeadCapabilities.Update.Capability,
         commandCapabilities: new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["lead.claim-from-queue"] = LeadCapabilities.Claim.Capability,
             ["lead.create"] = LeadCapabilities.Create.Capability,
             ["lead.update"] = LeadCapabilities.Update.Capability,
             ["lead.change-work-state"] = LeadCapabilities.Update.Capability,
             ["lead.disqualify"] = LeadCapabilities.Qualify.Capability
         },
         enforceableFields: LeadFieldSecurity.EnforceableFields,
-        unassignedReadCapability: LeadCapabilities.QueueRead.Capability);
+        unassignedReadCapability: LeadCapabilities.QueueRead.Capability,
+        unassignedClaimCommand: "lead.claim-from-queue");
 
     public RecordAccessResourceDescriptor Descriptor => LeadsDescriptor;
 

@@ -44,7 +44,8 @@ internal static class LeadCommandSupport
         string targetId,
         string fingerprint,
         long? priorVersion,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        object? eventEvidence = null)
     {
         var actorId = metadata.ActorId ?? trusted.MemberId;
         var audit = new LeadAuditRecord(
@@ -66,7 +67,7 @@ internal static class LeadCommandSupport
             lead.LeadId,
             trusted.WorkspaceId,
             metadata.CorrelationId,
-            JsonSerializer.Serialize(new { leadId = lead.LeadId, resourceVersion = lead.Version }, JsonOptions),
+            JsonSerializer.Serialize(eventEvidence ?? new { leadId = lead.LeadId, resourceVersion = lead.Version }, JsonOptions),
             now);
         var response = new LeadMutationResponse(
             LeadIds.New("command"),

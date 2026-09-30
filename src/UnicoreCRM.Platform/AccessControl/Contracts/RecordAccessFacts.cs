@@ -45,7 +45,7 @@ public sealed class RecordAccessResourceDescriptor
         string? approveCapability,
         IReadOnlyDictionary<string, string> commandCapabilities,
         IReadOnlyDictionary<string, bool> enforceableFields,
-        string? unassignedReadCapability)
+        string? unassignedReadCapability, string? unassignedClaimCommand)
     {
         ResourceKey = resourceKey;
         ReadCapability = readCapability;
@@ -56,6 +56,7 @@ public sealed class RecordAccessResourceDescriptor
         CommandCapabilities = commandCapabilities;
         EnforceableFields = enforceableFields;
         UnassignedReadCapability = unassignedReadCapability;
+        UnassignedClaimCommand = unassignedClaimCommand;
     }
 
     public string ResourceKey { get; }
@@ -63,6 +64,7 @@ public sealed class RecordAccessResourceDescriptor
 
     /// <summary>When declared, ownerless records require this additional read authority.</summary>
     public string? UnassignedReadCapability { get; }
+    public string? UnassignedClaimCommand { get; }
     public string? UpdateCapability { get; }
     public string? DeleteCapability { get; }
     public string? ExportCapability { get; }
@@ -95,7 +97,8 @@ public sealed class RecordAccessResourceDescriptor
         string? approveCapability = null,
         IReadOnlyDictionary<string, string>? commandCapabilities = null,
         IReadOnlyDictionary<string, bool>? enforceableFields = null,
-        string? unassignedReadCapability = null)
+        string? unassignedReadCapability = null,
+        string? unassignedClaimCommand = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
         if (resourceKey.Trim().Length is < 1 or > 160)
@@ -117,6 +120,9 @@ public sealed class RecordAccessResourceDescriptor
             fields[pair.Key] = pair.Value;
         }
 
+        if (unassignedClaimCommand is not null && (unassignedReadCapability is null || !commands.ContainsKey(unassignedClaimCommand)))
+            throw new ArgumentException("An unassigned Claim command must declare queue read and a command capability.");
+
         return new RecordAccessResourceDescriptor(
             resourceKey.Trim(),
             Canonical(readCapability, nameof(readCapability)),
@@ -126,7 +132,7 @@ public sealed class RecordAccessResourceDescriptor
             OptionalCanonical(approveCapability, nameof(approveCapability)),
             commands,
             fields,
-            OptionalCanonical(unassignedReadCapability, nameof(unassignedReadCapability)));
+            OptionalCanonical(unassignedReadCapability, nameof(unassignedReadCapability)), unassignedClaimCommand);
     }
 
     private static string Canonical(string capability, string parameterName)

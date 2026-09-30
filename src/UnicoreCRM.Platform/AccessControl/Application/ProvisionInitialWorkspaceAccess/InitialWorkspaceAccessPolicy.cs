@@ -58,8 +58,11 @@ internal static class InitialWorkspaceAccessPolicy
     // Exact owner projection immediately preceding authoritative Contact writes. Deriving it from
     // the current server-owned set keeps unrelated admitted module capabilities intact while still
     // refusing arbitrary subsets or caller-invented capabilities.
+    private static IReadOnlyList<string> PreClaimOwnerCapabilities { get; } =
+        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities.Where(capability => capability is not "leads.claim").ToArray();
+
     private static IReadOnlyList<string> PreQueueOwnerCapabilities { get; } =
-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+        PreClaimOwnerCapabilities
             .Where(capability => capability is not "leads.queue.read").ToArray();
 
     private static IReadOnlyList<string> PreProactiveOwnerCapabilities { get; } =
@@ -101,7 +104,8 @@ internal static class InitialWorkspaceAccessPolicy
         var preLeadCustomerConversion = Validate(PreLeadCustomerConversionOwnerCapabilities, "The pre-Lead-customer-conversion Workspace Owner capability set is not canonical.");
         var preAiConfiguration = Validate(PreAiConfigurationOwnerCapabilities, "The pre-AI-configuration Workspace Owner capability set is not canonical.");
         var preProactive = Validate(PreProactiveOwnerCapabilities, "The pre-Proactive Workspace Owner capability set is not canonical.");
-        return storedCapabilities.SequenceEqual(PreQueueOwnerCapabilities, StringComparer.Ordinal)
+        return storedCapabilities.SequenceEqual(PreClaimOwnerCapabilities, StringComparer.Ordinal)
+            || storedCapabilities.SequenceEqual(PreQueueOwnerCapabilities, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v1, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v2, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preContactUpdate, StringComparer.Ordinal)

@@ -11,6 +11,10 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
     public async Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new LeadsTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
 
+    public Task<Lead?> LoadLeadForClaimAsync(string workspaceId, string leadId, CancellationToken cancellationToken) =>
+        dbContext.Leads.FromSqlInterpolated($"SELECT * FROM [leads].[Leads] WITH (UPDLOCK, HOLDLOCK) WHERE [WorkspaceId] = {workspaceId} AND [LeadId] = {leadId}")
+            .SingleOrDefaultAsync(cancellationToken);
+
     public Task<Lead?> LoadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken) =>
         dbContext.Leads.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.LeadId == leadId, cancellationToken);
 

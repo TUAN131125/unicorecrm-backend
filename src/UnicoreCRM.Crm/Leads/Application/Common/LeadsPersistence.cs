@@ -5,6 +5,7 @@ namespace UnicoreCRM.Crm.Leads.Application.Common;
 internal interface ILeadsPersistence
 {
     Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
+    Task<Lead?> LoadLeadForClaimAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
     Task<Lead?> LoadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Lead>> LoadLeadsAsync(string workspaceId, IReadOnlyList<string> leadIds, CancellationToken cancellationToken);
     Task<Lead?> ReadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken);

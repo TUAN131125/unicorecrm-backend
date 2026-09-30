@@ -21,6 +21,7 @@ public static class LeadsEndpoints
         MapPost(endpoints, "/leads/{leadId}/reopen", ReopenDisqualifiedLeadAsync, "reopenDisqualifiedLead");
         MapPost(endpoints, "/leads/{leadId}/archive", ArchiveLeadAsync, "archiveLead");
         MapPost(endpoints, "/leads/archive-batch", ArchiveLeadBatchAsync, "archiveLeadBatch");
+        MapPost(endpoints, "/workflows/lead-queue/{leadId}/claim", ClaimLeadFromQueueAsync, "claimLeadFromQueue");
         return endpoints;
     }
 
@@ -85,6 +86,11 @@ public static class LeadsEndpoints
             cancellationToken);
         return LeadsHttp.Result(result, metadata.CorrelationId);
     }
+
+    private static Task<IResult> ClaimLeadFromQueueAsync(
+        string leadId, HttpContext context, Application.ClaimLeadFromQueue.Handler handler, CancellationToken cancellationToken) =>
+        ExecuteCommandAsync<ClaimLeadFromQueueRequest>(leadId, context, cancellationToken,
+            (request, metadata) => handler.HandleAsync(new(leadId, request, metadata), cancellationToken));
 
     private static Task<IResult> ReplaceLeadProfileAsync(
         string leadId,

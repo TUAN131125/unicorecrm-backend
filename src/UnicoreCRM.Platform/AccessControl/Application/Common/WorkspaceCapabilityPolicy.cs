@@ -44,6 +44,7 @@ internal static class WorkspaceCapabilityPolicy
         "leads.qualify",
         "leads.read",
         "leads.queue.read",
+        "leads.claim",
         "leads.update",
         "orders.complete",
         "orders.confirm",

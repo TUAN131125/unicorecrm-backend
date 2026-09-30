@@ -136,18 +136,23 @@ internal sealed class RecordAccessEvaluator(
 
         var unassigned = authorization.RestrictUnassigned
             && facts.Status == RecordAccessFactStatus.Found && facts.OwnerMemberId is null;
+        var descriptor = providers.Find(authorization.ResourceKey)?.Descriptor;
+        var queueClaim = unassigned && authorization.CanReadUnassigned
+            && descriptor?.UnassignedClaimCommand is { } claimCommand
+            && descriptor.CommandCapabilities[claimCommand] == authorization.RequiredCapability
+            && authorization.CanWrite("ownerId");
         var queueRead = unassigned && authorization.CanReadUnassigned
             && providers.Find(authorization.ResourceKey)?.Descriptor.ReadCapability == authorization.RequiredCapability;
         var readOnlyScope = queueRead && scopeDecision.Outcome != RecordScopeOutcome.Allowed;
         var allowed = capabilityAllowed
             && (!unassigned || authorization.CanReadUnassigned)
-            && (scopeDecision.Outcome == RecordScopeOutcome.Allowed || queueRead);
+            && (scopeDecision.Outcome == RecordScopeOutcome.Allowed || queueRead || queueClaim);
         var code = !authorization.IsAllowed
             ? "CAPABILITY_DENIED"
             : !authorization.HoldsResourceRead
                 ? "RECORD_READ_CAPABILITY_DENIED"
                 : allowed
-                    ? (readOnlyScope ? "RECORD_SCOPE_UNASSIGNED_READ" : scopeDecision.Scope == AccessDataScope.Own ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE")
+                    ? (queueClaim ? "RECORD_SCOPE_UNASSIGNED_CLAIM" : readOnlyScope ? "RECORD_SCOPE_UNASSIGNED_READ" : scopeDecision.Scope == AccessDataScope.Own ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE")
                     : "RECORD_ACCESS_DENIED";
 
         if (authorization.TrustedWorkspace is { } workspace)
