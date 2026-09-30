@@ -43,7 +43,7 @@ internal static partial class LeadValidation
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
         var displayName = Text(request.DisplayName, "displayName", 1, 200, true, fields);
         var source = Text(request.Source, "source", 0, 120, false, fields);
-        var ownerId = Entity(resolvedOwnerId, "ownerId", true, fields);
+        var ownerId = Entity(resolvedOwnerId, "ownerId", false, fields);
         var estimatedValue = Money(request.EstimatedValue, "estimatedValue", false, fields);
         var nextFollowUpAt = Utc(request.NextFollowUpAt, "nextFollowUpAt", false, fields);
         var email = Email(request.Email, "email", fields);
@@ -126,7 +126,7 @@ internal static partial class LeadValidation
             contactAddress,
             source,
             campaignId,
-            ownerId!,
+            ownerId,
             assignedTeam,
             decisionRole,
             priority,

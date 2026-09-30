@@ -106,7 +106,8 @@ internal sealed class Handler(
         // With a record identifier the commands target that record, so they additionally require it
         // to be readable and in scope. This is the same rule `AuthorizeRecordAsync` enforces for
         // every owner, so what this operation reports and what the server enforces cannot drift.
-        var commandGate = recordEvaluated ? canRead : true;
+        var mutationScope = recordDecision?.ReadOnlyScope != true;
+        var commandGate = recordEvaluated ? canRead && mutationScope : true;
         var allowedCommands = new List<string>();
         if (commandGate)
         {
@@ -120,10 +121,10 @@ internal sealed class Handler(
             }
         }
 
-        var canUpdate = canRead && authorization.Holds(descriptor.UpdateCapability ?? string.Empty);
-        var canDelete = canRead && authorization.Holds(descriptor.DeleteCapability ?? string.Empty);
-        var canExport = canRead && request.IncludeExport && authorization.Holds(descriptor.ExportCapability ?? string.Empty);
-        var canApprove = canRead && request.IncludeApproval && authorization.Holds(descriptor.ApproveCapability ?? string.Empty);
+        var canUpdate = canRead && mutationScope && authorization.Holds(descriptor.UpdateCapability ?? string.Empty);
+        var canDelete = canRead && mutationScope && authorization.Holds(descriptor.DeleteCapability ?? string.Empty);
+        var canExport = canRead && mutationScope && request.IncludeExport && authorization.Holds(descriptor.ExportCapability ?? string.Empty);
+        var canApprove = canRead && mutationScope && request.IncludeApproval && authorization.Holds(descriptor.ApproveCapability ?? string.Empty);
 
         var fieldAccess = new Dictionary<string, string>(StringComparer.Ordinal);
         var restricted = 0;
@@ -238,7 +239,8 @@ internal sealed class Handler(
             }
             else if (recordDecision!.IsAllowed)
             {
-                var code = recordDecision.OwnerMatch is true ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE";
+                var code = recordDecision.ReadOnlyScope ? "RECORD_SCOPE_UNASSIGNED_READ"
+                    : recordDecision.OwnerMatch is true ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE";
                 reasons.Add(new EffectiveAccessDecisionReasonDocument(code, "ALLOW", null, DecisionSource));
             }
             else

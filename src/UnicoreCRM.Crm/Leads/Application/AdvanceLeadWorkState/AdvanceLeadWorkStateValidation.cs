@@ -37,7 +37,7 @@ internal static class AdvanceLeadWorkStateValidation
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
         if (profile.DisplayName.Length == 0)
             fields["displayName"] = ["displayName is required for this Lead state."];
-        if (profile.OwnerId.Length == 0)
+        if (string.IsNullOrEmpty(profile.OwnerId))
             fields["ownerId"] = ["ownerId is required for this Lead state."];
         if (!new[] { profile.Phone, profile.WorkPhone, profile.OtherPhone, profile.Email, profile.PersonalEmail, profile.ZaloId, profile.Facebook }
             .Any(value => !string.IsNullOrWhiteSpace(value)))

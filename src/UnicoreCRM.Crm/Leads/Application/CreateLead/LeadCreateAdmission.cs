@@ -56,14 +56,16 @@ internal abstract class LeadCreateAdmission
     private sealed class InteractiveAdmission(LeadAccess access) : LeadCreateAdmission(access.Trusted)
     {
         internal override string? ResolveOwnerId(string? requestedOwnerId) =>
-            string.IsNullOrWhiteSpace(requestedOwnerId) ? Trusted.MemberId : requestedOwnerId;
+            requestedOwnerId is null ? Trusted.MemberId : requestedOwnerId;
 
         internal override LeadOperationError? GuardCreateWrite(Domain.LeadProfile profile) =>
             LeadFieldSecurity.GuardCreateWrite(access.Authorization, profile);
 
         internal override LeadOperationError? GuardExecutionBinding(
             Domain.LeadProfile profile,
-            LeadCommandMetadata metadata) => null;
+            LeadCommandMetadata metadata) =>
+            string.Equals(profile.OwnerId, Trusted.MemberId, StringComparison.Ordinal)
+                ? null : LeadErrors.AccessDenied();
 
         internal override LeadMutationResponse Project(LeadMutationResponse response) =>
             response with { Result = LeadFieldSecurity.Project(response.Result, access.Authorization) };
@@ -85,7 +87,7 @@ internal abstract class LeadCreateAdmission
     /// for this path - "AccessControl evaluates the member's actual server-side `leads.create`
     /// capability through a delegated internal authorization contract" - and admits no field-security
     /// concern for it at all. The payload is a closed extension shape that cannot carry a Workspace,
-    /// member, owner or capability, and the owner is taken from the binding rather than the sender.
+    /// member, owner or capability, and ownership is always unassigned, independently of delegated provenance.
     ///
     /// <para>Whether the delegated subject's field-security policy should additionally govern this
     /// path is an <c>AUTHORITY_GAP</c>. It is deliberately not answered here: applying interactive
@@ -96,14 +98,14 @@ internal abstract class LeadCreateAdmission
     private sealed class DelegatedIngressAdmission(DelegatedLeadIngressAuthorization authorization)
         : LeadCreateAdmission(authorization.Trusted)
     {
-        internal override string? ResolveOwnerId(string? requestedOwnerId) => requestedOwnerId;
+        internal override string? ResolveOwnerId(string? requestedOwnerId) => null;
 
         internal override LeadOperationError? GuardCreateWrite(Domain.LeadProfile profile) => null;
 
         internal override LeadOperationError? GuardExecutionBinding(
             Domain.LeadProfile profile,
             LeadCommandMetadata metadata) =>
-            string.Equals(profile.OwnerId, authorization.DelegatedSubjectId, StringComparison.Ordinal)
+            profile.OwnerId is null
             && string.Equals(
                 metadata.DelegatedSubjectId,
                 authorization.DelegatedSubjectId,

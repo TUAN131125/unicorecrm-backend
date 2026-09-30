@@ -29,7 +29,7 @@ internal sealed record LeadProfile(
     string? ContactAddress,
     string? Source,
     string? CampaignId,
-    string OwnerId,
+    string? OwnerId,
     string? AssignedTeam,
     string? DecisionRole,
     string? Priority,
@@ -47,7 +47,7 @@ internal sealed record LeadProfile(
 {
     internal bool HasProgressiveProfile() =>
         DisplayName.Length != 0
-        && OwnerId.Length != 0
+        && !string.IsNullOrEmpty(OwnerId)
         && new[] { Phone, WorkPhone, OtherPhone, Email, PersonalEmail, ZaloId, Facebook }
             .Any(value => !string.IsNullOrWhiteSpace(value));
 

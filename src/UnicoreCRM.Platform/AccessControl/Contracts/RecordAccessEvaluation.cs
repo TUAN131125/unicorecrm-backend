@@ -57,7 +57,9 @@ public sealed class RecordAccessAuthorization
         string policyFingerprint,
         string resourceKey,
         string requiredCapability,
-        bool holdsResourceRead)
+        bool holdsResourceRead,
+        bool restrictUnassigned = false,
+        bool canReadUnassigned = false)
     {
         IsAllowed = isAllowed;
         Code = code;
@@ -72,10 +74,15 @@ public sealed class RecordAccessAuthorization
         ResourceKey = resourceKey;
         RequiredCapability = requiredCapability;
         HoldsResourceRead = holdsResourceRead;
+        RestrictUnassigned = restrictUnassigned;
+        CanReadUnassigned = canReadUnassigned;
     }
 
     /// <summary>Whether the membership holds the required capability. Record scope is additional to this and can never restore it.</summary>
     public bool IsAllowed { get; }
+
+    public bool RestrictUnassigned { get; }
+    public bool CanReadUnassigned { get; }
 
     /// <summary>`AUTHORIZED`, `ACCESS_DENIED` or `WORKSPACE_MISMATCH`.</summary>
     public string Code { get; }
@@ -140,7 +147,11 @@ public sealed class RecordAccessAuthorization
 }
 
 /// <summary>The record-level half of the decision, taken against authoritative owner facts.</summary>
-public sealed record RecordAccessRecordDecision(bool IsAllowed, string EvaluatedScope, bool? OwnerMatch);
+public sealed record RecordAccessRecordDecision(bool IsAllowed, string EvaluatedScope, bool? OwnerMatch)
+{
+    // Queue read does not grant mutations outside the actor's ordinary record scope.
+    public bool ReadOnlyScope { get; init; }
+}
 
 /// <summary>
 /// The internal AccessControl application boundary a business owner enforces against. It is the

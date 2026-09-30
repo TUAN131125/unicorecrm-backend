@@ -1028,8 +1028,12 @@ INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'con
     Add-Result 'leads: fixture owned by caller created' '201' $leadOwn.Status
     $leadOwnId = $leadOwn.Body.aggregateId
     $leadOther = Invoke-Support -Method 'POST' -Path '/leads' -IdempotencyKey 'idem-retro-lead-other' `
-        -Body (@{ displayName = 'Retro lead other'; phone = '0900000102'; ownerId = $otherOwnerId; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+        -Body (@{ displayName = 'Retro lead other'; phone = '0900000102'; source = 'manual'; estimatedValue = @{ amount = '1000'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6)
+    Add-Result 'leads: scope fixture created through actor-bound admission' '201' $leadOther.Status
     $leadOtherId = $leadOther.Body.aggregateId
+    # O1 exposes no assignment command. Seed the existing assigned-record scope fixture in SQL,
+    # keeping the profile and scope projection consistent; this is not an admitted user write.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE leads.Leads SET ScopeOwnerId='$otherOwnerId', Profile=JSON_MODIFY(Profile,'`$.ownerId','$otherOwnerId') WHERE LeadId='$leadOtherId'"
 
     $dealOwn = Invoke-Support -Method 'POST' -Path '/deals' -IdempotencyKey 'idem-retro-deal-own' `
         -Body (@{
@@ -1650,13 +1654,18 @@ VALUES ('field_gate_01', '$($script:WorkspaceId)', '$roleId', '$Resource', '$Fie
     Add-Result 'replay: a new command still rejects the suspended member' 'True' `
         (($assignNew.Status -ne 200)).ToString()
 
-    # Leads: the owner precondition on a profile replacement behaves the same way.
+    # Leads: profile replacement preserves the existing owner. Seed an other-owned record to
+    # verify that committed profile replay survives that owner's subsequent suspension.
     $leadOwnerBody = @{ displayName = 'Gate profile lead renamed'; ownerId = $otherOwnerId; source = 'manual'; title = 'Original title'; phone = '0900000002'; estimatedValue = @{ amount = '10'; currency = 'USD' } } | ConvertTo-Json -Compress -Depth 6
     Set-MembershipStatus -MemberId $otherOwnerId -Status 'Active'
     $leadOwnerVersion = Get-Scalar -Database $DatabaseName -Query "SELECT Version FROM leads.Leads WHERE LeadId = '$gateLeadId'"
+    $leadOwnerChangeDenied = Invoke-Support -Method 'PUT' -Path "/leads/$gateLeadId" -IdempotencyKey 'idem-gate-lead-owner-denied' `
+        -IfMatchVersion $leadOwnerVersion -Body $leadOwnerBody
+    Add-Result 'O1: profile replacement cannot assign another owner' '403' $leadOwnerChangeDenied.Status
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE leads.Leads SET ScopeOwnerId='$otherOwnerId', Profile=JSON_MODIFY(Profile,'`$.ownerId','$otherOwnerId') WHERE LeadId='$gateLeadId'"
     $leadOwnerCommit = Invoke-Support -Method 'PUT' -Path "/leads/$gateLeadId" -IdempotencyKey 'idem-gate-lead-owner' `
         -IfMatchVersion $leadOwnerVersion -Body $leadOwnerBody
-    Add-Result 'replay: lead owner replacement commits' '200' $leadOwnerCommit.Status
+    Add-Result 'replay: lead profile replacement preserving owner commits' '200' $leadOwnerCommit.Status
     Set-MembershipStatus -MemberId $otherOwnerId -Status 'Suspended'
     $leadOwnerReplay = Invoke-Support -Method 'PUT' -Path "/leads/$gateLeadId" -IdempotencyKey 'idem-gate-lead-owner' `
         -IfMatchVersion $leadOwnerVersion -Body $leadOwnerBody
@@ -2164,7 +2173,7 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
         ($delegatedIngressSource -match 'IDelegatedLeadCreateAuthorizer' `
             -and $delegatedIngressSource -notmatch 'IDelegatedAccessAuthorizer|LeadCapabilities').ToString()
     Add-Result 'delegated proof: Workspace member provenance and owner cannot be rebound' 'True' `
-        ($leadAdmissionSource -match 'profile\.OwnerId, authorization\.DelegatedSubjectId' `
+        ($leadAdmissionSource -match 'profile\.OwnerId is null' `
             -and $leadAdmissionSource -match 'metadata\.DelegatedSubjectId' `
             -and $leadAdmissionSource -match 'LeadCreateAdmission\(authorization\.Trusted\)').ToString()
     Add-Result 'delegated proof: Lead execution has no nullable or skip authorization path' 'True' `

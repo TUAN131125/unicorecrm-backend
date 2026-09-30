@@ -56,8 +56,8 @@ internal sealed class LeadCreateExecution(
         }
 
         // A committed replay writes nothing and is answered from its original authority evidence.
-        // New delegated execution must still bind both owner assignment and audit provenance to the
-        // member carried by the server-issued admission proof.
+        // New execution must enforce admission-specific ownership and preserve the
+        // delegated member carried by the server-issued provenance proof.
         var bindingError = admission.GuardExecutionBinding(profile!, metadata);
         if (bindingError is not null)
             return LeadOperationResult<LeadMutationResponse>.Failure(bindingError);
@@ -81,7 +81,8 @@ internal sealed class LeadCreateExecution(
             return LeadOperationResult<LeadMutationResponse>.Failure(createWriteError);
 
         // Only a genuinely new command evaluates current mutable owner/member state.
-        if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, captured.OwnerId, cancellationToken))
+        if (captured.OwnerId is not null
+            && !await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, captured.OwnerId, cancellationToken))
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.Validation(
                 new Dictionary<string, string[]> { ["ownerId"] = ["ownerId must reference an active member of the trusted workspace."] }));
 

@@ -101,7 +101,11 @@ internal sealed class RecordAccessEvaluator(
             Fingerprint(context),
             canonicalResourceKey,
             requiredCapability,
-            holdsResourceRead);
+            holdsResourceRead,
+            descriptor?.UnassignedReadCapability is not null,
+            holdsResourceRead && descriptor?.UnassignedReadCapability is { } queueCapability
+                && capabilities.Contains(queueCapability, StringComparer.Ordinal)
+                && scope is AccessDataScope.Workspace or AccessDataScope.Own);
     }
 
     public async Task<RecordAccessRecordDecision> AuthorizeRecordAsync(
@@ -130,13 +134,20 @@ internal sealed class RecordAccessEvaluator(
                 trusted.MemberId)
             : new RecordScopeDecision(RecordScopeOutcome.Denied, AccessDataScope.Custom, null);
 
-        var allowed = capabilityAllowed && scopeDecision.Outcome == RecordScopeOutcome.Allowed;
+        var unassigned = authorization.RestrictUnassigned
+            && facts.Status == RecordAccessFactStatus.Found && facts.OwnerMemberId is null;
+        var queueRead = unassigned && authorization.CanReadUnassigned
+            && providers.Find(authorization.ResourceKey)?.Descriptor.ReadCapability == authorization.RequiredCapability;
+        var readOnlyScope = queueRead && scopeDecision.Outcome != RecordScopeOutcome.Allowed;
+        var allowed = capabilityAllowed
+            && (!unassigned || authorization.CanReadUnassigned)
+            && (scopeDecision.Outcome == RecordScopeOutcome.Allowed || queueRead);
         var code = !authorization.IsAllowed
             ? "CAPABILITY_DENIED"
             : !authorization.HoldsResourceRead
                 ? "RECORD_READ_CAPABILITY_DENIED"
                 : allowed
-                    ? (scopeDecision.Scope == AccessDataScope.Own ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE")
+                    ? (readOnlyScope ? "RECORD_SCOPE_UNASSIGNED_READ" : scopeDecision.Scope == AccessDataScope.Own ? "RECORD_SCOPE_OWN_MATCHED" : "RECORD_SCOPE_WORKSPACE")
                     : "RECORD_ACCESS_DENIED";
 
         if (authorization.TrustedWorkspace is { } workspace)
@@ -154,7 +165,8 @@ internal sealed class RecordAccessEvaluator(
                 cancellationToken);
         }
 
-        return new RecordAccessRecordDecision(allowed, authorization.EvaluatedScope, scopeDecision.OwnerMatch);
+        return new RecordAccessRecordDecision(allowed, authorization.EvaluatedScope, scopeDecision.OwnerMatch)
+        { ReadOnlyScope = readOnlyScope };
     }
 
     /// <summary>

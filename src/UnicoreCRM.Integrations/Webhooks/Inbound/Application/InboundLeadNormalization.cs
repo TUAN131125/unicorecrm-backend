@@ -16,7 +16,7 @@ internal static class InboundLeadNormalization
         {
             DisplayName = payload.DisplayName,
             Source = payload.Source,
-            OwnerId = delegatedMemberId,
+            OwnerId = null,
             EstimatedValue = payload.EstimatedValue is null
                 ? null
                 : new Money(payload.EstimatedValue.Amount, payload.EstimatedValue.Currency),

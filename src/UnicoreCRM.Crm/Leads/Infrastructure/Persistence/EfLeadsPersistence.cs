@@ -29,6 +29,8 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         string workspaceId,
         string? scopeOwnerMemberId,
         string? ownerId,
+        string? assignmentState,
+        bool canReadUnassigned,
         LeadWorkState? workState,
         string? normalizedSearch,
         bool includePhoneSearch,
@@ -38,7 +40,7 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         CancellationToken cancellationToken)
     {
         var query = FilteredLeads(
-            workspaceId, scopeOwnerMemberId, ownerId, workState, normalizedSearch, includePhoneSearch);
+            workspaceId, scopeOwnerMemberId, ownerId, assignmentState, canReadUnassigned, workState, normalizedSearch, includePhoneSearch);
         if (cursorUpdatedAt is not null && cursorLeadId is not null)
         {
             query = query.Where(item => item.UpdatedAt < cursorUpdatedAt
@@ -55,17 +57,21 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         string workspaceId,
         string? scopeOwnerMemberId,
         string? ownerId,
+        string? assignmentState,
+        bool canReadUnassigned,
         LeadWorkState? workState,
         string? normalizedSearch,
         bool includePhoneSearch,
         CancellationToken cancellationToken) =>
-        FilteredLeads(workspaceId, scopeOwnerMemberId, ownerId, workState, normalizedSearch, includePhoneSearch)
+        FilteredLeads(workspaceId, scopeOwnerMemberId, ownerId, assignmentState, canReadUnassigned, workState, normalizedSearch, includePhoneSearch)
             .LongCountAsync(cancellationToken);
 
     private IQueryable<Lead> FilteredLeads(
         string workspaceId,
         string? scopeOwnerMemberId,
         string? ownerId,
+        string? assignmentState,
+        bool canReadUnassigned,
         LeadWorkState? workState,
         string? normalizedSearch,
         bool includePhoneSearch)
@@ -75,7 +81,14 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         // The AccessControl record scope is part of the query, not a post-filter, so hidden rows are
         // never materialised and never reach the ordering or the projection.
         if (scopeOwnerMemberId is not null)
-            query = query.Where(item => item.ScopeOwnerId == scopeOwnerMemberId);
+            query = query.Where(item => item.ScopeOwnerId == scopeOwnerMemberId
+                || (canReadUnassigned && item.ScopeOwnerId == null));
+        if (!canReadUnassigned)
+            query = query.Where(item => item.ScopeOwnerId != null);
+        if (assignmentState == "UNASSIGNED")
+            query = query.Where(item => item.ScopeOwnerId == null);
+        if (assignmentState == "ASSIGNED")
+            query = query.Where(item => item.ScopeOwnerId != null);
         if (ownerId is not null)
             query = query.Where(item => item.ScopeOwnerId == ownerId);
         if (workState is not null)
@@ -106,7 +119,11 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
     }
 
     public Task<LeadIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) =>
-        dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
+        // Reserve the key range before creating. Concurrent duplicate deliveries must wait for
+        // the committed replay instead of both upgrading shared serializable range locks.
+        dbContext.IdempotencyRecords
+            .FromSqlInterpolated($"SELECT * FROM [leads].[IdempotencyRecords] WITH (UPDLOCK, HOLDLOCK) WHERE [ScopeKey] = {scopeKey}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken);
 
     public void AddLead(Lead lead) => dbContext.Leads.Add(lead);
     public void AddIdempotency(LeadIdempotencyRecord record) => dbContext.IdempotencyRecords.Add(record);

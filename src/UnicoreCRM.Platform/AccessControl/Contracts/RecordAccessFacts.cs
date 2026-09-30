@@ -44,7 +44,8 @@ public sealed class RecordAccessResourceDescriptor
         string? exportCapability,
         string? approveCapability,
         IReadOnlyDictionary<string, string> commandCapabilities,
-        IReadOnlyDictionary<string, bool> enforceableFields)
+        IReadOnlyDictionary<string, bool> enforceableFields,
+        string? unassignedReadCapability)
     {
         ResourceKey = resourceKey;
         ReadCapability = readCapability;
@@ -54,10 +55,14 @@ public sealed class RecordAccessResourceDescriptor
         ApproveCapability = approveCapability;
         CommandCapabilities = commandCapabilities;
         EnforceableFields = enforceableFields;
+        UnassignedReadCapability = unassignedReadCapability;
     }
 
     public string ResourceKey { get; }
     public string ReadCapability { get; }
+
+    /// <summary>When declared, ownerless records require this additional read authority.</summary>
+    public string? UnassignedReadCapability { get; }
     public string? UpdateCapability { get; }
     public string? DeleteCapability { get; }
     public string? ExportCapability { get; }
@@ -89,7 +94,8 @@ public sealed class RecordAccessResourceDescriptor
         string? exportCapability = null,
         string? approveCapability = null,
         IReadOnlyDictionary<string, string>? commandCapabilities = null,
-        IReadOnlyDictionary<string, bool>? enforceableFields = null)
+        IReadOnlyDictionary<string, bool>? enforceableFields = null,
+        string? unassignedReadCapability = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
         if (resourceKey.Trim().Length is < 1 or > 160)
@@ -119,7 +125,8 @@ public sealed class RecordAccessResourceDescriptor
             OptionalCanonical(exportCapability, nameof(exportCapability)),
             OptionalCanonical(approveCapability, nameof(approveCapability)),
             commands,
-            fields);
+            fields,
+            OptionalCanonical(unassignedReadCapability, nameof(unassignedReadCapability)));
     }
 
     private static string Canonical(string capability, string parameterName)

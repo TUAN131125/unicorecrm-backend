@@ -39,6 +39,7 @@ public static class LeadsEndpoints
         string? search,
         string? workState,
         string? ownerId,
+        string? assignmentState,
         HttpContext context,
         Application.ListLeads.Handler handler,
         CancellationToken cancellationToken)
@@ -47,7 +48,7 @@ public static class LeadsEndpoints
             return error!;
         var result = await handler.HandleAsync(
             new Application.ListLeads.Query(
-                cursor, limit, search, workState, ownerId, metadata!.RequestId, metadata.CorrelationId),
+                cursor, limit, search, workState, ownerId, assignmentState, metadata!.RequestId, metadata.CorrelationId),
             cancellationToken);
         if (!result.IsSuccess)
             return LeadsHttp.Error(result.Error!, metadata.CorrelationId);

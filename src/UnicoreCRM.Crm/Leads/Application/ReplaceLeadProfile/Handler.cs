@@ -50,6 +50,8 @@ internal sealed class Handler(
                 // The guard inspects what will actually be written, so the resolved interested-product
                 // collection is substituted before comparison rather than after it.
                 var replacement = profile! with { InterestedProducts = resolvedProducts };
+                if (!string.Equals(replacement.OwnerId, lead.Profile.OwnerId, StringComparison.Ordinal))
+                    return LeadErrors.AccessDenied();
                 var fieldError = LeadFieldSecurity.GuardProfileWrite(access.Value!.Authorization, lead.Profile, replacement);
                 if (fieldError is not null)
                     return fieldError;
@@ -59,7 +61,8 @@ internal sealed class Handler(
             },
             async (trusted, token) =>
             {
-                if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile!.OwnerId, token))
+                if (profile!.OwnerId is not null
+                    && !await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, profile.OwnerId, token))
                 {
                     return LeadErrors.Validation(new Dictionary<string, string[]>
                     {

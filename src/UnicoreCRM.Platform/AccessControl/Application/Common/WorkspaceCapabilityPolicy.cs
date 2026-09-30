@@ -43,6 +43,7 @@ internal static class WorkspaceCapabilityPolicy
         "leads.convert_to_customer",
         "leads.qualify",
         "leads.read",
+        "leads.queue.read",
         "leads.update",
         "orders.complete",
         "orders.confirm",

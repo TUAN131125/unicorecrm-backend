@@ -6,6 +6,7 @@ namespace UnicoreCRM.Crm.Leads.Contracts;
 public static class LeadCapabilities
 {
     public static AccessRequirement Read { get; } = AccessRequirement.ForCanonicalCapability("leads.read");
+    public static AccessRequirement QueueRead { get; } = AccessRequirement.ForCanonicalCapability("leads.queue.read");
     public static AccessRequirement Create { get; } = AccessRequirement.ForCanonicalCapability("leads.create");
     public static AccessRequirement Update { get; } = AccessRequirement.ForCanonicalCapability("leads.update");
     public static AccessRequirement Qualify { get; } = AccessRequirement.ForCanonicalCapability("leads.qualify");
@@ -131,7 +132,7 @@ public sealed record LeadDocument(
     string LeadWorkState,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Source,
     int Score,
-    string OwnerId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? OwnerId,
     IReadOnlyList<LeadInterestedProductReadModel> InterestedProducts,
     string ActivityProjection)
 {

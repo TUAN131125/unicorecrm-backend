@@ -28,7 +28,7 @@ internal sealed class Lead
     /// scope has to be pushed into the query rather than filtered in memory, and that needs a real
     /// column. It is derived state kept in step with the profile, never an independent fact.
     /// </summary>
-    public string ScopeOwnerId { get; private set; } = null!;
+    public string? ScopeOwnerId { get; private set; }
     /// <summary>
     /// A normalized query projection containing the Lead identifier and display name. Optional
     /// protected fields are deliberately not copied here, so list search cannot become a

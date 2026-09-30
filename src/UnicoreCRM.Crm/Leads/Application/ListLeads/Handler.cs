@@ -13,6 +13,7 @@ internal sealed record Query(
     string? Search,
     string? WorkState,
     string? OwnerId,
+    string? AssignmentState,
     string RequestId,
     string CorrelationId);
 
@@ -48,6 +49,10 @@ internal sealed class Handler(
         var workState = ParseWorkState(query.WorkState, fields);
         if (query.OwnerId is not null && !LeadValidation.IsEntityId(query.OwnerId))
             fields["ownerId"] = ["ownerId is not a valid entity identifier."];
+        if (query.AssignmentState is not null and not "ASSIGNED" and not "UNASSIGNED")
+            fields["assignmentState"] = ["assignmentState must be ASSIGNED or UNASSIGNED."];
+        if (query.AssignmentState == "UNASSIGNED" && query.OwnerId is not null)
+            fields["ownerId"] = ["ownerId cannot be combined with UNASSIGNED."];
         LeadListCursor.TryParse(query.Cursor, fields, out var cursorUpdatedAt, out var cursorLeadId);
         if (fields.Count != 0)
             return LeadOperationResult<LeadListPage>.Failure(LeadErrors.Validation(fields));
@@ -70,6 +75,8 @@ internal sealed class Handler(
             trusted.WorkspaceId,
             scopeOwnerId,
             query.OwnerId,
+            query.AssignmentState,
+            access.Value!.Authorization.CanReadUnassigned,
             workState,
             normalizedSearch,
             includePhoneSearch,
@@ -81,6 +88,8 @@ internal sealed class Handler(
             trusted.WorkspaceId,
             scopeOwnerId,
             query.OwnerId,
+            query.AssignmentState,
+            access.Value!.Authorization.CanReadUnassigned,
             workState,
             normalizedSearch,
             includePhoneSearch,

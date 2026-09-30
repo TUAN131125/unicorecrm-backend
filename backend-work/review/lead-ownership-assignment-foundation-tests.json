@@ -1,0 +1,764 @@
+{
+  "kind": "LocalExecutionSummary",
+  "independentAttestation": false,
+  "date": "2026-09-30",
+  "suite": "150 npm test gates: fail-fast full run, individual continuation, and latest affected-gate reruns; not one uninterrupted green suite",
+  "counts": {
+    "PASS": 144,
+    "FAIL": 6
+  },
+  "results": [
+    {
+      "gate": "quality.forecast-analytics",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.order-to-cash-metrics",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.payment-plan-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.payment-method-catalog-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.payment-intent-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.payment-allocation-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.customer-credit-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.invoice-domain-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.receivables-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.ai-governance-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.partial-commit-semantics",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.user-facing-error-presentation",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.ai-application-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.record-ownership-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.orders",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.customers",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.metric-catalog-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.contacts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.read-models",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.relationship-identity-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.relationship-migration-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.support",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.products",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.leads",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.deals",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.quotes",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.application-foundation",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.studio-quick-setup",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.studio-currency-exchange-rates",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.lead-lifecycle-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.deal-lifecycle-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.quote-direct-sale-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.frontend-quality-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.lead-data-safety-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\final-quality.lead-data-safety-contracts.log"
+    },
+    {
+      "gate": "quality.lead-identity-governance",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.contact-organization-relationships",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.lead-business-rules-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\test-continued.log"
+    },
+    {
+      "gate": "quality.lead-scale-experience-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\final-quality.lead-scale-experience-contracts.log"
+    },
+    {
+      "gate": "quality.bilingual-ui",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\final-quality.bilingual-ui.log"
+    },
+    {
+      "gate": "quality.product-glossary",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.product-glossary.log"
+    },
+    {
+      "gate": "quality.user-facing-identifiers",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.user-facing-identifiers.log"
+    },
+    {
+      "gate": "quality.user-facing-copy",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.user-facing-copy.log"
+    },
+    {
+      "gate": "quality.native-browser-dialogs",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.native-browser-dialogs.log"
+    },
+    {
+      "gate": "quality.design-system-consistency",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.design-system-consistency.log"
+    },
+    {
+      "gate": "quality.enterprise-experience",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.enterprise-experience.log"
+    },
+    {
+      "gate": "quality.release-readiness",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.release-readiness.log"
+    },
+    {
+      "gate": "quality.order-operations-frontend-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-operations-frontend-contracts.log"
+    },
+    {
+      "gate": "quality.order-to-cash-no-fake-success",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-to-cash-no-fake-success.log"
+    },
+    {
+      "gate": "quality.order-to-cash-no-payment-hardcode",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-to-cash-no-payment-hardcode.log"
+    },
+    {
+      "gate": "quality.order-to-cash-money-safety",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-to-cash-money-safety.log"
+    },
+    {
+      "gate": "quality.order-to-cash-typography",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-to-cash-typography.log"
+    },
+    {
+      "gate": "quality.order-to-cash-cleanup",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-to-cash-cleanup.log"
+    },
+    {
+      "gate": "quality.sales-quick-create-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.sales-quick-create-contracts.log"
+    },
+    {
+      "gate": "quality.page-description-policy",
+      "status": "FAIL",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.page-description-policy.log"
+    },
+    {
+      "gate": "quality.ui-overlay-surfaces",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.ui-overlay-surfaces.log"
+    },
+    {
+      "gate": "quality.guidance-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\final-quality.guidance-contracts.log"
+    },
+    {
+      "gate": "quality.form-runtime-sizing",
+      "status": "FAIL",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.form-runtime-sizing.log"
+    },
+    {
+      "gate": "quality.enterprise-form-experience",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.enterprise-form-experience.log"
+    },
+    {
+      "gate": "quality.form-dialog-structure",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.form-dialog-structure.log"
+    },
+    {
+      "gate": "quality.detail-opportunity-attachments",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.detail-opportunity-attachments.log"
+    },
+    {
+      "gate": "quality.detail-panel-product-actions",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.detail-panel-product-actions.log"
+    },
+    {
+      "gate": "quality.quote-order-integrity-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.quote-order-integrity-contracts.log"
+    },
+    {
+      "gate": "quality.sales-order-p0-p1-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.sales-order-p0-p1-contracts.log"
+    },
+    {
+      "gate": "quality.order-operations-presentation-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.order-operations-presentation-contracts.log"
+    },
+    {
+      "gate": "quality.order-operations-workspace-ux",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-operations-workspace-ux.log"
+    },
+    {
+      "gate": "quality.action-button-taxonomy",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.action-button-taxonomy.log"
+    },
+    {
+      "gate": "quality.order-operations-hardening-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-operations-hardening-contracts.log"
+    },
+    {
+      "gate": "quality.customer-relationship-integrity",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.customer-relationship-integrity.log"
+    },
+    {
+      "gate": "quality.customer-relationship-completeness",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.customer-relationship-completeness.log"
+    },
+    {
+      "gate": "quality.customer-contact-ui-parity",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.customer-contact-ui-parity.log"
+    },
+    {
+      "gate": "quality.record-detail-motion-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.record-detail-motion-contracts.log"
+    },
+    {
+      "gate": "quality.customer-intelligence-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.customer-intelligence-contracts.log"
+    },
+    {
+      "gate": "quality.customer-view-boundary",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.customer-view-boundary.log"
+    },
+    {
+      "gate": "quality.work-operations-ux",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.work-operations-ux.log"
+    },
+    {
+      "gate": "quality.task-create-form-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.task-create-form-contracts.log"
+    },
+    {
+      "gate": "quality.relationship-activity-form-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.relationship-activity-form-contracts.log"
+    },
+    {
+      "gate": "quality.canonical-crm-form-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.canonical-crm-form-contracts.log"
+    },
+    {
+      "gate": "quality.contextual-prefill-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.contextual-prefill-contracts.log"
+    },
+    {
+      "gate": "quality.studio-configuration-experience",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.studio-configuration-experience.log"
+    },
+    {
+      "gate": "quality.product-space-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.product-space-contracts.log"
+    },
+    {
+      "gate": "quality.shipping-create-page-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.shipping-create-page-contracts.log"
+    },
+    {
+      "gate": "quality.organization-b2b-ui",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.organization-b2b-ui.log"
+    },
+    {
+      "gate": "quality.list-filter-popover-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.list-filter-popover-contracts.log"
+    },
+    {
+      "gate": "quality.opportunity-presentation-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.opportunity-presentation-contracts.log"
+    },
+    {
+      "gate": "quality.quote-presentation-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.quote-presentation-contracts.log"
+    },
+    {
+      "gate": "quality.quote-approval-delivery-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.quote-approval-delivery-contracts.log"
+    },
+    {
+      "gate": "quality.shell-ai-experience",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.shell-ai-experience.log"
+    },
+    {
+      "gate": "quality.people-access-ux",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.people-access-ux.log"
+    },
+    {
+      "gate": "quality.maintainability-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.maintainability-contracts.log"
+    },
+    {
+      "gate": "quality.qc88-remediation-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.qc88-remediation-contracts.log"
+    },
+    {
+      "gate": "quality.display-format-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.display-format-contracts.log"
+    },
+    {
+      "gate": "quality.deal-quote-migration-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.deal-quote-migration-contracts.log"
+    },
+    {
+      "gate": "quality.auth-ux-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.auth-ux-contracts.log"
+    },
+    {
+      "gate": "quality.crm-presentation-contracts",
+      "status": "FAIL",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.crm-presentation-contracts.log"
+    },
+    {
+      "gate": "quality.deal-stage-localization",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.deal-stage-localization.log"
+    },
+    {
+      "gate": "quality.sales-order-p2-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.sales-order-p2-contracts.log"
+    },
+    {
+      "gate": "quality.operational-context-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.operational-context-contracts.log"
+    },
+    {
+      "gate": "quality.auth-session-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.auth-session-contracts.log"
+    },
+    {
+      "gate": "quality.workspace-isolation-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.workspace-isolation-contracts.log"
+    },
+    {
+      "gate": "quality.studio-module-propagation",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.studio-module-propagation.log"
+    },
+    {
+      "gate": "quality.enterprise-security-evidence",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.enterprise-security-evidence.log"
+    },
+    {
+      "gate": "quality.write-boundary-authorization",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.write-boundary-authorization.log"
+    },
+    {
+      "gate": "quality.integration-resilience",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.integration-resilience.log"
+    },
+    {
+      "gate": "quality.lead-webhook-connector",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.lead-webhook-connector.log"
+    },
+    {
+      "gate": "quality.lead-form-recovery-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.lead-form-recovery-contracts.log"
+    },
+    {
+      "gate": "quality.lead-detail-work-resources",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.lead-detail-work-resources.log"
+    },
+    {
+      "gate": "quality.lead-work-panel",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\final-quality.lead-work-panel.log"
+    },
+    {
+      "gate": "quality.lead-detail-surfaces",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\final-quality.lead-detail-surfaces.log"
+    },
+    {
+      "gate": "quality.crm-ui-interaction-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.crm-ui-interaction-contracts.log"
+    },
+    {
+      "gate": "quality.role-based-navigation",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.role-based-navigation.log"
+    },
+    {
+      "gate": "quality.read-only-cross-domain",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.read-only-cross-domain.log"
+    },
+    {
+      "gate": "quality.data-typography-kanban",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.data-typography-kanban.log"
+    },
+    {
+      "gate": "quality.order-to-cash-api-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-to-cash-api-contracts.log"
+    },
+    {
+      "gate": "quality.guidance-runtime",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.guidance-runtime.log"
+    },
+    {
+      "gate": "quality.temporal-input-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.temporal-input-contracts.log"
+    },
+    {
+      "gate": "quality.contact-saved-views",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.contact-saved-views.log"
+    },
+    {
+      "gate": "quality.payment-workflow-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.payment-workflow-contracts.log"
+    },
+    {
+      "gate": "quality.order-creation-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-creation-contracts.log"
+    },
+    {
+      "gate": "quality.order-payment-plan-ux",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-payment-plan-ux.log"
+    },
+    {
+      "gate": "quality.order-customer-delivery-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.order-customer-delivery-contracts.log"
+    },
+    {
+      "gate": "quality.shipping-returns-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.shipping-returns-contracts.log"
+    },
+    {
+      "gate": "quality.return-credit-refund-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.return-credit-refund-contracts.log"
+    },
+    {
+      "gate": "quality.customer-integration-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.customer-integration-contracts.log"
+    },
+    {
+      "gate": "quality.customer360-reconciliation",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.customer360-reconciliation.log"
+    },
+    {
+      "gate": "quality.metric-drilldown-runtime",
+      "status": "FAIL",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.metric-drilldown-runtime.log"
+    },
+    {
+      "gate": "quality.tab-interaction-runtime",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.tab-interaction-runtime.log"
+    },
+    {
+      "gate": "quality.dashboard-runtime",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.dashboard-runtime.log"
+    },
+    {
+      "gate": "quality.workspace-scope-reset",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.workspace-scope-reset.log"
+    },
+    {
+      "gate": "quality.server-assigned-task-identity-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.server-assigned-task-identity-contracts.log"
+    },
+    {
+      "gate": "quality.blocked-command-containment",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.blocked-command-containment.log"
+    },
+    {
+      "gate": "quality.connected-unavailable-port-containment",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.connected-unavailable-port-containment.log"
+    },
+    {
+      "gate": "quality.wf01-contact-opportunity-ownership",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.wf01-contact-opportunity-ownership.log"
+    },
+    {
+      "gate": "quality.wf04-customer-commercial-actions-ownership",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.wf04-customer-commercial-actions-ownership.log"
+    },
+    {
+      "gate": "quality.wf21-work-activation-ownership",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.wf21-work-activation-ownership.log"
+    },
+    {
+      "gate": "quality.partial-commit-controller-runtime",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.partial-commit-controller-runtime.log"
+    },
+    {
+      "gate": "quality.reports-runtime",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.reports-runtime.log"
+    },
+    {
+      "gate": "quality.workspace-governance-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.workspace-governance-contracts.log"
+    },
+    {
+      "gate": "quality.access-control-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.access-control-contracts.log"
+    },
+    {
+      "gate": "quality.people-account-provisioning",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.people-account-provisioning.log"
+    },
+    {
+      "gate": "quality.contact-visual-baseline",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.contact-visual-baseline.log"
+    },
+    {
+      "gate": "quality.connected-backend-integration",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.connected-backend-integration.log"
+    },
+    {
+      "gate": "quality.lead-ownership-distribution-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\final-quality.lead-ownership-distribution-contracts.log"
+    },
+    {
+      "gate": "quality.sidebar-navigation-migration",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.sidebar-navigation-migration.log"
+    },
+    {
+      "gate": "quality.workspace-navigation-language",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.workspace-navigation-language.log"
+    },
+    {
+      "gate": "quality.route-module-loads",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\repair-quality.route-module-loads.log"
+    },
+    {
+      "gate": "quality.studio-route-runtime",
+      "status": "FAIL",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.studio-route-runtime.log"
+    },
+    {
+      "gate": "quality.navigation-runtime",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.navigation-runtime.log"
+    },
+    {
+      "gate": "quality.route-query-stability-runtime",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.route-query-stability-runtime.log"
+    },
+    {
+      "gate": "quality.shell-layout-contracts",
+      "status": "PASS",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.shell-layout-contracts.log"
+    },
+    {
+      "gate": "quality.overflow-resilience",
+      "status": "FAIL",
+      "log": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-ownership-frontend-evidence\\continued-quality.overflow-resilience.log"
+    }
+  ],
+  "historical": true,
+  "supersededBy": "lead-ownership-assignment-foundation-cleanup.json"
+}

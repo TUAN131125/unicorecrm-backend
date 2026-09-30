@@ -225,7 +225,7 @@ Assert-SourceGuard ($ingressSource -match 'IDelegatedLeadCreateAuthorizer' `
     'Ingress source guard dedicated authorizer only'
 Assert-SourceGuard ($admissionSource -notmatch 'FromAllowedDecision|AccessAuthorizationDecision|LeadAccess\?\s+\w+') `
     'Admission source guard generic decision and nullable access blocked'
-Assert-SourceGuard ($admissionSource -match 'profile\.OwnerId, authorization\.DelegatedSubjectId' `
+Assert-SourceGuard ($admissionSource -match 'profile\.OwnerId is null' `
         -and $admissionSource -match 'metadata\.DelegatedSubjectId' `
         -and $admissionSource -match 'LeadCreateAdmission\(authorization\.Trusted\)') `
     'Admission source guard proof cannot rebind Workspace member or owner'
@@ -282,7 +282,7 @@ try {
     Assert-Status (Send-Json 'GET' "/tasks/$taskId" $null $authorization) 200 'Tasks get'
 
     $leadHeaders = $authorization.Clone(); $leadHeaders['Idempotency-Key'] = 'idem-inbound-webhook-normal-lead'
-    $normalLeadBody = @{ displayName = 'Inbound webhook normal Lead'; source = 'Direct'; ownerId = $memberId; estimatedValue = @{ amount = '10.00'; currency = 'USD' }; email = 'normal@example.test' } | ConvertTo-Json -Compress
+    $normalLeadBody = @{ displayName = 'Inbound webhook normal Lead'; source = 'Direct'; estimatedValue = @{ amount = '10.00'; currency = 'USD' }; email = 'normal@example.test' } | ConvertTo-Json -Compress
     $normalLead = Send-Json 'POST' '/leads' $normalLeadBody $leadHeaders
     Assert-Status $normalLead 201 'Leads create'
     $normalLeadId = ($normalLead.Body | ConvertFrom-Json).aggregateId
@@ -311,6 +311,70 @@ try {
     $capabilityAudit = Invoke-SqlScalar "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$workspaceId' AND MembershipId='$membershipId' AND RequiredCapability='leads.create' AND Allowed=1 AND CorrelationId='$($positiveReceipt.correlationId)';"
     if ($capabilityAudit -ne '1') { throw 'Positive webhook did not record exactly one canonical delegated leads.create decision.' }
     $checks.Add('Inbound webhook one canonical leads.create authorization decision=PASS')
+
+    # Assignment foundation: real HTTP admission, SQL persistence, shared record access and query predicates.
+    if (($normalLead.Body | ConvertFrom-Json).result.ownerId -ne $memberId) { throw 'Interactive create did not resolve actor ownership.' }
+    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$leadId' AND ScopeOwnerId IS NULL AND JSON_VALUE(Profile,'$.ownerId') IS NULL;") -ne '1') { throw 'External Lead owner was not persisted as null.' }
+    $checks.Add('Assignment foundation interactive actor and persisted external null=PASS')
+    $roleId = Invoke-SqlScalar "SELECT TOP (1) RoleId FROM access.MembershipRoleAssignments WHERE MembershipId='$membershipId';"
+    function Assert-Queue([int] $count, [int] $detailStatus, [string] $label) {
+        $list = Send-Json 'GET' '/leads?assignmentState=UNASSIGNED' $null $authorization
+        Assert-Status $list 200 "$label queue list"
+        $page = $list.Body | ConvertFrom-Json
+        if (@($page.items).Count -ne $count -or $page.pageInfo.totalCount -ne $count) { throw "$label queue list/count mismatch: $($list.Body)" }
+        Assert-Status (Send-Json 'GET' "/leads/$leadId" $null $authorization) $detailStatus "$label detail"
+        $decision = Send-Json 'POST' '/access/records/evaluate' (@{ resourceKey='leads'; recordId=$leadId; requestedCommands=@('lead.update'); requestedFields=@('ownerId','phone') } | ConvertTo-Json -Compress) $authorization
+        Assert-Status $decision 200 "$label effective access"
+        if (($decision.Body | ConvertFrom-Json).canRead -ne ($detailStatus -eq 200)) { throw "$label effective access disagrees with detail." }
+        $all = Send-Json 'GET' '/leads' $null $authorization
+        Assert-Status $all 200 "$label unfiltered list"
+        if ($count -eq 0 -and @((($all.Body | ConvertFrom-Json).items) | Where-Object { $_.id -eq $leadId }).Count -ne 0) { throw "$label unfiltered list leaked queue." }
+        $search = Send-Json 'GET' '/leads?search=Webhook' $null $authorization
+        Assert-Status $search 200 "$label search"
+        if ($count -eq 0 -and @((($search.Body | ConvertFrom-Json).items) | Where-Object { $_.id -eq $leadId }).Count -ne 0) { throw "$label search leaked queue." }
+    }
+    Assert-Queue 0 404 'WORKSPACE without queue permission'
+    Invoke-Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$roleId','leads.queue.read');"
+    Assert-Queue 1 200 'WORKSPACE with queue permission'
+    $unassigned = (Send-Json 'GET' "/leads/$leadId" $null $authorization).Body | ConvertFrom-Json
+    if (-not ($unassigned.PSObject.Properties.Name -contains 'ownerId') -or $null -ne $unassigned.ownerId) { throw ('Transport must contain explicit null ownerId: ' + ($unassigned | ConvertTo-Json -Compress)) }
+    $assigned = Send-Json 'GET' '/leads?assignmentState=ASSIGNED' $null $authorization
+    Assert-Status $assigned 200 'Assigned query'
+    if (@((($assigned.Body | ConvertFrom-Json).items) | Where-Object { $null -eq $_.ownerId }).Count -ne 0) { throw 'ASSIGNED returned null owner.' }
+    Assert-Status (Send-Json 'GET' "/leads?assignmentState=UNASSIGNED&ownerId=$memberId" $null $authorization) 422 'Contradictory assignment filter'
+    Assert-Status (Send-Json 'GET' '/leads?assignmentState=QUEUE' $null $authorization) 422 'Invalid assignment vocabulary'
+    foreach ($scope in @('Own','Team','Custom')) {
+        Invoke-Sql "DELETE FROM access.RoleDataScopes WHERE RoleId='$roleId' AND ResourceKey='leads'; INSERT INTO access.RoleDataScopes (PolicyId,WorkspaceId,RoleId,ResourceKey,Scope,AllowedOwnerIdsJson) VALUES ('scope_queue_verify','$workspaceId','$roleId','leads','$scope','[]');"
+        if ($scope -eq 'Own') {
+            Assert-Queue 1 200 'OWN with queue permission'
+            $decision = (Send-Json 'POST' '/access/records/evaluate' (@{ resourceKey='leads'; recordId=$leadId; requestedCommands=@('lead.update') } | ConvertTo-Json -Compress) $authorization).Body | ConvertFrom-Json
+            if ($decision.canUpdate -or $decision.allowedCommands.Count -ne 0) { throw 'Queue read widened OWN mutations.' }
+            $denyHeaders=$authorization.Clone(); $denyHeaders['Idempotency-Key']='queue-own-mutate'; $denyHeaders['If-Match']='"0"'
+            Assert-Status (Send-Json 'PUT' "/leads/$leadId" '{"displayName":"Denied","ownerId":null}' $denyHeaders) 404 'OWN queue read cannot update'
+            Invoke-Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='leads.queue.read';"
+            Assert-Queue 0 404 'OWN without queue permission'
+            Invoke-Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$roleId','leads.queue.read');"
+        } else { Assert-Queue 0 404 "$scope with queue permission" }
+    }
+    Invoke-Sql "DELETE FROM access.RoleDataScopes WHERE RoleId='$roleId' AND ResourceKey='leads';"
+    foreach ($fakeOwner in @('queue','unassigned','system','sales_queue','member_someone_else')) {
+        $headers=$authorization.Clone(); $headers['Idempotency-Key']="fake-owner-$fakeOwner"
+        Assert-Status (Send-Json 'POST' '/leads' (@{displayName='Invalid owner';email='invalid@example.test';ownerId=$fakeOwner} | ConvertTo-Json -Compress) $headers) 403 "Interactive rejects $fakeOwner"
+        Assert-Status (Send-Webhook 'int_inbound_lead_webhook' "owner-spoof-$fakeOwner" (@{displayName='Spoof';email='invalid@example.test';ownerId=$fakeOwner} | ConvertTo-Json -Compress) ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())) 400 "External rejects $fakeOwner"
+    }
+    # Cross-workspace SQL fixture: authenticate the same actor with no foreign membership.
+    $foreignHeaders=$authorization.Clone(); $foreignHeaders['X-Workspace-Id']=$foreignWorkspaceId
+    foreach ($path in @('/leads?assignmentState=UNASSIGNED',"/leads/$leadId")) {
+        $foreign=Send-Json 'GET' $path $null $foreignHeaders
+        if ($foreign.Status -notin @(403,404)) { throw "Cross-workspace read accepted: $($foreign.Status)" }
+    }
+    $foreignHeaders['Idempotency-Key']='foreign-queue-write'; $foreignHeaders['If-Match']='"0"'
+    $foreign=Send-Json 'PUT' "/leads/$leadId" '{"displayName":"Foreign","ownerId":null}' $foreignHeaders
+    if ($foreign.Status -notin @(403,404)) { throw 'Cross-workspace mutation accepted.' }
+    $checks.Add('Assignment foundation cross-workspace list/detail/mutation=PASS')
+    # Existing assigned records and external provenance are preserved while projection accepts null.
+    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$normalLeadId' AND ScopeOwnerId='$memberId';") -ne '1') { throw 'Assigned record changed.' }
+
 
     $missingSignature = Send-Json 'POST' '/integrations/inbound/leads/int_inbound_lead_webhook' $body @{
         'X-Unicore-Delivery-Id' = 'delivery-missing-signature'; 'X-Unicore-Timestamp' = $now; 'X-Correlation-Id' = 'corr-inbound-webhook-missing-signature'
@@ -389,6 +453,8 @@ try {
     $messageOne.Dispose(); $messageTwo.Dispose()
     if ($statusOne -ne 200 -or $statusTwo -ne 200) { throw "Concurrent duplicate statuses were $statusOne/$statusTwo." }
     if ([int] (Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE JSON_VALUE(Profile,'$.displayName')='Concurrent Lead';") -ne 1) { throw 'Concurrent delivery did not create exactly one Lead.' }
+    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.AuditRecords WHERE SourceReference='delivery-concurrent' AND ActorType='Integration' AND ActorId='int_inbound_lead_webhook';") -ne '1') { throw 'Concurrent replay duplicated Lead audit evidence.' }
+    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM ops.InboxMessages WHERE IntegrationId='int_inbound_lead_webhook' AND DeliveryId='delivery-concurrent' AND Status='Processed';") -ne '1') { throw 'Concurrent replay duplicated Inbox evidence.' }
     $checks.Add('Inbound webhook concurrent duplicate=200/200, one Lead')
 
     $headerSpoof = Send-Webhook 'int_inbound_lead_webhook' 'delivery-header-spoof' $body.Replace('Webhook Lead', 'Header Spoof Lead') `
@@ -398,8 +464,8 @@ try {
         }
     Assert-Status $headerSpoof 200 'Inbound webhook sender authority headers ignored'
     $headerSpoofLeadId = ($headerSpoof.Body | ConvertFrom-Json).leadId
-    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$headerSpoofLeadId' AND WorkspaceId='$workspaceId' AND ScopeOwnerId='$memberId';") -ne '1') {
-        throw 'Sender authority headers changed trusted Workspace or delegated owner.'
+    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$headerSpoofLeadId' AND WorkspaceId='$workspaceId' AND ScopeOwnerId IS NULL;") -ne '1') {
+        throw 'Sender authority headers changed trusted Workspace or unassigned ownership.'
     }
     $checks.Add('Inbound webhook sender cannot choose Workspace or delegated subject=PASS')
 
@@ -411,6 +477,49 @@ try {
     $checks.Add('Inbound webhook Inbox persistence=PASS')
     $checks.Add('Inbound webhook integration actor audit=PASS')
     $checks.Add('Inbound webhook delivery/idempotency identity negative=PASS')
+
+    # Assignment foundation regressions run after the webhook count/idempotency assertions.
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES ('field_queue_owner','$workspaceId','$roleId','leads','ownerId','Hidden');"
+    Assert-Status (Send-Json 'GET' '/leads?assignmentState=UNASSIGNED' $null $authorization) 403 'Queue hidden required owner fails closed'
+    Assert-Status (Send-Json 'GET' "/leads/$leadId" $null $authorization) 403 'Detail hidden required owner fails closed'
+    Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_queue_owner';"
+    $editHeaders=$authorization.Clone(); $editHeaders['Idempotency-Key']='queue-preserve-null'; $editHeaders['If-Match']='"0"'
+    Assert-Status (Send-Json 'PUT' "/leads/$leadId" '{"displayName":"Queue edited","ownerId":null,"phone":"0909988776"}' $editHeaders) 200 'Queue profile preserves null owner'
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity (PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES ('field_queue_phone','$workspaceId','$roleId','leads','phone','Hidden');"
+    $hiddenPhone=Send-Json 'GET' "/leads/$leadId" $null $authorization
+    Assert-Status $hiddenPhone 200 'Queue hidden phone detail'
+    if ($hiddenPhone.Body -match '0909988776') { throw 'Hidden phone disclosed.' }
+    $hiddenSearch=Send-Json 'GET' '/leads?assignmentState=UNASSIGNED&search=0909988776' $null $authorization
+    Assert-Status $hiddenSearch 200 'Queue hidden phone search'
+    if (($hiddenSearch.Body|ConvertFrom-Json).pageInfo.totalCount -ne 0) { throw 'Hidden phone search disclosed record.' }
+    Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_queue_phone';"
+    $seen=[System.Collections.Generic.HashSet[string]]::new()
+    $cursor=$null
+    do {
+        $path='/leads?assignmentState=UNASSIGNED&limit=1'
+        if ($cursor) { $path += '&cursor=' + [Uri]::EscapeDataString($cursor) }
+        $response=Send-Json 'GET' $path $null $authorization
+        Assert-Status $response 200 'Queue cursor page'
+        $page=$response.Body|ConvertFrom-Json
+        foreach($item in $page.items) {
+            if ($null -ne $item.ownerId -or -not $seen.Add($item.id)) { throw 'Queue page owner or duplicate invariant failed.' }
+        }
+        $cursor=$page.pageInfo.nextCursor
+    } while($page.pageInfo.hasNextPage)
+    if ($seen.Count -ne $page.pageInfo.totalCount) { throw 'Queue count/pagination mismatch.' }
+    $editHeaders['Idempotency-Key']='queue-reject-assign'; $editHeaders['If-Match']='"1"'
+    Assert-Status (Send-Json 'PUT' "/leads/$leadId" (@{displayName='Unauthorized assignment';ownerId=$memberId}|ConvertTo-Json -Compress) $editHeaders) 403 'Profile cannot assign Queue'
+    $editHeaders['Idempotency-Key']='assigned-profile'; $editHeaders['If-Match']='"0"'
+    Assert-Status (Send-Json 'PUT' "/leads/$normalLeadId" (@{displayName='Assigned preserved';ownerId=$memberId;email='normal@example.test'}|ConvertTo-Json -Compress) $editHeaders) 200 'Assigned profile regression'
+    $editHeaders['Idempotency-Key']='assigned-cannot-unassign'; $editHeaders['If-Match']='"1"'
+    Assert-Status (Send-Json 'PUT' "/leads/$normalLeadId" '{"displayName":"Cannot unassign","ownerId":null}' $editHeaders) 403 'Profile cannot unassign existing owner'
+    $editHeaders['Idempotency-Key']='assigned-state'; $editHeaders['If-Match']='"1"'
+    Assert-Status (Send-Json 'POST' "/leads/$normalLeadId/advance-work-state" '{"targetWorkState":"CONTACTING"}' $editHeaders) 200 'Assigned lifecycle regression'
+    Invoke-Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$roleId','leads.delete');"
+    $editHeaders['Idempotency-Key']='assigned-archive'; $editHeaders['If-Match']='"2"'
+    Assert-Status (Send-Json 'POST' "/leads/$normalLeadId/archive" '{"reason":"Regression fixture"}' $editHeaders) 200 'Assigned archive regression'
+    if ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$normalLeadId' AND ScopeOwnerId='$memberId' AND ArchivedAt IS NOT NULL;") -ne '1') { throw 'Archive changed assigned ownership.' }
+    $checks.Add('Assignment foundation field-security and cursor invariants=PASS')
 
     [pscustomobject] @{
         Status = 'PASS'

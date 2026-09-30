@@ -30,7 +30,8 @@ internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence
             ["lead.change-work-state"] = LeadCapabilities.Update.Capability,
             ["lead.disqualify"] = LeadCapabilities.Qualify.Capability
         },
-        enforceableFields: LeadFieldSecurity.EnforceableFields);
+        enforceableFields: LeadFieldSecurity.EnforceableFields,
+        unassignedReadCapability: LeadCapabilities.QueueRead.Capability);
 
     public RecordAccessResourceDescriptor Descriptor => LeadsDescriptor;
 
