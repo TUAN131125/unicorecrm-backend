@@ -1,0 +1,1437 @@
+diff --git a/scripts/ProactiveVerifier/Program.cs b/scripts/ProactiveVerifier/Program.cs
+index 58d9634..61677a4 100644
+--- a/scripts/ProactiveVerifier/Program.cs
++++ b/scripts/ProactiveVerifier/Program.cs
+@@ -2,6 +2,16 @@ using UnicoreCRM.AI.Proactive.Application;
+ using UnicoreCRM.AI.Proactive.Infrastructure;
+ using UnicoreCRM.Crm.Customers.Contracts;
+ using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
++using Microsoft.Data.SqlClient;
++using Microsoft.EntityFrameworkCore;
++using UnicoreCRM.PlatformOperations.AiExecution.Infrastructure;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Logging.Abstractions;
++using UnicoreCRM.Platform.Workspace.Contracts;
++using UnicoreCRM.AI.Gateway;
++using UnicoreCRM.Platform.AccessControl.Contracts;
++using UnicoreCRM.Platform.AccessControl.Application.ProvisionInitialWorkspaceAccess;
++using UnicoreCRM.Platform.AccessControl.Application.Common;
+ 
+ var now = new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero);
+ var clock = new FixedClock(now);
+@@ -10,7 +20,7 @@ var reconciler = new CustomerHealthRiskReconciler(store, clock);
+ var passed = 0;
+ void Check(string name, object? expected, object? actual) { if (!Equals(expected, actual)) throw new InvalidOperationException($"{name}: expected={expected}, actual={actual}"); passed++; }
+ ProactiveCustomerHealthFact Fact(string band, string? owner="member_a", string status="ACTIVE") => new("customer_a", owner, status, band, band, $"PURCHASE_RECENCY_{band}", "V1", "1");
+-async Task Run(ProactiveCustomerHealthFact fact) => await reconciler.ReconcileAsync("workspace_a", fact, "correlation-test", default);
++async Task Run(ProactiveCustomerHealthFact fact) => await reconciler.ReconcilePageAsync("workspace_a", [fact], "correlation-test", default);
+ 
+ await Run(Fact("UNKNOWN")); Check("unknown no item", 0, store.Items.Count);
+ await Run(Fact("HEALTHY")); Check("healthy no item", 0, store.Items.Count);
+@@ -22,24 +32,363 @@ await Run(Fact("CRITICAL")); Check("escalation same item", firstId, store.Active
+ store.Active = store.Active with { Status=ProactiveValues.Snoozed, SnoozedUntil=now.AddDays(3) }; await Run(Fact("AT_RISK", "member_b")); Check("owner transfer", "member_b", store.Active!.OwnerMemberId); Check("owner transfer reopens", ProactiveValues.Open, store.Active.Status); Check("owner transfer clears snooze", null, store.Active.SnoozedUntil);
+ await Run(Fact("WATCH", "member_b")); Check("recovery resolves", ProactiveValues.Resolved, store.Items.Single(x=>x.ItemId==firstId).Status);
+ clock.Now=now.AddDays(5); await Run(Fact("AT_RISK", "member_b")); Check("later risk new cycle", false, store.Active!.ItemId==firstId); Check("history retained", 2, store.Items.Count);
+-await Run(Fact("AT_RISK", null)); Check("unowned resolves active", ProactiveValues.Resolved, store.Items.Last().Status); Check("unowned signal", true, store.Audits.Any(x=>x.Action=="UNOWNED_TRIGGER_SUPPRESSED"));
+-await Run(Fact("CRITICAL", "member_b")); await Run(Fact("CRITICAL", "member_b", "ARCHIVED")); Check("archive resolves", ProactiveValues.Resolved, store.Items.Last().Status);
++store.Active=store.Active with{Status=ProactiveValues.Snoozed,SnoozedUntil=clock.Now.AddDays(1)};await Run(Fact("AT_RISK","member_b"));Check("snooze before due remains hidden",ProactiveValues.Snoozed,store.Active!.Status);
++clock.Now=clock.Now.AddDays(2);await Run(Fact("AT_RISK","member_b"));Check("due snooze reopens only after current risk evaluation",ProactiveValues.Open,store.Active!.Status);
++var unownedId=store.Active!.ItemId;var unownedCycle=store.Active.RiskCycleKey;
++await Run(Fact("AT_RISK", null)); Check("unowned preserves active cycle", unownedId, store.Active!.ItemId); Check("unowned preserves risk cycle key", unownedCycle, store.Active.RiskCycleKey); Check("unowned signal", true, store.Audits.Any(x=>x.Action=="UNOWNED_TRIGGER_SUPPRESSED"));
++await Run(Fact("AT_RISK", "member_c"));Check("owner after unowned receives same item",unownedId,store.Active!.ItemId);Check("owner after unowned receives same cycle",unownedCycle,store.Active.RiskCycleKey);Check("owner after unowned transferred","member_c",store.Active.OwnerMemberId);
++var dualStore=new MemoryStore();var dualReconciler=new CustomerHealthRiskReconciler(dualStore,clock);
++await dualReconciler.ReconcilePageAsync("workspace_a",[Fact("AT_RISK","member_a")],"corr-dual",default);await dualReconciler.ReconcilePageAsync("workspace_a",[Fact("CRITICAL","member_b")],"corr-dual",default);
++Check("simultaneous owner change audit",true,dualStore.Audits.Any(x=>x.Action=="ITEM_OWNER_CHANGED"));Check("simultaneous escalation audit",true,dualStore.Audits.Any(x=>x.Action=="ITEM_ESCALATED"));
++await Run(Fact("CRITICAL", "member_c")); await Run(Fact("CRITICAL", "member_c", "ARCHIVED")); Check("archive resolves", ProactiveValues.Resolved, store.Items.Last().Status);
+ var utcNext=ProactiveEvaluationWorker.NextLocalDay(now,"UTC"); Check("UTC next local day", new DateTimeOffset(2026,9,21,0,0,0,TimeSpan.Zero), utcNext);
++var saigonNext=ProactiveEvaluationWorker.NextLocalDay(now,"SE Asia Standard Time"); Check("Saigon next local day", new DateTimeOffset(2026,9,20,17,0,0,TimeSpan.Zero), saigonNext);
++var newYorkNext=ProactiveEvaluationWorker.NextLocalDay(now,"Eastern Standard Time"); Check("New York next local day", new DateTimeOffset(2026,9,21,4,0,0,TimeSpan.Zero), newYorkNext);
++try { ProactiveEvaluationWorker.NextLocalDay(now,""); throw new InvalidOperationException("missing timezone accepted"); } catch(ArgumentException) { passed++; }
++var pageStore=new MemoryStore();var pageReconciler=new CustomerHealthRiskReconciler(pageStore,clock);
++await pageReconciler.ReconcilePageAsync("workspace_a",[new("customer_x","member_a","ACTIVE","UNKNOWN","UNKNOWN","NONE","V1","1"),new("customer_y","member_a","ACTIVE","WATCH","MEDIUM","WATCH","V1","1")],"corr-page",default);
++Check("one active-cycle batch read per Customer page",1,pageStore.BatchReads);
++var currentOwner=WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities;
++var preProactive=currentOwner.Where(x=>x is not "ai.proactive.use" and not "ai.proactive.manage").Order(StringComparer.Ordinal).ToArray();
++var preAi=preProactive.Where(x=>x is not "ai.configuration.read" and not "ai.configuration.manage").Order(StringComparer.Ordinal).ToArray();
++Check("pre-Proactive owner snapshot admitted",true,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preProactive));
++Check("actual pre-AI configuration snapshot admitted",true,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preAi));
++Check("pre-AI snapshot excludes proactive",false,preAi.Any(x=>x.StartsWith("ai.proactive.",StringComparison.Ordinal)));
++Check("arbitrary historical subset rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preAi.Skip(1).ToArray()));
++Check("unexpected historical capability rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet([..preAi,"customers.unexpected"]));
++if(args.Length==1) passed += await SqlVerifier.RunAsync(args[0], now);
+ Console.WriteLine($"PROACTIVE_SCENARIO_CORPUS_PASS cases={passed}");
+ 
++static class SqlVerifier
++{
++    internal static async Task<int> RunAsync(string connectionString, DateTimeOffset now)
++    {
++        var builder=new SqlConnectionStringBuilder(connectionString); var database=builder.InitialCatalog;
++        try { RequireIsolatedDatabase("UnicoreCRM"); throw new InvalidOperationException("unsafe verifier database accepted"); } catch(ArgumentException) { }
++        RequireIsolatedDatabase(database);
++        builder.InitialCatalog="master"; await using(var connection=new SqlConnection(builder.ConnectionString)){await connection.OpenAsync();await using var command=connection.CreateCommand();command.CommandText=$"IF DB_ID(N'{database.Replace("'","''")}') IS NOT NULL BEGIN ALTER DATABASE [{database.Replace("]","]]" )}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{database.Replace("]","]]" )}]; END; CREATE DATABASE [{database.Replace("]","]]" )}];";await command.ExecuteNonQueryAsync();}
++        var options=new DbContextOptionsBuilder<AiExecutionDbContext>().UseSqlServer(connectionString,x=>x.MigrationsHistoryTable("__EFMigrationsHistory","platform_ai")).Options;
++        await using(var migration=new AiExecutionDbContext(options)) await migration.Database.MigrateAsync();
++        await using(var context=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(context); var policy=new WorkspaceProactivePolicyState("workspace_sql",true,0,null,now,null,null,"member",now);
++            await store.SavePolicyAsync(policy,"policy-sql-0001","fingerprint",new("audit_policy","workspace_sql","member","PROACTIVE_ENABLED",null,null,"{}","corr-policy",now),default);
++            if(!await store.TryClaimPolicyAsync("workspace_sql",0,"lease_a",now,now.AddMinutes(5),default))throw new InvalidOperationException("initial lease claim failed");
++            if(await store.TryClaimPolicyAsync("workspace_sql",0,"lease_b",now,now.AddMinutes(5),default))throw new InvalidOperationException("concurrent lease claim succeeded");
++            if(!await store.RenewPolicyLeaseAsync("workspace_sql","lease_a",now.AddMinutes(1),now.AddMinutes(6),default))throw new InvalidOperationException("lease renewal failed");
++            if(await store.TryClaimPolicyAsync("workspace_sql",0,"lease_b",now.AddMinutes(5).AddSeconds(30),now.AddMinutes(10),default))throw new InvalidOperationException("renewed lease was reclaimed before expiry");
++            if(!await store.TryClaimPolicyAsync("workspace_sql",0,"lease_b",now.AddMinutes(7),now.AddMinutes(12),default))throw new InvalidOperationException("expired lease was not reclaimable");
++            try { await store.CompletePolicyEvaluationAsync("workspace_sql","lease_a",now,now.AddDays(1),default); throw new InvalidOperationException("stale worker completed reclaimed lease"); } catch(InvalidOperationException exception) when(exception.Message.Contains("not owned",StringComparison.Ordinal)) { }
++            await store.CompletePolicyEvaluationAsync("workspace_sql","lease_b",now.AddMinutes(7),now.AddDays(1),default);
++            await store.SavePolicyAsync(new("workspace_expired",true,0,null,now,null,null,"member",now),"policy-expired-0001","expired-fingerprint",new("audit_expired_policy","workspace_expired","member","PROACTIVE_ENABLED",null,null,"{}","corr-expired",now),default);
++            if(!await store.TryClaimPolicyAsync("workspace_expired",0,"lease_expired_a",now,now.AddMinutes(1),default))throw new InvalidOperationException("expiry test lease claim failed");
++            try { await store.CompletePolicyEvaluationAsync("workspace_expired","lease_expired_a",now.AddMinutes(2),now.AddDays(1),default); throw new InvalidOperationException("expired lease completed without reclaim"); } catch(InvalidOperationException exception) when(exception.Message.Contains("not owned",StringComparison.Ordinal)) { }
++            if(!await store.TryClaimPolicyAsync("workspace_expired",0,"lease_expired_b",now.AddMinutes(2),now.AddMinutes(7),default))throw new InvalidOperationException("expired lease was not reclaimable by worker B");
++            await store.CompletePolicyEvaluationAsync("workspace_expired","lease_expired_b",now.AddMinutes(3),now.AddDays(1),default);
++        }
++        static ProactiveItemState Item(string id,string cycle,DateTimeOffset time)=>new(id,"workspace_sql","member",ProactiveValues.CustomerHealthRisk,ProactiveValues.Customer,"customer_sql",ProactiveValues.High,"RISK","fingerprint",cycle,ProactiveValues.Open,time,time,null,null,null,null,"1",0,time,time);
++        async Task<string> CreateAsync(string id,string cycle)
++        { await using var db=new AiExecutionDbContext(options);try{await new EfProactiveStore(db).SaveItemAsync(Item(id,cycle,now),new($"audit_{id}","workspace_sql",null,"ITEM_CREATED",id,"customer_sql","{}","corr",now),default);return "created";}catch(ProactiveActiveCycleConflictException){return "conflict";} }
++        var outcomes=await Task.WhenAll(CreateAsync("item_a","cycle_a"),CreateAsync("item_b","cycle_b"));
++        if(outcomes.Count(x=>x=="created")!=1||outcomes.Count(x=>x=="conflict")!=1)throw new InvalidOperationException("concurrent active cycle did not converge");
++        await using(var db=new AiExecutionDbContext(options))
++        { var store=new EfProactiveStore(db);var active=await store.ReadActiveCycleAsync("workspace_sql","customer_sql",ProactiveValues.CustomerHealthRisk,default)??throw new InvalidOperationException("active cycle missing");await store.SaveItemAsync(active with{Status=ProactiveValues.Resolved,ResolvedAt=now.AddDays(1),Version=1,UpdatedAt=now.AddDays(1)},new("audit_resolve","workspace_sql",null,"ITEM_RESOLVED",active.ItemId,"customer_sql","{}","corr",now.AddDays(1)),default);await store.SaveItemAsync(Item("item_new_cycle","cycle_new",now.AddDays(2)),new("audit_new_cycle","workspace_sql",null,"ITEM_CREATED","item_new_cycle","customer_sql","{}","corr",now.AddDays(2)),default); }
++        await using(var db=new AiExecutionDbContext(options))
++        { if(await db.ProactiveItems.CountAsync(x=>x.WorkspaceId=="workspace_sql"&&x.SubjectId=="customer_sql")!=2)throw new InvalidOperationException("later risk cycle was not retained separately");if(await db.ProactiveItems.CountAsync(x=>x.Status!=ProactiveValues.Resolved)!=1)throw new InvalidOperationException("active-cycle uniqueness invalid"); }
++        var liveNow=DateTimeOffset.UtcNow;
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(db);
++            await store.SavePolicyAsync(new("workspace_long_a",true,0,null,liveNow.AddSeconds(-1),null,null,"member",liveNow),"policy-long-0001","long-fingerprint-a",
++                new("audit_long_policy_a","workspace_long_a","member","PROACTIVE_ENABLED",null,null,"{}","corr-long-a",liveNow),default);
++            await store.SavePolicyAsync(new("workspace_long_b",true,0,null,liveNow.AddSeconds(-1),null,null,"member",liveNow),"policy-long-0002","long-fingerprint-b",
++                new("audit_long_policy_b","workspace_long_b","member","PROACTIVE_ENABLED",null,null,"{}","corr-long-b",liveNow),default);
++        }
++        var longServices=new ServiceCollection(); longServices.AddSingleton(TimeProvider.System); longServices.AddLogging();
++        longServices.AddDbContext<AiExecutionDbContext>(x=>x.UseSqlServer(connectionString,s=>s.MigrationsHistoryTable("__EFMigrationsHistory","platform_ai")));
++        longServices.AddScoped<IProactiveStore,EfProactiveStore>(); longServices.AddScoped<IWorkspaceTimeZoneReader,UtcZoneReader>();
++        longServices.AddScoped<IProactiveCustomerHealthReader,FirstWorkspaceSlowCustomerReader>(); longServices.AddScoped<CustomerHealthRiskReconciler>(); longServices.AddScoped<ProactiveWorkspaceEvaluator>();
++        DateTimeOffset initialExpiry;
++        await using(var provider=longServices.BuildServiceProvider())
++        {
++            var worker=new ProactiveEvaluationWorker(provider.GetRequiredService<IServiceScopeFactory>(),TimeProvider.System,NullLogger<ProactiveEvaluationWorker>.Instance,TimeSpan.FromSeconds(2),TimeSpan.FromMilliseconds(250));
++            var evaluation=worker.RunOnceAsync(default);
++            while(true)
++            {
++                await using var observed=new AiExecutionDbContext(options); var policy=await observed.ProactivePolicies.AsNoTracking().SingleAsync(x=>x.WorkspaceId=="workspace_long_a");
++                if(policy.LeaseExpiresAt is not null){initialExpiry=policy.LeaseExpiresAt.Value;break;}
++                await Task.Delay(10);
++            }
++            var wait=initialExpiry.AddMilliseconds(500)-DateTimeOffset.UtcNow;if(wait>TimeSpan.Zero)await Task.Delay(wait);
++            await using(var contender=new AiExecutionDbContext(options))
++                if(await new EfProactiveStore(contender).TryClaimPolicyAsync("workspace_long_a",0,"lease_contender",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow.AddMinutes(1),default))throw new InvalidOperationException("long evaluation lease was reclaimed after its original expiry");
++            await evaluation;
++        }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var first=await db.ProactivePolicies.AsNoTracking().SingleAsync(x=>x.WorkspaceId=="workspace_long_a");
++            var second=await db.ProactivePolicies.AsNoTracking().SingleAsync(x=>x.WorkspaceId=="workspace_long_b");
++            if(first.LastEvaluationAt is null||first.LeaseId is not null)throw new InvalidOperationException("renewed long evaluation did not complete authoritatively");
++            if(second.LastEvaluationAt is null||second.LeaseId is not null||second.LastEvaluationAt<=initialExpiry)throw new InvalidOperationException("second Workspace did not receive a fresh valid lease after the long first evaluation");
++        }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(db);
++            await store.SavePolicyAsync(new("workspace_missing_zone",true,0,null,now,null,null,"member",now),"policy-zone-0001","zone-fingerprint",
++                new("audit_zone_policy","workspace_missing_zone","member","PROACTIVE_ENABLED",null,null,"{}","corr-zone",now),default);
++            await store.SavePolicyAsync(new("workspace_invalid_zone",true,0,null,now,null,null,"member",now),"policy-zone-0002","zone-fingerprint-invalid",
++                new("audit_zone_policy_invalid","workspace_invalid_zone","member","PROACTIVE_ENABLED",null,null,"{}","corr-zone-invalid",now),default);
++        }
++        var services=new ServiceCollection(); services.AddSingleton<TimeProvider>(new FixedClock(now)); services.AddLogging();
++        services.AddDbContext<AiExecutionDbContext>(x=>x.UseSqlServer(connectionString,s=>s.MigrationsHistoryTable("__EFMigrationsHistory","platform_ai")));
++        services.AddScoped<IProactiveStore,EfProactiveStore>(); services.AddScoped<IWorkspaceTimeZoneReader,InvalidAndMissingZoneReader>();
++        services.AddScoped<IProactiveCustomerHealthReader,EmptyCustomerReader>(); services.AddScoped<CustomerHealthRiskReconciler>(); services.AddScoped<ProactiveWorkspaceEvaluator>();
++        await using(var provider=services.BuildServiceProvider())
++        { var worker=new ProactiveEvaluationWorker(provider.GetRequiredService<IServiceScopeFactory>(),provider.GetRequiredService<TimeProvider>(),NullLogger<ProactiveEvaluationWorker>.Instance);await worker.RunOnceAsync(default); }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            foreach(var workspaceId in new[]{"workspace_missing_zone","workspace_invalid_zone"})
++            {
++                var failed=await db.ProactiveAudits.AnyAsync(x=>x.WorkspaceId==workspaceId&&x.Action=="EVALUATION_FAILED");
++                var policy=await db.ProactivePolicies.SingleAsync(x=>x.WorkspaceId==workspaceId);
++                if(!failed||policy.LastEvaluationAt is not null||policy.NextEvaluationAt!=now)throw new InvalidOperationException($"{workspaceId} timezone did not fail safely for retry");
++            }
++        }
++        var apiWorkspace="workspace_api";var apiMember="member_api";var apiClock=new FixedClock(now.AddDays(10));
++        static ProactiveItemState ApiItem(string workspace,string id,string customer,string owner,DateTimeOffset time)=>new(id,workspace,owner,ProactiveValues.CustomerHealthRisk,ProactiveValues.Customer,customer,ProactiveValues.High,"PURCHASE_RECENCY_AT_RISK","fingerprint",$"cycle_{id}",ProactiveValues.Open,time,time,null,null,null,null,"1",0,time,time);
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(db);var index=0;
++            foreach(var item in new[]{ApiItem(apiWorkspace,"item_page_one","customer_page_one",apiMember,now.AddMinutes(2)),ApiItem(apiWorkspace,"item_page_two","customer_page_two",apiMember,now.AddMinutes(1)),ApiItem(apiWorkspace,"item_visible","customer_visible",apiMember,now),ApiItem(apiWorkspace,"item_other","customer_other","member_other",now),ApiItem(apiWorkspace,"item_reassigned","customer_reassigned",apiMember,now),ApiItem(apiWorkspace,"item_denied","customer_denied",apiMember,now),ApiItem(apiWorkspace,"item_seen","customer_seen",apiMember,now),ApiItem(apiWorkspace,"item_snooze","customer_snooze",apiMember,now),ApiItem(apiWorkspace,"item_dismiss","customer_dismiss",apiMember,now),ApiItem("workspace_foreign","item_foreign","customer_visible",apiMember,now)})
++                await store.SaveItemAsync(item,new($"audit_api_{++index}",item.WorkspaceId,null,"ITEM_CREATED",item.ItemId,item.SubjectId,"{}","corr-api",now),default);
++        }
++        var current=new FakeCurrentWorkspace(apiWorkspace,apiMember);var allowed=new FakeAccessAuthorizer(apiWorkspace,apiMember,true,true);
++        var customerMap=new Dictionary<string,CustomerAttentionProjection>{
++            ["customer_visible"]=new("customer_visible","Visible Customer"),
++            ["customer_seen"]=new("customer_seen","Seen Customer"),["customer_snooze"]=new("customer_snooze","Snooze Customer"),["customer_dismiss"]=new("customer_dismiss","Dismiss Customer"),
++            ["customer_page_one"]=new("customer_page_one","Page One"),["customer_page_two"]=new("customer_page_two","Page Two")};
++        var customerReader=new FakeAttentionReader(true,customerMap);
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var app=new ProactiveAttentionApplication(current,allowed,new EfProactiveStore(db),customerReader,apiClock);
++            var list=await app.ListAsync(null,100,"request-api","corr-api",default);if(!list.IsSuccess)throw new InvalidOperationException("own inbox denied");
++            if(!list.Value!.Items.Any(x=>x.ItemId=="item_visible")||list.Value.Items.Any(x=>x.ItemId is "item_other" or "item_reassigned" or "item_denied" or "item_foreign"))throw new InvalidOperationException("Attention visibility boundary failed");
++            if(customerReader.Calls!=1)throw new InvalidOperationException("Attention Customer enrichment was not batched");
++            var pageOne=await app.ListAsync(null,1,"request-api","corr-api",default);if(!pageOne.IsSuccess||pageOne.Value!.NextCursor is null)throw new InvalidOperationException("Attention first page cursor missing");
++            var pageTwo=await app.ListAsync(pageOne.Value.NextCursor,1,"request-api","corr-api",default);if(!pageTwo.IsSuccess||pageTwo.Value!.Items.Any(x=>x.ItemId==pageOne.Value.Items.Single().ItemId))throw new InvalidOperationException("Attention cursor round trip failed");
++            var malformed=await app.ListAsync(new string('A',513),10,"request-api","corr-api",default);if(malformed.Error?.Code!="AI_REQUEST_INVALID"||malformed.Error.FieldErrors?.ContainsKey("cursor")!=true)throw new InvalidOperationException("oversized cursor was not safely rejected");
++            var outOfRange=Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{long.MaxValue}\nitem_visible")).TrimEnd('=').Replace('+','-').Replace('/','_');
++            var invalidTicks=await app.ListAsync(outOfRange,10,"request-api","corr-api",default);
++            if(invalidTicks.Error?.Code!="AI_REQUEST_INVALID"||invalidTicks.Error.FieldErrors?.ContainsKey("cursor")!=true)throw new InvalidOperationException("out-of-range ticks did not return cursor validation error");
++            if(typeof(CustomerAttentionProjection).GetProperties().Select(x=>x.Name).Order().SequenceEqual(new[]{"CustomerId","DisplayLabel"})!=true)throw new InvalidOperationException("Customer Attention contract exports excess security facts");
++            var badLimit=await app.ListAsync(null,101,"request-api","corr-api",default);if(badLimit.Error?.FieldErrors?.ContainsKey("limit")!=true)throw new InvalidOperationException("invalid limit was not attributed to limit");
++            if((await app.DetailAsync("item_other","request-api","corr-api",default)).Error?.Code!="AI_PROACTIVE_ITEM_NOT_FOUND")throw new InvalidOperationException("other owner detail was visible");
++            if((await app.DetailAsync("item_reassigned","request-api","corr-api",default)).Error?.Code!="AI_PROACTIVE_ITEM_NOT_FOUND")throw new InvalidOperationException("reassigned Customer remained visible to old owner");
++            if((await app.DetailAsync("item_denied","request-api","corr-api",default)).Error?.Code!="AI_PROACTIVE_ITEM_NOT_FOUND")throw new InvalidOperationException("record-scope denied Customer leaked through detail");
++            if((await app.DetailAsync("item_foreign","request-api","corr-api",default)).Error?.Code!="AI_PROACTIVE_ITEM_NOT_FOUND")throw new InvalidOperationException("foreign Workspace item was visible");
++            var missingUse=new ProactiveAttentionApplication(current,new FakeAccessAuthorizer(apiWorkspace,apiMember,false,true),new EfProactiveStore(db),customerReader,apiClock);
++            if((await missingUse.ListAsync(null,10,"request-api","corr-api",default)).Error?.Code!="AI_PROACTIVE_ACCESS_DENIED")throw new InvalidOperationException("missing proactive use was not denied");
++            var missingCustomers=new ProactiveAttentionApplication(current,allowed,new EfProactiveStore(db),new FakeAttentionReader(false,customerMap),apiClock);
++            if((await missingCustomers.ListAsync(null,10,"request-api","corr-api",default)).Error?.Code!="AI_PROACTIVE_ACCESS_DENIED")throw new InvalidOperationException("missing customers view was not denied");
++            var hiddenHealth=new ProactiveAttentionApplication(current,allowed,new EfProactiveStore(db),new FakeAttentionReader(true,new Dictionary<string,CustomerAttentionProjection>()),apiClock);
++            if((await hiddenHealth.ListAsync(null,100,"request-api","corr-api",default)).Value?.Items.Count!=0)throw new InvalidOperationException("hidden Customer Health leaked Attention items");
++            var seen=await app.SeenAsync("item_seen",0,"seen-key-0001","request-api","corr-api",default);if(!seen.IsSuccess||seen.Value!.Item.Status!=ProactiveValues.Open||seen.Value.Item.SeenAt is null)throw new InvalidOperationException("seen semantics failed");
++            var seenReplay=await app.SeenAsync("item_seen",0,"seen-key-0001","request-api","corr-api",default);if(!seenReplay.IsSuccess||seenReplay.Value!.Item.Version!=1)throw new InvalidOperationException("item action replay failed");
++            if((await app.SeenAsync("item_seen",0,"seen-key-0002","request-api","corr-api",default)).Error?.Code!="AI_PROACTIVE_VERSION_CONFLICT")throw new InvalidOperationException("stale item action version was not rejected");
++            var snooze=await app.SnoozeAsync("item_snooze",apiClock.Now.AddDays(1),0,"snooze-key-0001","request-api","corr-api",default);if(!snooze.IsSuccess||snooze.Value!.Item.Status!=ProactiveValues.Snoozed)throw new InvalidOperationException("snooze semantics failed");
++            var afterSnooze=await app.ListAsync(null,100,"request-api","corr-api",default);if(afterSnooze.Value!.Items.Any(x=>x.ItemId=="item_snooze"))throw new InvalidOperationException("snoozed item remained visible before due");
++            var dismiss=await app.DismissAsync("item_dismiss",0,"dismiss-key-0001","request-api","corr-api",default);if(!dismiss.IsSuccess||dismiss.Value!.Item.Status!=ProactiveValues.Dismissed)throw new InvalidOperationException("dismiss semantics failed");
++            var noManage=new ProactiveAttentionApplication(current,new FakeAccessAuthorizer(apiWorkspace,apiMember,true,false),new EfProactiveStore(db),customerReader,apiClock);
++            if((await noManage.SaveConfigurationAsync(true,0,"manage-key-0001","corr-api",default)).Error?.Code!="AI_PROACTIVE_ACCESS_DENIED")throw new InvalidOperationException("missing proactive manage was not denied");
++            var initialConfiguration=await app.GetConfigurationAsync("corr-api",default);if(!initialConfiguration.IsSuccess||initialConfiguration.Value!.Enabled||initialConfiguration.Value.Version!=0)throw new InvalidOperationException("default proactive configuration was not disabled");
++            var enabled=await app.SaveConfigurationAsync(true,0,"config-key-0001","corr-api",default);if(!enabled.IsSuccess||!enabled.Value!.Enabled||enabled.Value.Version!=1)throw new InvalidOperationException("enable configuration failed");
++            var replay=await app.SaveConfigurationAsync(true,0,"config-key-0001","corr-api",default);if(!replay.IsSuccess||replay.Value!.Version!=1)throw new InvalidOperationException("configuration replay failed");
++            if((await app.SaveConfigurationAsync(false,0,"config-key-0001","corr-api",default)).Error?.Code!="AI_PROACTIVE_IDEMPOTENCY_KEY_REUSED")throw new InvalidOperationException("changed configuration intent reused idempotency key");
++            if((await app.SaveConfigurationAsync(false,0,"config-key-0002","corr-api",default)).Error?.Code!="AI_PROACTIVE_VERSION_CONFLICT")throw new InvalidOperationException("stale configuration version was not rejected");
++            var disabled=await app.SaveConfigurationAsync(false,1,"config-key-0003","corr-api",default);if(!disabled.IsSuccess||disabled.Value!.Enabled||disabled.Value.Version!=2)throw new InvalidOperationException("disable configuration failed");
++        }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            if(await db.ProactiveAudits.CountAsync(x=>x.WorkspaceId==apiWorkspace&&x.Action=="PROACTIVE_ENABLED")!=1||await db.ProactiveAudits.CountAsync(x=>x.WorkspaceId==apiWorkspace&&x.Action=="PROACTIVE_DISABLED")!=1)throw new InvalidOperationException("configuration audit evidence missing");
++            if(await db.ProactiveAudits.CountAsync(x=>x.WorkspaceId==apiWorkspace&&new[]{"ITEM_SEEN","ITEM_SNOOZED","ITEM_DISMISSED"}.Contains(x.Action))!=3)throw new InvalidOperationException("item action audit evidence missing");
++        }
++        var concurrentItem=ApiItem("workspace_concurrent_item","item_concurrent","customer_concurrent","member_concurrent",now);
++        await using(var db=new AiExecutionDbContext(options))await new EfProactiveStore(db).SaveItemAsync(concurrentItem,new("audit_concurrent_seed","workspace_concurrent_item",null,"ITEM_CREATED",concurrentItem.ItemId,concurrentItem.SubjectId,"{}","corr",now),default);
++        var itemBarrier=new CommitBarrier();
++        var itemRaceOptions=new DbContextOptionsBuilder<AiExecutionDbContext>().UseSqlServer(connectionString).AddInterceptors(itemBarrier).Options;
++        async Task<ProactiveItemCommit> ConcurrentItemAction(string auditId)
++        {
++            await using var db=new AiExecutionDbContext(itemRaceOptions);var next=concurrentItem with{SeenAt=now.AddMinutes(1),Version=1,UpdatedAt=now.AddMinutes(1)};
++            return await new EfProactiveStore(db).CommitItemActionAsync(next,"member_concurrent","seenProactiveItem",0,"same-item-key","same-item-fingerprint",new(auditId,next.WorkspaceId,next.OwnerMemberId,"ITEM_SEEN",next.ItemId,next.SubjectId,"{}","corr",now.AddMinutes(1)),default);
++        }
++        var itemCommits=await Task.WhenAll(ConcurrentItemAction("audit_concurrent_item_a"),ConcurrentItemAction("audit_concurrent_item_b"));
++        if(itemCommits.Count(x=>x.Status==ProactiveCommitStatus.Committed)!=1||itemCommits.Count(x=>x.Status==ProactiveCommitStatus.Replayed)!=1)throw new InvalidOperationException("same-key item action did not converge to committed plus replayed");
++        async Task<ProactivePolicyCommit> ConcurrentConfiguration(string workspace,string key,string fingerprint,string auditId)
++        {
++            await using var db=new AiExecutionDbContext(options);return await new EfProactiveStore(db).SavePolicyConfigurationAsync(workspace,"member_concurrent",true,0,key,fingerprint,new(auditId,workspace,"member_concurrent","PROACTIVE_ENABLED",null,null,"{}","corr",now),now,default);
++        }
++        var configCommits=await Task.WhenAll(ConcurrentConfiguration("workspace_concurrent_config","same-config-key","same-config-fingerprint","audit_concurrent_config_a"),ConcurrentConfiguration("workspace_concurrent_config","same-config-key","same-config-fingerprint","audit_concurrent_config_b"));
++        if(configCommits.Count(x=>x.Status==ProactiveCommitStatus.Committed)!=1||configCommits.Count(x=>x.Status==ProactiveCommitStatus.Replayed)!=1)throw new InvalidOperationException("same-key configuration creation did not converge to committed plus replayed");
++        var distinctCommits=await Task.WhenAll(ConcurrentConfiguration("workspace_distinct_config","distinct-key-a","distinct-fingerprint","audit_distinct_config_a"),ConcurrentConfiguration("workspace_distinct_config","distinct-key-b","distinct-fingerprint","audit_distinct_config_b"));
++        if(distinctCommits.Count(x=>x.Status==ProactiveCommitStatus.Committed)!=1||distinctCommits.Count(x=>x.Status==ProactiveCommitStatus.VersionConflict)!=1)throw new InvalidOperationException("different-key initial configuration race was not a version conflict");
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            if(await db.ProactiveCommands.CountAsync(x=>x.WorkspaceId=="workspace_concurrent_item")!=1||await db.ProactiveAudits.CountAsync(x=>x.WorkspaceId=="workspace_concurrent_item"&&x.Action=="ITEM_SEEN")!=1)throw new InvalidOperationException("duplicate item command or audit committed");
++            if(await db.ProactiveCommands.CountAsync(x=>x.WorkspaceId=="workspace_concurrent_config")!=1||await db.ProactiveAudits.CountAsync(x=>x.WorkspaceId=="workspace_concurrent_config"&&x.Action=="PROACTIVE_ENABLED")!=1)throw new InvalidOperationException("duplicate configuration command or audit committed");
++        }
++        foreach(var action in new[]{ProactiveValues.Snoozed,ProactiveValues.Dismissed})
++        {
++            var item=ApiItem("workspace_race_"+action,"item_race_"+action,"customer_race_"+action,"member_race",now);
++            await using(var seed=new AiExecutionDbContext(options))await new EfProactiveStore(seed).SaveItemAsync(item,new("seed_"+action,item.WorkspaceId,null,"ITEM_CREATED",item.ItemId,item.SubjectId,"{}","race",now),default);
++            // The scheduler's page snapshot is captured before the real user commit.
++            await using var schedulerDb=new AiExecutionDbContext(options);var schedulerStore=new EfProactiveStore(schedulerDb);
++            var snapshot=(await schedulerStore.ReadActiveCyclesAsync(item.WorkspaceId,[item.SubjectId],item.TriggerType,default))[item.SubjectId];
++            var userState=item with{Status=action,Version=1,SeenAt=now,SnoozedUntil=action==ProactiveValues.Snoozed?now.AddDays(1):null,DismissedAt=action==ProactiveValues.Dismissed?now:null};
++            await using(var userDb=new AiExecutionDbContext(options))
++            {
++                var result=await new EfProactiveStore(userDb).CommitItemActionAsync(userState,item.OwnerMemberId,action,0,"race-key","race-intent",new("user_"+action,item.WorkspaceId,item.OwnerMemberId,action,item.ItemId,item.SubjectId,"{}","race",now),default);
++                if(result.Status!=ProactiveCommitStatus.Committed)throw new InvalidOperationException("race user action did not commit");
++            }
++            try
++            {
++                await schedulerStore.SaveItemWithAuditsAsync(snapshot with{Version=1,LastDetectedAt=now.AddMinutes(1)},[new("stale_"+action,item.WorkspaceId,null,"ITEM_REFRESHED",item.ItemId,item.SubjectId,"{}","race",now)],default);
++                throw new InvalidOperationException("stale scheduler overwrote user state");
++            }
++            catch(DbUpdateConcurrencyException) { }
++            await using var verify=new AiExecutionDbContext(options);
++            var stored=await new EfProactiveStore(verify).ReadItemAsync(item.WorkspaceId,item.ItemId,default);
++            if(stored!.Status!=action||stored.SeenAt!=now||stored.SnoozedUntil!=userState.SnoozedUntil||stored.DismissedAt!=userState.DismissedAt||await verify.ProactiveAudits.AnyAsync(x=>x.AuditId=="stale_"+action))throw new InvalidOperationException("user action or atomic reconciliation audit violated");
++            await new CustomerHealthRiskReconciler(new EfProactiveStore(verify),new FixedClock(now)).ReconcilePageAsync(item.WorkspaceId,[new(item.SubjectId,item.OwnerMemberId,"ACTIVE","AT_RISK","HIGH","RISK","V1","1")],"fresh",default);
++            if((await new EfProactiveStore(verify).ReadItemAsync(item.WorkspaceId,item.ItemId,default))!.Status!=action)throw new InvalidOperationException("fresh reconciliation lost user state");
++        }
++        foreach(var raceKind in new[]{"same","changed","different-key"})
++        {
++            var changedIntent=raceKind=="changed";
++            var workspace="workspace_existing_"+raceKind;
++            await ConcurrentConfiguration(workspace,"seed","seed","audit_seed_"+raceKind);
++            var barrier=new CommitBarrier();
++            var raceOptions=new DbContextOptionsBuilder<AiExecutionDbContext>().UseSqlServer(connectionString).AddInterceptors(barrier).Options;
++            async Task<ProactivePolicyCommit> UpdatePolicy(bool second)
++            {
++                await using var db=new AiExecutionDbContext(raceOptions);
++                return await new EfProactiveStore(db).SavePolicyConfigurationAsync(workspace,"member_concurrent",!(changedIntent&&second),1,raceKind=="different-key"&&second?"other-key":"update-key",changedIntent&&second?"different":"same",
++                    new("audit_update_"+raceKind+second,workspace,"member_concurrent","CONFIG_UPDATED",null,null,"{}","race",now),now,default);
++            }
++            var commits=await Task.WhenAll(UpdatePolicy(false),UpdatePolicy(true));
++            var expected=raceKind=="different-key"?ProactiveCommitStatus.VersionConflict:changedIntent?ProactiveCommitStatus.IdempotencyConflict:ProactiveCommitStatus.Replayed;
++            if(commits.Count(x=>x.Status==ProactiveCommitStatus.Committed)!=1||commits.Count(x=>x.Status==expected)!=1)throw new InvalidOperationException("existing policy race failed: "+string.Join(',',commits.Select(x=>x.Status)));
++            await using var verify=new AiExecutionDbContext(options);
++            if(await verify.ProactiveCommands.CountAsync(x=>x.WorkspaceId==workspace&&x.IdempotencyKey!="seed")!=1||await verify.ProactiveAudits.CountAsync(x=>x.WorkspaceId==workspace&&x.Action=="CONFIG_UPDATED")!=1||(await verify.ProactivePolicies.SingleAsync(x=>x.WorkspaceId==workspace)).Version!=2)throw new InvalidOperationException("existing policy duplicate mutation/audit/command");
++        }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(db);
++            var currentItem=(await store.ReadItemAsync(concurrentItem.WorkspaceId,concurrentItem.ItemId,default))!;
++            try
++            {
++                await store.CommitItemActionAsync(currentItem with{Version=currentItem.Version+1},currentItem.OwnerMemberId,"brokenAudit",currentItem.Version,"broken-key","broken-intent",new("broken_item_audit",currentItem.WorkspaceId,currentItem.OwnerMemberId,new string('X',81),currentItem.ItemId,currentItem.SubjectId,"{}","broken",now),default);
++                throw new InvalidOperationException("unexpected item persistence error was disguised as a conflict");
++            }
++            catch(DbUpdateException) { }
++            try
++            {
++                await store.SavePolicyConfigurationAsync("workspace_existing_same","member_concurrent",false,2,"broken-key","broken-intent",new("broken_policy_audit","workspace_existing_same","member_concurrent",new string('X',81),null,null,"{}","broken",now),now,default);
++                throw new InvalidOperationException("unexpected policy persistence error was disguised as a conflict");
++            }
++            catch(DbUpdateException) { }
++            if(await db.ProactiveCommands.AnyAsync(x=>x.IdempotencyKey=="broken-key"))throw new InvalidOperationException("failed audit persisted command");
++        }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            foreach(var workspace in new[]{"workspace_dirty_failure","workspace_after_failure"})
++                await new EfProactiveStore(db).SavePolicyAsync(new(workspace,true,0,null,workspace=="workspace_dirty_failure"?now.AddDays(-2):now.AddDays(-1),null,null,"member",now),workspace,workspace,new("seed_"+workspace,workspace,null,"POLICY_CREATED",null,null,"{}","failure",now),default);
++        }
++        var failureServices=new ServiceCollection();failureServices.AddSingleton<TimeProvider>(new FixedClock(now));failureServices.AddLogging();
++        failureServices.AddDbContext<AiExecutionDbContext>(x=>x.UseSqlServer(connectionString));
++        failureServices.AddScoped<IProactiveStore,EfProactiveStore>();failureServices.AddScoped<IWorkspaceTimeZoneReader,UtcZoneReader>();
++        failureServices.AddScoped<IProactiveCustomerHealthReader,DirtyFailureCustomerReader>();failureServices.AddScoped<CustomerHealthRiskReconciler>();failureServices.AddScoped<ProactiveWorkspaceEvaluator>();
++        await using(var provider=failureServices.BuildServiceProvider())
++            await new ProactiveEvaluationWorker(provider.GetRequiredService<IServiceScopeFactory>(),provider.GetRequiredService<TimeProvider>(),NullLogger<ProactiveEvaluationWorker>.Instance).RunOnceAsync(default);
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            if(await db.ProactiveAudits.CountAsync(x=>x.WorkspaceId=="workspace_dirty_failure"&&x.Action=="EVALUATION_FAILED")!=1)throw new InvalidOperationException("failure evidence not recorded in clean context");
++            if(await db.ProactiveAudits.AnyAsync(x=>x.AuditId=="dirty_uncommitted"))throw new InvalidOperationException("failure audit flushed dirty changes");
++            if((await db.ProactivePolicies.SingleAsync(x=>x.WorkspaceId=="workspace_after_failure")).LastEvaluationAt is null)throw new InvalidOperationException("one Workspace failure prevented later Workspace attempt");
++        }
++        Console.WriteLine("PASS | SQL stale scheduler vs Snooze/Dismiss; fresh retry; existing-policy concurrent replay/conflict; cursor long.MaxValue; clean failure audit and later Workspace");
++        return 79;
++    }
++
++    private static void RequireIsolatedDatabase(string database)
++    {
++        if(string.IsNullOrWhiteSpace(database)||!database.StartsWith("UnicoreCRM_Proactive_Verifier_",StringComparison.Ordinal))
++            throw new ArgumentException("Proactive verifier requires an explicitly isolated database name.",nameof(database));
++    }
++}
++
++sealed class CommitBarrier:Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
++{
++    private int arrivals;
++    private readonly TaskCompletionSource ready=new(TaskCreationOptions.RunContinuationsAsynchronously);
++    public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
++        Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,CancellationToken cancellationToken=default)
++    {
++        if(Interlocked.Increment(ref arrivals)==2)ready.TrySetResult();
++        await ready.Task.WaitAsync(TimeSpan.FromSeconds(20),cancellationToken);
++        return result;
++    }
++}
++
++sealed class DirtyFailureCustomerReader(AiExecutionDbContext db):IProactiveCustomerHealthReader
++{
++    public async Task<ProactiveCustomerHealthPage> ReadPageAsync(string workspaceId,string? cursor,int limit,CancellationToken cancellationToken)
++    {
++        if(workspaceId=="workspace_dirty_failure")
++        {
++            db.ProactiveAudits.Add(new ProactiveAuditRow{AuditId="dirty_uncommitted",WorkspaceId=workspaceId,Action=new string('X',81),CorrelationId="dirty",OccurredAt=DateTimeOffset.UtcNow});
++            await db.SaveChangesAsync(cancellationToken);
++            throw new InvalidOperationException("fixture should fail persistence");
++        }
++        return new([],null);
++    }
++}
++
++sealed class InvalidAndMissingZoneReader:IWorkspaceTimeZoneReader { public Task<string?> ReadTimeZoneAsync(string workspaceId,CancellationToken cancellationToken)=>Task.FromResult<string?>(workspaceId.EndsWith("invalid_zone",StringComparison.Ordinal)?"Invalid/Zone":null); }
++sealed class UtcZoneReader:IWorkspaceTimeZoneReader { public Task<string?> ReadTimeZoneAsync(string workspaceId,CancellationToken cancellationToken)=>Task.FromResult<string?>("UTC"); }
++sealed class EmptyCustomerReader:IProactiveCustomerHealthReader { public Task<ProactiveCustomerHealthPage> ReadPageAsync(string workspaceId,string? cursor,int limit,CancellationToken cancellationToken)=>Task.FromResult(new ProactiveCustomerHealthPage([],null)); }
++sealed class FirstWorkspaceSlowCustomerReader:IProactiveCustomerHealthReader { public async Task<ProactiveCustomerHealthPage> ReadPageAsync(string workspaceId,string? cursor,int limit,CancellationToken cancellationToken){if(workspaceId=="workspace_long_a")await Task.Delay(3000,cancellationToken);return new([],null);} }
++sealed class FakeCurrentWorkspace(string workspaceId,string memberId):ICurrentWorkspace { private readonly TrustedWorkspaceContext value=new(workspaceId,"account",memberId,"membership");public bool IsResolved=>true;public TrustedWorkspaceContext Require()=>value; }
++sealed class FakeAccessAuthorizer(string workspaceId,string memberId,bool use,bool manage):IAccessAuthorizer
++{
++    public Task<AccessAuthorizationDecision> AuthorizeAsync(AccessRequirement requirement,string correlationId,CancellationToken cancellationToken)
++    { var allowed=requirement.Capability switch{"ai.proactive.use"=>use,"ai.proactive.manage"=>manage,_=>false};var context=allowed?new AuthorizationContextDocument(workspaceId,"membership",memberId,"account",[],[],[requirement.Capability],[],[],[],DateTimeOffset.UtcNow):null;return Task.FromResult(new AccessAuthorizationDecision(allowed,allowed?"AUTHORIZED":"ACCESS_DENIED",context)); }
++}
++sealed class FakeAttentionReader(bool authorized,IReadOnlyDictionary<string,CustomerAttentionProjection> source):ICustomerAttentionReader
++{
++    public int Calls{get;private set;}
++    public Task<CustomerAttentionReadResult> ReadAuthorizedAsync(IReadOnlyCollection<string> ids,CustomerAttentionRequestContext context,CancellationToken cancellationToken){Calls++;return Task.FromResult(new CustomerAttentionReadResult(authorized,source.Where(x=>ids.Contains(x.Key)).ToDictionary()));}
++}
++
+ sealed class FixedClock(DateTimeOffset now):TimeProvider { public DateTimeOffset Now {get;set;}=now; public override DateTimeOffset GetUtcNow()=>Now; }
+ sealed class MemoryStore:IProactiveStore
+ {
++    public int BatchReads {get;private set;}
+     public List<ProactiveItemState> Items {get;}=[]; public List<ProactiveAuditEvidence> Audits {get;}=[];
+     public ProactiveItemState? Active { get=>Items.LastOrDefault(x=>x.Status!=ProactiveValues.Resolved); set { if(value is null)return; var i=Items.FindIndex(x=>x.ItemId==value.ItemId); if(i<0)Items.Add(value);else Items[i]=value; } }
+     public Task<ProactiveItemState?> ReadActiveCycleAsync(string w,string s,string t,CancellationToken c)=>Task.FromResult(Active);
++    public Task<IReadOnlyDictionary<string,ProactiveItemState>> ReadActiveCyclesAsync(string w,IReadOnlyCollection<string> ids,string t,CancellationToken c){BatchReads++;return Task.FromResult<IReadOnlyDictionary<string,ProactiveItemState>>(Active is null?new Dictionary<string,ProactiveItemState>():new Dictionary<string,ProactiveItemState>{{Active.SubjectId,Active}});}
+     public Task SaveItemAsync(ProactiveItemState i,ProactiveAuditEvidence a,CancellationToken c){Active=i;Audits.Add(a);return Task.CompletedTask;}
++    public Task SaveItemWithAuditsAsync(ProactiveItemState i,IReadOnlyCollection<ProactiveAuditEvidence> a,CancellationToken c){Active=i;Audits.AddRange(a);return Task.CompletedTask;}
+     public Task RecordAuditAsync(ProactiveAuditEvidence a,CancellationToken c){Audits.Add(a);return Task.CompletedTask;}
+     public Task<WorkspaceProactivePolicyState?> ReadPolicyAsync(string w,CancellationToken c)=>Task.FromResult<WorkspaceProactivePolicyState?>(null);
+     public Task<IReadOnlyList<WorkspaceProactivePolicyState>> ReadDuePoliciesAsync(DateTimeOffset n,int l,CancellationToken c)=>Task.FromResult<IReadOnlyList<WorkspaceProactivePolicyState>>([]);
+     public Task<bool> TryClaimPolicyAsync(string w,long v,string l,DateTimeOffset n,DateTimeOffset u,CancellationToken c)=>Task.FromResult(false);
++    public Task<bool> RenewPolicyLeaseAsync(string w,string l,DateTimeOffset n,DateTimeOffset u,CancellationToken c)=>Task.FromResult(false);
+     public Task CompletePolicyEvaluationAsync(string w,string l,DateTimeOffset e,DateTimeOffset n,CancellationToken c)=>Task.CompletedTask;
+     public Task<IReadOnlyList<ProactiveItemState>> ReadOwnerItemsAsync(string w,string o,string s,int l,CancellationToken c)=>Task.FromResult<IReadOnlyList<ProactiveItemState>>([]);
++    public Task<IReadOnlyList<ProactiveItemState>> ReadOwnerOpenItemsAsync(string w,string o,DateTimeOffset? b,string? i,int l,CancellationToken c)=>Task.FromResult<IReadOnlyList<ProactiveItemState>>(Items.Where(x=>x.WorkspaceId==w&&x.OwnerMemberId==o&&x.Status==ProactiveValues.Open).Take(l).ToArray());
+     public Task<ProactiveItemState?> ReadItemAsync(string w,string i,CancellationToken c)=>Task.FromResult(Items.SingleOrDefault(x=>x.ItemId==i));
+     public Task SavePolicyAsync(WorkspaceProactivePolicyState p,string i,string f,ProactiveAuditEvidence a,CancellationToken c)=>Task.CompletedTask;
++    public Task<ProactiveItemCommit> CommitItemActionAsync(ProactiveItemState i,string m,string o,long v,string k,string f,ProactiveAuditEvidence a,CancellationToken c){Active=i;Audits.Add(a);return Task.FromResult(new ProactiveItemCommit(ProactiveCommitStatus.Committed,i));}
++    public Task<ProactivePolicyCommit> SavePolicyConfigurationAsync(string w,string m,bool e,long v,string k,string f,ProactiveAuditEvidence a,DateTimeOffset n,CancellationToken c)=>Task.FromResult(new ProactivePolicyCommit(ProactiveCommitStatus.Committed,new(w,e,v+1,null,e?n:null,null,null,m,n)));
+ }
+diff --git a/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj b/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj
+index af488a2..377a8fe 100644
+--- a/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj
++++ b/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj
+@@ -1,4 +1,4 @@
+ <Project Sdk="Microsoft.NET.Sdk">
+   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>UnicoreCRM.AI.ProactiveVerifier</AssemblyName></PropertyGroup>
+-  <ItemGroup><ProjectReference Include="../../src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" /></ItemGroup>
++  <ItemGroup><ProjectReference Include="../../src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" /><ProjectReference Include="../../src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" /></ItemGroup>
+ </Project>
+diff --git a/scripts/verify-create-access-role.ps1 b/scripts/verify-create-access-role.ps1
+index 1b1765f..62fb3ac 100644
+--- a/scripts/verify-create-access-role.ps1
++++ b/scripts/verify-create-access-role.ps1
+@@ -252,7 +252,7 @@ try {
+     Add-Result 'capability denial precedes validation' 'ACCESS_DENIED' $deniedMalformed.Body.code
+     Invoke-SqlNonQuery "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$adminRoleId','access.configure');"
+ 
+-    $happyBody = New-Body "  $([char]0x2003)Custom Managers$([char]0x2003)  " @('tasks.read','access.read','contacts.create','contacts.update','contacts.delete') @(
++    $happyBody = New-Body "  $([char]0x2003)Custom Managers$([char]0x2003)  " @('tasks.read','access.read','contacts.create','contacts.update','contacts.delete','ai.proactive.use','ai.proactive.manage') @(
+         @{ resourceKey = ' Contacts '; scope = 'WORKSPACE' },
+         @{ resourceKey = 'leads'; scope = 'CUSTOM'; allowedOwnerIds = @() },
+         @{ resourceKey = 'deals'; scope = 'CUSTOM'; allowedOwnerIds = @('mem_owner_002','mem_owner_001') }
+@@ -282,7 +282,7 @@ try {
+     Add-Result 'opaque template provenance normalized' 'opaque-template-01' (Get-Scalar "SELECT SourceTemplateId FROM access.Roles WHERE RoleId='$roleId'")
+     Add-Result 'role active' 'True' ([bool] (Get-Scalar "SELECT IsActive FROM access.Roles WHERE RoleId='$roleId'")).ToString()
+     Add-Result 'role version persisted' 0 (Get-Scalar "SELECT Version FROM access.Roles WHERE RoleId='$roleId'")
+-    Add-Result 'exact capabilities persisted' 'access.read,contacts.create,contacts.delete,contacts.update,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$roleId' ORDER BY Capability").Capability -join ',')
++    Add-Result 'exact capabilities persisted' 'access.read,ai.proactive.manage,ai.proactive.use,contacts.create,contacts.delete,contacts.update,tasks.read' ((Invoke-Sql "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$roleId' ORDER BY Capability").Capability -join ',')
+     Add-Result 'data scopes count' 3 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleDataScopes WHERE RoleId='$roleId'")
+     Add-Result 'field security count' 2 (Get-Scalar "SELECT COUNT_BIG(*) FROM access.RoleFieldSecurity WHERE RoleId='$roleId'")
+     Assert-True 'data-scope policy ID formats' (@(Invoke-Sql "SELECT PolicyId FROM access.RoleDataScopes WHERE RoleId='$roleId'" | Where-Object { $_.PolicyId -cnotmatch '^scope_[0-9a-f]{32}$' }).Count -eq 0)
+diff --git a/scripts/verify-customers-read-core.ps1 b/scripts/verify-customers-read-core.ps1
+index 7196f23..aa66d48 100644
+--- a/scripts/verify-customers-read-core.ps1
++++ b/scripts/verify-customers-read-core.ps1
+@@ -966,6 +966,35 @@ VALUES ('assignment-customers-second-real', '$($script:WorkspaceId)', '$secondMe
+     Add-Result 'mutation probes changed no Customer state' ([string]$countBeforeMutationProbe) `
+         ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM customers.Customers'))
+ 
++    # Exercise the production Attention route with real Customers and AccessControl persistence.
++    Set-CustomerScope -RoleId $roleId -Scope 'Workspace'
++    Clear-CustomerFields
++    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
++IF NOT EXISTS (SELECT 1 FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='ai.proactive.use')
++INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$roleId','ai.proactive.use');
++UPDATE customers.Customers SET OwnerId='$callerMemberId' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA';
++INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES
++('field_customers_read_attention_owner','$($script:WorkspaceId)','$roleId','customers','ownerId','Hidden'),
++('field_customers_read_attention_version','$($script:WorkspaceId)','$roleId','customers','version','Hidden');
++INSERT INTO platform_ai.ProactiveItems(ItemId,WorkspaceId,OwnerMemberId,TriggerType,SubjectType,SubjectId,Severity,ReasonCode,TriggerFingerprint,RiskCycleKey,Status,FirstDetectedAt,LastDetectedAt,Version,CreatedAt,UpdatedAt)
++VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUSTOMER_HEALTH_RISK','CUSTOMER','$customerA','HIGH','PURCHASE_RECENCY_AT_RISK','security-fixture','security-cycle','OPEN',SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET(),0,SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET());
++"@
++    $attention = Invoke-Customer -Method 'GET' -Path '/ai/proactive/items'
++    Add-Result 'real Attention permits own Customer with hidden owner and Customer version' '200|1' "$($attention.Status)|$(@($attention.Body.items).Count)"
++    Add-Result 'Attention never exports raw owner identity' 'True' ($attention.Raw -notmatch 'ownerMemberId|ownerId' -and $attention.Raw -notmatch [regex]::Escape($callerMemberId)).ToString()
++    Add-Result 'Attention version belongs to item not hidden Customer' '0' ([string]$attention.Body.items[0].version)
++    foreach ($accessMode in @('Hidden','Masked')) {
++        Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES('field_customers_read_attention_health','$($script:WorkspaceId)','$roleId','customers','health','$accessMode')"
++        $hiddenAttention = Invoke-Customer -Method 'GET' -Path '/ai/proactive/items'
++        Add-Result "real Attention health $accessMode omits Customer" '200|0' "$($hiddenAttention.Status)|$(@($hiddenAttention.Body.items).Count)"
++        Add-Result "real Attention health $accessMode denies detail" '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
++        Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_customers_read_attention_health'"
++    }
++    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='member_reassigned' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
++    Add-Result 'real Attention reassigned Customer omitted for old owner' '0' ([string]@((Invoke-Customer -Method 'GET' -Path '/ai/proactive/items').Body.items).Count)
++    Add-Result 'real Attention reassigned Customer detail unavailable' '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
++    Clear-CustomerFields
++
+     $healthy = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
+     Add-Result 'ApiHost healthy after denied requests' '200' $healthy.Status
+ 
+diff --git a/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs b/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs
+index 2860dc9..95f79b0 100644
+--- a/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs
++++ b/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs
+@@ -26,9 +26,60 @@ public static class AiEndpoints
+         endpoints.MapPost("/ai/configuration/test", TestConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("testAiConfiguration");
+         endpoints.MapPost("/ai/configuration/activate", ActivateConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("activateAiConfiguration");
+         endpoints.MapPost("/ai/configuration/disable", DisableConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("disableAiConfiguration");
++        endpoints.MapGet("/ai/proactive/items", ListProactiveItemsAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("listProactiveItems");
++        endpoints.MapGet("/ai/proactive/items/{itemId}", GetProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("getProactiveItem");
++        endpoints.MapPost("/ai/proactive/items/{itemId}/seen", SeenProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("seeProactiveItem");
++        endpoints.MapPost("/ai/proactive/items/{itemId}/snooze", SnoozeProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("snoozeProactiveItem");
++        endpoints.MapPost("/ai/proactive/items/{itemId}/dismiss", DismissProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("dismissProactiveItem");
++        endpoints.MapGet("/ai/proactive/configuration", GetProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("getProactiveConfiguration");
++        endpoints.MapPut("/ai/proactive/configuration", SaveProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("saveProactiveConfiguration");
+         return endpoints;
+     }
+ 
++    private static async Task<IResult> ListProactiveItemsAsync(string? cursor, int? limit, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
++    {
++        var result = await application.ListAsync(cursor, limit ?? 50, RequestId(context), CorrelationId(context), ct);
++        if (result.IsSuccess && result.Value!.NextCursor is not null) context.Response.Headers["X-Next-Cursor"] = result.Value.NextCursor;
++        return Result(result, CorrelationId(context));
++    }
++
++    private static async Task<IResult> GetProactiveItemAsync(string itemId, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct) =>
++        Result(await application.DetailAsync(itemId, RequestId(context), CorrelationId(context), ct), CorrelationId(context));
++
++    private static async Task<IResult> SeenProactiveItemAsync(string itemId, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
++    {
++        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
++        var result=await application.SeenAsync(itemId,version,key!,RequestId(context),CorrelationId(context),ct);
++        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Item.Version}\"";return Result(result,CorrelationId(context));
++    }
++
++    private static async Task<IResult> SnoozeProactiveItemAsync(string itemId, SnoozeProactiveItemRequest request, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
++    {
++        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
++        var result=await application.SnoozeAsync(itemId,request.SnoozedUntil,version,key!,RequestId(context),CorrelationId(context),ct);
++        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Item.Version}\"";return Result(result,CorrelationId(context));
++    }
++
++    private static async Task<IResult> DismissProactiveItemAsync(string itemId, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
++    {
++        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
++        var result=await application.DismissAsync(itemId,version,key!,RequestId(context),CorrelationId(context),ct);
++        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Item.Version}\"";return Result(result,CorrelationId(context));
++    }
++
++    private static async Task<IResult> GetProactiveConfigurationAsync(HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
++    {
++        var result=await application.GetConfigurationAsync(CorrelationId(context),ct);
++        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Version}\"";return Result(result,CorrelationId(context));
++    }
++
++    private static async Task<IResult> SaveProactiveConfigurationAsync(SaveProactiveConfigurationRequest request, HttpContext context, ProactiveAttentionApplication application, CancellationToken ct)
++    {
++        if (!TryCommandMetadata(context, out var version, out var key, out var error)) return error!;
++        var result=await application.SaveConfigurationAsync(request.Enabled,version,key!,CorrelationId(context),ct);
++        if(result.IsSuccess)context.Response.Headers.ETag=$"\"{result.Value!.Version}\"";return Result(result,CorrelationId(context));
++    }
++
+     private static async Task<IResult> GetCatalogAsync(HttpContext context, AiConfigurationApplication application, CancellationToken cancellationToken)
+         => Result(await application.CatalogAsync(CorrelationId(context), cancellationToken), CorrelationId(context));
+ 
+@@ -157,4 +208,10 @@ public static class AiEndpoints
+         var supplied = context.Request.Headers["X-Correlation-Id"].ToString();
+         return supplied.Length is >= 8 and <= 128 ? supplied : context.TraceIdentifier;
+     }
++
++    private static string RequestId(HttpContext context)
++    {
++        var supplied = context.Request.Headers["X-Request-Id"].ToString();
++        return supplied.Length is >= 8 and <= 128 ? supplied : context.TraceIdentifier;
++    }
+ }
+diff --git a/src/UnicoreCRM.AI/Gateway/AiOperationResults.cs b/src/UnicoreCRM.AI/Gateway/AiOperationResults.cs
+index fcf0303..1c85963 100644
+--- a/src/UnicoreCRM.AI/Gateway/AiOperationResults.cs
++++ b/src/UnicoreCRM.AI/Gateway/AiOperationResults.cs
+@@ -63,4 +63,9 @@ internal static class AiErrors
+ 
+     internal static AiOperationError ProviderSafetyRefusal() =>
+         new("AI_PROVIDER_SAFETY_REFUSAL", 422, "AI provider refused the request under its safety policy");
++
++    internal static AiOperationError ProactiveAccessDenied() => new("AI_PROACTIVE_ACCESS_DENIED", 403, "Proactive Attention access denied");
++    internal static AiOperationError ProactiveNotFound() => new("AI_PROACTIVE_ITEM_NOT_FOUND", 404, "Proactive Attention item was not found or is not visible");
++    internal static AiOperationError ProactiveVersionConflict() => new("AI_PROACTIVE_VERSION_CONFLICT", 409, "Proactive Attention version conflict");
++    internal static AiOperationError ProactiveIdempotencyConflict() => new("AI_PROACTIVE_IDEMPOTENCY_KEY_REUSED", 409, "Proactive Attention idempotency key was reused");
+ }
+diff --git a/src/UnicoreCRM.AI/Gateway/GatewayModule.cs b/src/UnicoreCRM.AI/Gateway/GatewayModule.cs
+index 45e3f8d..b2bbc3b 100644
+--- a/src/UnicoreCRM.AI/Gateway/GatewayModule.cs
++++ b/src/UnicoreCRM.AI/Gateway/GatewayModule.cs
+@@ -8,6 +8,7 @@ internal static class GatewayModule
+     {
+         services.AddScoped<AiAdvisoryApplication>();
+         services.AddScoped<AiConfigurationApplication>();
++        services.AddScoped<ProactiveAttentionApplication>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs b/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs
+index 17efcab..b4502aa 100644
+--- a/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs
++++ b/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs
+@@ -8,10 +8,20 @@ namespace UnicoreCRM.AI.Proactive.Application;
+ 
+ internal sealed class CustomerHealthRiskReconciler(IProactiveStore store, TimeProvider clock)
+ {
+-    internal async Task ReconcileAsync(string workspaceId, ProactiveCustomerHealthFact fact, string correlationId, CancellationToken ct)
++    internal async Task ReconcilePageAsync(string workspaceId, IReadOnlyCollection<ProactiveCustomerHealthFact> facts, string correlationId, CancellationToken ct)
++    {
++        if (facts.Count > 250) throw new ArgumentOutOfRangeException(nameof(facts));
++        var active = await store.ReadActiveCyclesAsync(workspaceId, facts.Select(x => x.CustomerId).ToArray(), ProactiveValues.CustomerHealthRisk, ct);
++        foreach (var fact in facts)
++        {
++            active.TryGetValue(fact.CustomerId, out var item);
++            await ReconcileAsync(workspaceId, fact, item, correlationId, ct);
++        }
++    }
++
++    private async Task ReconcileAsync(string workspaceId, ProactiveCustomerHealthFact fact, ProactiveItemState? active, string correlationId, CancellationToken ct)
+     {
+         var now = clock.GetUtcNow();
+-        var active = await store.ReadActiveCycleAsync(workspaceId, fact.CustomerId, ProactiveValues.CustomerHealthRisk, ct);
+         var severity = fact.HealthBand switch { "AT_RISK" => ProactiveValues.High, "CRITICAL" => ProactiveValues.Critical, _ => null };
+         if (severity is null || string.Equals(fact.CustomerStatus, "ARCHIVED", StringComparison.Ordinal))
+         {
+@@ -20,7 +30,6 @@ internal sealed class CustomerHealthRiskReconciler(IProactiveStore store, TimePr
+         }
+         if (string.IsNullOrWhiteSpace(fact.OwnerMemberId))
+         {
+-            if (active is not null) await SaveAsync(active with { Status=ProactiveValues.Resolved, ResolvedAt=now, UpdatedAt=now, Version=active.Version+1 }, "ITEM_RESOLVED", correlationId, ct);
+             await store.RecordAuditAsync(new($"proaudit_{Guid.NewGuid():N}", workspaceId, null, "UNOWNED_TRIGGER_SUPPRESSED", null,
+                 fact.CustomerId, "{}", correlationId, now), ct);
+             return;
+@@ -39,17 +48,26 @@ internal sealed class CustomerHealthRiskReconciler(IProactiveStore store, TimePr
+         }
+         var ownerChanged = !string.Equals(active.OwnerMemberId, fact.OwnerMemberId, StringComparison.Ordinal);
+         var escalated = active.Severity == ProactiveValues.High && severity == ProactiveValues.Critical;
+-        var status = ownerChanged || escalated ? ProactiveValues.Open : active.Status;
++        var snoozeDue = active.Status == ProactiveValues.Snoozed && active.SnoozedUntil <= now;
++        var status = ownerChanged || escalated || snoozeDue ? ProactiveValues.Open : active.Status;
+         var updated = active with { OwnerMemberId=fact.OwnerMemberId, Severity=severity, ReasonCode=fact.ReasonCode ?? active.ReasonCode,
+             TriggerFingerprint=fingerprint, Status=status, LastDetectedAt=now, SeenAt=ownerChanged ? null : active.SeenAt,
+-            SnoozedUntil=ownerChanged || escalated ? null : active.SnoozedUntil, DismissedAt=ownerChanged || escalated ? null : active.DismissedAt,
++            SnoozedUntil=ownerChanged || escalated || snoozeDue ? null : active.SnoozedUntil, DismissedAt=ownerChanged || escalated ? null : active.DismissedAt,
+             SourceVersion=fact.SourceVersion, Version=active.Version+1, UpdatedAt=now };
+-        await SaveAsync(updated, ownerChanged ? "ITEM_OWNER_CHANGED" : escalated ? "ITEM_ESCALATED" : "ITEM_REFRESHED", correlationId, ct);
++        var actions = new List<string>(2);
++        if (ownerChanged) actions.Add("ITEM_OWNER_CHANGED");
++        if (escalated) actions.Add("ITEM_ESCALATED");
++        if (actions.Count == 0) actions.Add("ITEM_REFRESHED");
++        await SaveAsync(updated, actions, correlationId, ct);
+     }
+ 
+     private Task SaveAsync(ProactiveItemState item, string action, string correlationId, CancellationToken ct) =>
+-        store.SaveItemAsync(item, new($"proaudit_{Guid.NewGuid():N}", item.WorkspaceId, null, action, item.ItemId, item.SubjectId,
+-            JsonSerializer.Serialize(new { item.TriggerType, item.Severity, item.Status }), correlationId, clock.GetUtcNow()), ct);
++        SaveAsync(item, [action], correlationId, ct);
++
++    private Task SaveAsync(ProactiveItemState item, IReadOnlyCollection<string> actions, string correlationId, CancellationToken ct) =>
++        store.SaveItemWithAuditsAsync(item, actions.Select(action => new ProactiveAuditEvidence($"proaudit_{Guid.NewGuid():N}", item.WorkspaceId, null,
++            action, item.ItemId, item.SubjectId, JsonSerializer.Serialize(new { item.TriggerType, item.Severity, item.Status }),
++            correlationId, clock.GetUtcNow())).ToArray(), ct);
+ 
+     private static string Fingerprint(string band, string? reason, string? algorithm) =>
+         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{band}\n{reason}\n{algorithm}"))).ToLowerInvariant();
+diff --git a/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs b/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs
+index 093a8f4..09fc4a9 100644
+--- a/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs
++++ b/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs
+@@ -5,15 +5,16 @@ namespace UnicoreCRM.AI.Proactive.Application;
+ 
+ internal sealed class ProactiveWorkspaceEvaluator(IProactiveCustomerHealthReader customers, CustomerHealthRiskReconciler reconciler)
+ {
+-    internal async Task<int> EvaluateAsync(string workspaceId, string correlationId, CancellationToken ct)
++    internal async Task<int> EvaluateAsync(string workspaceId, string correlationId, Func<CancellationToken, Task> renewLease, CancellationToken ct)
+     {
+         string? cursor = null;
+         var count = 0;
+         do
+         {
+             var page = await customers.ReadPageAsync(workspaceId, cursor, 250, ct);
+-            foreach (var fact in page.Items)
+-                await reconciler.ReconcileAsync(workspaceId, fact, correlationId, ct);
++            await renewLease(ct);
++            await reconciler.ReconcilePageAsync(workspaceId, page.Items, correlationId, ct);
++            await renewLease(ct);
+             count += page.Items.Count;
+             cursor = page.NextCursor;
+         } while (cursor is not null);
+diff --git a/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs b/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs
+index 61a27ec..a911d91 100644
+--- a/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs
++++ b/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs
+@@ -8,8 +8,25 @@ using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
+ 
+ namespace UnicoreCRM.AI.Proactive.Infrastructure;
+ 
+-internal sealed class ProactiveEvaluationWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<ProactiveEvaluationWorker> logger) : BackgroundService
++internal sealed class ProactiveEvaluationWorker : BackgroundService
+ {
++    private readonly IServiceScopeFactory scopes;
++    private readonly TimeProvider clock;
++    private readonly ILogger<ProactiveEvaluationWorker> logger;
++    private readonly TimeSpan leaseDuration;
++    private readonly TimeSpan renewalInterval;
++
++    public ProactiveEvaluationWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<ProactiveEvaluationWorker> logger)
++        : this(scopes, clock, logger, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(1)) { }
++
++    internal ProactiveEvaluationWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<ProactiveEvaluationWorker> logger, TimeSpan leaseDuration, TimeSpan renewalInterval)
++    {
++        this.scopes = scopes;
++        this.clock = clock;
++        this.logger = logger;
++        this.leaseDuration = leaseDuration;
++        this.renewalInterval = renewalInterval;
++    }
+     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+     {
+         while (!stoppingToken.IsCancellationRequested)
+@@ -26,28 +43,84 @@ internal sealed class ProactiveEvaluationWorker(IServiceScopeFactory scopes, Tim
+         var started = Stopwatch.GetTimestamp();
+         await using var scope = scopes.CreateAsyncScope();
+         var store = scope.ServiceProvider.GetRequiredService<IProactiveStore>();
+-        var evaluator = scope.ServiceProvider.GetRequiredService<ProactiveWorkspaceEvaluator>();
+-        var zones = scope.ServiceProvider.GetRequiredService<IWorkspaceTimeZoneReader>();
+-        var now = clock.GetUtcNow();
+-        var due = await store.ReadDuePoliciesAsync(now, 25, ct);
++        var scanNow = clock.GetUtcNow();
++        var due = await store.ReadDuePoliciesAsync(scanNow, 25, ct);
+         foreach (var policy in due)
+         {
++            await using var workspaceScope = scopes.CreateAsyncScope();
++            var workspaceStore = workspaceScope.ServiceProvider.GetRequiredService<IProactiveStore>();
++            var evaluator = workspaceScope.ServiceProvider.GetRequiredService<ProactiveWorkspaceEvaluator>();
++            var zones = workspaceScope.ServiceProvider.GetRequiredService<IWorkspaceTimeZoneReader>();
+             var leaseId = $"prolease_{Guid.NewGuid():N}";
+-            if (!await store.TryClaimPolicyAsync(policy.WorkspaceId, policy.Version, leaseId, now, now.AddMinutes(15), ct)) continue;
+-            var zoneId = await zones.ReadTimeZoneAsync(policy.WorkspaceId, ct) ?? "UTC";
+-            var next = NextLocalDay(now, zoneId);
+-            await evaluator.EvaluateAsync(policy.WorkspaceId, $"proactive-eval-{leaseId}", ct);
+-            await store.CompletePolicyEvaluationAsync(policy.WorkspaceId, leaseId, now, next, ct);
+-            ProactiveMetrics.Workspaces.Add(1);
++            var claimNow = clock.GetUtcNow();
++            if (!await store.TryClaimPolicyAsync(policy.WorkspaceId, policy.Version, leaseId, claimNow, claimNow.Add(leaseDuration), ct)) continue;
++            using var evaluation = CancellationTokenSource.CreateLinkedTokenSource(ct);
++            var heartbeat = RenewUntilCancelledAsync(policy.WorkspaceId, leaseId, evaluation);
++            try
++            {
++                var zoneId = await zones.ReadTimeZoneAsync(policy.WorkspaceId, evaluation.Token);
++                if (string.IsNullOrWhiteSpace(zoneId)) throw new InvalidOperationException("Authoritative Workspace timezone is unavailable.");
++                await evaluator.EvaluateAsync(policy.WorkspaceId, $"proactive-eval-{leaseId}", token => RenewOrThrowAsync(policy.WorkspaceId, leaseId, token), evaluation.Token);
++                var completedAt = clock.GetUtcNow();
++                var next = NextLocalDay(completedAt, zoneId);
++                await workspaceStore.CompletePolicyEvaluationAsync(policy.WorkspaceId, leaseId, completedAt, next, evaluation.Token);
++                ProactiveMetrics.Workspaces.Add(1);
++            }
++            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
++            catch (Exception exception)
++            {
++                ProactiveMetrics.Failures.Add(1);
++                try
++                {
++                    await using var failureScope = scopes.CreateAsyncScope();
++                    var failureStore = failureScope.ServiceProvider.GetRequiredService<IProactiveStore>();
++                    await failureStore.RecordAuditAsync(new($"proaudit_{Guid.NewGuid():N}", policy.WorkspaceId, null, "EVALUATION_FAILED", null, null,
++                        "{}", $"proactive-eval-{leaseId}", clock.GetUtcNow()), CancellationToken.None);
++                }
++                catch (Exception auditException)
++                {
++                    logger.LogError(auditException, "Proactive evaluation failure evidence could not be recorded WorkspaceId={WorkspaceId}.", policy.WorkspaceId);
++                }
++                logger.LogError(exception, "Proactive Workspace evaluation failed WorkspaceId={WorkspaceId}; lease will expire for retry.", policy.WorkspaceId);
++            }
++            finally
++            {
++                evaluation.Cancel();
++                try { await heartbeat; } catch (OperationCanceledException) { }
++            }
+         }
+         ProactiveMetrics.Duration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+     }
+ 
+     internal static DateTimeOffset NextLocalDay(DateTimeOffset now, string timeZoneId)
+     {
++        if (string.IsNullOrWhiteSpace(timeZoneId)) throw new ArgumentException("Workspace timezone is required.", nameof(timeZoneId));
+         var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+         var local = TimeZoneInfo.ConvertTime(now, zone);
+         var nextLocal = local.Date.AddDays(1);
+         return new DateTimeOffset(nextLocal, zone.GetUtcOffset(nextLocal)).ToUniversalTime();
+     }
++
++    private async Task RenewUntilCancelledAsync(string workspaceId, string leaseId, CancellationTokenSource evaluation)
++    {
++        try
++        {
++            while (!evaluation.IsCancellationRequested)
++            {
++                await Task.Delay(renewalInterval, clock, evaluation.Token);
++                await RenewOrThrowAsync(workspaceId, leaseId, evaluation.Token);
++            }
++        }
++        catch (OperationCanceledException) when (evaluation.IsCancellationRequested) { }
++        catch (Exception exception) { logger.LogError(exception, "Proactive evaluation lease renewal failed."); evaluation.Cancel(); }
++    }
++
++    private async Task RenewOrThrowAsync(string workspaceId, string leaseId, CancellationToken ct)
++    {
++        await using var scope = scopes.CreateAsyncScope();
++        var store = scope.ServiceProvider.GetRequiredService<IProactiveStore>();
++        var now = clock.GetUtcNow();
++        if (!await store.RenewPolicyLeaseAsync(workspaceId, leaseId, now, now.Add(leaseDuration), ct))
++            throw new InvalidOperationException("Proactive evaluation lease was lost.");
++    }
+ }
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/Common/CustomerRecordAccess.cs b/src/UnicoreCRM.Crm/Customers/Application/Common/CustomerRecordAccess.cs
+index 33b90ed..e8e013a 100644
+--- a/src/UnicoreCRM.Crm/Customers/Application/Common/CustomerRecordAccess.cs
++++ b/src/UnicoreCRM.Crm/Customers/Application/Common/CustomerRecordAccess.cs
+@@ -107,12 +107,13 @@ internal sealed class CustomerAuthorization(IRecordAccessEvaluator evaluator)
+         CustomerRequestMetadata metadata,
+         AccessRequirement requirement,
+         CancellationToken cancellationToken,
+-        RecordAccessRepresentation? representation = null)
++        RecordAccessRepresentation? representation = null,
++        IReadOnlyList<string>? requestedFields = null)
+     {
+         var authorization = await evaluator.AuthorizeResourceAsync(
+             ResourceKey,
+             requirement.Capability,
+-            CustomerFieldSecurity.FieldKeys,
++            requestedFields ?? CustomerFieldSecurity.FieldKeys,
+             representation ?? RecordAccessRepresentation.Full,
+             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
+             cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Customers/CustomersModule.cs b/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
+index 5a8f7c1..2411be7 100644
+--- a/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
++++ b/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
+@@ -24,6 +24,7 @@ internal static class CustomersModule
+         services.AddScoped<CustomerAuthorization>();
+         services.AddScoped<Application.Health.CustomerHealthAssessmentService>();
+         services.AddScoped<IProactiveCustomerHealthReader, Application.Health.ProactiveCustomerHealthReader>();
++        services.AddScoped<ICustomerAttentionReader, Application.Health.CustomerAttentionReader>();
+         services.AddScoped<Application.ListCustomers.Handler>();
+         services.AddScoped<Application.GetCustomer.Handler>();
+         services.AddScoped<ICustomerSummaryReader, Application.ReadCustomerSummary.CustomerSummaryReader>();
+diff --git a/src/UnicoreCRM.Platform/AccessControl/Application/Common/WorkspaceCapabilityPolicy.cs b/src/UnicoreCRM.Platform/AccessControl/Application/Common/WorkspaceCapabilityPolicy.cs
+index 4bea14a..4fc5e5e 100644
+--- a/src/UnicoreCRM.Platform/AccessControl/Application/Common/WorkspaceCapabilityPolicy.cs
++++ b/src/UnicoreCRM.Platform/AccessControl/Application/Common/WorkspaceCapabilityPolicy.cs
+@@ -13,6 +13,8 @@ internal static class WorkspaceCapabilityPolicy
+         "access.read",
+         "ai.configuration.manage",
+         "ai.configuration.read",
++        "ai.proactive.manage",
++        "ai.proactive.use",
+         "contacts.create",
+         "contacts.read",
+         "contacts.update",
+diff --git a/src/UnicoreCRM.Platform/AccessControl/Application/ProvisionInitialWorkspaceAccess/InitialWorkspaceAccessPolicy.cs b/src/UnicoreCRM.Platform/AccessControl/Application/ProvisionInitialWorkspaceAccess/InitialWorkspaceAccessPolicy.cs
+index 0eacf7a..d4c7cbc 100644
+--- a/src/UnicoreCRM.Platform/AccessControl/Application/ProvisionInitialWorkspaceAccess/InitialWorkspaceAccessPolicy.cs
++++ b/src/UnicoreCRM.Platform/AccessControl/Application/ProvisionInitialWorkspaceAccess/InitialWorkspaceAccessPolicy.cs
+@@ -58,27 +58,24 @@ internal static class InitialWorkspaceAccessPolicy
+     // Exact owner projection immediately preceding authoritative Contact writes. Deriving it from
+     // the current server-owned set keeps unrelated admitted module capabilities intact while still
+     // refusing arbitrary subsets or caller-invented capabilities.
+-    private static IReadOnlyList<string> PreContactUpdateOwnerCapabilities { get; } =
++    private static IReadOnlyList<string> PreProactiveOwnerCapabilities { get; } =
+         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+-            .Where(capability => capability is not "contacts.update" and not "contacts.delete")
++            .Where(capability => capability is not "ai.proactive.use" and not "ai.proactive.manage")
+             .ToArray();
+ 
+-    private static IReadOnlyList<string> PreContactArchiveOwnerCapabilities { get; } =
+-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+-            .Where(capability => capability is not "contacts.delete")
+-            .ToArray();
++    // Historical snapshots form a predecessor chain. Later capabilities must never leak into an
++    // earlier frozen owner projection merely because the current owner role grows.
++    private static IReadOnlyList<string> PreAiConfigurationOwnerCapabilities { get; } =
++        PreProactiveOwnerCapabilities.Where(capability => capability is not "ai.configuration.read" and not "ai.configuration.manage").ToArray();
+ 
+     private static IReadOnlyList<string> PreLeadCustomerConversionOwnerCapabilities { get; } =
+-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+-            .Where(capability => capability is not "leads.convert_to_customer")
+-            .ToArray();
++        PreAiConfigurationOwnerCapabilities.Where(capability => capability is not "leads.convert_to_customer").ToArray();
+ 
+-    // Exact owner projection immediately preceding CRM-AI-002 Workspace provider governance.
+-    // Only this complete server-owned predecessor is eligible for automatic owner repair.
+-    private static IReadOnlyList<string> PreAiConfigurationOwnerCapabilities { get; } =
+-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities
+-            .Where(capability => capability is not "ai.configuration.read" and not "ai.configuration.manage")
+-            .ToArray();
++    private static IReadOnlyList<string> PreContactArchiveOwnerCapabilities { get; } =
++        PreLeadCustomerConversionOwnerCapabilities.Where(capability => capability is not "contacts.delete").ToArray();
++
++    private static IReadOnlyList<string> PreContactUpdateOwnerCapabilities { get; } =
++        PreContactArchiveOwnerCapabilities.Where(capability => capability is not "contacts.update").ToArray();
+ 
+     internal static IReadOnlyList<string> Capabilities { get; } =
+         WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities;
+@@ -99,12 +96,14 @@ internal static class InitialWorkspaceAccessPolicy
+         var preContactArchive = Validate(PreContactArchiveOwnerCapabilities, "The pre-Contact-archive Workspace Owner capability set is not canonical.");
+         var preLeadCustomerConversion = Validate(PreLeadCustomerConversionOwnerCapabilities, "The pre-Lead-customer-conversion Workspace Owner capability set is not canonical.");
+         var preAiConfiguration = Validate(PreAiConfigurationOwnerCapabilities, "The pre-AI-configuration Workspace Owner capability set is not canonical.");
++        var preProactive = Validate(PreProactiveOwnerCapabilities, "The pre-Proactive Workspace Owner capability set is not canonical.");
+         return storedCapabilities.SequenceEqual(v1, StringComparer.Ordinal)
+             || storedCapabilities.SequenceEqual(v2, StringComparer.Ordinal)
+             || storedCapabilities.SequenceEqual(preContactUpdate, StringComparer.Ordinal)
+             || storedCapabilities.SequenceEqual(preContactArchive, StringComparer.Ordinal)
+             || storedCapabilities.SequenceEqual(preLeadCustomerConversion, StringComparer.Ordinal)
+-            || storedCapabilities.SequenceEqual(preAiConfiguration, StringComparer.Ordinal);
++            || storedCapabilities.SequenceEqual(preAiConfiguration, StringComparer.Ordinal)
++            || storedCapabilities.SequenceEqual(preProactive, StringComparer.Ordinal);
+     }
+ 
+     /// <summary>
+diff --git a/src/UnicoreCRM.Platform/AccessControl/Domain/EffectiveAuthorizationPolicy.cs b/src/UnicoreCRM.Platform/AccessControl/Domain/EffectiveAuthorizationPolicy.cs
+index 8e72ad4..559f0d7 100644
+--- a/src/UnicoreCRM.Platform/AccessControl/Domain/EffectiveAuthorizationPolicy.cs
++++ b/src/UnicoreCRM.Platform/AccessControl/Domain/EffectiveAuthorizationPolicy.cs
+@@ -79,7 +79,8 @@ internal static class EffectiveAuthorizationPolicy
+         if (capabilities.Contains("studio.read", StringComparer.Ordinal)
+             || capabilities.Contains("studio.configure", StringComparer.Ordinal)
+             || capabilities.Contains("ai.configuration.read", StringComparer.Ordinal)
+-            || capabilities.Contains("ai.configuration.manage", StringComparer.Ordinal))
++            || capabilities.Contains("ai.configuration.manage", StringComparer.Ordinal)
++            || capabilities.Contains("ai.proactive.manage", StringComparer.Ordinal))
+             result.Add("studio");
+         if (capabilities.Contains("access.read", StringComparer.Ordinal)
+             || capabilities.Contains("access.configure", StringComparer.Ordinal)
+diff --git a/src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj b/src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj
+index 01b1b80..a7be68b 100644
+--- a/src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj
++++ b/src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj
+@@ -5,6 +5,7 @@
+   </PropertyGroup>
+   <ItemGroup>
+     <InternalsVisibleTo Include="UnicoreCRM.LeadCustomerConversion.RealVerifier" />
++    <InternalsVisibleTo Include="UnicoreCRM.AI.ProactiveVerifier" />
+     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+       <PrivateAssets>all</PrivateAssets>
+diff --git a/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs b/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
+index 2da6b57..036bca2 100644
+--- a/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
++++ b/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
+@@ -31,17 +31,27 @@ public sealed record ProactiveAuditEvidence(
+     string? ItemId, string? SubjectId, string SafeSummaryJson,
+     string CorrelationId, DateTimeOffset OccurredAt);
+ 
++public enum ProactiveCommitStatus { Committed, Replayed, NotFound, VersionConflict, IdempotencyConflict }
++public sealed record ProactiveItemCommit(ProactiveCommitStatus Status, ProactiveItemState? State = null);
++public sealed record ProactivePolicyCommit(ProactiveCommitStatus Status, WorkspaceProactivePolicyState? State = null);
++
+ public interface IProactiveStore
+ {
+     Task<WorkspaceProactivePolicyState?> ReadPolicyAsync(string workspaceId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<WorkspaceProactivePolicyState>> ReadDuePoliciesAsync(DateTimeOffset now, int limit, CancellationToken cancellationToken);
+     Task<bool> TryClaimPolicyAsync(string workspaceId, long version, string leaseId, DateTimeOffset now, DateTimeOffset leaseUntil, CancellationToken cancellationToken);
++    Task<bool> RenewPolicyLeaseAsync(string workspaceId, string leaseId, DateTimeOffset now, DateTimeOffset leaseUntil, CancellationToken cancellationToken);
+     Task CompletePolicyEvaluationAsync(string workspaceId, string leaseId, DateTimeOffset evaluatedAt, DateTimeOffset nextEvaluationAt, CancellationToken cancellationToken);
+     Task<ProactiveItemState?> ReadActiveCycleAsync(string workspaceId, string subjectId, string triggerType, CancellationToken cancellationToken);
++    Task<IReadOnlyDictionary<string, ProactiveItemState>> ReadActiveCyclesAsync(string workspaceId, IReadOnlyCollection<string> subjectIds, string triggerType, CancellationToken cancellationToken);
+     Task<IReadOnlyList<ProactiveItemState>> ReadOwnerItemsAsync(string workspaceId, string ownerMemberId, string status, int limit, CancellationToken cancellationToken);
++    Task<IReadOnlyList<ProactiveItemState>> ReadOwnerOpenItemsAsync(string workspaceId, string ownerMemberId, DateTimeOffset? beforeUpdatedAt, string? beforeItemId, int limit, CancellationToken cancellationToken);
+     Task<ProactiveItemState?> ReadItemAsync(string workspaceId, string itemId, CancellationToken cancellationToken);
+     Task SavePolicyAsync(WorkspaceProactivePolicyState policy, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, CancellationToken cancellationToken);
+     Task SaveItemAsync(ProactiveItemState item, ProactiveAuditEvidence audit, CancellationToken cancellationToken);
++    Task SaveItemWithAuditsAsync(ProactiveItemState item, IReadOnlyCollection<ProactiveAuditEvidence> audits, CancellationToken cancellationToken);
++    Task<ProactiveItemCommit> CommitItemActionAsync(ProactiveItemState item, string memberId, string operation, long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, CancellationToken cancellationToken);
++    Task<ProactivePolicyCommit> SavePolicyConfigurationAsync(string workspaceId, string memberId, bool enabled, long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, DateTimeOffset now, CancellationToken cancellationToken);
+     Task RecordAuditAsync(ProactiveAuditEvidence audit, CancellationToken cancellationToken);
+ }
+ 
+diff --git a/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs b/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
+index abde9b5..6a3b4e1 100644
+--- a/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
++++ b/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
+@@ -1,5 +1,6 @@
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Data.SqlClient;
++using System.Text.Json;
+ using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
+ 
+ namespace UnicoreCRM.PlatformOperations.AiExecution.Infrastructure;
+@@ -23,9 +24,14 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
+                 .SetProperty(x => x.LeaseId, leaseId)
+                 .SetProperty(x => x.LeaseExpiresAt, leaseUntil), ct) == 1;
+ 
++    public async Task<bool> RenewPolicyLeaseAsync(string workspaceId, string leaseId, DateTimeOffset now, DateTimeOffset leaseUntil, CancellationToken ct) =>
++        await db.ProactivePolicies.Where(x => x.WorkspaceId == workspaceId && x.Enabled && x.LeaseId == leaseId && x.LeaseExpiresAt > now)
++            .ExecuteUpdateAsync(update => update.SetProperty(x => x.LeaseExpiresAt, leaseUntil), ct) == 1;
++
+     public async Task CompletePolicyEvaluationAsync(string workspaceId, string leaseId, DateTimeOffset evaluatedAt, DateTimeOffset nextEvaluationAt, CancellationToken ct)
+     {
+-        var changed = await db.ProactivePolicies.Where(x => x.WorkspaceId == workspaceId && x.LeaseId == leaseId)
++        var changed = await db.ProactivePolicies.Where(x => x.WorkspaceId == workspaceId && x.Enabled
++                && x.LeaseId == leaseId && x.LeaseExpiresAt > evaluatedAt)
+             .ExecuteUpdateAsync(update => update
+                 .SetProperty(x => x.LastEvaluationAt, evaluatedAt)
+                 .SetProperty(x => x.NextEvaluationAt, nextEvaluationAt)
+@@ -39,11 +45,32 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
+             && x.SubjectType == ProactiveValues.Customer && x.SubjectId == subjectId && x.TriggerType == triggerType
+             && x.Status != ProactiveValues.Resolved, ct));
+ 
++    public async Task<IReadOnlyDictionary<string, ProactiveItemState>> ReadActiveCyclesAsync(
++        string workspaceId, IReadOnlyCollection<string> subjectIds, string triggerType, CancellationToken ct)
++    {
++        if (subjectIds.Count > 250) throw new ArgumentOutOfRangeException(nameof(subjectIds));
++        var rows = await db.ProactiveItems.AsNoTracking().Where(x => x.WorkspaceId == workspaceId
++            && x.SubjectType == ProactiveValues.Customer && subjectIds.Contains(x.SubjectId)
++            && x.TriggerType == triggerType && x.Status != ProactiveValues.Resolved).ToListAsync(ct);
++        return rows.ToDictionary(x => x.SubjectId, x => Map(x)!);
++    }
++
+     public async Task<IReadOnlyList<ProactiveItemState>> ReadOwnerItemsAsync(string workspaceId, string ownerMemberId, string status, int limit, CancellationToken ct) =>
+         (await db.ProactiveItems.AsNoTracking().Where(x => x.WorkspaceId == workspaceId && x.OwnerMemberId == ownerMemberId && x.Status == status)
+             .OrderByDescending(x => x.Severity).ThenByDescending(x => x.LastDetectedAt).ThenBy(x => x.ItemId)
+             .Take(Math.Clamp(limit, 1, 100)).ToListAsync(ct)).Select(x => Map(x)!).ToArray();
+ 
++    public async Task<IReadOnlyList<ProactiveItemState>> ReadOwnerOpenItemsAsync(
++        string workspaceId, string ownerMemberId, DateTimeOffset? beforeUpdatedAt, string? beforeItemId, int limit, CancellationToken ct)
++    {
++        var query = db.ProactiveItems.AsNoTracking().Where(x => x.WorkspaceId == workspaceId
++            && x.OwnerMemberId == ownerMemberId && x.SubjectType == ProactiveValues.Customer && x.Status == ProactiveValues.Open);
++        if (beforeUpdatedAt is not null && beforeItemId is not null)
++            query = query.Where(x => x.UpdatedAt < beforeUpdatedAt || x.UpdatedAt == beforeUpdatedAt && string.Compare(x.ItemId, beforeItemId) > 0);
++        return (await query.OrderByDescending(x => x.UpdatedAt).ThenBy(x => x.ItemId)
++            .Take(Math.Clamp(limit, 1, 101)).ToListAsync(ct)).Select(x => Map(x)!).ToArray();
++    }
++
+     public async Task<ProactiveItemState?> ReadItemAsync(string workspaceId, string itemId, CancellationToken ct) =>
+         Map(await db.ProactiveItems.AsNoTracking().SingleOrDefaultAsync(x => x.WorkspaceId == workspaceId && x.ItemId == itemId, ct));
+ 
+@@ -66,12 +93,24 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
+         await db.SaveChangesAsync(ct);
+     }
+ 
+-    public async Task SaveItemAsync(ProactiveItemState item, ProactiveAuditEvidence audit, CancellationToken ct)
++    public Task SaveItemAsync(ProactiveItemState item, ProactiveAuditEvidence audit, CancellationToken ct) =>
++        SaveItemWithAuditsAsync(item, [audit], ct);
++
++    public async Task SaveItemWithAuditsAsync(ProactiveItemState item, IReadOnlyCollection<ProactiveAuditEvidence> audits, CancellationToken ct)
+     {
+         var row = await db.ProactiveItems.SingleOrDefaultAsync(x => x.ItemId == item.ItemId, ct);
+         if (row is null) db.ProactiveItems.Add(Row(item));
+-        else Copy(item, row);
+-        db.ProactiveAudits.Add(Row(audit));
++        else
++        {
++            // Reconciliation increments the version of its original snapshot exactly once.
++            // Never adopt the version of a user command committed after that snapshot.
++            var expectedVersion = item.Version - 1;
++            if (row.Version != expectedVersion)
++                throw new DbUpdateConcurrencyException("Proactive item changed after reconciliation read.");
++            db.Entry(row).Property(x => x.Version).OriginalValue = expectedVersion;
++            Copy(item, row);
++        }
++        db.ProactiveAudits.AddRange(audits.Select(Row));
+         try { await db.SaveChangesAsync(ct); }
+         catch (DbUpdateException exception) when (ContainsUniqueConflict(exception))
+         {
+@@ -79,6 +118,86 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
+             throw new ProactiveActiveCycleConflictException();
+         }
+     }
++
++    public async Task<ProactiveItemCommit> CommitItemActionAsync(ProactiveItemState item, string memberId, string operation,
++        long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, CancellationToken ct)
++    {
++        var scopeKey = $"{item.WorkspaceId}:{memberId}:{operation}:{idempotencyKey}";
++        var replay = await db.ProactiveCommands.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scopeKey, ct);
++        if (replay is not null)
++            return string.Equals(replay.Fingerprint, fingerprint, StringComparison.Ordinal)
++                ? new(ProactiveCommitStatus.Replayed, JsonSerializer.Deserialize<ProactiveItemState>(replay.ResultJson))
++                : new(ProactiveCommitStatus.IdempotencyConflict);
++        var row = await db.ProactiveItems.SingleOrDefaultAsync(x => x.WorkspaceId == item.WorkspaceId && x.ItemId == item.ItemId, ct);
++        if (row is null || !string.Equals(row.OwnerMemberId, memberId, StringComparison.Ordinal)) return new(ProactiveCommitStatus.NotFound);
++        if (row.Version != expectedVersion)
++        {
++            var completed = await db.ProactiveCommands.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scopeKey, ct);
++            if (completed is not null)
++                return completed.Fingerprint == fingerprint
++                    ? new(ProactiveCommitStatus.Replayed, JsonSerializer.Deserialize<ProactiveItemState>(completed.ResultJson))
++                    : new(ProactiveCommitStatus.IdempotencyConflict);
++            return new(ProactiveCommitStatus.VersionConflict);
++        }
++        Copy(item, row);
++        db.ProactiveCommands.Add(new() { ScopeKey=scopeKey,WorkspaceId=item.WorkspaceId,MemberId=memberId,Operation=operation,
++            IdempotencyKey=idempotencyKey,Fingerprint=fingerprint,ResultJson=JsonSerializer.Serialize(item),CreatedAt=audit.OccurredAt });
++        db.ProactiveAudits.Add(Row(audit));
++        try { await db.SaveChangesAsync(ct); return new(ProactiveCommitStatus.Committed, item); }
++        catch (DbUpdateException)
++        {
++            db.ChangeTracker.Clear();
++            var completed = await db.ProactiveCommands.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scopeKey, ct);
++            if (completed is not null)
++                return string.Equals(completed.Fingerprint, fingerprint, StringComparison.Ordinal)
++                    ? new(ProactiveCommitStatus.Replayed, JsonSerializer.Deserialize<ProactiveItemState>(completed.ResultJson))
++                    : new(ProactiveCommitStatus.IdempotencyConflict);
++            var current = await db.ProactiveItems.AsNoTracking().SingleOrDefaultAsync(x => x.WorkspaceId == item.WorkspaceId && x.ItemId == item.ItemId, ct);
++            if (current is not null && current.Version != expectedVersion) return new(ProactiveCommitStatus.VersionConflict);
++            throw;
++        }
++    }
++
++    public async Task<ProactivePolicyCommit> SavePolicyConfigurationAsync(string workspaceId, string memberId, bool enabled,
++        long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, DateTimeOffset now, CancellationToken ct)
++    {
++        const string operation = "putProactiveConfiguration";
++        var scopeKey = $"{workspaceId}:{memberId}:{operation}:{idempotencyKey}";
++        var replay = await db.ProactiveCommands.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scopeKey, ct);
++        if (replay is not null)
++            return string.Equals(replay.Fingerprint, fingerprint, StringComparison.Ordinal)
++                ? new(ProactiveCommitStatus.Replayed, JsonSerializer.Deserialize<WorkspaceProactivePolicyState>(replay.ResultJson))
++                : new(ProactiveCommitStatus.IdempotencyConflict);
++        var row = await db.ProactivePolicies.SingleOrDefaultAsync(x => x.WorkspaceId == workspaceId, ct);
++        if ((row?.Version ?? 0) != expectedVersion)
++        {
++            var completed = await db.ProactiveCommands.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scopeKey, ct);
++            if (completed is not null)
++                return completed.Fingerprint == fingerprint
++                    ? new(ProactiveCommitStatus.Replayed, JsonSerializer.Deserialize<WorkspaceProactivePolicyState>(completed.ResultJson))
++                    : new(ProactiveCommitStatus.IdempotencyConflict);
++            return new(ProactiveCommitStatus.VersionConflict);
++        }
++        var state = new WorkspaceProactivePolicyState(workspaceId, enabled, expectedVersion + 1,
++            row?.LastEvaluationAt, enabled ? now : null, null, null, memberId, now);
++        if (row is null) db.ProactivePolicies.Add(Row(state)); else Copy(state, row);
++        db.ProactiveCommands.Add(new() { ScopeKey=scopeKey,WorkspaceId=workspaceId,MemberId=memberId,Operation=operation,
++            IdempotencyKey=idempotencyKey,Fingerprint=fingerprint,ResultJson=JsonSerializer.Serialize(state),CreatedAt=now });
++        db.ProactiveAudits.Add(Row(audit));
++        try { await db.SaveChangesAsync(ct); return new(ProactiveCommitStatus.Committed, state); }
++        catch (DbUpdateException)
++        {
++            db.ChangeTracker.Clear();
++            var completed = await db.ProactiveCommands.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scopeKey, ct);
++            if (completed is not null)
++                return string.Equals(completed.Fingerprint, fingerprint, StringComparison.Ordinal)
++                    ? new(ProactiveCommitStatus.Replayed, JsonSerializer.Deserialize<WorkspaceProactivePolicyState>(completed.ResultJson))
++                    : new(ProactiveCommitStatus.IdempotencyConflict);
++            var current = await db.ProactivePolicies.AsNoTracking().SingleOrDefaultAsync(x => x.WorkspaceId == workspaceId, ct);
++            if (current is not null && current.Version != expectedVersion) return new(ProactiveCommitStatus.VersionConflict);
++            throw;
++        }
++    }
+     public async Task RecordAuditAsync(ProactiveAuditEvidence audit, CancellationToken ct)
+     { db.ProactiveAudits.Add(Row(audit)); await db.SaveChangesAsync(ct); }
+ 
+diff --git a/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj b/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj
+index 96a805f..684baaa 100644
+--- a/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj
++++ b/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj
+@@ -4,6 +4,7 @@
+     <AssemblyName>UnicoreCRM.PlatformOperations</AssemblyName>
+   </PropertyGroup>
+   <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.EventWebhook.Verifier" /></ItemGroup>
++  <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.AI.ProactiveVerifier" /></ItemGroup>
+   <ItemGroup>
+     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+diff --git a/src/UnicoreCRM.AI/Gateway/ProactiveAttentionApplication.cs b/src/UnicoreCRM.AI/Gateway/ProactiveAttentionApplication.cs
+new file mode 100644
+index 0000000..6cde497
+--- /dev/null
++++ b/src/UnicoreCRM.AI/Gateway/ProactiveAttentionApplication.cs
+@@ -0,0 +1,168 @@
++using System.Globalization;
++using System.Security.Cryptography;
++using System.Text;
++using System.Text.Json;
++using System.Text.RegularExpressions;
++using UnicoreCRM.Crm.Customers.Contracts;
++using UnicoreCRM.Platform.AccessControl.Contracts;
++using UnicoreCRM.Platform.Workspace.Contracts;
++using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
++
++namespace UnicoreCRM.AI.Gateway;
++
++internal sealed class ProactiveAttentionApplication(
++    ICurrentWorkspace currentWorkspace,
++    IAccessAuthorizer authorizer,
++    IProactiveStore store,
++    ICustomerAttentionReader customers,
++    TimeProvider clock)
++{
++    private static readonly AccessRequirement Use = AccessRequirement.ForCanonicalCapability("ai.proactive.use");
++    private static readonly AccessRequirement Manage = AccessRequirement.ForCanonicalCapability("ai.proactive.manage");
++
++    internal async Task<AiOperationResult<ProactiveItemPage>> ListAsync(string? cursor, int limit, string requestId, string correlationId, CancellationToken ct)
++    {
++        var access = await AuthorizedAsync(Use, correlationId, ct);
++        if (access.Error is not null) return AiOperationResult<ProactiveItemPage>.Failure(access.Error);
++        if (limit is < 1 or > 100)
++            return AiOperationResult<ProactiveItemPage>.Failure(AiErrors.Invalid(new Dictionary<string, string[]> { ["limit"] = ["limit must be between 1 and 100."] }));
++        if (!TryCursor(cursor, out var before, out var beforeId))
++            return AiOperationResult<ProactiveItemPage>.Failure(AiErrors.Invalid(new Dictionary<string, string[]> { ["cursor"] = ["Pagination cursor is invalid."] }));
++        var context = access.Context!;
++        var rows = await store.ReadOwnerOpenItemsAsync(context.WorkspaceId, context.MemberId, before, beforeId, limit + 1, ct);
++        var candidates = rows.Take(limit).ToArray();
++        var authorized = await customers.ReadAuthorizedAsync(candidates.Select(x => x.SubjectId).ToArray(), new(requestId, correlationId), ct);
++        if (!authorized.IsAuthorized) return AiOperationResult<ProactiveItemPage>.Failure(AiErrors.ProactiveAccessDenied());
++        var visible = candidates.Where(item => authorized.Items.ContainsKey(item.SubjectId))
++            .Select(item => Project(item, authorized.Items[item.SubjectId])).ToArray();
++        var next = rows.Count > limit && candidates.Length != 0 ? Cursor(candidates[^1]) : null;
++        return AiOperationResult<ProactiveItemPage>.Success(new(visible, next));
++    }
++
++    internal async Task<AiOperationResult<ProactiveItemView>> DetailAsync(string itemId, string requestId, string correlationId, CancellationToken ct)
++    {
++        var authorized = await AuthorizeItemAsync(itemId, requestId, correlationId, ct);
++        if (authorized.Error is not null) return AiOperationResult<ProactiveItemView>.Failure(authorized.Error);
++        if (authorized.Item!.Status != ProactiveValues.Open) return AiOperationResult<ProactiveItemView>.Failure(AiErrors.ProactiveNotFound());
++        return AiOperationResult<ProactiveItemView>.Success(Project(authorized.Item, authorized.Customer!));
++    }
++
++    internal Task<AiOperationResult<ProactiveMutationResponse>> SeenAsync(string itemId, long expectedVersion, string key, string requestId, string correlationId, CancellationToken ct) =>
++        MutateAsync(itemId, expectedVersion, key, "seenProactiveItem", null, requestId, correlationId, ct);
++
++    internal Task<AiOperationResult<ProactiveMutationResponse>> DismissAsync(string itemId, long expectedVersion, string key, string requestId, string correlationId, CancellationToken ct) =>
++        MutateAsync(itemId, expectedVersion, key, "dismissProactiveItem", null, requestId, correlationId, ct);
++
++    internal Task<AiOperationResult<ProactiveMutationResponse>> SnoozeAsync(string itemId, DateTimeOffset until, long expectedVersion, string key, string requestId, string correlationId, CancellationToken ct) =>
++        MutateAsync(itemId, expectedVersion, key, "snoozeProactiveItem", until, requestId, correlationId, ct);
++
++    internal async Task<AiOperationResult<ProactiveConfigurationView>> GetConfigurationAsync(string correlationId, CancellationToken ct)
++    {
++        var access = await AuthorizedAsync(Manage, correlationId, ct);
++        if (access.Error is not null) return AiOperationResult<ProactiveConfigurationView>.Failure(access.Error);
++        var state = await store.ReadPolicyAsync(access.Context!.WorkspaceId, ct);
++        return AiOperationResult<ProactiveConfigurationView>.Success(state is null
++            ? new(false, 0, null, null, null)
++            : Configuration(state));
++    }
++
++    internal async Task<AiOperationResult<ProactiveConfigurationView>> SaveConfigurationAsync(bool enabled, long expectedVersion,
++        string key, string correlationId, CancellationToken ct)
++    {
++        var access = await AuthorizedAsync(Manage, correlationId, ct);
++        if (access.Error is not null) return AiOperationResult<ProactiveConfigurationView>.Failure(access.Error);
++        var context = access.Context!;
++        var now = clock.GetUtcNow();
++        var fingerprint = Fingerprint("CONFIGURE", new { enabled, expectedVersion });
++        var audit = new ProactiveAuditEvidence($"proaudit_{Guid.NewGuid():N}", context.WorkspaceId, context.MemberId,
++            enabled ? "PROACTIVE_ENABLED" : "PROACTIVE_DISABLED", null, null, "{}", correlationId, now);
++        var commit = await store.SavePolicyConfigurationAsync(context.WorkspaceId, context.MemberId, enabled, expectedVersion,
++            key, fingerprint, audit, now, ct);
++        return commit.Status switch
++        {
++            ProactiveCommitStatus.Committed or ProactiveCommitStatus.Replayed => AiOperationResult<ProactiveConfigurationView>.Success(Configuration(commit.State!)),
++            ProactiveCommitStatus.VersionConflict => AiOperationResult<ProactiveConfigurationView>.Failure(AiErrors.ProactiveVersionConflict()),
++            _ => AiOperationResult<ProactiveConfigurationView>.Failure(AiErrors.ProactiveIdempotencyConflict())
++        };
++    }
++
++    private async Task<AiOperationResult<ProactiveMutationResponse>> MutateAsync(string itemId, long expectedVersion, string key,
++        string operation, DateTimeOffset? until, string requestId, string correlationId, CancellationToken ct)
++    {
++        var authorized = await AuthorizeItemAsync(itemId, requestId, correlationId, ct);
++        if (authorized.Error is not null) return AiOperationResult<ProactiveMutationResponse>.Failure(authorized.Error);
++        var current = authorized.Item!;
++        var now = clock.GetUtcNow();
++        if (operation == "snoozeProactiveItem" && (until is null || until <= now))
++            return AiOperationResult<ProactiveMutationResponse>.Failure(AiErrors.Invalid(new Dictionary<string, string[]> { ["snoozedUntil"] = ["snoozedUntil must be a future instant."] }));
++        if (current.Status == ProactiveValues.Resolved) return AiOperationResult<ProactiveMutationResponse>.Failure(AiErrors.ProactiveNotFound());
++        var next = operation switch
++        {
++            "seenProactiveItem" => current with { SeenAt=now,Version=expectedVersion+1,UpdatedAt=now },
++            "snoozeProactiveItem" => current with { Status=ProactiveValues.Snoozed,SnoozedUntil=until,Version=expectedVersion+1,UpdatedAt=now },
++            _ => current with { Status=ProactiveValues.Dismissed,DismissedAt=now,SnoozedUntil=null,Version=expectedVersion+1,UpdatedAt=now }
++        };
++        var action = operation switch { "seenProactiveItem" => "ITEM_SEEN", "snoozeProactiveItem" => "ITEM_SNOOZED", _ => "ITEM_DISMISSED" };
++        var fingerprint = Fingerprint(operation, new { itemId, expectedVersion, until });
++        var audit = new ProactiveAuditEvidence($"proaudit_{Guid.NewGuid():N}", next.WorkspaceId, next.OwnerMemberId, action,
++            next.ItemId, next.SubjectId, "{}", correlationId, now);
++        var commit = await store.CommitItemActionAsync(next, next.OwnerMemberId, operation, expectedVersion, key, fingerprint, audit, ct);
++        return commit.Status switch
++        {
++            ProactiveCommitStatus.Committed or ProactiveCommitStatus.Replayed => AiOperationResult<ProactiveMutationResponse>.Success(new(Project(commit.State!, authorized.Customer!))),
++            ProactiveCommitStatus.VersionConflict => AiOperationResult<ProactiveMutationResponse>.Failure(AiErrors.ProactiveVersionConflict()),
++            ProactiveCommitStatus.IdempotencyConflict => AiOperationResult<ProactiveMutationResponse>.Failure(AiErrors.ProactiveIdempotencyConflict()),
++            _ => AiOperationResult<ProactiveMutationResponse>.Failure(AiErrors.ProactiveNotFound())
++        };
++    }
++
++    private async Task<(ProactiveItemState? Item, CustomerAttentionProjection? Customer, AiOperationError? Error)> AuthorizeItemAsync(
++        string itemId, string requestId, string correlationId, CancellationToken ct)
++    {
++        var access = await AuthorizedAsync(Use, correlationId, ct);
++        if (access.Error is not null) return (null, null, access.Error);
++        var context = access.Context!;
++        var item = await store.ReadItemAsync(context.WorkspaceId, itemId, ct);
++        if (item is null || item.SubjectType != ProactiveValues.Customer || item.OwnerMemberId != context.MemberId)
++            return (null, null, AiErrors.ProactiveNotFound());
++        var customerResult = await customers.ReadAuthorizedAsync([item.SubjectId], new(requestId, correlationId), ct);
++        if (!customerResult.IsAuthorized) return (null, null, AiErrors.ProactiveAccessDenied());
++        if (!customerResult.Items.TryGetValue(item.SubjectId, out var customer))
++            return (null, null, AiErrors.ProactiveNotFound());
++        return (item, customer, null);
++    }
++
++    private async Task<(TrustedWorkspaceContext? Context, AiOperationError? Error)> AuthorizedAsync(AccessRequirement requirement, string correlationId, CancellationToken ct)
++    {
++        if (!currentWorkspace.IsResolved) return (null, AiErrors.WorkspaceMismatch());
++        var decision = await authorizer.AuthorizeAsync(requirement, correlationId, ct);
++        return decision.IsAllowed ? (currentWorkspace.Require(), null) : (null, AiErrors.ProactiveAccessDenied());
++    }
++
++    private static ProactiveItemView Project(ProactiveItemState item, CustomerAttentionProjection customer) =>
++        new(item.ItemId, item.SubjectId, customer.DisplayLabel, item.Severity, item.ReasonCode, item.Status,
++            item.FirstDetectedAt, item.LastDetectedAt, item.SeenAt, item.SnoozedUntil, item.Version);
++    private static ProactiveConfigurationView Configuration(WorkspaceProactivePolicyState state) =>
++        new(state.Enabled, state.Version, state.LastEvaluationAt, state.NextEvaluationAt, state.UpdatedAt);
++    private static string Fingerprint(string operation, object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(operation+":"+JsonSerializer.Serialize(value))));
++    private static string Cursor(ProactiveItemState item) => Convert.ToBase64String(Encoding.UTF8.GetBytes($"{item.UpdatedAt.UtcTicks.ToString(CultureInfo.InvariantCulture)}\n{item.ItemId}"))
++        .TrimEnd('=').Replace('+', '-').Replace('/', '_');
++    private static bool TryCursor(string? cursor, out DateTimeOffset? before, out string? itemId)
++    {
++        before=null;itemId=null;if(string.IsNullOrEmpty(cursor))return true;
++        if (cursor.Length > 512) return false;
++        try
++        {
++            var encoded=cursor.Replace('-', '+').Replace('_', '/');
++            encoded += (encoded.Length % 4) switch { 2 => "==", 3 => "=", 0 => "", _ => throw new FormatException() };
++            var value=Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
++            var parts=value.Split('\n');
++            if(parts.Length!=2||!long.TryParse(parts[0],NumberStyles.None,CultureInfo.InvariantCulture,out var ticks)
++                || ticks<DateTimeOffset.MinValue.UtcTicks||ticks>DateTimeOffset.MaxValue.UtcTicks
++                || !Regex.IsMatch(parts[1], "^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$", RegexOptions.CultureInvariant))return false;
++            before=new DateTimeOffset(ticks,TimeSpan.Zero);itemId=parts[1];return true;
++        }
++        catch(FormatException) { return false; }
++        catch(ArgumentException) { return false; }
++    }
++}
+diff --git a/src/UnicoreCRM.AI/Gateway/ProactiveContracts.cs b/src/UnicoreCRM.AI/Gateway/ProactiveContracts.cs
+new file mode 100644
+index 0000000..8ad6d51
+--- /dev/null
++++ b/src/UnicoreCRM.AI/Gateway/ProactiveContracts.cs
+@@ -0,0 +1,24 @@
++using System.Text.Json.Serialization;
++
++namespace UnicoreCRM.AI.Gateway;
++
++public sealed record ProactiveItemView(
++    string ItemId,
++    string CustomerId,
++    string CustomerLabel,
++    string Severity,
++    string ReasonCode,
++    string Status,
++    DateTimeOffset FirstDetectedAt,
++    DateTimeOffset LastDetectedAt,
++    DateTimeOffset? SeenAt,
++    DateTimeOffset? SnoozedUntil,
++    long Version);
++
++public sealed record ProactiveItemPage(IReadOnlyList<ProactiveItemView> Items, string? NextCursor);
++public sealed record ProactiveConfigurationView(bool Enabled, long Version, DateTimeOffset? LastEvaluationAt, DateTimeOffset? NextEvaluationAt, DateTimeOffset? UpdatedAt);
++[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
++public sealed record SaveProactiveConfigurationRequest(bool Enabled);
++[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
++public sealed record SnoozeProactiveItemRequest(DateTimeOffset SnoozedUntil);
++public sealed record ProactiveMutationResponse(ProactiveItemView Item);
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/Health/CustomerAttentionReader.cs b/src/UnicoreCRM.Crm/Customers/Application/Health/CustomerAttentionReader.cs
+new file mode 100644
+index 0000000..12ea5eb
+--- /dev/null
++++ b/src/UnicoreCRM.Crm/Customers/Application/Health/CustomerAttentionReader.cs
+@@ -0,0 +1,64 @@
++using Microsoft.EntityFrameworkCore;
++using UnicoreCRM.Crm.Customers.Application.Common;
++using UnicoreCRM.Crm.Customers.Contracts;
++using UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
++using UnicoreCRM.Crm.Customers.Domain;
++using UnicoreCRM.Platform.AccessControl.Contracts;
++
++namespace UnicoreCRM.Crm.Customers.Application.Health;
++
++internal sealed class CustomerAttentionReader(
++    CustomersDbContext db,
++    CustomerAuthorization authorization,
++    TimeProvider clock) : ICustomerAttentionReader
++{
++    private static readonly IReadOnlyList<string> Fields = ["id", "customerCode", "health"];
++    private static readonly RecordAccessRepresentation Representation =
++        RecordAccessRepresentation.Create("customer.attention", "id", "customerCode", "health");
++
++    public async Task<CustomerAttentionReadResult> ReadAuthorizedAsync(
++        IReadOnlyCollection<string> customerIds,
++        CustomerAttentionRequestContext requestContext,
++        CancellationToken cancellationToken)
++    {
++        if (customerIds.Count == 0) return new(true, new Dictionary<string, CustomerAttentionProjection>());
++        if (customerIds.Count > 100) throw new ArgumentOutOfRangeException(nameof(customerIds));
++        var ids = customerIds.Distinct(StringComparer.Ordinal).ToArray();
++        if (ids.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 128)) throw new ArgumentException("Customer identity is invalid.", nameof(customerIds));
++
++        var access = await authorization.AuthorizeAsync(
++            new CustomerRequestMetadata(requestContext.RequestId, requestContext.CorrelationId),
++            CustomerCapabilities.View,
++            cancellationToken,
++            Representation,
++            Fields);
++        if (!access.IsSuccess) return new(false, new Dictionary<string, CustomerAttentionProjection>());
++        if (!access.Value!.Authorization.CanRead("id") || !access.Value.Authorization.CanRead("health"))
++            return new(true, new Dictionary<string, CustomerAttentionProjection>());
++
++        var trusted = access.Value.Trusted;
++        var policy = access.Value.Authorization;
++        if (policy.ScopeFilter is RecordAccessScopeFilter.Denied or RecordAccessScopeFilter.NotEvaluated
++            || policy.ScopeFilter == RecordAccessScopeFilter.OwnedByMember && policy.ScopeOwnerMemberId is null)
++            return new(true, new Dictionary<string, CustomerAttentionProjection>());
++        var query = db.Customers.AsNoTracking().Where(x => x.WorkspaceId == trusted.WorkspaceId
++            && x.OwnerId == trusted.MemberId && ids.Contains(x.CustomerId));
++        query = policy.ScopeFilter switch
++        {
++            RecordAccessScopeFilter.Workspace => query,
++            RecordAccessScopeFilter.OwnedByMember when policy.ScopeOwnerMemberId is not null =>
++                query.Where(x => x.OwnerId == policy.ScopeOwnerMemberId),
++            _ => query.Where(_ => false)
++        };
++        var rows = await query.Select(x => new { x.CustomerId, x.CustomerCode }).ToArrayAsync(cancellationToken);
++        db.ReadAuditRecords.Add(new CustomerReadAuditRecord("readCustomerAttentionBatch", trusted.WorkspaceId,
++            trusted.MemberId, null, requestContext.RequestId, requestContext.CorrelationId, null, clock.GetUtcNow()));
++        await db.SaveChangesAsync(cancellationToken);
++        return new(true, rows.ToDictionary(
++            x => x.CustomerId,
++            x => new CustomerAttentionProjection(
++                x.CustomerId,
++                policy.CanRead("customerCode") ? x.CustomerCode : x.CustomerId),
++            StringComparer.Ordinal));
++    }
++}
+diff --git a/src/UnicoreCRM.Crm/Customers/Contracts/CustomerAttentionReader.cs b/src/UnicoreCRM.Crm/Customers/Contracts/CustomerAttentionReader.cs
+new file mode 100644
+index 0000000..3c1fde5
+--- /dev/null
++++ b/src/UnicoreCRM.Crm/Customers/Contracts/CustomerAttentionReader.cs
+@@ -0,0 +1,20 @@
++namespace UnicoreCRM.Crm.Customers.Contracts;
++
++public sealed record CustomerAttentionRequestContext(string RequestId, string CorrelationId);
++
++public sealed record CustomerAttentionProjection(
++    string CustomerId,
++    string DisplayLabel);
++
++public sealed record CustomerAttentionReadResult(
++    bool IsAuthorized,
++    IReadOnlyDictionary<string, CustomerAttentionProjection> Items);
++
++/// <summary>Customers-owned, caller-authorized bounded projection for Attention reads.</summary>
++public interface ICustomerAttentionReader
++{
++    Task<CustomerAttentionReadResult> ReadAuthorizedAsync(
++        IReadOnlyCollection<string> customerIds,
++        CustomerAttentionRequestContext requestContext,
++        CancellationToken cancellationToken);
++}

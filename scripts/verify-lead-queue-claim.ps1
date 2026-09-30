@@ -98,6 +98,23 @@ try {
     $bSign=Send-Json 'POST' '/auth/sessions' (@{email=$bEmail;password=$password}|ConvertTo-Json -Compress) @{'X-Request-Id'='req-claim-signin-b';'X-Correlation-Id'='corr-claim-signin-b';'Idempotency-Key'='claim-signin-b'}
     Assert-Status $bSign 200 'Sign in actor B'
     $bAuth=$authorization.Clone();$bAuth['Authorization']='Bearer '+($bSign.Body|ConvertFrom-Json).accessToken
+    # SEC-CLAIM-01/02/03: identical hidden-record responses under OWN.
+    $hiddenResponses=@()
+    Invoke-Sql "UPDATE leads.Leads SET WorkspaceId='ws_claim_foreign' WHERE LeadId='$archived';"
+    foreach($target in @('lead_claim_missing', $a, $archived)) {
+        $hidden=Send-Json 'POST' "/workflows/lead-queue/$target/claim" '{}' (Claim-Headers $bAuth "security-$target")
+        Assert-Status $hidden 404 "SEC-CLAIM hidden $target"
+        $hiddenDoc=$hidden.Body|ConvertFrom-Json
+        if($hiddenDoc.code -eq 'LEAD_QUEUE_CLAIM_CONFLICT' -or $hidden.Body -match $memberId){throw 'Hidden Claim existence/owner leak'}
+        $hiddenResponses+=($hiddenDoc|Select-Object type,title,status,code,retryable|ConvertTo-Json -Compress)
+    }
+    if(@($hiddenResponses|Select-Object -Unique).Count -ne 1){throw 'Hidden responses distinguish record existence'}
+    if((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.OutboxMessages WHERE AggregateId='$a' AND EventType='LEAD_CLAIMED_FROM_QUEUE';") -ne '1'){throw 'Replay duplicated outbox'}
+    # Visible race uses WORKSPACE authority; an OWN loser must collapse to hidden 404.
+    Invoke-Sql "DELETE FROM access.RoleDataScopes WHERE PolicyId='scope_claim_verify';"
+    $visible=Send-Json 'POST' "/workflows/lead-queue/$a/claim" '{}' (Claim-Headers $bAuth 'security-visible')
+    Assert-Status $visible 409 'SEC-CLAIM visible assigned'
+    if(($visible.Body|ConvertFrom-Json).code -ne 'LEAD_QUEUE_CLAIM_CONFLICT'){throw 'Visible assigned wrong conflict'}
     $mhA=Claim-Headers $authorization 'race-claim-a';$mhB=Claim-Headers $bAuth 'race-claim-b'
     $mA=New-ClaimMessage $race $mhA;$mB=New-ClaimMessage $race $mhB
     $tA=$client.SendAsync($mA);$tB=$client.SendAsync($mB)

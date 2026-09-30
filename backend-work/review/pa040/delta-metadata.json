@@ -1,0 +1,32 @@
+{
+  "baseline": "3d69e398056b92ebefe479affdf6e887c522b628",
+  "head": "3d69e398056b92ebefe479affdf6e887c522b628",
+  "changed_files": 15,
+  "insertions": 429,
+  "deletions": 3,
+  "artifact": "D:\\Project_All\\UnicoreCRM\\backend\\backend-work\\review\\pa040\\CRM-PA-040-source-delta-3d69e39.patch",
+  "sha256": "1b808c6c7b358654138f31bcf31cdb28e2f93e8cba80e28e10c81f7a40716fa8",
+  "reverse_apply_current_check": "PASS",
+  "forward_apply_baseline_check": "PASS",
+  "forward_files_match_index_blobs": "PASS",
+  "reverse_apply_complete_baseline_hash_manifest": "PASS",
+  "diff_check_including_new_files": "PASS",
+  "roundtrip_directory": "C:\\Users\\welcome\\AppData\\Local\\Temp\\unicore-pa040-delta-ate_n0sx\\roundtrip",
+  "files": [
+    "scripts/ProactiveVerifier/ConfirmationSqlVerifier.cs",
+    "scripts/ProactiveVerifier/ConfirmationVerifier.cs",
+    "scripts/ProactiveVerifier/Program.cs",
+    "scripts/verify-customers-read-core.ps1",
+    "scripts/verify-lead-nurture-qualification-api.ps1",
+    "src/UnicoreCRM.AI/Gateway/AiEndpoints.cs",
+    "src/UnicoreCRM.AI/Gateway/GatewayModule.cs",
+    "src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationApplication.cs",
+    "src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationContracts.cs",
+    "src/UnicoreCRM.Operations/Tasks/Application/CreateProactiveFollowUp/Participant.cs",
+    "src/UnicoreCRM.Operations/Tasks/Contracts/ProactiveTaskCreationParticipant.cs",
+    "src/UnicoreCRM.Operations/Tasks/TasksModule.cs",
+    "src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj",
+    "src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs",
+    "src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs"
+  ]
+}

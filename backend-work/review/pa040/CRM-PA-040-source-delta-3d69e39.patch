@@ -1,0 +1,634 @@
+diff --git a/scripts/ProactiveVerifier/ConfirmationSqlVerifier.cs b/scripts/ProactiveVerifier/ConfirmationSqlVerifier.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..38365e06d715cf82ffec0d49f428e209b1903d1b
+--- /dev/null
++++ b/scripts/ProactiveVerifier/ConfirmationSqlVerifier.cs
+@@ -0,0 +1,158 @@
++using System.Text.Json;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Diagnostics;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Logging.Abstractions;
++using UnicoreCRM.AI.Gateway;
++using UnicoreCRM.Crm.Customers.Contracts;
++using UnicoreCRM.Operations.Tasks.Application.Common;
++using UnicoreCRM.Operations.Tasks.Application.CreateProactiveFollowUp;
++using UnicoreCRM.Operations.Tasks.Contracts;
++using UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
++using UnicoreCRM.Platform.AccessControl.Contracts;
++using UnicoreCRM.Platform.Workspace.Contracts;
++using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
++using UnicoreCRM.PlatformOperations.AiExecution.Infrastructure;
++
++internal static class ConfirmationSqlVerifier
++{
++    internal static async Task<int> RunAsync(DbContextOptions<AiExecutionDbContext> options, DateTimeOffset now)
++    {
++        var passed = 0;
++        void Check(string name, bool condition) { if (!condition) throw new InvalidOperationException(name); passed++; }
++        using var connectionContext = new AiExecutionDbContext(options);
++        var taskOptions = new DbContextOptionsBuilder<TasksDbContext>().UseSqlServer(connectionContext.Database.GetConnectionString(),
++            x => x.MigrationsHistoryTable("__EFMigrationsHistory", "tasks")).Options;
++        await using (var db = new TasksDbContext(taskOptions)) await db.Database.MigrateAsync();
++        var item = new ProactiveItemState("confirmation_sql", "confirmation_workspace", "member", "CUSTOMER_HEALTH_RISK", "CUSTOMER",
++            "customer", "HIGH", "PURCHASE_OVER_EXPECTED_CADENCE", "fp", "cycle", "OPEN", now, now, null, null, null, null, "1", 3, now, now);
++        await using (var seed = new AiExecutionDbContext(options))
++            await new EfProactiveStore(seed).SaveItemAsync(item, new("confirmation_seed", item.WorkspaceId, "member", "ITEM_CREATED", item.ItemId,
++                item.SubjectId, "{}", "correlation", now), default);
++        var access = new TaskAccessEvaluator(item.WorkspaceId);
++        var intent = new ProactiveTaskConfirmationRequest(" Follow up ", "member", "2026-09-30T03:00:00Z", " Discuss current needs ");
++        var failAudit = new FailAcceptedAudit();
++        var auditOptions = new DbContextOptionsBuilder<AiExecutionDbContext>(options).AddInterceptors(failAudit).Options;
++        using var services = new ServiceCollection().AddScoped(_ => new AiExecutionDbContext(auditOptions))
++            .AddScoped<IProactiveStore, EfProactiveStore>().BuildServiceProvider();
++
++        async Task<AiOperationResult<ProactiveTaskConfirmationResponse>> Confirm(string key, ProactiveTaskConfirmationRequest? request = null, bool loseAck = false)
++        {
++            await using var taskDb = new TasksDbContext(taskOptions);
++            await using var aiDb = new AiExecutionDbContext(options);
++            var handler = new UnicoreCRM.Operations.Tasks.Application.CreateTask.Handler(new TaskAuthorization(access),
++                new EfTasksPersistence(taskDb), new ActiveMembers(), new FixedClock(now));
++            IProactiveTaskCreationParticipant tasks = new Participant(handler);
++            if (loseAck) tasks = new LostAcknowledgement(tasks);
++            var app = new ProactiveTaskConfirmationApplication(new FakeCurrentWorkspace(item.WorkspaceId, "member"),
++                new FakeAccessAuthorizer(item.WorkspaceId, "member", true, false), new EfProactiveStore(aiDb),
++                new FakeAttentionReader(true, new Dictionary<string, CustomerAttentionProjection> { ["customer"] = new("customer", "private-label") }),
++                tasks, services.GetRequiredService<IServiceScopeFactory>(), new FixedClock(now), NullLogger<ProactiveTaskConfirmationApplication>.Instance);
++            return await app.HandleAsync(item.ItemId, request ?? intent, key, "request-confirm", "correlation-confirm", default);
++        }
++
++        var first = await Confirm("confirmation-first");
++        Check("commit", first.IsSuccess && first.Value!.Outcome == "COMMITTED" && first.Value.TaskVersion == 0);
++        var replay = await Confirm("confirmation-first", intent with { Title = "Follow up", Description = "Discuss current needs", Priority = "NORMAL" });
++        Check("normalized intent replay", replay.IsSuccess && replay.Value!.Outcome == "REPLAYED" && replay.Value.TaskId == first.Value!.TaskId);
++        foreach (var changed in new[] { intent with { Title = "Changed" }, intent with { Description = "Changed" },
++            intent with { AssigneeId = "member2" }, intent with { DueAt = "2026-10-01T03:00:00Z" }, intent with { Priority = "HIGH" } })
++            Check("changed intent conflict", (await Confirm("confirmation-first", changed)).Error?.Code == "IDEMPOTENCY_KEY_REUSED");
++        await using (var observed = new TasksDbContext(taskOptions))
++        {
++            var task = await observed.Tasks.SingleAsync();
++            Check("one Task and server provenance", task.SourceType == "PROACTIVE_AI" && task.SourceId == item.ItemId && task.SourceEvidence is null);
++            Check("no invented references", task.RecordModuleKey is null && task.RelationshipId is null && task.DedupeKey is null);
++            Check("one audit", await observed.AuditRecords.CountAsync() == 1);
++            Check("one outbox", await observed.OutboxMessages.CountAsync() == 1);
++            Check("one idempotency", await observed.IdempotencyRecords.CountAsync() == 1);
++        }
++        await using (var observed = new AiExecutionDbContext(options))
++            Check("one acceptance on replay", await observed.ProactiveAudits.CountAsync(x => x.Action == "TASK_SUGGESTION_ACCEPTED") == 1);
++        var invalids = new[] { intent with { Title = "" }, intent with { Title = new string('x', 301) },
++            intent with { Description = new string('x', 4001) }, intent with { AssigneeId = "inactive" },
++            intent with { DueAt = "2026-09-30T03:00:00+00:00" }, intent with { DueAt = null }, intent with { Priority = "normal" } };
++        foreach (var invalid in invalids) Check("Tasks validation preserved", (await Confirm("confirmation-invalid", invalid)).Error?.Code == "VALIDATION_FAILED");
++        access.Allowed = false;
++        Check("tasks.create denied", (await Confirm("confirmation-denied")).Error?.Code == "ACCESS_DENIED");
++        access.Allowed = true;
++        foreach (var field in new[] { "title", "description", "assigneeId", "priority", "dueAt", "sourceRef" })
++        {
++            access.ReadOnly = field;
++            Check("Tasks field-write denied " + field, (await Confirm("confirmation-fields")).Error?.Code == "ACCESS_DENIED");
++        }
++        access.ReadOnly = null;
++        foreach (var priority in new[] { "LOW", "NORMAL", "HIGH", "URGENT" })
++            Check("Tasks priority " + priority, (await Confirm("priority-" + priority, intent with { Priority = priority })).IsSuccess);
++        Check("authoritative max accepted", (await Confirm("confirmation-max", intent with { Title = new string('t', 300), Description = new string('d', 4000) })).IsSuccess);
++        Check("optional description", (await Confirm("confirmation-optional", intent with { Description = null })).IsSuccess);
++
++        failAudit.Reject = true;
++        Check("post-commit audit failure safe retry", (await Confirm("confirmation-repair")).Error?.Code == "AI_PROACTIVE_ACCEPTANCE_AUDIT_UNAVAILABLE");
++        failAudit.Reject = false;
++        var repaired = await Confirm("confirmation-repair");
++        Check("repair replays same Task", repaired.IsSuccess && repaired.Value!.Outcome == "REPLAYED");
++        await Confirm("confirmation-repair");
++        try { await Confirm("confirmation-lost-ack", loseAck: true); throw new InvalidOperationException("Lost ack not simulated."); }
++        catch (OperationCanceledException) { passed++; }
++        var recovered = await Confirm("confirmation-lost-ack");
++        Check("lost ack converges", recovered.IsSuccess && recovered.Value!.Outcome == "REPLAYED");
++        await using (var observed = new TasksDbContext(taskOptions))
++        await using (var ai = new AiExecutionDbContext(options))
++        {
++            var count = await observed.Tasks.CountAsync();
++            Check("distinct explicit keys create distinct tasks", count == 9);
++            Check("one audit per Task", await observed.AuditRecords.CountAsync() == count);
++            Check("one outbox per Task", await observed.OutboxMessages.CountAsync() == count);
++            Check("one idempotency per Task", await observed.IdempotencyRecords.CountAsync() == count);
++            var audits = await ai.ProactiveAudits.Where(x => x.Action == "TASK_SUGGESTION_ACCEPTED").ToArrayAsync();
++            Check("one acceptance per Task incl repair", audits.Length == count);
++            Check("safe evidence only", audits.All(x => JsonDocument.Parse(x.SafeSummaryJson).RootElement.EnumerateObject()
++                .Select(p => p.Name).Order().SequenceEqual(new[] { "outcome", "taskId" })));
++            Check("Attention unchanged", await new EfProactiveStore(ai).ReadItemAsync(item.WorkspaceId, item.ItemId, default) == item);
++            Check("no provider executions", !await ai.Executions.AnyAsync(x => x.WorkspaceId == item.WorkspaceId) && !await ai.ProviderAttempts.AnyAsync(x => x.WorkspaceId == item.WorkspaceId));
++        }
++        // Concurrent retries may race to repair the same audit. Its primary key is the arbiter.
++        var evidence = new ProactiveAuditEvidence("concurrent_acceptance", item.WorkspaceId, "member", "TASK_SUGGESTION_ACCEPTED", item.ItemId, item.SubjectId, "{}", "concurrent", now);
++        async Task RecordOnce() { await using var scope = services.CreateAsyncScope(); await scope.ServiceProvider.GetRequiredService<IProactiveStore>().RecordAuditOnceAsync(evidence, default); }
++        await Task.WhenAll(RecordOnce(), RecordOnce());
++        await using (var observed = new AiExecutionDbContext(options)) Check("concurrent audit once", await observed.ProactiveAudits.CountAsync(x => x.AuditId == evidence.AuditId) == 1);
++        Console.WriteLine($"PROACTIVE_CONFIRMATION_TASKS_SQL_PASS cases={passed}");
++        return passed;
++    }
++
++    private sealed class ActiveMembers : IWorkspaceMemberReferenceValidator
++    {
++        public Task<bool> IsActiveMemberAsync(string workspaceId, string memberId, CancellationToken ct) => Task.FromResult(memberId is "member" or "member2");
++    }
++    private sealed class TaskAccessEvaluator(string workspace) : IRecordAccessEvaluator
++    {
++        internal bool Allowed { get; set; } = true;
++        internal string? ReadOnly { get; set; }
++        public Task<RecordAccessAuthorization> AuthorizeResourceAsync(string resource, string capability, IReadOnlyList<string>? fields,
++            RecordAccessRepresentation representation, RecordAccessRequestContext context, CancellationToken ct)
++        {
++            if (capability != "tasks.create") throw new InvalidOperationException("Unexpected capability requirement.");
++            return Task.FromResult(new RecordAccessAuthorization(Allowed, Allowed ? "AUTHORIZED" : "ACCESS_DENIED",
++                new(workspace, "account", "member", "membership"), RecordAccessScopeFilter.Workspace, null, "WORKSPACE",
++                fields!.ToDictionary(x => x, x => x == ReadOnly ? RecordFieldEnforcement.ReadOnly : RecordFieldEnforcement.ReadWrite),
++                [], ["tasks.create"], "fixture", resource, capability, true));
++        }
++        public Task<RecordAccessRecordDecision> AuthorizeRecordAsync(RecordAccessAuthorization authorization, string id, RecordAccessFacts facts,
++            string point, RecordAccessRequestContext context, CancellationToken ct) => throw new InvalidOperationException("Creation has no record scope.");
++    }
++    private sealed class LostAcknowledgement(IProactiveTaskCreationParticipant inner) : IProactiveTaskCreationParticipant
++    {
++        public async Task<ProactiveTaskCreationResult> CreateAsync(ProactiveTaskCreationCommand command, CancellationToken ct)
++        { await inner.CreateAsync(command, ct); throw new OperationCanceledException("Simulated transport loss after durable commit."); }
++    }
++    private sealed class FailAcceptedAudit : SaveChangesInterceptor
++    {
++        internal bool Reject { get; set; }
++        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data, InterceptionResult<int> result, CancellationToken ct = default)
++        {
++            if (Reject) throw new InvalidOperationException("Simulated audit storage outage.");
++            return ValueTask.FromResult(result);
++        }
++    }
++}
+diff --git a/scripts/ProactiveVerifier/ConfirmationVerifier.cs b/scripts/ProactiveVerifier/ConfirmationVerifier.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0014e6e9f612151e6b3bc448db433821e0478854
+--- /dev/null
++++ b/scripts/ProactiveVerifier/ConfirmationVerifier.cs
+@@ -0,0 +1,60 @@
++using System.Text.Json;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Logging.Abstractions;
++using UnicoreCRM.AI.Gateway;
++using UnicoreCRM.Crm.Customers.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
++using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
++
++internal static class ConfirmationVerifier
++{
++    internal static async Task<int> RunAsync(DateTimeOffset now)
++    {
++        var passed = 0;
++        var original = new ProactiveItemState("confirm_item", "workspace", "member", ProactiveValues.CustomerHealthRisk,
++            ProactiveValues.Customer, "customer", "HIGH", "PURCHASE_OVER_EXPECTED_CADENCE", "fp", "cycle", "OPEN",
++            now, now, null, null, null, null, "1", 4, now, now);
++        foreach (var (item, use, allowed, visible, key) in new[]
++        {
++            (original with { OwnerMemberId = "other" }, true, true, true, "confirm-key"),
++            (original with { WorkspaceId = "foreign" }, true, true, true, "confirm-key"),
++            (original with { Status = "SNOOZED" }, true, true, true, "confirm-key"),
++            (original with { Status = "DISMISSED" }, true, true, true, "confirm-key"),
++            (original with { Status = "RESOLVED" }, true, true, true, "confirm-key"),
++            (original with { SubjectType = "LEAD" }, true, true, true, "confirm-key"),
++            (original with { TriggerType = "OTHER" }, true, true, true, "confirm-key"),
++            (original, false, true, true, "confirm-key"),
++            (original, true, false, true, "confirm-key"),
++            (original, true, true, false, "confirm-key"),
++            (original, true, true, true, "")
++        })
++        {
++            var store = new MemoryStore(); store.Items.Add(item);
++            var tasks = new ProbeTasks();
++            using var services = new ServiceCollection().AddSingleton<IProactiveStore>(store).BuildServiceProvider();
++            var app = new ProactiveTaskConfirmationApplication(new FakeCurrentWorkspace("workspace", "member"),
++                new FakeAccessAuthorizer("workspace", "member", use, false), store,
++                new FakeAttentionReader(allowed, visible ? new Dictionary<string, CustomerAttentionProjection> { ["customer"] = new("customer", "label") } : new()),
++                tasks, services.GetRequiredService<IServiceScopeFactory>(), new FixedClock(now), NullLogger<ProactiveTaskConfirmationApplication>.Instance);
++            var result = await app.HandleAsync(item.ItemId, new("Title", "member", "2026-09-30T03:00:00Z"), key, "request", "correlation", default);
++            if (result.IsSuccess || tasks.Calls != 0 || store.Audits.Count != 0 || store.Items.Single() != item)
++                throw new InvalidOperationException("Confirmation authorization must precede Tasks and preserve item state.");
++            passed++;
++        }
++        foreach (var field in new[] { "taskId", "customerId", "ownerId", "sourceRef", "recordRef", "relationshipRef", "dedupeKey",
++            "healthBand", "severity", "reasonCode", "provider", "model", "credential", "credentialRef", "suggestionExecutionId" })
++        {
++            try { JsonSerializer.Deserialize<ProactiveTaskConfirmationRequest>($"{{\"{field}\":\"override\"}}", new JsonSerializerOptions(JsonSerializerDefaults.Web)); throw new InvalidOperationException("Client authority override accepted."); }
++            catch (JsonException) { passed++; }
++        }
++        Console.WriteLine($"PROACTIVE_CONFIRMATION_SCENARIO_PASS cases={passed}");
++        return passed;
++    }
++
++    private sealed class ProbeTasks : IProactiveTaskCreationParticipant
++    {
++        internal int Calls { get; private set; }
++        public Task<ProactiveTaskCreationResult> CreateAsync(ProactiveTaskCreationCommand command, CancellationToken ct)
++        { Calls++; throw new InvalidOperationException("Tasks must not be called."); }
++    }
++}
+diff --git a/scripts/ProactiveVerifier/Program.cs b/scripts/ProactiveVerifier/Program.cs
+index a3f9b918d5e245b4bf20d5070d4ccd3279e441ca..2d195e092314f5a3d3990c769d7ac567930f43ed 100644
+--- a/scripts/ProactiveVerifier/Program.cs
++++ b/scripts/ProactiveVerifier/Program.cs
+@@ -57,6 +57,7 @@ Check("pre-AI snapshot excludes proactive",false,preAi.Any(x=>x.StartsWith("ai.p
+ Check("arbitrary historical subset rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preAi.Skip(1).ToArray()));
+ Check("unexpected historical capability rejected",false,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet([..preAi,"customers.unexpected"]));
+ passed += await SuggestionVerifier.RunAsync(now);
++passed += await ConfirmationVerifier.RunAsync(now);
+ if(args.Length==1) passed += await SqlVerifier.RunAsync(args[0], now);
+ Console.WriteLine($"PROACTIVE_SCENARIO_CORPUS_PASS cases={passed}");
+ 
+@@ -317,7 +318,7 @@ static class SqlVerifier
+             if((await db.ProactivePolicies.SingleAsync(x=>x.WorkspaceId=="workspace_after_failure")).LastEvaluationAt is null)throw new InvalidOperationException("one Workspace failure prevented later Workspace attempt");
+         }
+         Console.WriteLine("PASS | SQL stale scheduler vs Snooze/Dismiss; fresh retry; existing-policy concurrent replay/conflict; cursor long.MaxValue; clean failure audit and later Workspace");
+-        return 79 + await SuggestionSqlVerifier.RunAsync(options, now);
++        return 79 + await SuggestionSqlVerifier.RunAsync(options, now) + await ConfirmationSqlVerifier.RunAsync(options, now);
+     }
+ 
+     private static void RequireIsolatedDatabase(string database)
+@@ -381,6 +382,7 @@ sealed class MemoryStore:IProactiveStore
+     public Task SaveItemAsync(ProactiveItemState i,ProactiveAuditEvidence a,CancellationToken c){Active=i;Audits.Add(a);return Task.CompletedTask;}
+     public Task SaveItemWithAuditsAsync(ProactiveItemState i,IReadOnlyCollection<ProactiveAuditEvidence> a,CancellationToken c){Active=i;Audits.AddRange(a);return Task.CompletedTask;}
+     public Task RecordAuditAsync(ProactiveAuditEvidence a,CancellationToken c){Audits.Add(a);return Task.CompletedTask;}
++    public Task RecordAuditOnceAsync(ProactiveAuditEvidence a,CancellationToken c){if(!Audits.Any(x=>x.AuditId==a.AuditId))Audits.Add(a);return Task.CompletedTask;}
+     public Task<WorkspaceProactivePolicyState?> ReadPolicyAsync(string w,CancellationToken c)=>Task.FromResult<WorkspaceProactivePolicyState?>(null);
+     public Task<IReadOnlyList<WorkspaceProactivePolicyState>> ReadDuePoliciesAsync(DateTimeOffset n,int l,CancellationToken c)=>Task.FromResult<IReadOnlyList<WorkspaceProactivePolicyState>>([]);
+     public Task<bool> TryClaimPolicyAsync(string w,long v,string l,DateTimeOffset n,DateTimeOffset u,CancellationToken c)=>Task.FromResult(false);
+diff --git a/scripts/verify-customers-read-core.ps1 b/scripts/verify-customers-read-core.ps1
+index 054cb1130c4768eacc30e89cc18143a89ec603b5..76f49b451a03aa80982347ddaa25f728bf177439 100644
+--- a/scripts/verify-customers-read-core.ps1
++++ b/scripts/verify-customers-read-core.ps1
+@@ -984,6 +984,9 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
+     Add-Result 'Attention never exports raw owner identity' 'True' ($attention.Raw -notmatch 'ownerMemberId|ownerId' -and $attention.Raw -notmatch [regex]::Escape($callerMemberId)).ToString()
+     Add-Result 'Attention version belongs to item not hidden Customer' '0' ([string]$attention.Body.items[0].version)
+     $suggestionPath = '/ai/proactive/items/attention_security_item/suggestion'
++    $confirmPath = '/ai/proactive/items/attention_security_item/confirm-task'
++    $confirmIntent = @{ title = 'Human-confirmed follow up'; description = 'User edited final intent'; assigneeId = $callerMemberId; dueAt = '2026-09-30T03:00:00Z' }
++    $confirmBody = $confirmIntent | ConvertTo-Json -Compress
+     $customerBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"
+     $itemBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query "SELECT * FROM platform_ai.ProactiveItems WHERE ItemId='attention_security_item' FOR JSON PATH"
+     $tasksBeforeSuggestion = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'
+@@ -999,6 +1002,7 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
+     foreach ($state in @('SNOOZED','DISMISSED','RESOLVED')) {
+         Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE platform_ai.ProactiveItems SET Status='$state' WHERE ItemId='attention_security_item'"
+         Add-Result "suggestion $state denied" '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
++        Add-Result "confirmation $state denied" '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
+     }
+     Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE platform_ai.ProactiveItems SET Status='OPEN' WHERE ItemId='attention_security_item'"
+     $invalidSuggestionLocale = Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{"locale":"fr"}'
+@@ -1009,10 +1013,12 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
+     foreach ($capability in @('ai.proactive.use','customers.view')) {
+         Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='$capability'"
+         Add-Result "suggestion requires $capability" '403' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
++        Add-Result "confirmation requires $capability" '403' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
+         Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$roleId','$capability')"
+     }
+     Set-CustomerScope -RoleId $roleId -Scope 'Team'
+     Add-Result 'suggestion record scope denied' '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
++    Add-Result 'confirmation record scope denied' '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
+     Set-CustomerScope -RoleId $roleId -Scope 'Workspace'
+     foreach ($accessMode in @('Hidden','Masked')) {
+         Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES('field_customers_read_attention_health','$($script:WorkspaceId)','$roleId','customers','health','$accessMode')"
+@@ -1020,12 +1026,14 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
+         Add-Result "real Attention health $accessMode omits Customer" '200|0' "$($hiddenAttention.Status)|$(@($hiddenAttention.Body.items).Count)"
+         Add-Result "real Attention health $accessMode denies detail" '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
+         Add-Result "suggestion health $accessMode denies generation" '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
++        Add-Result "confirmation health $accessMode denied" '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
+         Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_customers_read_attention_health'"
+     }
+     Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='member_reassigned' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
+     Add-Result 'real Attention reassigned Customer omitted for old owner' '0' ([string]@((Invoke-Customer -Method 'GET' -Path '/ai/proactive/items').Body.items).Count)
+     Add-Result 'real Attention reassigned Customer detail unavailable' '404' (Invoke-Customer -Method 'GET' -Path '/ai/proactive/items/attention_security_item').Status
+     Add-Result 'suggestion reassigned Customer denied' '404' (Invoke-Customer -Method 'POST' -Path $suggestionPath -Body '{}').Status
++    Add-Result 'confirmation reassigned Customer denied' '404' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
+     Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE customers.Customers SET OwnerId='$callerMemberId' WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA'"
+     Add-Result 'suggestion denied cases produced zero executions' ([string]$suggestionExecutions) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.AiExecutions WHERE Operation='requestProactiveSuggestion'"))
+     Add-Result 'suggestion Customer unchanged' ([string]$customerBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"))
+@@ -1071,6 +1079,51 @@ VALUES('attention_security_item','$($script:WorkspaceId)','$callerMemberId','CUS
+         }
+     }
+ 
++    # PA-040: run after all PA-030 zero-Task assertions, against the same real owner/security fixtures.
++    $executionsBeforeConfirmation = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiExecutions'
++    $attemptsBeforeConfirmation = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiProviderAttempts'
++    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability IN ('tasks.create','tasks.assign')"
++    Add-Result 'confirmation Tasks capability denied' '403' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
++    Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES('$roleId','tasks.create')"
++    Add-Result 'confirmation requires Idempotency-Key' '422' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody).Status
++    foreach ($field in @('taskId','customerId','ownerId','sourceRef','recordRef','relationshipRef','dedupeKey','healthBand','severity','reasonCode','provider','model','credential','credentialRef','suggestionExecutionId')) {
++        $override = @{} + $confirmIntent; $override[$field] = 'forbidden'
++        Add-Result "confirmation rejects $field" '400' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body ($override | ConvertTo-Json -Compress) -IdempotencyKey 'confirm-denied-key').Status
++    }
++    foreach ($field in @('title','description','assigneeId','dueAt','priority','sourceRef')) {
++        Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES('confirm_task_field','$($script:WorkspaceId)','$roleId','tasks','$field','ReadOnly')"
++        Add-Result "confirmation Tasks $field field-write denied" '403' (Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-denied-key').Status
++        Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='confirm_task_field'"
++    }
++    foreach ($test in @(@{title=''}, @{title=('x' * 301)}, @{description=('x' * 4001)}, @{assigneeId='inactive_member'}, @{dueAt='not-a-date'}, @{priority='normal'})) {
++        $invalid = @{} + $confirmIntent
++        foreach ($key in $test.Keys) { $invalid[$key] = $test[$key] }
++        $invalidResult = Invoke-Customer -Method 'POST' -Path $confirmPath -Body ($invalid | ConvertTo-Json -Compress) -IdempotencyKey 'confirm-denied-key'
++        Add-Result 'confirmation Tasks validation preserved' '422|VALIDATION_FAILED' "$($invalidResult.Status)|$($invalidResult.Body.code)"
++    }
++    Add-Result 'all denied confirmations create zero Tasks' ([string]$tasksBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM tasks.Tasks'))
++    $confirmed = Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-human-intent-0001'
++    Add-Result 'confirmation commits without If-Match or tasks.assign' '200|COMMITTED|0' "$($confirmed.Status)|$($confirmed.Body.outcome)|$($confirmed.Body.taskVersion)"
++    $taskId = $confirmed.Body.taskId
++    $replayed = Invoke-Customer -Method 'POST' -Path $confirmPath -Body $confirmBody -IdempotencyKey 'confirm-human-intent-0001'
++    Add-Result 'confirmation replay same Task' "200|REPLAYED|$taskId" "$($replayed.Status)|$($replayed.Body.outcome)|$($replayed.Body.taskId)"
++    $changed = @{} + $confirmIntent; $changed.title = 'Changed human intent'
++    $conflict = Invoke-Customer -Method 'POST' -Path $confirmPath -Body ($changed | ConvertTo-Json -Compress) -IdempotencyKey 'confirm-human-intent-0001'
++    Add-Result 'confirmation changed-intent conflict' '409|IDEMPOTENCY_KEY_REUSED' "$($conflict.Status)|$($conflict.Body.code)"
++    Add-Result 'confirmation one Task' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.Tasks WHERE TaskId='$taskId' AND SourceType='PROACTIVE_AI' AND SourceId='attention_security_item' AND SourceEvidence IS NULL AND RecordModuleKey IS NULL AND RelationshipId IS NULL"))
++    Add-Result 'confirmation one Tasks command audit' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.AuditRecords WHERE AggregateId='$taskId' AND Operation='createTask'"))
++    Add-Result 'confirmation one TASK_CREATED outbox' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.OutboxMessages WHERE AggregateId='$taskId' AND EventType='TASK_CREATED'"))
++    Add-Result 'confirmation one Tasks idempotency record' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM tasks.IdempotencyRecords WHERE IdempotencyKey='confirm-human-intent-0001'"))
++    Add-Result 'confirmation one Proactive acceptance' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM platform_ai.ProactiveAudits WHERE ItemId='attention_security_item' AND Action='TASK_SUGGESTION_ACCEPTED' AND JSON_VALUE(SafeSummaryJson,'$.taskId')='$taskId'"))
++    $escapedMaxBody = '{"title":"' + ('\u4e00' * 300) + '","description":"' + ('\u4e00' * 4000) + '","assigneeId":"' + $confirmIntent.assigneeId + '","dueAt":"' + $confirmIntent.dueAt + '"}'
++    $escapedMax = Invoke-Customer -Method 'POST' -Path $confirmPath -Body $escapedMaxBody -IdempotencyKey 'confirm-unicode-max-0001'
++    Add-Result 'confirmation escaped Unicode at Tasks maximum lengths' '200|COMMITTED' "$($escapedMax.Status)|$($escapedMax.Body.outcome)"
++    Add-Result 'confirmation preserves maximum Unicode values' '300|4000' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(LEN(Title),'|',LEN(Description)) FROM tasks.Tasks WHERE TaskId='$($escapedMax.Body.taskId)'"))
++    Add-Result 'confirmation no Customer mutation' ([string]$customerBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM customers.Customers WHERE WorkspaceId='$($script:WorkspaceId)' AND CustomerId='$customerA' FOR JSON PATH"))
++    Add-Result 'confirmation no Attention lifecycle mutation' ([string]$itemBeforeSuggestion) ([string](Get-Scalar -Database $DatabaseName -Query "SELECT * FROM platform_ai.ProactiveItems WHERE ItemId='attention_security_item' FOR JSON PATH"))
++    Add-Result 'confirmation zero AI execution' ([string]$executionsBeforeConfirmation) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiExecutions'))
++    Add-Result 'confirmation zero provider attempt' ([string]$attemptsBeforeConfirmation) ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM platform_ai.AiProviderAttempts'))
++
+     $logText = ''
+     if (Test-Path -LiteralPath $logPath) { $logText += Get-Content -Raw -LiteralPath $logPath }
+     if (Test-Path -LiteralPath "$logPath.err") { $logText += Get-Content -Raw -LiteralPath "$logPath.err" }
+diff --git a/scripts/verify-lead-nurture-qualification-api.ps1 b/scripts/verify-lead-nurture-qualification-api.ps1
+index 151f86e40c06f62f76356581d9b4025cecdb17d4..37cad5d2808b6d450e7d5238586b1130f5799e9d 100644
+--- a/scripts/verify-lead-nurture-qualification-api.ps1
++++ b/scripts/verify-lead-nurture-qualification-api.ps1
+@@ -948,11 +948,12 @@ WHERE LeadId = '$leadRecovery';
+         Add-Result "no $($pair[0]).$($pair[1]) row was written" '0' ([string]$rows)
+     }
+ 
+-    # ---------------------------------------------------------------- unexposed siblings
++    # ---------------------------------------------------------------- sibling route boundaries
+ 
+     $opportunity = Invoke-Api -Method 'POST' -Path "/workflows/lead-qualification/$leadNew/opportunity" `
+         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-oppty-0001' -IfMatch '"0"' -Body '{}'
+-    Add-Result 'qualifyLeadForOpportunity stays unexposed' '404' $opportunity.Status
++    # Opportunity is admitted by the accepted baseline; its empty intent remains invalid.
++    Add-Result 'qualifyLeadForOpportunity rejects empty intent' '422' $opportunity.Status
+     $directSale = Invoke-Api -Method 'POST' -Path "/workflows/lead-qualification/$leadNew/direct-sale" `
+         -Token $script:Token -WorkspaceId $script:WorkspaceId -IdempotencyKey 'idem-nurture-direct-0001' -IfMatch '"0"' -Body '{}'
+     Add-Result 'qualifyLeadForDirectSale stays unexposed' '404' $directSale.Status
+diff --git a/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs b/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs
+index 49f20e0a2138e7e34d9445fe8947f7c224670255..5d7edf4a7d8db1f78934d7a894bea5588becab44 100644
+--- a/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs
++++ b/src/UnicoreCRM.AI/Gateway/AiEndpoints.cs
+@@ -10,6 +10,8 @@ namespace UnicoreCRM.AI.Gateway;
+ public static class AiEndpoints
+ {
+     private const long MaximumBodyBytes = 16_384;
++    // Accommodates JSON-escaped Unicode at the Tasks 300/4000 character maxima.
++    private const long MaximumConfirmationBodyBytes = 32_768;
+     private static readonly JsonSerializerOptions RequestJsonOptions = new(JsonSerializerDefaults.Web);
+ 
+     public static IEndpointRouteBuilder MapAiEndpoints(this IEndpointRouteBuilder endpoints)
+@@ -32,11 +34,36 @@ public static class AiEndpoints
+         endpoints.MapPost("/ai/proactive/items/{itemId}/snooze", SnoozeProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("snoozeProactiveItem");
+         endpoints.MapPost("/ai/proactive/items/{itemId}/dismiss", DismissProactiveItemAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("dismissProactiveItem");
+         endpoints.MapPost("/ai/proactive/items/{itemId}/suggestion", RequestProactiveSuggestionAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("requestProactiveSuggestion");
++        endpoints.MapPost("/ai/proactive/items/{itemId}/confirm-task", ConfirmProactiveTaskAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("confirmProactiveTask");
+         endpoints.MapGet("/ai/proactive/configuration", GetProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("getProactiveConfiguration");
+         endpoints.MapPut("/ai/proactive/configuration", SaveProactiveConfigurationAsync).RequireAuthorization().RequireTrustedWorkspace().WithName("saveProactiveConfiguration");
+         return endpoints;
+     }
+ 
++    private static async Task<IResult> ConfirmProactiveTaskAsync(string itemId, HttpContext context, ProactiveTaskConfirmationApplication application, CancellationToken ct)
++    {
++        var correlationId = CorrelationId(context);
++        if (!context.Request.HasJsonContentType()) return Error(AiErrors.UnsupportedMediaType(), correlationId);
++        if (context.Request.ContentLength > MaximumConfirmationBodyBytes) return Error(AiErrors.TooLarge(), correlationId);
++        try
++        {
++            using var body = new MemoryStream();
++            var buffer = new byte[4096];
++            int read;
++            while ((read = await context.Request.Body.ReadAsync(buffer, ct)) != 0)
++            {
++                if (body.Length + read > MaximumConfirmationBodyBytes) return Error(AiErrors.TooLarge(), correlationId);
++                await body.WriteAsync(buffer.AsMemory(0, read), ct);
++            }
++            body.Position = 0;
++            var request = await JsonSerializer.DeserializeAsync<ProactiveTaskConfirmationRequest>(body, RequestJsonOptions, ct);
++            if (request is null) return Error(AiErrors.Malformed(), correlationId);
++            return Result(await application.HandleAsync(itemId, request, context.Request.Headers["Idempotency-Key"].ToString(),
++                RequestId(context), correlationId, ct), correlationId);
++        }
++        catch (JsonException) { return Error(AiErrors.Malformed(), correlationId); }
++    }
++
+     private static async Task<IResult> RequestProactiveSuggestionAsync(string itemId, HttpContext context, ProactiveSuggestionApplication application, CancellationToken ct)
+     {
+         var correlationId = CorrelationId(context);
+diff --git a/src/UnicoreCRM.AI/Gateway/GatewayModule.cs b/src/UnicoreCRM.AI/Gateway/GatewayModule.cs
+index 293702ad2b8bb217faf7fcbe92a6ae56f92e3114..a35d3f7d211893293e4532864e4f86405923254c 100644
+--- a/src/UnicoreCRM.AI/Gateway/GatewayModule.cs
++++ b/src/UnicoreCRM.AI/Gateway/GatewayModule.cs
+@@ -10,6 +10,7 @@ internal static class GatewayModule
+         services.AddScoped<AiConfigurationApplication>();
+         services.AddScoped<ProactiveAttentionApplication>();
+         services.AddScoped<ProactiveSuggestionApplication>();
++        services.AddScoped<ProactiveTaskConfirmationApplication>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationApplication.cs b/src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationApplication.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4173520fe13d10b4a58d977e7a8493a5ba643604
+--- /dev/null
++++ b/src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationApplication.cs
+@@ -0,0 +1,62 @@
++using System.Security.Cryptography;
++using System.Text;
++using System.Text.Json;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Logging;
++using UnicoreCRM.Crm.Customers.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
++using UnicoreCRM.Platform.AccessControl.Contracts;
++using UnicoreCRM.Platform.Workspace.Contracts;
++using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
++
++namespace UnicoreCRM.AI.Gateway;
++
++internal sealed class ProactiveTaskConfirmationApplication(ICurrentWorkspace currentWorkspace, IAccessAuthorizer authorizer,
++    IProactiveStore store, ICustomerAttentionReader customers, IProactiveTaskCreationParticipant tasks,
++    IServiceScopeFactory scopeFactory, TimeProvider clock, ILogger<ProactiveTaskConfirmationApplication> logger)
++{
++    internal async Task<AiOperationResult<ProactiveTaskConfirmationResponse>> HandleAsync(string itemId,
++        ProactiveTaskConfirmationRequest request, string idempotencyKey, string requestId, string correlationId, CancellationToken ct)
++    {
++        if (idempotencyKey.Length is < 8 or > 128)
++            return Failure(new("VALIDATION_FAILED", 422, "Request validation failed", FieldErrors:
++                new Dictionary<string, string[]> { ["Idempotency-Key"] = ["Idempotency-Key must contain between 8 and 128 characters."] }));
++        if (!currentWorkspace.IsResolved) return Failure(AiErrors.WorkspaceMismatch());
++        var decision = await authorizer.AuthorizeAsync(AccessRequirement.ForCanonicalCapability("ai.proactive.use"), correlationId, ct);
++        if (!decision.IsAllowed) return Failure(AiErrors.ProactiveAccessDenied());
++        var trusted = currentWorkspace.Require();
++        var item = await store.ReadItemAsync(trusted.WorkspaceId, itemId, ct);
++        if (item is null || item.WorkspaceId != trusted.WorkspaceId || item.SubjectType != ProactiveValues.Customer
++            || item.TriggerType != ProactiveValues.CustomerHealthRisk || item.Status != ProactiveValues.Open
++            || item.OwnerMemberId != trusted.MemberId) return Failure(AiErrors.ProactiveNotFound());
++        var customer = await customers.ReadAuthorizedAsync([item.SubjectId], new(requestId, correlationId), ct);
++        if (!customer.IsAuthorized) return Failure(AiErrors.ProactiveAccessDenied());
++        if (!customer.Items.ContainsKey(item.SubjectId)) return Failure(AiErrors.ProactiveNotFound());
++        ct.ThrowIfCancellationRequested();
++        var result = await tasks.CreateAsync(new(item.ItemId, request.Title, request.Description, request.AssigneeId,
++            request.DueAt, request.Priority, idempotencyKey, requestId, correlationId), ct);
++        if (result.Error is { } error) return Failure(new(error.Code, error.Status, error.Title, FieldErrors: error.FieldErrors));
++
++        // Tasks owns the commit. This independent evidence write cannot roll it back.
++        var auditId = "proaudit_" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
++            JsonSerializer.Serialize(new { trusted.WorkspaceId, trusted.MemberId, item.ItemId, result.TaskId }))));
++        try
++        {
++            await using var scope = scopeFactory.CreateAsyncScope();
++            await scope.ServiceProvider.GetRequiredService<IProactiveStore>().RecordAuditOnceAsync(new(auditId,
++                trusted.WorkspaceId, trusted.MemberId, "TASK_SUGGESTION_ACCEPTED", item.ItemId, item.SubjectId,
++                JsonSerializer.Serialize(new { taskId = result.TaskId, outcome = result.Outcome }), correlationId, clock.GetUtcNow()), CancellationToken.None);
++        }
++        catch (Exception)
++        {
++            logger.LogWarning("Proactive acceptance audit unavailable for Workspace {WorkspaceId}, item {ItemId}, Task {TaskId}, correlation {CorrelationId}",
++                trusted.WorkspaceId, item.ItemId, result.TaskId, correlationId);
++            return Failure(new("AI_PROACTIVE_ACCEPTANCE_AUDIT_UNAVAILABLE", 503,
++                "Task is committed; retry with the same Idempotency-Key to record acceptance.", true));
++        }
++        return AiOperationResult<ProactiveTaskConfirmationResponse>.Success(new(item.ItemId, result.TaskId!, result.TaskVersion!.Value, result.Outcome!));
++    }
++
++    private static AiOperationResult<ProactiveTaskConfirmationResponse> Failure(AiOperationError error) =>
++        AiOperationResult<ProactiveTaskConfirmationResponse>.Failure(error);
++}
+diff --git a/src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationContracts.cs b/src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationContracts.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4c2f422a7bdbefb6ad7d8d8de62122d46e792c3f
+--- /dev/null
++++ b/src/UnicoreCRM.AI/Gateway/ProactiveTaskConfirmationContracts.cs
+@@ -0,0 +1,9 @@
++using System.Text.Json.Serialization;
++
++namespace UnicoreCRM.AI.Gateway;
++
++[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
++public sealed record ProactiveTaskConfirmationRequest(string? Title, string? AssigneeId, string? DueAt,
++    string? Description = null, string? Priority = null);
++
++public sealed record ProactiveTaskConfirmationResponse(string ItemId, string TaskId, long TaskVersion, string Outcome);
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/CreateProactiveFollowUp/Participant.cs b/src/UnicoreCRM.Operations/Tasks/Application/CreateProactiveFollowUp/Participant.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..966006e8fc5f7fac0c4946593fde1ab0a1cb83c5
+--- /dev/null
++++ b/src/UnicoreCRM.Operations/Tasks/Application/CreateProactiveFollowUp/Participant.cs
+@@ -0,0 +1,22 @@
++using UnicoreCRM.Operations.Tasks.Application.Common;
++using UnicoreCRM.Operations.Tasks.Contracts;
++
++namespace UnicoreCRM.Operations.Tasks.Application.CreateProactiveFollowUp;
++
++internal sealed class Participant(CreateTask.Handler createTask) : IProactiveTaskCreationParticipant
++{
++    public async Task<ProactiveTaskCreationResult> CreateAsync(ProactiveTaskCreationCommand command, CancellationToken cancellationToken)
++    {
++        var request = new CreateTaskRequest(command.Title, command.AssigneeId, command.DueAt,
++            command.Description, command.Priority, SourceRef: new("PROACTIVE_AI", command.ProactiveItemId));
++        var result = await createTask.HandleAsync(new(request,
++            new TaskCommandMetadata(command.RequestId, command.CorrelationId, command.IdempotencyKey, null)), cancellationToken);
++        if (!result.IsSuccess)
++        {
++            var error = result.Error!;
++            return new(null, null, null, new(error.Code, error.Status, error.Title, error.FieldErrors));
++        }
++        var response = result.Value!;
++        return new(response.AggregateId, response.Version, response.Outcome);
++    }
++}
+diff --git a/src/UnicoreCRM.Operations/Tasks/Contracts/ProactiveTaskCreationParticipant.cs b/src/UnicoreCRM.Operations/Tasks/Contracts/ProactiveTaskCreationParticipant.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6dbb779399855decf8b29ddab666a75711fdba49
+--- /dev/null
++++ b/src/UnicoreCRM.Operations/Tasks/Contracts/ProactiveTaskCreationParticipant.cs
+@@ -0,0 +1,15 @@
++namespace UnicoreCRM.Operations.Tasks.Contracts;
++
++public interface IProactiveTaskCreationParticipant
++{
++    Task<ProactiveTaskCreationResult> CreateAsync(ProactiveTaskCreationCommand command, CancellationToken cancellationToken);
++}
++
++public sealed record ProactiveTaskCreationCommand(string ProactiveItemId, string? Title, string? Description,
++    string? AssigneeId, string? DueAt, string? Priority, string IdempotencyKey, string RequestId, string CorrelationId);
++
++public sealed record ProactiveTaskCreationError(string Code, int Status, string Title,
++    IReadOnlyDictionary<string, string[]>? FieldErrors);
++
++public sealed record ProactiveTaskCreationResult(string? TaskId, long? TaskVersion, string? Outcome,
++    ProactiveTaskCreationError? Error = null);
+diff --git a/src/UnicoreCRM.Operations/Tasks/TasksModule.cs b/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
+index 6f9c4fd7969396d6599fddcce7cc197908890700..728d60abea337e2b8158939dd5d25e38075395de 100644
+--- a/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
++++ b/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
+@@ -27,6 +27,7 @@ internal static class TasksModule
+         services.AddScoped<Application.GetTask.Handler>();
+         services.AddScoped<Application.ListActivities.Handler>();
+         services.AddScoped<Application.CreateTask.Handler>();
++        services.AddScoped<Contracts.IProactiveTaskCreationParticipant, Application.CreateProactiveFollowUp.Participant>();
+         // The Lead Qualification participant. Internal owner boundary; it maps no route and adds no
+         // generic Task creation surface.
+         services.AddScoped<Contracts.ILeadQualificationTaskParticipant,
+diff --git a/src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj b/src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj
+index 8495dbe5dabf779b4d48cc986c58d150a179df30..d98ffec6fbdd635b92ff980aebb18be01c66979b 100644
+--- a/src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj
++++ b/src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj
+@@ -4,6 +4,7 @@
+     <AssemblyName>UnicoreCRM.Operations</AssemblyName>
+   </PropertyGroup>
+   <ItemGroup>
++    <InternalsVisibleTo Include="UnicoreCRM.AI.ProactiveVerifier" />
+     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+       <PrivateAssets>all</PrivateAssets>
+diff --git a/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs b/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
+index 036bca24f3117c36b9f54833d469170f6105b5dc..92557dbcd9f196c3216090c592b04b85c33ddd1e 100644
+--- a/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
++++ b/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
+@@ -53,6 +53,7 @@ public interface IProactiveStore
+     Task<ProactiveItemCommit> CommitItemActionAsync(ProactiveItemState item, string memberId, string operation, long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, CancellationToken cancellationToken);
+     Task<ProactivePolicyCommit> SavePolicyConfigurationAsync(string workspaceId, string memberId, bool enabled, long expectedVersion, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, DateTimeOffset now, CancellationToken cancellationToken);
+     Task RecordAuditAsync(ProactiveAuditEvidence audit, CancellationToken cancellationToken);
++    Task RecordAuditOnceAsync(ProactiveAuditEvidence audit, CancellationToken cancellationToken);
+ }
+ 
+ public sealed class ProactiveActiveCycleConflictException : Exception;
+diff --git a/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs b/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
+index 6a3b4e1a094bd6bfd042fdf0212f9a78072f1429..814f92a148dc2383bdfe4be8db6f135b34cca47f 100644
+--- a/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
++++ b/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
+@@ -201,6 +201,19 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
+     public async Task RecordAuditAsync(ProactiveAuditEvidence audit, CancellationToken ct)
+     { db.ProactiveAudits.Add(Row(audit)); await db.SaveChangesAsync(ct); }
+ 
++    public async Task RecordAuditOnceAsync(ProactiveAuditEvidence audit, CancellationToken ct)
++    {
++        if (await db.ProactiveAudits.AsNoTracking().AnyAsync(x => x.AuditId == audit.AuditId, ct)) return;
++        var row = Row(audit);
++        db.ProactiveAudits.Add(row);
++        try { await db.SaveChangesAsync(ct); }
++        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
++        {
++            db.Entry(row).State = EntityState.Detached;
++            if (!await db.ProactiveAudits.AsNoTracking().AnyAsync(x => x.AuditId == audit.AuditId, ct)) throw;
++        }
++    }
++
+     private static WorkspaceProactivePolicyState? Map(WorkspaceProactivePolicyRow? x) => x is null ? null :
+         new(x.WorkspaceId, x.Enabled, x.Version, x.LastEvaluationAt, x.NextEvaluationAt, x.LeaseId, x.LeaseExpiresAt, x.UpdatedBy, x.UpdatedAt);
+     private static ProactiveItemState? Map(ProactiveItemRow? x) => x is null ? null :

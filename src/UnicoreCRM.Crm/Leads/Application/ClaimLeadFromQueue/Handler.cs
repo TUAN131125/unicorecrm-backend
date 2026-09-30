@@ -27,17 +27,15 @@ internal sealed class Handler(LeadAuthorization authorization, ILeadsPersistence
         var key = LeadCommandSupport.ScopeKey(trusted, "claimLeadFromQueue", lead.LeadId, command.Metadata);
         var fingerprint = LeadCommandSupport.Fingerprint(new { command.LeadId, command.Metadata.ExpectedVersion });
         var existing = await persistence.FindIdempotencyAsync(key, cancellationToken);
+        var recordError = await authorization.EnforceRecordAsync(access, lead, "claimLeadFromQueue", request, cancellationToken);
+        if (recordError is not null) return Fail(recordError);
         if (existing is not null)
         {
-            var scopeError = await authorization.EnforceRecordAsync(access, lead, "claimLeadFromQueue", request, cancellationToken);
-            if (scopeError is not null) return Fail(scopeError);
             var replayError = LeadCommandSupport.ReplayError(existing, fingerprint);
             return replayError is not null ? Fail(replayError) : Success(LeadCommandSupport.Replay(existing), access);
         }
-        // No owner/member data is returned on conflict, including a race loser with OWN scope.
+        // Business state is disclosed only after current authoritative record access succeeds.
         if (lead.Profile.OwnerId is not null) return Fail(new("LEAD_QUEUE_CLAIM_CONFLICT", 409, "Lead is no longer in the queue"));
-        var recordError = await authorization.EnforceRecordAsync(access, lead, "claimLeadFromQueue", request, cancellationToken);
-        if (recordError is not null) return Fail(recordError);
         if (lead.ArchivedAt is not null) return Fail(LeadErrors.AlreadyArchived(lead.LeadId));
         var fieldError = LeadAuthorization.EnforceFieldWrite(access, "ownerId");
         if (fieldError is not null) return Fail(fieldError);

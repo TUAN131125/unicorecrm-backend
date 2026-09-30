@@ -1,0 +1,403 @@
+diff --git a/scripts/ProactiveVerifier/Program.cs b/scripts/ProactiveVerifier/Program.cs
+index 58d96347174cf61a99ee7558ae7bc69d81156a77..d7b000d2e089091c14c670a7804d255aec63962c 100644
+--- a/scripts/ProactiveVerifier/Program.cs
++++ b/scripts/ProactiveVerifier/Program.cs
+@@ -2,6 +2,12 @@ using UnicoreCRM.AI.Proactive.Application;
+ using UnicoreCRM.AI.Proactive.Infrastructure;
+ using UnicoreCRM.Crm.Customers.Contracts;
+ using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
++using Microsoft.Data.SqlClient;
++using Microsoft.EntityFrameworkCore;
++using UnicoreCRM.PlatformOperations.AiExecution.Infrastructure;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Logging.Abstractions;
++using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+ var now = new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero);
+ var clock = new FixedClock(now);
+@@ -10,7 +16,7 @@ var reconciler = new CustomerHealthRiskReconciler(store, clock);
+ var passed = 0;
+ void Check(string name, object? expected, object? actual) { if (!Equals(expected, actual)) throw new InvalidOperationException($"{name}: expected={expected}, actual={actual}"); passed++; }
+ ProactiveCustomerHealthFact Fact(string band, string? owner="member_a", string status="ACTIVE") => new("customer_a", owner, status, band, band, $"PURCHASE_RECENCY_{band}", "V1", "1");
+-async Task Run(ProactiveCustomerHealthFact fact) => await reconciler.ReconcileAsync("workspace_a", fact, "correlation-test", default);
++async Task Run(ProactiveCustomerHealthFact fact) => await reconciler.ReconcilePageAsync("workspace_a", [fact], "correlation-test", default);
+ 
+ await Run(Fact("UNKNOWN")); Check("unknown no item", 0, store.Items.Count);
+ await Run(Fact("HEALTHY")); Check("healthy no item", 0, store.Items.Count);
+@@ -25,19 +31,139 @@ clock.Now=now.AddDays(5); await Run(Fact("AT_RISK", "member_b")); Check("later r
+ await Run(Fact("AT_RISK", null)); Check("unowned resolves active", ProactiveValues.Resolved, store.Items.Last().Status); Check("unowned signal", true, store.Audits.Any(x=>x.Action=="UNOWNED_TRIGGER_SUPPRESSED"));
+ await Run(Fact("CRITICAL", "member_b")); await Run(Fact("CRITICAL", "member_b", "ARCHIVED")); Check("archive resolves", ProactiveValues.Resolved, store.Items.Last().Status);
+ var utcNext=ProactiveEvaluationWorker.NextLocalDay(now,"UTC"); Check("UTC next local day", new DateTimeOffset(2026,9,21,0,0,0,TimeSpan.Zero), utcNext);
++var saigonNext=ProactiveEvaluationWorker.NextLocalDay(now,"SE Asia Standard Time"); Check("Saigon next local day", new DateTimeOffset(2026,9,20,17,0,0,TimeSpan.Zero), saigonNext);
++var newYorkNext=ProactiveEvaluationWorker.NextLocalDay(now,"Eastern Standard Time"); Check("New York next local day", new DateTimeOffset(2026,9,21,4,0,0,TimeSpan.Zero), newYorkNext);
++try { ProactiveEvaluationWorker.NextLocalDay(now,""); throw new InvalidOperationException("missing timezone accepted"); } catch(ArgumentException) { passed++; }
++var pageStore=new MemoryStore();var pageReconciler=new CustomerHealthRiskReconciler(pageStore,clock);
++await pageReconciler.ReconcilePageAsync("workspace_a",[new("customer_x","member_a","ACTIVE","UNKNOWN","UNKNOWN","NONE","V1","1"),new("customer_y","member_a","ACTIVE","WATCH","MEDIUM","WATCH","V1","1")],"corr-page",default);
++Check("one active-cycle batch read per Customer page",1,pageStore.BatchReads);
++if(args.Length==1) passed += await SqlVerifier.RunAsync(args[0], now);
+ Console.WriteLine($"PROACTIVE_SCENARIO_CORPUS_PASS cases={passed}");
+ 
++static class SqlVerifier
++{
++    internal static async Task<int> RunAsync(string connectionString, DateTimeOffset now)
++    {
++        var builder=new SqlConnectionStringBuilder(connectionString); var database=builder.InitialCatalog;
++        try { RequireIsolatedDatabase("UnicoreCRM"); throw new InvalidOperationException("unsafe verifier database accepted"); } catch(ArgumentException) { }
++        RequireIsolatedDatabase(database);
++        builder.InitialCatalog="master"; await using(var connection=new SqlConnection(builder.ConnectionString)){await connection.OpenAsync();await using var command=connection.CreateCommand();command.CommandText=$"IF DB_ID(N'{database.Replace("'","''")}') IS NOT NULL BEGIN ALTER DATABASE [{database.Replace("]","]]" )}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{database.Replace("]","]]" )}]; END; CREATE DATABASE [{database.Replace("]","]]" )}];";await command.ExecuteNonQueryAsync();}
++        var options=new DbContextOptionsBuilder<AiExecutionDbContext>().UseSqlServer(connectionString,x=>x.MigrationsHistoryTable("__EFMigrationsHistory","platform_ai")).Options;
++        await using(var migration=new AiExecutionDbContext(options)) await migration.Database.MigrateAsync();
++        await using(var context=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(context); var policy=new WorkspaceProactivePolicyState("workspace_sql",true,0,null,now,null,null,"member",now);
++            await store.SavePolicyAsync(policy,"policy-sql-0001","fingerprint",new("audit_policy","workspace_sql","member","PROACTIVE_ENABLED",null,null,"{}","corr-policy",now),default);
++            if(!await store.TryClaimPolicyAsync("workspace_sql",0,"lease_a",now,now.AddMinutes(5),default))throw new InvalidOperationException("initial lease claim failed");
++            if(await store.TryClaimPolicyAsync("workspace_sql",0,"lease_b",now,now.AddMinutes(5),default))throw new InvalidOperationException("concurrent lease claim succeeded");
++            if(!await store.RenewPolicyLeaseAsync("workspace_sql","lease_a",now.AddMinutes(1),now.AddMinutes(6),default))throw new InvalidOperationException("lease renewal failed");
++            if(await store.TryClaimPolicyAsync("workspace_sql",0,"lease_b",now.AddMinutes(5).AddSeconds(30),now.AddMinutes(10),default))throw new InvalidOperationException("renewed lease was reclaimed before expiry");
++            if(!await store.TryClaimPolicyAsync("workspace_sql",0,"lease_b",now.AddMinutes(7),now.AddMinutes(12),default))throw new InvalidOperationException("expired lease was not reclaimable");
++            try { await store.CompletePolicyEvaluationAsync("workspace_sql","lease_a",now,now.AddDays(1),default); throw new InvalidOperationException("stale worker completed reclaimed lease"); } catch(InvalidOperationException exception) when(exception.Message.Contains("not owned",StringComparison.Ordinal)) { }
++            await store.CompletePolicyEvaluationAsync("workspace_sql","lease_b",now.AddMinutes(7),now.AddDays(1),default);
++            await store.SavePolicyAsync(new("workspace_expired",true,0,null,now,null,null,"member",now),"policy-expired-0001","expired-fingerprint",new("audit_expired_policy","workspace_expired","member","PROACTIVE_ENABLED",null,null,"{}","corr-expired",now),default);
++            if(!await store.TryClaimPolicyAsync("workspace_expired",0,"lease_expired_a",now,now.AddMinutes(1),default))throw new InvalidOperationException("expiry test lease claim failed");
++            try { await store.CompletePolicyEvaluationAsync("workspace_expired","lease_expired_a",now.AddMinutes(2),now.AddDays(1),default); throw new InvalidOperationException("expired lease completed without reclaim"); } catch(InvalidOperationException exception) when(exception.Message.Contains("not owned",StringComparison.Ordinal)) { }
++            if(!await store.TryClaimPolicyAsync("workspace_expired",0,"lease_expired_b",now.AddMinutes(2),now.AddMinutes(7),default))throw new InvalidOperationException("expired lease was not reclaimable by worker B");
++            await store.CompletePolicyEvaluationAsync("workspace_expired","lease_expired_b",now.AddMinutes(3),now.AddDays(1),default);
++        }
++        static ProactiveItemState Item(string id,string cycle,DateTimeOffset time)=>new(id,"workspace_sql","member",ProactiveValues.CustomerHealthRisk,ProactiveValues.Customer,"customer_sql",ProactiveValues.High,"RISK","fingerprint",cycle,ProactiveValues.Open,time,time,null,null,null,null,"1",0,time,time);
++        async Task<string> CreateAsync(string id,string cycle)
++        { await using var db=new AiExecutionDbContext(options);try{await new EfProactiveStore(db).SaveItemAsync(Item(id,cycle,now),new($"audit_{id}","workspace_sql",null,"ITEM_CREATED",id,"customer_sql","{}","corr",now),default);return "created";}catch(ProactiveActiveCycleConflictException){return "conflict";} }
++        var outcomes=await Task.WhenAll(CreateAsync("item_a","cycle_a"),CreateAsync("item_b","cycle_b"));
++        if(outcomes.Count(x=>x=="created")!=1||outcomes.Count(x=>x=="conflict")!=1)throw new InvalidOperationException("concurrent active cycle did not converge");
++        await using(var db=new AiExecutionDbContext(options))
++        { var store=new EfProactiveStore(db);var active=await store.ReadActiveCycleAsync("workspace_sql","customer_sql",ProactiveValues.CustomerHealthRisk,default)??throw new InvalidOperationException("active cycle missing");await store.SaveItemAsync(active with{Status=ProactiveValues.Resolved,ResolvedAt=now.AddDays(1),Version=1,UpdatedAt=now.AddDays(1)},new("audit_resolve","workspace_sql",null,"ITEM_RESOLVED",active.ItemId,"customer_sql","{}","corr",now.AddDays(1)),default);await store.SaveItemAsync(Item("item_new_cycle","cycle_new",now.AddDays(2)),new("audit_new_cycle","workspace_sql",null,"ITEM_CREATED","item_new_cycle","customer_sql","{}","corr",now.AddDays(2)),default); }
++        await using(var db=new AiExecutionDbContext(options))
++        { if(await db.ProactiveItems.CountAsync(x=>x.WorkspaceId=="workspace_sql"&&x.SubjectId=="customer_sql")!=2)throw new InvalidOperationException("later risk cycle was not retained separately");if(await db.ProactiveItems.CountAsync(x=>x.Status!=ProactiveValues.Resolved)!=1)throw new InvalidOperationException("active-cycle uniqueness invalid"); }
++        var liveNow=DateTimeOffset.UtcNow;
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(db);
++            await store.SavePolicyAsync(new("workspace_long_a",true,0,null,liveNow.AddSeconds(-1),null,null,"member",liveNow),"policy-long-0001","long-fingerprint-a",
++                new("audit_long_policy_a","workspace_long_a","member","PROACTIVE_ENABLED",null,null,"{}","corr-long-a",liveNow),default);
++            await store.SavePolicyAsync(new("workspace_long_b",true,0,null,liveNow.AddSeconds(-1),null,null,"member",liveNow),"policy-long-0002","long-fingerprint-b",
++                new("audit_long_policy_b","workspace_long_b","member","PROACTIVE_ENABLED",null,null,"{}","corr-long-b",liveNow),default);
++        }
++        var longServices=new ServiceCollection(); longServices.AddSingleton(TimeProvider.System); longServices.AddLogging();
++        longServices.AddDbContext<AiExecutionDbContext>(x=>x.UseSqlServer(connectionString,s=>s.MigrationsHistoryTable("__EFMigrationsHistory","platform_ai")));
++        longServices.AddScoped<IProactiveStore,EfProactiveStore>(); longServices.AddScoped<IWorkspaceTimeZoneReader,UtcZoneReader>();
++        longServices.AddScoped<IProactiveCustomerHealthReader,FirstWorkspaceSlowCustomerReader>(); longServices.AddScoped<CustomerHealthRiskReconciler>(); longServices.AddScoped<ProactiveWorkspaceEvaluator>();
++        DateTimeOffset initialExpiry;
++        await using(var provider=longServices.BuildServiceProvider())
++        {
++            var worker=new ProactiveEvaluationWorker(provider.GetRequiredService<IServiceScopeFactory>(),TimeProvider.System,NullLogger<ProactiveEvaluationWorker>.Instance,TimeSpan.FromSeconds(2),TimeSpan.FromMilliseconds(250));
++            var evaluation=worker.RunOnceAsync(default);
++            while(true)
++            {
++                await using var observed=new AiExecutionDbContext(options); var policy=await observed.ProactivePolicies.AsNoTracking().SingleAsync(x=>x.WorkspaceId=="workspace_long_a");
++                if(policy.LeaseExpiresAt is not null){initialExpiry=policy.LeaseExpiresAt.Value;break;}
++                await Task.Delay(10);
++            }
++            var wait=initialExpiry.AddMilliseconds(500)-DateTimeOffset.UtcNow;if(wait>TimeSpan.Zero)await Task.Delay(wait);
++            await using(var contender=new AiExecutionDbContext(options))
++                if(await new EfProactiveStore(contender).TryClaimPolicyAsync("workspace_long_a",0,"lease_contender",DateTimeOffset.UtcNow,DateTimeOffset.UtcNow.AddMinutes(1),default))throw new InvalidOperationException("long evaluation lease was reclaimed after its original expiry");
++            await evaluation;
++        }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var first=await db.ProactivePolicies.AsNoTracking().SingleAsync(x=>x.WorkspaceId=="workspace_long_a");
++            var second=await db.ProactivePolicies.AsNoTracking().SingleAsync(x=>x.WorkspaceId=="workspace_long_b");
++            if(first.LastEvaluationAt is null||first.LeaseId is not null)throw new InvalidOperationException("renewed long evaluation did not complete authoritatively");
++            if(second.LastEvaluationAt is null||second.LeaseId is not null||second.LastEvaluationAt<=initialExpiry)throw new InvalidOperationException("second Workspace did not receive a fresh valid lease after the long first evaluation");
++        }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            var store=new EfProactiveStore(db);
++            await store.SavePolicyAsync(new("workspace_missing_zone",true,0,null,now,null,null,"member",now),"policy-zone-0001","zone-fingerprint",
++                new("audit_zone_policy","workspace_missing_zone","member","PROACTIVE_ENABLED",null,null,"{}","corr-zone",now),default);
++            await store.SavePolicyAsync(new("workspace_invalid_zone",true,0,null,now,null,null,"member",now),"policy-zone-0002","zone-fingerprint-invalid",
++                new("audit_zone_policy_invalid","workspace_invalid_zone","member","PROACTIVE_ENABLED",null,null,"{}","corr-zone-invalid",now),default);
++        }
++        var services=new ServiceCollection(); services.AddSingleton<TimeProvider>(new FixedClock(now)); services.AddLogging();
++        services.AddDbContext<AiExecutionDbContext>(x=>x.UseSqlServer(connectionString,s=>s.MigrationsHistoryTable("__EFMigrationsHistory","platform_ai")));
++        services.AddScoped<IProactiveStore,EfProactiveStore>(); services.AddScoped<IWorkspaceTimeZoneReader,InvalidAndMissingZoneReader>();
++        services.AddScoped<IProactiveCustomerHealthReader,EmptyCustomerReader>(); services.AddScoped<CustomerHealthRiskReconciler>(); services.AddScoped<ProactiveWorkspaceEvaluator>();
++        await using(var provider=services.BuildServiceProvider())
++        { var worker=new ProactiveEvaluationWorker(provider.GetRequiredService<IServiceScopeFactory>(),provider.GetRequiredService<TimeProvider>(),NullLogger<ProactiveEvaluationWorker>.Instance);await worker.RunOnceAsync(default); }
++        await using(var db=new AiExecutionDbContext(options))
++        {
++            foreach(var workspaceId in new[]{"workspace_missing_zone","workspace_invalid_zone"})
++            {
++                var failed=await db.ProactiveAudits.AnyAsync(x=>x.WorkspaceId==workspaceId&&x.Action=="EVALUATION_FAILED");
++                var policy=await db.ProactivePolicies.SingleAsync(x=>x.WorkspaceId==workspaceId);
++                if(!failed||policy.LastEvaluationAt is not null||policy.NextEvaluationAt!=now)throw new InvalidOperationException($"{workspaceId} timezone did not fail safely for retry");
++            }
++        }
++        return 18;
++    }
++
++    private static void RequireIsolatedDatabase(string database)
++    {
++        if(string.IsNullOrWhiteSpace(database)||!database.StartsWith("UnicoreCRM_Proactive_Verifier_",StringComparison.Ordinal))
++            throw new ArgumentException("Proactive verifier requires an explicitly isolated database name.",nameof(database));
++    }
++}
++
++sealed class InvalidAndMissingZoneReader:IWorkspaceTimeZoneReader { public Task<string?> ReadTimeZoneAsync(string workspaceId,CancellationToken cancellationToken)=>Task.FromResult<string?>(workspaceId.EndsWith("invalid_zone",StringComparison.Ordinal)?"Invalid/Zone":null); }
++sealed class UtcZoneReader:IWorkspaceTimeZoneReader { public Task<string?> ReadTimeZoneAsync(string workspaceId,CancellationToken cancellationToken)=>Task.FromResult<string?>("UTC"); }
++sealed class EmptyCustomerReader:IProactiveCustomerHealthReader { public Task<ProactiveCustomerHealthPage> ReadPageAsync(string workspaceId,string? cursor,int limit,CancellationToken cancellationToken)=>Task.FromResult(new ProactiveCustomerHealthPage([],null)); }
++sealed class FirstWorkspaceSlowCustomerReader:IProactiveCustomerHealthReader { public async Task<ProactiveCustomerHealthPage> ReadPageAsync(string workspaceId,string? cursor,int limit,CancellationToken cancellationToken){if(workspaceId=="workspace_long_a")await Task.Delay(3000,cancellationToken);return new([],null);} }
++
+ sealed class FixedClock(DateTimeOffset now):TimeProvider { public DateTimeOffset Now {get;set;}=now; public override DateTimeOffset GetUtcNow()=>Now; }
+ sealed class MemoryStore:IProactiveStore
+ {
++    public int BatchReads {get;private set;}
+     public List<ProactiveItemState> Items {get;}=[]; public List<ProactiveAuditEvidence> Audits {get;}=[];
+     public ProactiveItemState? Active { get=>Items.LastOrDefault(x=>x.Status!=ProactiveValues.Resolved); set { if(value is null)return; var i=Items.FindIndex(x=>x.ItemId==value.ItemId); if(i<0)Items.Add(value);else Items[i]=value; } }
+     public Task<ProactiveItemState?> ReadActiveCycleAsync(string w,string s,string t,CancellationToken c)=>Task.FromResult(Active);
++    public Task<IReadOnlyDictionary<string,ProactiveItemState>> ReadActiveCyclesAsync(string w,IReadOnlyCollection<string> ids,string t,CancellationToken c){BatchReads++;return Task.FromResult<IReadOnlyDictionary<string,ProactiveItemState>>(Active is null?new Dictionary<string,ProactiveItemState>():new Dictionary<string,ProactiveItemState>{{Active.SubjectId,Active}});}
+     public Task SaveItemAsync(ProactiveItemState i,ProactiveAuditEvidence a,CancellationToken c){Active=i;Audits.Add(a);return Task.CompletedTask;}
+     public Task RecordAuditAsync(ProactiveAuditEvidence a,CancellationToken c){Audits.Add(a);return Task.CompletedTask;}
+     public Task<WorkspaceProactivePolicyState?> ReadPolicyAsync(string w,CancellationToken c)=>Task.FromResult<WorkspaceProactivePolicyState?>(null);
+     public Task<IReadOnlyList<WorkspaceProactivePolicyState>> ReadDuePoliciesAsync(DateTimeOffset n,int l,CancellationToken c)=>Task.FromResult<IReadOnlyList<WorkspaceProactivePolicyState>>([]);
+     public Task<bool> TryClaimPolicyAsync(string w,long v,string l,DateTimeOffset n,DateTimeOffset u,CancellationToken c)=>Task.FromResult(false);
++    public Task<bool> RenewPolicyLeaseAsync(string w,string l,DateTimeOffset n,DateTimeOffset u,CancellationToken c)=>Task.FromResult(false);
+     public Task CompletePolicyEvaluationAsync(string w,string l,DateTimeOffset e,DateTimeOffset n,CancellationToken c)=>Task.CompletedTask;
+     public Task<IReadOnlyList<ProactiveItemState>> ReadOwnerItemsAsync(string w,string o,string s,int l,CancellationToken c)=>Task.FromResult<IReadOnlyList<ProactiveItemState>>([]);
+     public Task<ProactiveItemState?> ReadItemAsync(string w,string i,CancellationToken c)=>Task.FromResult(Items.SingleOrDefault(x=>x.ItemId==i));
+diff --git a/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj b/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj
+index af488a2cb4f1ac1e837eaf9482dce2177bb57dab..377a8fe3ac849f08ce240dfd298b424bd6618b19 100644
+--- a/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj
++++ b/scripts/ProactiveVerifier/UnicoreCRM.AI.ProactiveVerifier.csproj
+@@ -1,4 +1,4 @@
+ <Project Sdk="Microsoft.NET.Sdk">
+   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>UnicoreCRM.AI.ProactiveVerifier</AssemblyName></PropertyGroup>
+-  <ItemGroup><ProjectReference Include="../../src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" /></ItemGroup>
++  <ItemGroup><ProjectReference Include="../../src/UnicoreCRM.AI/UnicoreCRM.AI.csproj" /><ProjectReference Include="../../src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" /></ItemGroup>
+ </Project>
+diff --git a/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs b/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs
+index 17efcab7a8a1c3f6906a40230141ecb10aeb8d73..5cb34339f6d0387bba85ec7a12f50db41b1ffd4e 100644
+--- a/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs
++++ b/src/UnicoreCRM.AI/Proactive/Application/CustomerHealthRiskReconciler.cs
+@@ -8,10 +8,20 @@ namespace UnicoreCRM.AI.Proactive.Application;
+ 
+ internal sealed class CustomerHealthRiskReconciler(IProactiveStore store, TimeProvider clock)
+ {
+-    internal async Task ReconcileAsync(string workspaceId, ProactiveCustomerHealthFact fact, string correlationId, CancellationToken ct)
++    internal async Task ReconcilePageAsync(string workspaceId, IReadOnlyCollection<ProactiveCustomerHealthFact> facts, string correlationId, CancellationToken ct)
++    {
++        if (facts.Count > 250) throw new ArgumentOutOfRangeException(nameof(facts));
++        var active = await store.ReadActiveCyclesAsync(workspaceId, facts.Select(x => x.CustomerId).ToArray(), ProactiveValues.CustomerHealthRisk, ct);
++        foreach (var fact in facts)
++        {
++            active.TryGetValue(fact.CustomerId, out var item);
++            await ReconcileAsync(workspaceId, fact, item, correlationId, ct);
++        }
++    }
++
++    private async Task ReconcileAsync(string workspaceId, ProactiveCustomerHealthFact fact, ProactiveItemState? active, string correlationId, CancellationToken ct)
+     {
+         var now = clock.GetUtcNow();
+-        var active = await store.ReadActiveCycleAsync(workspaceId, fact.CustomerId, ProactiveValues.CustomerHealthRisk, ct);
+         var severity = fact.HealthBand switch { "AT_RISK" => ProactiveValues.High, "CRITICAL" => ProactiveValues.Critical, _ => null };
+         if (severity is null || string.Equals(fact.CustomerStatus, "ARCHIVED", StringComparison.Ordinal))
+         {
+diff --git a/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs b/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs
+index 093a8f4c08207ed2c5b8ba112b899832b32c4ea5..09fc4a9909ff25ae9c678c73d19e53106629f183 100644
+--- a/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs
++++ b/src/UnicoreCRM.AI/Proactive/Application/ProactiveWorkspaceEvaluator.cs
+@@ -5,15 +5,16 @@ namespace UnicoreCRM.AI.Proactive.Application;
+ 
+ internal sealed class ProactiveWorkspaceEvaluator(IProactiveCustomerHealthReader customers, CustomerHealthRiskReconciler reconciler)
+ {
+-    internal async Task<int> EvaluateAsync(string workspaceId, string correlationId, CancellationToken ct)
++    internal async Task<int> EvaluateAsync(string workspaceId, string correlationId, Func<CancellationToken, Task> renewLease, CancellationToken ct)
+     {
+         string? cursor = null;
+         var count = 0;
+         do
+         {
+             var page = await customers.ReadPageAsync(workspaceId, cursor, 250, ct);
+-            foreach (var fact in page.Items)
+-                await reconciler.ReconcileAsync(workspaceId, fact, correlationId, ct);
++            await renewLease(ct);
++            await reconciler.ReconcilePageAsync(workspaceId, page.Items, correlationId, ct);
++            await renewLease(ct);
+             count += page.Items.Count;
+             cursor = page.NextCursor;
+         } while (cursor is not null);
+diff --git a/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs b/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs
+index 61a27ec2747504778113ef87ae04fc0d8da5bb03..36b9bbf83b279f323f59af7e2a052820765a7d74 100644
+--- a/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs
++++ b/src/UnicoreCRM.AI/Proactive/Infrastructure/ProactiveEvaluationWorker.cs
+@@ -8,8 +8,25 @@ using UnicoreCRM.PlatformOperations.AiExecution.Contracts;
+ 
+ namespace UnicoreCRM.AI.Proactive.Infrastructure;
+ 
+-internal sealed class ProactiveEvaluationWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<ProactiveEvaluationWorker> logger) : BackgroundService
++internal sealed class ProactiveEvaluationWorker : BackgroundService
+ {
++    private readonly IServiceScopeFactory scopes;
++    private readonly TimeProvider clock;
++    private readonly ILogger<ProactiveEvaluationWorker> logger;
++    private readonly TimeSpan leaseDuration;
++    private readonly TimeSpan renewalInterval;
++
++    public ProactiveEvaluationWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<ProactiveEvaluationWorker> logger)
++        : this(scopes, clock, logger, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(1)) { }
++
++    internal ProactiveEvaluationWorker(IServiceScopeFactory scopes, TimeProvider clock, ILogger<ProactiveEvaluationWorker> logger, TimeSpan leaseDuration, TimeSpan renewalInterval)
++    {
++        this.scopes = scopes;
++        this.clock = clock;
++        this.logger = logger;
++        this.leaseDuration = leaseDuration;
++        this.renewalInterval = renewalInterval;
++    }
+     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+     {
+         while (!stoppingToken.IsCancellationRequested)
+@@ -28,26 +45,71 @@ internal sealed class ProactiveEvaluationWorker(IServiceScopeFactory scopes, Tim
+         var store = scope.ServiceProvider.GetRequiredService<IProactiveStore>();
+         var evaluator = scope.ServiceProvider.GetRequiredService<ProactiveWorkspaceEvaluator>();
+         var zones = scope.ServiceProvider.GetRequiredService<IWorkspaceTimeZoneReader>();
+-        var now = clock.GetUtcNow();
+-        var due = await store.ReadDuePoliciesAsync(now, 25, ct);
++        var scanNow = clock.GetUtcNow();
++        var due = await store.ReadDuePoliciesAsync(scanNow, 25, ct);
+         foreach (var policy in due)
+         {
+             var leaseId = $"prolease_{Guid.NewGuid():N}";
+-            if (!await store.TryClaimPolicyAsync(policy.WorkspaceId, policy.Version, leaseId, now, now.AddMinutes(15), ct)) continue;
+-            var zoneId = await zones.ReadTimeZoneAsync(policy.WorkspaceId, ct) ?? "UTC";
+-            var next = NextLocalDay(now, zoneId);
+-            await evaluator.EvaluateAsync(policy.WorkspaceId, $"proactive-eval-{leaseId}", ct);
+-            await store.CompletePolicyEvaluationAsync(policy.WorkspaceId, leaseId, now, next, ct);
+-            ProactiveMetrics.Workspaces.Add(1);
++            var claimNow = clock.GetUtcNow();
++            if (!await store.TryClaimPolicyAsync(policy.WorkspaceId, policy.Version, leaseId, claimNow, claimNow.Add(leaseDuration), ct)) continue;
++            using var evaluation = CancellationTokenSource.CreateLinkedTokenSource(ct);
++            var heartbeat = RenewUntilCancelledAsync(policy.WorkspaceId, leaseId, evaluation);
++            try
++            {
++                var zoneId = await zones.ReadTimeZoneAsync(policy.WorkspaceId, evaluation.Token);
++                if (string.IsNullOrWhiteSpace(zoneId)) throw new InvalidOperationException("Authoritative Workspace timezone is unavailable.");
++                await evaluator.EvaluateAsync(policy.WorkspaceId, $"proactive-eval-{leaseId}", token => RenewOrThrowAsync(policy.WorkspaceId, leaseId, token), evaluation.Token);
++                var completedAt = clock.GetUtcNow();
++                var next = NextLocalDay(completedAt, zoneId);
++                await store.CompletePolicyEvaluationAsync(policy.WorkspaceId, leaseId, completedAt, next, evaluation.Token);
++                ProactiveMetrics.Workspaces.Add(1);
++            }
++            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
++            catch (Exception exception)
++            {
++                ProactiveMetrics.Failures.Add(1);
++                await store.RecordAuditAsync(new($"proaudit_{Guid.NewGuid():N}", policy.WorkspaceId, null, "EVALUATION_FAILED", null, null,
++                    "{}", $"proactive-eval-{leaseId}", clock.GetUtcNow()), CancellationToken.None);
++                logger.LogError(exception, "Proactive Workspace evaluation failed WorkspaceId={WorkspaceId}; lease will expire for retry.", policy.WorkspaceId);
++            }
++            finally
++            {
++                evaluation.Cancel();
++                try { await heartbeat; } catch (OperationCanceledException) { }
++            }
+         }
+         ProactiveMetrics.Duration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+     }
+ 
+     internal static DateTimeOffset NextLocalDay(DateTimeOffset now, string timeZoneId)
+     {
++        if (string.IsNullOrWhiteSpace(timeZoneId)) throw new ArgumentException("Workspace timezone is required.", nameof(timeZoneId));
+         var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+         var local = TimeZoneInfo.ConvertTime(now, zone);
+         var nextLocal = local.Date.AddDays(1);
+         return new DateTimeOffset(nextLocal, zone.GetUtcOffset(nextLocal)).ToUniversalTime();
+     }
++
++    private async Task RenewUntilCancelledAsync(string workspaceId, string leaseId, CancellationTokenSource evaluation)
++    {
++        try
++        {
++            while (!evaluation.IsCancellationRequested)
++            {
++                await Task.Delay(renewalInterval, clock, evaluation.Token);
++                await RenewOrThrowAsync(workspaceId, leaseId, evaluation.Token);
++            }
++        }
++        catch (OperationCanceledException) when (evaluation.IsCancellationRequested) { }
++        catch (Exception exception) { logger.LogError(exception, "Proactive evaluation lease renewal failed."); evaluation.Cancel(); }
++    }
++
++    private async Task RenewOrThrowAsync(string workspaceId, string leaseId, CancellationToken ct)
++    {
++        await using var scope = scopes.CreateAsyncScope();
++        var store = scope.ServiceProvider.GetRequiredService<IProactiveStore>();
++        var now = clock.GetUtcNow();
++        if (!await store.RenewPolicyLeaseAsync(workspaceId, leaseId, now, now.Add(leaseDuration), ct))
++            throw new InvalidOperationException("Proactive evaluation lease was lost.");
++    }
+ }
+diff --git a/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs b/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
+index 2da6b5708cfb94f68eaa2ae2fb82beccca9bf035..c17090e5e1f1ad541295545e285fa0f47f236713 100644
+--- a/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
++++ b/src/UnicoreCRM.PlatformOperations/AiExecution/Contracts/ProactiveStore.cs
+@@ -36,8 +36,10 @@ public interface IProactiveStore
+     Task<WorkspaceProactivePolicyState?> ReadPolicyAsync(string workspaceId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<WorkspaceProactivePolicyState>> ReadDuePoliciesAsync(DateTimeOffset now, int limit, CancellationToken cancellationToken);
+     Task<bool> TryClaimPolicyAsync(string workspaceId, long version, string leaseId, DateTimeOffset now, DateTimeOffset leaseUntil, CancellationToken cancellationToken);
++    Task<bool> RenewPolicyLeaseAsync(string workspaceId, string leaseId, DateTimeOffset now, DateTimeOffset leaseUntil, CancellationToken cancellationToken);
+     Task CompletePolicyEvaluationAsync(string workspaceId, string leaseId, DateTimeOffset evaluatedAt, DateTimeOffset nextEvaluationAt, CancellationToken cancellationToken);
+     Task<ProactiveItemState?> ReadActiveCycleAsync(string workspaceId, string subjectId, string triggerType, CancellationToken cancellationToken);
++    Task<IReadOnlyDictionary<string, ProactiveItemState>> ReadActiveCyclesAsync(string workspaceId, IReadOnlyCollection<string> subjectIds, string triggerType, CancellationToken cancellationToken);
+     Task<IReadOnlyList<ProactiveItemState>> ReadOwnerItemsAsync(string workspaceId, string ownerMemberId, string status, int limit, CancellationToken cancellationToken);
+     Task<ProactiveItemState?> ReadItemAsync(string workspaceId, string itemId, CancellationToken cancellationToken);
+     Task SavePolicyAsync(WorkspaceProactivePolicyState policy, string idempotencyKey, string fingerprint, ProactiveAuditEvidence audit, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs b/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
+index abde9b56a37cb8b57631b3c1ee7d3de95ff1a6e4..04a7df7a5372b42fdd16dde3b27763ddd1c01e42 100644
+--- a/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
++++ b/src/UnicoreCRM.PlatformOperations/AiExecution/Infrastructure/EfProactiveStore.cs
+@@ -23,9 +23,14 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
+                 .SetProperty(x => x.LeaseId, leaseId)
+                 .SetProperty(x => x.LeaseExpiresAt, leaseUntil), ct) == 1;
+ 
++    public async Task<bool> RenewPolicyLeaseAsync(string workspaceId, string leaseId, DateTimeOffset now, DateTimeOffset leaseUntil, CancellationToken ct) =>
++        await db.ProactivePolicies.Where(x => x.WorkspaceId == workspaceId && x.Enabled && x.LeaseId == leaseId && x.LeaseExpiresAt > now)
++            .ExecuteUpdateAsync(update => update.SetProperty(x => x.LeaseExpiresAt, leaseUntil), ct) == 1;
++
+     public async Task CompletePolicyEvaluationAsync(string workspaceId, string leaseId, DateTimeOffset evaluatedAt, DateTimeOffset nextEvaluationAt, CancellationToken ct)
+     {
+-        var changed = await db.ProactivePolicies.Where(x => x.WorkspaceId == workspaceId && x.LeaseId == leaseId)
++        var changed = await db.ProactivePolicies.Where(x => x.WorkspaceId == workspaceId && x.Enabled
++                && x.LeaseId == leaseId && x.LeaseExpiresAt > evaluatedAt)
+             .ExecuteUpdateAsync(update => update
+                 .SetProperty(x => x.LastEvaluationAt, evaluatedAt)
+                 .SetProperty(x => x.NextEvaluationAt, nextEvaluationAt)
+@@ -39,6 +44,16 @@ internal sealed class EfProactiveStore(AiExecutionDbContext db) : IProactiveStor
+             && x.SubjectType == ProactiveValues.Customer && x.SubjectId == subjectId && x.TriggerType == triggerType
+             && x.Status != ProactiveValues.Resolved, ct));
+ 
++    public async Task<IReadOnlyDictionary<string, ProactiveItemState>> ReadActiveCyclesAsync(
++        string workspaceId, IReadOnlyCollection<string> subjectIds, string triggerType, CancellationToken ct)
++    {
++        if (subjectIds.Count > 250) throw new ArgumentOutOfRangeException(nameof(subjectIds));
++        var rows = await db.ProactiveItems.AsNoTracking().Where(x => x.WorkspaceId == workspaceId
++            && x.SubjectType == ProactiveValues.Customer && subjectIds.Contains(x.SubjectId)
++            && x.TriggerType == triggerType && x.Status != ProactiveValues.Resolved).ToListAsync(ct);
++        return rows.ToDictionary(x => x.SubjectId, x => Map(x)!);
++    }
++
+     public async Task<IReadOnlyList<ProactiveItemState>> ReadOwnerItemsAsync(string workspaceId, string ownerMemberId, string status, int limit, CancellationToken ct) =>
+         (await db.ProactiveItems.AsNoTracking().Where(x => x.WorkspaceId == workspaceId && x.OwnerMemberId == ownerMemberId && x.Status == status)
+             .OrderByDescending(x => x.Severity).ThenByDescending(x => x.LastDetectedAt).ThenBy(x => x.ItemId)
+diff --git a/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj b/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj
+index 96a805fad911a8ffe5b2e6e64be4dee8735c30f5..684baaa213b9b9f19841ce865a320ea5cb238a01 100644
+--- a/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj
++++ b/src/UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj
+@@ -4,6 +4,7 @@
+     <AssemblyName>UnicoreCRM.PlatformOperations</AssemblyName>
+   </PropertyGroup>
+   <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.EventWebhook.Verifier" /></ItemGroup>
++  <ItemGroup><InternalsVisibleTo Include="UnicoreCRM.AI.ProactiveVerifier" /></ItemGroup>
+   <ItemGroup>
+     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+
