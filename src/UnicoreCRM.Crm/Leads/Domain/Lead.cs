@@ -74,6 +74,15 @@ internal sealed class Lead
 
     public long Version { get; private set; }
 
+    internal bool AssignOwner(string ownerId, DateTimeOffset now)
+    {
+        if (Profile.OwnerId == ownerId || ArchivedAt is not null || PendingCustomerConversionId is not null) return false;
+        Profile = Profile with { OwnerId = ownerId };
+        ScopeOwnerId = ownerId;
+        Touch(now);
+        return true;
+    }
+
     internal bool Claim(string actorMemberId, DateTimeOffset now)
     {
         if (Profile.OwnerId is not null || ArchivedAt is not null || PendingCustomerConversionId is not null) return false;

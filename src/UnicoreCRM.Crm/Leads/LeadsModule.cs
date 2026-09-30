@@ -32,6 +32,7 @@ internal static class LeadsModule
         services.AddScoped<Application.CreateLead.Handler>();
         services.AddScoped<Application.ReplaceLeadProfile.Handler>();
         services.AddScoped<Application.ClaimLeadFromQueue.Handler>();
+        services.AddScoped<Application.AssignLeadOwner.Handler>();
         services.AddScoped<Application.AdvanceLeadWorkState.Handler>();
         services.AddScoped<Application.DisqualifyLead.Handler>();
         services.AddScoped<Application.ReopenDisqualifiedLead.Handler>();

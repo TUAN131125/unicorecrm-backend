@@ -17,7 +17,8 @@ internal sealed class LeadAuditRecord
         DateTimeOffset occurredAt,
         string actorType = "Member",
         string? delegatedSubjectId = null,
-        string? sourceReference = null)
+        string? sourceReference = null,
+        string? evidenceJson = null)
     {
         AuditId = LeadIds.New("audit");
         Operation = operation;
@@ -33,6 +34,7 @@ internal sealed class LeadAuditRecord
         ActorType = actorType;
         DelegatedSubjectId = delegatedSubjectId;
         SourceReference = sourceReference;
+        EvidenceJson = evidenceJson;
     }
 
     public string AuditId { get; private set; } = null!;
@@ -48,5 +50,6 @@ internal sealed class LeadAuditRecord
     public DateTimeOffset OccurredAt { get; private set; }
     public string ActorType { get; private set; } = null!;
     public string? DelegatedSubjectId { get; private set; }
+    public string? EvidenceJson { get; private set; }
     public string? SourceReference { get; private set; }
 }

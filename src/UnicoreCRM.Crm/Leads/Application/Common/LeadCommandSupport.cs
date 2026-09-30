@@ -45,7 +45,8 @@ internal static class LeadCommandSupport
         string fingerprint,
         long? priorVersion,
         DateTimeOffset now,
-        object? eventEvidence = null)
+        object? eventEvidence = null,
+        object? auditEvidence = null)
     {
         var actorId = metadata.ActorId ?? trusted.MemberId;
         var audit = new LeadAuditRecord(
@@ -61,7 +62,8 @@ internal static class LeadCommandSupport
             now,
             metadata.ActorType,
             metadata.DelegatedSubjectId,
-            metadata.SourceReference);
+            metadata.SourceReference,
+            auditEvidence is null ? null : JsonSerializer.Serialize(auditEvidence, JsonOptions));
         var message = new LeadOutboxMessage(
             eventType,
             lead.LeadId,

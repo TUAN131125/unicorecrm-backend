@@ -15,7 +15,7 @@ internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence
 {
     /// <summary>
     /// Only capabilities behind an admitted Leads operation are declared. Leads has no delete,
-    /// export, approval or assignment operation, so none is declared and none can ever be granted.
+    /// export or approval operation, so none is declared and none can ever be granted.
     /// The frontend also asks about merge, consent and archive commands; none has an admitted
     /// operation here, so none is declared.
     /// </summary>
@@ -25,6 +25,7 @@ internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence
         updateCapability: LeadCapabilities.Update.Capability,
         commandCapabilities: new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["lead.assign-owner"] = LeadCapabilities.Assign.Capability,
             ["lead.claim-from-queue"] = LeadCapabilities.Claim.Capability,
             ["lead.create"] = LeadCapabilities.Create.Capability,
             ["lead.update"] = LeadCapabilities.Update.Capability,

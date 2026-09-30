@@ -1,0 +1,88 @@
+{
+  "phase": "O3",
+  "frozen": false,
+  "startingBackendSha": "118e964c021c127749a4828d6caa502dfa6f6e0b",
+  "startingFrontendSha": "d586604bf0d34d583c060bc1919473b5729db5f7",
+  "operationId": "assignLeadOwner",
+  "route": "POST /leads/{leadId}/assign",
+  "body": [
+    "ownerId",
+    "reason"
+  ],
+  "capability": "leads.assign",
+  "authority": "Current resource read + record scope + owner field write; null records additionally require queue.read; OWN-null remains denied",
+  "sameOwner": "409 LEAD_OWNER_ALREADY_ASSIGNED, no side effects",
+  "audit": "Nullable EvidenceJson records previous/new owner, reason, actor/workspace, metadata, prior/new version; transaction with owner/outbox/idempotency",
+  "taskChanges": 0,
+  "activityChanges": 0,
+  "raceEvidence": {
+    "Status": "PASS",
+    "AssignChecks": 34,
+    "HttpChecks": 185,
+    "Database": "UnicoreCRM_O2Claim_O3_20261001b",
+    "ActorA": "mem_6e40eca3e6c64d689225de663afaa1bc",
+    "ActorB": "mem_3811f35c489f44e7b6aaf87378a6c4db",
+    "TargetB": "mem_3811f35c489f44e7b6aaf87378a6c4db",
+    "TargetC": "mem_c6ba97ef4e814f779f234080749606fa",
+    "AssignRace": {
+      "InitialOwner": "mem_6e40eca3e6c64d689225de663afaa1bc",
+      "Results": [
+        200,
+        412
+      ],
+      "LeadId": "lead_8a6f126ed9e34bc19e8090dde90a34f7",
+      "FinalOwner": "mem_3811f35c489f44e7b6aaf87378a6c4db",
+      "Version": 1,
+      "InitialVersion": 0,
+      "Event": 1,
+      "Audit": 1
+    },
+    "MixedRace": {
+      "InitialOwner": null,
+      "Results": [
+        409,
+        200
+      ],
+      "LeadId": "lead_4635d8d06e5a41379aa1c55007584b7d",
+      "FinalOwner": "mem_3811f35c489f44e7b6aaf87378a6c4db",
+      "Version": 1,
+      "InitialVersion": 0,
+      "Event": 1,
+      "Audit": 1
+    },
+    "TaskChanges": 0,
+    "ActivityChanges": 0
+  },
+  "accessControl": {
+    "pass": 567,
+    "fail": 0
+  },
+  "frontendBaselineFailures": [
+    "Products effective record access boundary",
+    "Lead export visibility assertion",
+    "AI route guidance catalog/coverage",
+    "AI guidance runtime resolution",
+    "ContactDetail presentation responsibility",
+    "Pinned unrelated mutation inventory",
+    "Backend readiness document scan includes pre-existing ignored test-result Markdown",
+    "Architecture violations (all current 13 in baseline 35)"
+  ],
+  "localEvidenceDirectory": "D:\\Project_All\\UnicoreCRM-o3-evidence",
+  "limitations": [
+    "JSDOM/HTTP frontend fixtures are not connected browser E2E",
+    "Independent source review is not an attested freeze approval"
+  ],
+  "futureOperations": {
+    "claimLeadFromQueue": "AVAILABLE",
+    "assignLeadOwner": "AVAILABLE",
+    "assignLeadOwnerBatch": "UNAVAILABLE",
+    "handoverLeadWithTasks": "UNAVAILABLE"
+  },
+  "activityFixtureCount": 3,
+  "taskFixtureCount": 13,
+  "sourceReview": {
+    "backend": "No unresolved findings after race/replay evidence fixes",
+    "frontend": "No unresolved findings after Task-read gating, retained dialog/authority loading and deferred version observation fixes",
+    "attestedFreeze": false
+  }
+}

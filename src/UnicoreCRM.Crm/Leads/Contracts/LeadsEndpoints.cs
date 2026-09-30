@@ -22,6 +22,7 @@ public static class LeadsEndpoints
         MapPost(endpoints, "/leads/{leadId}/archive", ArchiveLeadAsync, "archiveLead");
         MapPost(endpoints, "/leads/archive-batch", ArchiveLeadBatchAsync, "archiveLeadBatch");
         MapPost(endpoints, "/workflows/lead-queue/{leadId}/claim", ClaimLeadFromQueueAsync, "claimLeadFromQueue");
+        MapPost(endpoints, "/leads/{leadId}/assign", AssignLeadOwnerAsync, "assignLeadOwner");
         return endpoints;
     }
 
@@ -86,6 +87,11 @@ public static class LeadsEndpoints
             cancellationToken);
         return LeadsHttp.Result(result, metadata.CorrelationId);
     }
+
+    private static Task<IResult> AssignLeadOwnerAsync(
+        string leadId, HttpContext context, Application.AssignLeadOwner.Handler handler, CancellationToken cancellationToken) =>
+        ExecuteCommandAsync<AssignLeadOwnerRequest>(leadId, context, cancellationToken,
+            (request, metadata) => handler.HandleAsync(new(leadId, request, metadata), cancellationToken));
 
     private static Task<IResult> ClaimLeadFromQueueAsync(
         string leadId, HttpContext context, Application.ClaimLeadFromQueue.Handler handler, CancellationToken cancellationToken) =>
