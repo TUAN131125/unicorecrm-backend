@@ -27,6 +27,11 @@ internal static class AtomicModule
         services.AddScoped<Contracts.ILeadCustomerConversionWorkflow>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
         services.AddScoped<Application.ConvertLeadToCustomer.ILeadCustomerConversionRecoveryRunner>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
         services.AddHostedService<Application.ConvertLeadToCustomer.RecoveryService>();
+        services.AddScoped<Application.HandoverLead.Handler>();
+        services.AddScoped<Contracts.ILeadHandoverWorkflow>(sp => sp.GetRequiredService<Application.HandoverLead.Handler>());
+        services.AddScoped<Application.HandoverLead.ILeadHandoverRecoveryRunner>(sp => sp.GetRequiredService<Application.HandoverLead.Handler>());
+        services.AddSingleton<Application.HandoverLead.ILeadHandoverFaultInjector, Application.HandoverLead.NoopLeadHandoverFaultInjector>();
+        services.AddHostedService<Application.HandoverLead.RecoveryService>();
         return services;
     }
 }

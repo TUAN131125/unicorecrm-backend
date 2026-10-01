@@ -15,6 +15,35 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
     public Task<TaskItem?> LoadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken) =>
         dbContext.Tasks.SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.TaskId == taskId, cancellationToken);
 
+    public Task<TaskIdempotencyRecord?> FindLeadHandoverIdempotencyForUpdateAsync(string scopeKey, CancellationToken cancellationToken)
+    {
+        RequireTransaction();
+        return dbContext.IdempotencyRecords.FromSqlInterpolated($"SELECT * FROM [tasks].[IdempotencyRecords] WITH (UPDLOCK, HOLDLOCK) WHERE [ScopeKey] = {scopeKey}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TaskItem>> LoadEligibleLeadHandoverTasksForUpdateAsync(string workspaceId, string leadId, CancellationToken cancellationToken)
+    {
+        RequireTransaction();
+        var items = await dbContext.Tasks.FromSqlInterpolated($"SELECT * FROM [tasks].[Tasks] WITH (UPDLOCK, HOLDLOCK, INDEX(IX_Tasks_LeadHandover)) WHERE [WorkspaceId] = {workspaceId} AND [RecordModuleKey] = N'leads' AND [RecordId] = {leadId} AND [Status] = 0 AND [ArchivedAt] IS NULL")
+            .AsNoTracking().OrderBy(item => item.TaskId).ToListAsync(cancellationToken);
+        // Preflight may use this same scoped context. Never let its tracked objects replace the
+        // authoritative rows freshly read under the commit transaction's locks.
+        foreach (var item in items)
+        {
+            var tracked = dbContext.Tasks.Local.SingleOrDefault(existing => existing.TaskId == item.TaskId);
+            if (tracked is not null) dbContext.Entry(tracked).State = EntityState.Detached;
+            dbContext.Tasks.Attach(item);
+        }
+        return items;
+    }
+
+    private void RequireTransaction()
+    {
+        if (dbContext.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.Serializable)
+            throw new InvalidOperationException("Lead Handover requires a Tasks-owned Serializable transaction.");
+    }
+
     public Task<TaskItem?> ReadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken) =>
         dbContext.Tasks.AsNoTracking().SingleOrDefaultAsync(item => item.WorkspaceId == workspaceId && item.TaskId == taskId, cancellationToken);
 

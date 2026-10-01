@@ -4,6 +4,7 @@
     <AssemblyName>UnicoreCRM.Workflows</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="UnicoreCRM.LeadHandover.RealVerifier" />
     <InternalsVisibleTo Include="UnicoreCRM.LeadCustomerConversion.RealVerifier" />
     <InternalsVisibleTo Include="UnicoreCRM.EventWebhook.Verifier" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

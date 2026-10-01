@@ -21,6 +21,7 @@ internal static class TasksModule
             "tasks",
             (provider, cancellationToken) => provider.GetRequiredService<TasksDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<TaskAuthorization>();
+        services.AddScoped<Contracts.ILeadHandoverTaskParticipant, Application.LeadHandover.Participant>();
         services.AddScoped<TaskMutationExecution>();
         services.AddScoped<Contracts.ITaskSummaryReader, Application.ReadTaskSummary.TaskSummaryReader>();
         services.AddScoped<Application.ListTasks.Handler>();

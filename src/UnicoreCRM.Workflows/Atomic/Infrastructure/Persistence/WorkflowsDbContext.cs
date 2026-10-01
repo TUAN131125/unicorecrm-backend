@@ -11,6 +11,7 @@ namespace UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> options) : DbContext(options)
 {
     internal DbSet<LeadQualificationAnchor> LeadQualificationAnchors => Set<LeadQualificationAnchor>();
+    internal DbSet<LeadHandoverAnchor> LeadHandoverAnchors => Set<LeadHandoverAnchor>();
     internal DbSet<LeadCustomerConversionAnchor> LeadCustomerConversionAnchors => Set<LeadCustomerConversionAnchor>();
     internal DbSet<WorkflowIntegrationOutboxMessage> IntegrationOutboxMessages => Set<WorkflowIntegrationOutboxMessage>();
 
@@ -51,6 +52,27 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
             entity.HasIndex(item => new { item.WorkspaceId, item.LeadId });
             // The resume scan: outstanding anchors, oldest first.
             entity.HasIndex(item => new { item.Stage, item.UpdatedAt });
+        });
+        modelBuilder.Entity<LeadHandoverAnchor>(entity =>
+        {
+            entity.ToTable("LeadHandoverAnchors");
+            entity.HasKey(x => x.ScopeKey);
+            entity.Property(x => x.ScopeKey).HasMaxLength(64);
+            entity.HasIndex(x => x.HandoverId).IsUnique();
+            foreach (var name in new[] { "HandoverId", "WorkspaceId", "LeadId", "IdempotencyKey", "OriginalAccountId", "OriginalMemberId", "OriginalMembershipId", "OriginalPrincipalId", "CorrelationId", "RequestId", "PreviousOwnerId", "NewOwnerId", "ExecutionAttemptId", "ExecutionPrincipalId" })
+                entity.Property(name).HasMaxLength(128);
+            entity.Property(x => x.ActiveLeadKey).HasMaxLength(257);
+            entity.HasIndex(x => x.ActiveLeadKey).IsUnique().HasFilter("[ActiveLeadKey] IS NOT NULL");
+            entity.Property(x => x.RequestFingerprint).HasMaxLength(64);
+            entity.Property(x => x.Reason).HasMaxLength(1000);
+            entity.Property(x => x.OpenTaskPolicy).HasMaxLength(64);
+            entity.Property(x => x.Stage).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.LastErrorCategory).HasMaxLength(32);
+            entity.Property(x => x.LastErrorCode).HasMaxLength(128);
+            foreach (var name in new[] { "ExpectedLeadVersion", "ResolvedSlaHours", "HandoverOccurredAt", "TakeoverDueAt", "CreatedAt", "CompletedAt", "AttemptCount", "ExecutionLeaseAcquiredAt", "ExecutionLeaseExpiresAt", "ResponseJson", "TasksResultJson", "LeadResultJson", "EmittedEventIdsJson", "AuditEvidenceIdsJson" })
+                entity.Property(name);
+            entity.Property(x => x.RowVersion).IsRowVersion();
+            entity.HasIndex(x => new { x.Stage, x.NextRetryAt, x.UpdatedAt });
         });
         modelBuilder.Entity<LeadCustomerConversionAnchor>(entity =>
         {

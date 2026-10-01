@@ -44,6 +44,7 @@ internal static class LeadsModule
             Application.QualifyLeadForNurture.Handler>();
         services.AddScoped<Contracts.ILeadOpportunityQualificationParticipant,
             Application.QualifyLeadForNurture.Handler>();
+        services.AddScoped<Contracts.ILeadHandoverParticipant, Application.HandoverLead.Participant>();
         services.AddScoped<Contracts.ILeadCustomerConversionParticipant,
             Application.RecordCustomerConversion.Handler>();
         // Leads publishes its own record-access facts to AccessControl. AccessControl never reaches

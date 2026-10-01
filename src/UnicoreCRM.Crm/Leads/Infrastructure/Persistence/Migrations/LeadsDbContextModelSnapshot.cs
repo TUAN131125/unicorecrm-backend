@@ -66,6 +66,10 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("PendingHandoverId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("PhoneSearchText")
                         .IsRequired()
                         .HasMaxLength(160)

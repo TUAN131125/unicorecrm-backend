@@ -135,6 +135,7 @@ app.MapAccessControlEndpoints();
 app.MapDurableWorkflowEndpoints();
 app.MapLeadQualificationEndpoints();
 app.MapLeadCustomerConversionEndpoints();
+app.MapLeadHandoverEndpoints();
 app.MapTasksEndpoints();
 app.MapSupportEndpoints();
 app.MapLeadsEndpoints();

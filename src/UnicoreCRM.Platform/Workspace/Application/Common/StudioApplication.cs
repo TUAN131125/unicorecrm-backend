@@ -86,7 +86,7 @@ internal static class StudioDefaults
             []);
         var blueprint = new WorkspaceBlueprintDocument(
             "B2B",
-            new WorkspaceWorkflowDocument("OPTIONAL", "QUOTE", null, null, null, "COMPANY", "SUBSCRIPTION", "ENTERPRISE_SALES", "B2B_SALES"));
+            new WorkspaceWorkflowDocument("OPTIONAL", "QUOTE", null, null, null, "COMPANY", "SUBSCRIPTION", "ENTERPRISE_SALES", "B2B_SALES", 24));
         var enabled = enabledModuleKeys.ToHashSet(StringComparer.Ordinal);
         var features = new WorkspaceFeatureUsageDocument(
             enabled.Contains("leads"),
@@ -223,6 +223,8 @@ internal static class StudioValidation
         else
         {
             var workflow = request.Blueprint.Workflow;
+            if (workflow.HandoverAcceptanceSlaHours is < 1 or > 168)
+                fields["blueprint.workflow.handoverAcceptanceSlaHours"] = ["handoverAcceptanceSlaHours must be between 1 and 168 elapsed hours."];
             if (request.Blueprint.BusinessModel is not ("B2B" or "B2C" or "HYBRID")
                 || workflow.DealUsageMode is not ("OPTIONAL" or "DISABLED")
                 || workflow.QuoteUsageMode is not ("QUOTE" or "OFFER" or "PROPOSAL" or "DISABLED")

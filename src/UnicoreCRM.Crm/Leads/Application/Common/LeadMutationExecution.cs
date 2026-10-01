@@ -27,7 +27,7 @@ internal sealed class LeadMutationExecution(
         // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
         // Record scope is current authorization, not a business precondition, so a caller who no
         // longer reaches a lead must not be able to replay a committed command against it.
-        var guarded = await persistence.ReadLeadAsync(trusted.WorkspaceId, leadId, cancellationToken);
+        var guarded = await persistence.LoadLeadForClaimAsync(trusted.WorkspaceId, leadId, cancellationToken);
         if (guarded is null)
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.NotFound());
         var guardError = await recordGuard(access, guarded);
@@ -64,12 +64,14 @@ internal sealed class LeadMutationExecution(
                 return LeadOperationResult<LeadMutationResponse>.Failure(preconditionError);
         }
 
-        var lead = await persistence.LoadLeadAsync(trusted.WorkspaceId, leadId, cancellationToken);
+        var lead = guarded;
         if (lead is null)
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.NotFound());
         var expectedVersion = metadata.ExpectedVersion!.Value;
         if (lead.Version != expectedVersion)
             return LeadOperationResult<LeadMutationResponse>.Failure(LeadErrors.VersionConflict(lead.LeadId, expectedVersion, lead.Version));
+        if (lead.PendingHandoverId is not null)
+            return LeadOperationResult<LeadMutationResponse>.Failure(new("LEAD_HANDOVER_IN_PROGRESS", 409, "Lead is reserved for handover"));
         var priorVersion = lead.Version;
         var now = timeProvider.GetUtcNow();
         var mutationError = mutate(lead, now);

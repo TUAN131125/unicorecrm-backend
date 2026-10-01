@@ -6,6 +6,7 @@ namespace UnicoreCRM.Crm.Leads.Contracts;
 public static class LeadCapabilities
 {
     public static AccessRequirement Read { get; } = AccessRequirement.ForCanonicalCapability("leads.read");
+    public static AccessRequirement Handover { get; } = AccessRequirement.ForCanonicalCapability("leads.handover");
     public static AccessRequirement Assign { get; } = AccessRequirement.ForCanonicalCapability("leads.assign");
     public static AccessRequirement Claim { get; } = AccessRequirement.ForCanonicalCapability("leads.claim");
     public static AccessRequirement QueueRead { get; } = AccessRequirement.ForCanonicalCapability("leads.queue.read");

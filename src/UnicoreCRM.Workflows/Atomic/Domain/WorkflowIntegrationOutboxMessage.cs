@@ -14,6 +14,15 @@ internal sealed class WorkflowIntegrationOutboxMessage
         IntegrationEnvelopeJson=IntegrationEventSerialization.CreateEnvelope(EventId,WorkflowIntegrationEvents.LeadCustomerConverted,
             anchor.WorkspaceId,"Workflows","LEAD_CUSTOMER_CONVERSION",anchor.ConversionId,anchor.LeadVersion,occurredAt,anchor.CorrelationId,data);
     }
+    internal WorkflowIntegrationOutboxMessage(LeadHandoverAnchor anchor, long leadVersion, DateTimeOffset occurredAt)
+    {
+        EventId=$"workflow_event_{Guid.NewGuid():N}";WorkspaceId=anchor.WorkspaceId;CorrelationId=anchor.CorrelationId;
+        OccurredAt=occurredAt;ExportState="PENDING";
+        IntegrationEnvelopeJson=IntegrationEventSerialization.CreateEnvelope(EventId,WorkflowIntegrationEvents.LeadHandoverCompleted,
+            anchor.WorkspaceId,"Workflows","LEAD_HANDOVER",anchor.HandoverId,leadVersion,occurredAt,anchor.CorrelationId,
+            new { anchor.HandoverId, anchor.LeadId, anchor.PreviousOwnerId, anchor.NewOwnerId, anchor.OpenTaskPolicy,
+                anchor.Reason, anchor.HandoverOccurredAt, anchor.TakeoverDueAt, anchor.ResolvedSlaHours });
+    }
     internal string EventId{get;private set;}=null!; internal string WorkspaceId{get;private set;}=null!; internal string CorrelationId{get;private set;}=null!;
     internal DateTimeOffset OccurredAt{get;private set;} internal string IntegrationEnvelopeJson{get;private set;}=null!; internal string? ExportState{get;private set;}
     internal int ExportAttemptCount{get;private set;} internal string? RelayAttemptId{get;private set;} internal DateTimeOffset? LeaseExpiresAt{get;private set;}

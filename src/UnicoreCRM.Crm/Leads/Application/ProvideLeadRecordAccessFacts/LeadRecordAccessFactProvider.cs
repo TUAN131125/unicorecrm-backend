@@ -26,6 +26,7 @@ internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence
         commandCapabilities: new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["lead.assign-owner"] = LeadCapabilities.Assign.Capability,
+            ["lead.handover"] = LeadCapabilities.Handover.Capability,
             ["lead.claim-from-queue"] = LeadCapabilities.Claim.Capability,
             ["lead.create"] = LeadCapabilities.Create.Capability,
             ["lead.update"] = LeadCapabilities.Update.Capability,

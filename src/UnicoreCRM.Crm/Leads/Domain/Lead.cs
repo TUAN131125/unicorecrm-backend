@@ -71,12 +71,13 @@ internal sealed class Lead
     public string? DealRef { get; private set; }
     public string? CustomerRef { get; private set; }
     public string? PendingCustomerConversionId { get; private set; }
+    public string? PendingHandoverId { get; private set; }
 
     public long Version { get; private set; }
 
     internal bool AssignOwner(string ownerId, DateTimeOffset now)
     {
-        if (Profile.OwnerId == ownerId || ArchivedAt is not null || PendingCustomerConversionId is not null) return false;
+        if (Profile.OwnerId == ownerId || ArchivedAt is not null || PendingCustomerConversionId is not null || PendingHandoverId is not null) return false;
         Profile = Profile with { OwnerId = ownerId };
         ScopeOwnerId = ownerId;
         Touch(now);
@@ -85,7 +86,7 @@ internal sealed class Lead
 
     internal bool Claim(string actorMemberId, DateTimeOffset now)
     {
-        if (Profile.OwnerId is not null || ArchivedAt is not null || PendingCustomerConversionId is not null) return false;
+        if (Profile.OwnerId is not null || ArchivedAt is not null || PendingCustomerConversionId is not null || PendingHandoverId is not null) return false;
         Profile = Profile with { OwnerId = actorMemberId };
         ScopeOwnerId = actorMemberId;
         Touch(now);
@@ -94,6 +95,7 @@ internal sealed class Lead
 
     internal void ReplaceProfile(LeadProfile profile, DateTimeOffset now)
     {
+        if (PendingHandoverId is not null) throw new InvalidOperationException("Lead is reserved for handover.");
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;
         SearchText = BuildSearchText(LeadId, profile);
@@ -106,7 +108,7 @@ internal sealed class Lead
         LeadVerificationProfile verification,
         DateTimeOffset now)
     {
-        if (PendingCustomerConversionId is not null || WorkState == LeadWorkState.Closed
+        if (PendingCustomerConversionId is not null || PendingHandoverId is not null || WorkState == LeadWorkState.Closed
             || target == LeadWorkState.Closed
             || (WorkState != target
                 && (WorkState, target) is not (LeadWorkState.New, LeadWorkState.Contacting)
@@ -129,7 +131,7 @@ internal sealed class Lead
 
     internal bool Disqualify(string reason, string? evidence, string actorId, DateTimeOffset now)
     {
-        if (PendingCustomerConversionId is not null || WorkState == LeadWorkState.Closed)
+        if (PendingCustomerConversionId is not null || PendingHandoverId is not null || WorkState == LeadWorkState.Closed)
             return false;
         WorkState = LeadWorkState.Closed;
         QualificationOutcome = LeadQualificationOutcome.Disqualified;
@@ -151,7 +153,7 @@ internal sealed class Lead
     /// </summary>
     internal bool QualifyForNurture(string contactId, DateTimeOffset now)
     {
-        if (PendingCustomerConversionId is not null || WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
+        if (PendingCustomerConversionId is not null || PendingHandoverId is not null || WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
             return false;
 
         WorkState = LeadWorkState.Closed;
@@ -165,7 +167,7 @@ internal sealed class Lead
 
     internal bool QualifyForOpportunity(string contactId, string dealId, DateTimeOffset now)
     {
-        if (PendingCustomerConversionId is not null || WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
+        if (PendingCustomerConversionId is not null || PendingHandoverId is not null || WorkState != LeadWorkState.Verifying || !Profile.HasProgressiveProfile())
             return false;
 
         WorkState = LeadWorkState.Closed;
@@ -179,7 +181,7 @@ internal sealed class Lead
 
     internal bool Reopen(DateTimeOffset now)
     {
-        if (PendingCustomerConversionId is not null || WorkState != LeadWorkState.Closed
+        if (PendingCustomerConversionId is not null || PendingHandoverId is not null || WorkState != LeadWorkState.Closed
             || QualificationOutcome != LeadQualificationOutcome.Disqualified
             || !Profile.HasProgressiveProfile())
         {
@@ -201,6 +203,7 @@ internal sealed class Lead
 
     internal LeadCustomerConversionReservationResult ReserveCustomerConversion(string conversionId, DateTimeOffset now)
     {
+        if (PendingHandoverId is not null) return LeadCustomerConversionReservationResult.ConflictingReservation;
         if (CustomerRef is not null) return LeadCustomerConversionReservationResult.AlreadyConverted;
         if (PendingCustomerConversionId == conversionId) return LeadCustomerConversionReservationResult.Replayed;
         if (PendingCustomerConversionId is not null) return LeadCustomerConversionReservationResult.ConflictingReservation;
@@ -238,7 +241,7 @@ internal sealed class Lead
 
     internal bool Archive(string? reason, DateTimeOffset now)
     {
-        if (PendingCustomerConversionId is not null || ArchivedAt is not null)
+        if (PendingCustomerConversionId is not null || PendingHandoverId is not null || ArchivedAt is not null)
             return false;
 
         ArchivedAt = now;
@@ -251,6 +254,35 @@ internal sealed class Lead
     {
         UpdatedAt = now;
         Version++;
+    }
+
+    internal bool ReserveHandover(string handoverId, string previousOwnerId, DateTimeOffset now)
+    {
+        if (PendingHandoverId == handoverId) return true;
+        if (PendingHandoverId is not null || PendingCustomerConversionId is not null || ArchivedAt is not null
+            || Profile.OwnerId is null || Profile.OwnerId != previousOwnerId) return false;
+        PendingHandoverId = handoverId;
+        Touch(now);
+        return true;
+    }
+
+    internal bool CompleteHandover(string handoverId, string previousOwnerId, string newOwnerId, DateTimeOffset now)
+    {
+        if (PendingHandoverId != handoverId || Profile.OwnerId != previousOwnerId || newOwnerId == previousOwnerId
+            || ArchivedAt is not null || PendingCustomerConversionId is not null) return false;
+        Profile = Profile with { OwnerId = newOwnerId };
+        ScopeOwnerId = newOwnerId;
+        PendingHandoverId = null;
+        Touch(now);
+        return true;
+    }
+
+    internal bool ReleaseHandover(string handoverId, DateTimeOffset now)
+    {
+        if (PendingHandoverId != handoverId) return false;
+        PendingHandoverId = null;
+        Touch(now);
+        return true;
     }
 
     private bool IsEligibleForCustomerConversion() => WorkState != LeadWorkState.Closed

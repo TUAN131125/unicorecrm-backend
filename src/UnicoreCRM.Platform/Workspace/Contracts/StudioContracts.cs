@@ -69,7 +69,8 @@ public sealed record WorkspaceWorkflowDocument(
     string DefaultCustomerType,
     string DefaultRevenueModel,
     string SalesMotion,
-    string PipelineTemplate);
+    string PipelineTemplate,
+    int HandoverAcceptanceSlaHours = 24);
 
 public sealed record WorkspaceBlueprintDocument(string BusinessModel, WorkspaceWorkflowDocument Workflow);
 

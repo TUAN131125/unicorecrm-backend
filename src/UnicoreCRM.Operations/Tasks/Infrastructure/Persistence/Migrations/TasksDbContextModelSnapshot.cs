@@ -313,6 +313,9 @@ namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "AssigneeId", "UpdatedAt", "TaskId");
 
+                    b.HasIndex("WorkspaceId", "RecordModuleKey", "RecordId", "Status", "ArchivedAt", "TaskId")
+                        .HasDatabaseName("IX_Tasks_LeadHandover");
+
                     b.ToTable("Tasks", "tasks");
                 });
 

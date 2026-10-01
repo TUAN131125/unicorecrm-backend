@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>UnicoreCRM.LeadHandover.WorkspaceVerifier</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Update="PreHandoverOwnerCapabilities.txt" CopyToOutputDirectory="PreserveNewest" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+  </ItemGroup>
+</Project>

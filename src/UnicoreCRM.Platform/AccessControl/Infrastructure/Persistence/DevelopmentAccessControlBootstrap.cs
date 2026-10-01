@@ -89,6 +89,12 @@ internal sealed class DevelopmentAccessControlBootstrap(
             else
                 revision.Advance();
         }
+        // Development workspaces are created after schema migrations, so their recovery grant
+        // must be provisioned here rather than relying on the existing-workspace backfill.
+        if (!await dbContext.WorkspaceServiceCapabilityGrants.AnyAsync(item => item.WorkspaceId == workspace.WorkspaceId
+            && item.ServicePrincipalId == "svc_lead_handover_recovery" && item.Capability == "leads.handover.recover", cancellationToken))
+            dbContext.WorkspaceServiceCapabilityGrants.Add(new WorkspaceServiceCapabilityGrant(workspace.WorkspaceId,
+                "svc_lead_handover_recovery", "leads.handover.recover", now));
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         logger.LogInformation(

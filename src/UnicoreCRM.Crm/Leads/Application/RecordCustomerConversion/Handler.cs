@@ -54,7 +54,7 @@ internal sealed class Handler(LeadAuthorization authorization, ILeadsPersistence
             var replayLead = await persistence.ReadLeadAsync(command.TrustedWorkspace.WorkspaceId, command.LeadId, cancellationToken);
             return new(true, true, replay.Version, replayLead?.Profile.OwnerId, replay.EmittedEventIds, replay.AuditEvidenceIds, null, null);
         }
-        var lead = await persistence.LoadLeadAsync(command.TrustedWorkspace.WorkspaceId, command.LeadId, cancellationToken);
+        var lead = await persistence.LoadLeadForClaimAsync(command.TrustedWorkspace.WorkspaceId, command.LeadId, cancellationToken);
         if (lead is null) return ReservationFailure("RESOURCE_NOT_FOUND", 404);
         if (lead.Version != command.ExpectedLeadVersion) return ReservationFailure("VERSION_CONFLICT", 412);
         var before = lead.Version; var result = lead.ReserveCustomerConversion(command.ConversionId, timeProvider.GetUtcNow());
@@ -76,7 +76,7 @@ internal sealed class Handler(LeadAuthorization authorization, ILeadsPersistence
         var fingerprint = LeadCommandSupport.Fingerprint(new { command.LeadId, command.ConversionId });
         var prior = await persistence.FindIdempotencyAsync(scope, cancellationToken);
         if (prior is not null) { var replay = LeadCommandSupport.Replay(prior); return prior.Fingerprint == fingerprint ? new(true,true,replay.Version,null,replay.EmittedEventIds,replay.AuditEvidenceIds,null,null) : ReservationFailure("IDEMPOTENCY_KEY_REUSED",409); }
-        var lead = await persistence.LoadLeadAsync(command.TrustedWorkspace.WorkspaceId, command.LeadId, cancellationToken);
+        var lead = await persistence.LoadLeadForClaimAsync(command.TrustedWorkspace.WorkspaceId, command.LeadId, cancellationToken);
         if (lead is null) return ReservationFailure("RESOURCE_NOT_FOUND",404);
         var before=lead.Version;if(!lead.ReleaseCustomerConversion(command.ConversionId,timeProvider.GetUtcNow()))return ReservationFailure("LEAD_ALREADY_CONVERTED",409);
         var response=CommitParticipant(lead,command.TrustedWorkspace,command.ParticipantKey,command.RequestId,command.CorrelationId,command.OriginalPrincipalId,command.ExecutorPrincipalId,command.ConversionId,"releaseLeadCustomerConversion","LEAD_CUSTOMER_CONVERSION_RESERVATION_RELEASED",scope,fingerprint,before);
@@ -97,7 +97,7 @@ internal sealed class Handler(LeadAuthorization authorization, ILeadsPersistence
             var replay = LeadCommandSupport.Replay(prior);
             return new(true, true, replay.Version, replay.CommandId, replay.EmittedEventIds, replay.AuditEvidenceIds, null, null);
         }
-        var lead = await persistence.LoadLeadAsync(command.TrustedWorkspace.WorkspaceId, command.LeadId, cancellationToken);
+        var lead = await persistence.LoadLeadForClaimAsync(command.TrustedWorkspace.WorkspaceId, command.LeadId, cancellationToken);
         if (lead is null) return Failure("RESOURCE_NOT_FOUND", 404);
         var before = lead.Version;
         var result = lead.RecordCustomerConversion(command.WorkflowId, command.ProtocolVersion >= 2, command.CustomerId, timeProvider.GetUtcNow());

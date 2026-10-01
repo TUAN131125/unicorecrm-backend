@@ -14,14 +14,17 @@ internal sealed class EfInitialWorkspaceAccessPersistence(AccessControlDbContext
 
     public async Task EnsureRecoveryServiceGrantAsync(string workspaceId, CancellationToken cancellationToken)
     {
-        const string principal = "svc_lead_customer_conversion_recovery";
-        const string capability = "leads.convert_to_customer.recover";
-        if (await dbContext.WorkspaceServiceCapabilityGrants.AsNoTracking().AnyAsync(x =>
-            x.WorkspaceId == workspaceId && x.ServicePrincipalId == principal && x.Capability == capability, cancellationToken)) return;
-        dbContext.WorkspaceServiceCapabilityGrants.Add(new WorkspaceServiceCapabilityGrant(workspaceId, principal, capability, DateTimeOffset.UtcNow));
-        try { await dbContext.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: DuplicateKey or UniqueConstraint })
-        { dbContext.ChangeTracker.Clear(); }
+        foreach (var (principal, capability) in new[] {
+            ("svc_lead_customer_conversion_recovery", "leads.convert_to_customer.recover"),
+            ("svc_lead_handover_recovery", "leads.handover.recover") })
+        {
+            if (await dbContext.WorkspaceServiceCapabilityGrants.AsNoTracking().AnyAsync(x =>
+                x.WorkspaceId == workspaceId && x.ServicePrincipalId == principal && x.Capability == capability, cancellationToken)) continue;
+            dbContext.WorkspaceServiceCapabilityGrants.Add(new WorkspaceServiceCapabilityGrant(workspaceId, principal, capability, DateTimeOffset.UtcNow));
+            try { await dbContext.SaveChangesAsync(cancellationToken); }
+            catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: DuplicateKey or UniqueConstraint })
+            { dbContext.ChangeTracker.Clear(); }
+        }
     }
 
     public async Task<InitialWorkspaceAccessAnchor?> FindAssignedRoleAsync(
