@@ -20,13 +20,12 @@ $hostProcess=$null
 $o4=[Collections.Generic.List[string]]::new()
 $races=[Collections.Generic.List[object]]::new()
 $verifierDll=(Resolve-Path "$PSScriptRoot/LeadHandoverRealVerifier/bin/Debug/net10.0/UnicoreCRM.LeadHandover.RealVerifier.dll").Path
-$keep='KEEP_CURRENT_ASSIGNEES';$move='MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER'
 function Check-O4([bool] $condition,[string] $name) { if (!$condition) { throw "O4: $name" };$o4.Add($name) }
-function Handover-Body([string] $owner,[string] $policy=$keep,[string] $reason='Territory handover') {
-    return @{newOwnerId=$owner;reason=$reason;openTaskPolicy=$policy}|ConvertTo-Json -Compress
+function Handover-Body([string] $owner,[string] $reason='Territory handover') {
+    return @{nextOwnerId=$owner;reason=$reason}|ConvertTo-Json -Compress
 }
-function Handover([string] $id,[string] $owner,[string] $key,[long] $version=0,[string] $policy=$keep,[string] $reason='Territory handover') {
-    return Send-Json 'POST' "/leads/$id/handover" (Handover-Body $owner $policy $reason) (Claim-Headers $authorization ("handover-"+$key) $version)
+function Handover([string] $id,[string] $owner,[string] $key,[long] $version=0,[string] $reason='Territory handover') {
+    return Send-Json 'POST' "/workflows/lead-handover/$id" (Handover-Body $owner $reason) (Claim-Headers $authorization ("handover-"+$key) $version)
 }
 function Owned-Lead([string] $name) {
     $id=New-QueueLead $name
@@ -51,6 +50,8 @@ function Assert-Completion([string] $id,$doc,[string] $owner,[int] $sla) {
     Check-O4 ($doc.result.lead.ownerId -eq $owner) 'Result contains authoritative Lead owner'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$id' AND ScopeOwnerId='$owner' AND JSON_VALUE(Profile,'$.ownerId')='$owner' AND PendingHandoverId IS NULL;") -eq '1') 'Lead completion clears exact reservation'
     $task=$doc.result.handoverTaskId;$anchor=$doc.commandId
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor' AND LeadId='$id' AND WorkspaceId='$workspaceId' AND NewOwnerId='$owner' AND Reason='Territory handover' AND LEN(RequestFingerprint)=64;") -eq '1') 'Anchor persists canonical owner reason and request fingerprint'
+
     Check-O4 ($doc.version -eq (Lead-Version $id)) 'Response Lead version matches committed SQL version'
     # PowerShell 7 can deserialize ISO strings as DateTime; a direct cast preserves subsecond ticks.
     Check-O4 ([DateTimeOffset]$doc.result.handoverTaskDueAt -eq [DateTimeOffset]::Parse((Invoke-SqlScalar "SELECT CONVERT(varchar(40),TakeoverDueAt,127) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';"))) 'Public dueAt matches frozen SQL instant'
@@ -79,6 +80,15 @@ function Race-O4($left,$right) {
     } finally { $left.Dispose();$right.Dispose();if($a.Status -eq 'RanToCompletion'){$a.Result.Dispose()};if($b.Status -eq 'RanToCompletion'){$b.Result.Dispose()} }
 }
 try {
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('workflow.LeadHandoverAnchors') AND name='OpenTaskPolicy';") -eq '0') 'Fresh migrated anchor has no OpenTaskPolicy column'
+    # NextOwnerId deliberately maps to historical NewOwnerId storage; migration history is preserved.
+    foreach($column in @('PreviousOwnerId','NewOwnerId','Reason','RequestFingerprint','ResolvedSlaHours','HandoverOccurredAt','TakeoverDueAt','ActiveLeadKey','OriginalPrincipalId','ExecutionPrincipalId','ResponseJson')) {
+        Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('workflow.LeadHandoverAnchors') AND name='$column';") -eq '1') "Canonical persisted anchor field $column exists"
+    }
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.__EFMigrationsHistory WHERE MigrationId IN ('20261001044323_LeadHandoverAnchor','20261001105512_CanonicalLeadHandoverContract');") -eq '2') 'Original and corrective Workflow migration history both retained'
+    $canonicalMigration=Get-Content "$PSScriptRoot/../src/UnicoreCRM.Workflows/Atomic/Infrastructure/Persistence/Migrations/20261001105512_CanonicalLeadHandoverContract.cs" -Raw
+    $canonicalUp=$canonicalMigration.Substring($canonicalMigration.IndexOf('protected override void Up'),$canonicalMigration.IndexOf('protected override void Down')-$canonicalMigration.IndexOf('protected override void Up'))
+    Check-O4 ($canonicalUp.Contains('[ActiveLeadKey] IS NOT NULL') -and $canonicalUp.IndexOf('THROW 51000') -ge 0 -and $canonicalUp.IndexOf('THROW 51000') -lt $canonicalUp.IndexOf('migrationBuilder.DropColumn')) 'Corrective Up guards active historical anchors before policy drop'
     # The inherited ingress bootstrap predates Studio. Use current production defaults for this fixture.
     $env:LeadHandoverVerifier__WorkspaceId=$workspaceId
     & dotnet $verifierDll --seed-studio | Out-Host
@@ -91,8 +101,8 @@ try {
     $hostProcess=Start-ApiHost $false $workspaceId $memberId
     Invoke-Sql "UPDATE integration.InboundBindings SET IsEnabled=1,DelegatedMemberId='$memberId' WHERE IntegrationId='int_inbound_lead_webhook';"
     $lead=Owned-Lead 'O4 Validation';$nullLead=New-QueueLead 'O4 Unassigned'
-    Assert-Status (Handover $lead $bMember 'o4-no-handover') 403 'Missing leads.handover'
-    Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','leads.handover'),('$roleId','leads.assign');"
+    Assert-Status (Handover $lead $bMember 'o4-no-assign') 403 'Missing leads.assign'
+    Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','leads.assign');"
     Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','studio.read'),('$roleId','studio.configure');"
     $studio=Send-Json 'GET' '/workspace-configuration' $null $authorization
     Assert-Status $studio 200 'Read real Studio SLA configuration'
@@ -108,14 +118,18 @@ try {
     Assert-Status (Handover $nullLead $bMember 'o4-unassigned') 409 'Unassigned cannot handover'
     Assert-Status (Handover $lead $memberId 'o4-same') 409 'Same owner rejected'
     foreach($target in @('member_missing','bad id','')) { Assert-Status (Handover $lead $target ('o4-invalid-'+[Guid]::NewGuid().ToString('N'))) 422 'Invalid target rejected' }
-    foreach($reason in @('   ',('r'*1001))) { Assert-Status (Handover $lead $bMember ('o4-reason-'+[Guid]::NewGuid().ToString('N')) 0 $keep $reason) 422 'Reason validation' }
-    foreach($body in @('{}',('{"newOwnerId":"'+$bMember+'","reason":"r"}'),(Handover-Body $bMember 'MOVE'),('{"newOwnerId":"'+$bMember+'","reason":"r","openTaskPolicy":"'+$keep+'","taskTargets":[]}'))) {
-        Assert-Status (Send-Json 'POST' "/leads/$lead/handover" $body (Claim-Headers $authorization ('o4-body-'+[Guid]::NewGuid().ToString('N')))) 422 'Closed canonical body explicit policy'
+    foreach($reason in @('', '   ')) { Assert-Status (Handover $lead $bMember ('o4-reason-'+[Guid]::NewGuid().ToString('N')) 0 $reason) 422 'Reason validation' }
+    Assert-Status (Handover $lead $bMember 'o4-reason-1001' 0 ('r'*1001)) 422 'Reason 1001 characters rejected'
+    $oldOwnerBody='{"newOwnerId":"'+$bMember+'","reason":"r"}'
+    Assert-Status (Send-Json 'POST' "/workflows/lead-handover/$lead" $oldOwnerBody (Claim-Headers $authorization 'o4-old-owner-body')) 422 'Malformed obsolete newOwnerId body rejected'
+    Assert-Status (Send-Json 'POST' "/leads/$lead/handover" (Handover-Body $bMember) (Claim-Headers $authorization 'o4-old-route')) 404 'Obsolete route absent'
+    foreach($body in @('{}',('{"newOwnerId":"'+$bMember+'","reason":"r"}'),('{"nextOwnerId":"'+$bMember+'","reason":"r","openTaskPolicy":"obsolete"}'),('{"nextOwnerId":"'+$bMember+'","reason":"r","taskTargets":[]}'))) {
+        Assert-Status (Send-Json 'POST' "/workflows/lead-handover/$lead" $body (Claim-Headers $authorization ('o4-body-'+[Guid]::NewGuid().ToString('N')))) 422 'Closed canonical body rejects obsolete members'
     }
     Assert-Status (Handover $lead $bMember 'o4-version' 9) 412 'Stale version'
     foreach($header in @('If-Match','Idempotency-Key','X-Request-Id','X-Correlation-Id')) {
         $h=Claim-Headers $authorization ('o4-header-'+$header);$h.Remove($header)
-        $response=Send-Json 'POST' "/leads/$lead/handover" (Handover-Body $bMember) $h
+        $response=Send-Json 'POST' "/workflows/lead-handover/$lead" (Handover-Body $bMember) $h
         Check-O4 ($response.Status -in @(400,422,428)) "Required header $header rejected"
     }
     foreach($flag in @('ArchivedAt','PendingCustomerConversionId')) {
@@ -130,57 +144,98 @@ try {
     Assert-Status (Handover $lead $bMember 'o4-foreign-target') 422 'Foreign target'
     Invoke-Sql "UPDATE workspace.Memberships SET WorkspaceId='$workspaceId' WHERE MembershipId='wsm_claim_b';"
     $maxReasonLead=Owned-Lead 'O4 Max Reason'
-    $maxReason=Handover $maxReasonLead $bMember 'o4-max-reason' 0 $keep (' '+('r'*1000)+' ')
+    $maxReason=Handover $maxReasonLead $bMember 'o4-max-reason' 0 (' '+('r'*1000)+' ')
     Assert-Status $maxReason 200 'Trimmed 1000-character reason accepted'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM tasks.Tasks WHERE RecordId='$maxReasonLead' AND SourceType='LEAD_HANDOVER' AND LEN(SourceEvidence)=1000 AND SourceEvidence=REPLICATE('r',1000);") -eq '1') 'Takeover preserves complete trimmed reason without truncation'
-    foreach($policy in @($keep,$move)) {
-        Invoke-Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='tasks.create';"
-        Assert-Status (Handover $lead $bMember "o4-create-$policy" 0 $policy) 403 'Takeover tasks.create mandatory'
-        Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','tasks.create');"
+    foreach($capability in @('tasks.create','tasks.assign')) {
+        Invoke-Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='$capability';"
+        Assert-Status (Handover $lead $bMember "o4-missing-$capability") 403 "$capability mandatory even with empty snapshot"
+        Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','$capability');"
     }
-    Invoke-Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='tasks.assign';"
-    Assert-Status (Handover $lead $bMember 'o4-assign-move' 0 $move) 403 'MOVE tasks.assign even empty set'
-    $keepLead=Owned-Lead 'O4 KEEP';Task-Fixtures $keepLead
-    $keepHash=Hash-Tasks "TaskId LIKE 'o4_${keepLead}_%'";$activityHash=Invoke-SqlScalar $activitySnapshotSql
-    $response=Handover $keepLead $bMember 'o4-keep';Assert-Status $response 200 'KEEP without tasks.assign'
-    $kept=$response.Body|ConvertFrom-Json;Assert-Completion $keepLead $kept $bMember 24
-    Check-O4 (@($kept.result.reassignedTaskIds).Count -eq 0) 'KEEP empty reassigned set'
-    Check-O4 ((Hash-Tasks "TaskId LIKE 'o4_${keepLead}_%'") -eq $keepHash) 'KEEP all existing Tasks byte unchanged'
-    Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','tasks.assign');"
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='leads.handover';") -eq '0') 'Human role needs no handover capability'
+    Task-Fixtures $lead
+    foreach($field in @(@('leads','ownerId'),@('tasks','assigneeId'))) {
+        Invoke-Sql "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES ('o4_field_write','$workspaceId','$roleId','$($field[0])','$($field[1])','ReadOnly');"
+        Assert-Status (Handover $lead $bMember ('o4-field-'+$field[0])) 403 'Required participant field-write authority enforced before mutation'
+        Check-O4 ((Lead-Version $lead) -eq 0 -and (Invoke-SqlScalar "SELECT COUNT(*) FROM tasks.Tasks WHERE RecordId='$lead' AND SourceType='LEAD_HANDOVER';") -eq '0') 'Field denial has no business mutation'
+        Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='o4_field_write';"
+    }
+    # Both resources use OWN: the admitted execution must return success after A -> B.
+    $ownLead=Owned-Lead 'O4 OWN initial success';Task-Fixtures $ownLead
+    Invoke-Sql "UPDATE tasks.Tasks SET AssigneeId='$memberId' WHERE RecordId='$ownLead'; INSERT INTO access.RoleDataScopes(PolicyId,WorkspaceId,RoleId,ResourceKey,Scope,AllowedOwnerIdsJson) VALUES ('o4_own_lead','$workspaceId','$roleId','leads','OWN','[]'),('o4_own_task','$workspaceId','$roleId','tasks','OWN','[]');"
+    $ownResponse=Handover $ownLead $bMember 'o4-own'
+    Assert-Status $ownResponse 200 'OWN A to B initial admitted execution returns success'
+    $ownDoc=$ownResponse.Body|ConvertFrom-Json
+    Assert-Completion $ownLead $ownDoc $bMember 24
+    Check-O4 ((@($ownDoc.result.reassignedTaskIds|Sort-Object) -join ',') -eq (@("o4_${ownLead}_open_a","o4_${ownLead}_open_b"|Sort-Object) -join ',')) 'OWN exact eligible snapshot'
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM tasks.Tasks WHERE TaskId IN ('o4_${ownLead}_open_a','o4_${ownLead}_open_b') AND AssigneeId='$bMember';") -eq '2') 'OWN eligible Tasks belong to B'
+    $ownHash=Hash-Tasks "RecordId='$ownLead'"
+    $ownReplay=Handover $ownLead $bMember 'o4-own'
+    Assert-Status $ownReplay 200 'OWN completed replay uses current resource capabilities without post-transfer record scope'
+    $ownReplayed=$ownReplay.Body|ConvertFrom-Json
+    Check-O4 ($ownReplayed.outcome -eq 'REPLAYED' -and $ownReplayed.commandId -eq $ownDoc.commandId -and (($ownReplayed.result|ConvertTo-Json -Depth 20 -Compress) -eq ($ownDoc.result|ConvertTo-Json -Depth 20 -Compress))) 'OWN replay retains exact committed outcome'
+    Check-O4 ((Hash-Tasks "RecordId='$ownLead'") -eq $ownHash) 'OWN replay has no duplicate or mutation'
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES ('o4_replay_lead_readonly','$workspaceId','$roleId','leads','ownerId','ReadOnly');"
+    Assert-Status (Handover $ownLead $bMember 'o4-own') 200 'Completed replay requires readable owner but no field-write permission'
+    Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='o4_replay_lead_readonly';"
+    # Reproduce stored pre-repair wire hashes and result shape without legacy public input.
+    $historicalAnchor=$ownDoc.commandId
+    $oldIntent=[ordered]@{leadId=$ownLead;expectedVersion=0;newOwnerId=$bMember;reason='Territory handover';openTaskPolicy='MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER'}|ConvertTo-Json -Compress
+    $oldHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($oldIntent)))
+    $oldTaskIntent=[ordered]@{leadId=$ownLead;handoverId=$historicalAnchor;newOwnerId=$bMember;reason='Territory handover';openTaskPolicy='MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER';frozenDueAt=([DateTimeOffset]$ownDoc.result.handoverTaskDueAt).ToString("yyyy-MM-ddTHH:mm:ss.FFFFFFFzzz",[Globalization.CultureInfo]::InvariantCulture);originalActorId=$memberId}|ConvertTo-Json -Compress
+    $oldTaskHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($oldTaskIntent)))
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET RequestFingerprint='$oldHash',ResponseJson=JSON_MODIFY(ResponseJson,'$.result.openTaskPolicy','MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER') WHERE HandoverId='$historicalAnchor'; UPDATE tasks.IdempotencyRecords SET Fingerprint='$oldTaskHash' WHERE IdempotencyKey='$historicalAnchor' AND Operation='leadHandoverTasks';"
+    $historicalReplay=Handover $ownLead $bMember 'o4-own'
+    Assert-Status $historicalReplay 200 'Historical committed anchor replays through canonical request after wire repair'
+    $historicalDoc=$historicalReplay.Body|ConvertFrom-Json
+    Check-O4 ($historicalDoc.commandId -eq $ownDoc.commandId -and $historicalDoc.outcome -eq 'REPLAYED' -and -not($historicalDoc.result.PSObject.Properties.Name -contains 'openTaskPolicy')) 'Historical outcome is retained without obsolete public policy'
+    Check-O4 ((Hash-Tasks "RecordId='$ownLead'") -eq $ownHash) 'Historical replay does not mutate or rediscover Tasks'
+    Assert-Status (Handover $ownLead $bMember 'o4-own' 0 'different reason') 409 'Historical key still rejects changed canonical intent'
+    foreach($capability in @('leads.assign','tasks.assign','tasks.create')) {
+        Invoke-Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='$capability';"
+        Assert-Status (Handover $ownLead $bMember 'o4-own') 403 "OWN completed replay requires current $capability resource capability"
+        Check-O4 ((Hash-Tasks "RecordId='$ownLead'") -eq $ownHash) 'Capability-denied replay preserves committed Tasks'
+        Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','$capability');"
+    }
+    Invoke-Sql "INSERT INTO access.RoleFieldSecurity(PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES ('o4_replay_proof_field','$workspaceId','$roleId','tasks','dueAt','Hidden');"
+    Assert-Status (Handover $ownLead $bMember 'o4-own') 403 'Completed replay cannot disclose a hidden Task proof field'
+    Check-O4 ((Hash-Tasks "RecordId='$ownLead'") -eq $ownHash) 'Field-denied replay preserves committed Tasks'
+    Invoke-Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='o4_replay_proof_field';"
+    Invoke-Sql "DELETE FROM access.RoleDataScopes WHERE PolicyId IN ('o4_own_lead','o4_own_task');"
     $moveLead=Owned-Lead 'O4 MOVE';Task-Fixtures $moveLead
     $activityHash=Invoke-SqlScalar $activitySnapshotSql
     $untouched="TaskId LIKE 'o4_${moveLead}_%' AND TaskId NOT IN ('o4_${moveLead}_open_a','o4_${moveLead}_open_b')"
     $unchanged=Hash-Tasks $untouched
-    # One eligible Task outside OWN must deny the entire MOVE, including takeover creation.
+    # One eligible Task outside OWN must deny the entire handover, including takeover creation.
     Invoke-Sql "INSERT INTO access.RoleDataScopes(PolicyId,WorkspaceId,RoleId,ResourceKey,Scope,AllowedOwnerIdsJson) VALUES ('o4_task_scope','$workspaceId','$roleId','tasks','OWN','[]');"
     $allBefore=Hash-Tasks "TaskId LIKE 'o4_${moveLead}_%'"
-    Assert-Status (Handover $moveLead $bMember 'o4-task-scope' 0 $move) 404 'Any hidden eligible Task denies entire MOVE'
-    Check-O4 ((Hash-Tasks "TaskId LIKE 'o4_${moveLead}_%'") -eq $allBefore -and (Lead-Version $moveLead) -eq 0) 'Denied MOVE has no partial changes'
-    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM tasks.Tasks WHERE RecordId='$moveLead' AND SourceType='LEAD_HANDOVER';") -eq '0') 'Denied MOVE creates no takeover'
+    Assert-Status (Handover $moveLead $bMember 'o4-task-scope' 0) 404 'Any hidden eligible Task denies entire handover'
+    Check-O4 ((Hash-Tasks "TaskId LIKE 'o4_${moveLead}_%'") -eq $allBefore -and (Lead-Version $moveLead) -eq 0) 'Denied handover has no partial changes'
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM tasks.Tasks WHERE RecordId='$moveLead' AND SourceType='LEAD_HANDOVER';") -eq '0') 'Denied handover creates no takeover'
     Invoke-Sql "DELETE FROM access.RoleDataScopes WHERE PolicyId='o4_task_scope';"
     Invoke-Sql "UPDATE workspace.StudioConfigurations SET BlueprintJson=JSON_MODIFY(BlueprintJson,'$.workflow.handoverAcceptanceSlaHours',72) WHERE WorkspaceId='$workspaceId';"
-    $response=Handover $moveLead $bMember 'o4-move' 0 $move;Assert-Status $response 200 'MOVE A to B'
+    $response=Handover $moveLead $bMember 'o4-move' 0;Assert-Status $response 200 'Automatic A to B'
     $moved=$response.Body|ConvertFrom-Json;Assert-Completion $moveLead $moved $bMember 72
-    Check-O4 ((@($moved.result.reassignedTaskIds|Sort-Object) -join ',') -eq (@("o4_${moveLead}_open_a","o4_${moveLead}_open_b"|Sort-Object) -join ',')) 'MOVE exact authoritative Task set'
+    Check-O4 ((@($moved.result.reassignedTaskIds|Sort-Object) -join ',') -eq (@("o4_${moveLead}_open_a","o4_${moveLead}_open_b"|Sort-Object) -join ',')) 'Automatic transfer exact authoritative Task set'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM tasks.Tasks WHERE TaskId IN ('o4_${moveLead}_open_a','o4_${moveLead}_open_b') AND AssigneeId='$bMember';") -eq '2') 'All eligible Tasks moved'
     Check-O4 ((Hash-Tasks $untouched) -eq $unchanged) 'Completed cancelled archived foreign and other module byte unchanged'
     Invoke-Sql "UPDATE workspace.StudioConfigurations SET BlueprintJson=JSON_MODIFY(BlueprintJson,'$.workflow.handoverAcceptanceSlaHours',12) WHERE WorkspaceId='$workspaceId';"
     Invoke-Sql "INSERT INTO tasks.Tasks(TaskId,WorkspaceId,Title,Status,Priority,AssigneeId,DueAt,RecordModuleKey,RecordId,RecordLabel,CreatedAt,UpdatedAt,Version) VALUES ('o4_late_$moveLead','$workspaceId','After snapshot',0,1,'$memberId',DATEADD(day,1,SYSUTCDATETIME()),'leads','$moveLead','O4',SYSUTCDATETIME(),SYSUTCDATETIME(),0);"
     $lateHash=Hash-Tasks "TaskId='o4_late_$moveLead'"
-    $replay=Handover $moveLead $bMember 'o4-move' 0 $move;Assert-Status $replay 200 'Same intent replay'
+    $replay=Handover $moveLead $bMember 'o4-move' 0;Assert-Status $replay 200 'Same intent replay'
     $replayed=$replay.Body|ConvertFrom-Json
     Check-O4 ($replayed.outcome -eq 'REPLAYED' -and $replayed.commandId -eq $moved.commandId -and $replayed.version -eq $moved.version -and (($replayed.result|ConvertTo-Json -Depth 20 -Compress) -eq ($moved.result|ConvertTo-Json -Depth 20 -Compress))) 'Replay exact result version dueAt after SLA change'
     Assert-Completion $moveLead $replayed $bMember 72
     Check-O4 ((Hash-Tasks "TaskId='o4_late_$moveLead'") -eq $lateHash) 'Replay excludes Task created after authoritative snapshot commit'
-    foreach($argsChanged in @(@($memberId,0,$move,'Territory handover'),@($bMember,1,$move,'Territory handover'),@($bMember,0,$keep,'Territory handover'),@($bMember,0,$move,'Changed reason'))) {
-        Assert-Status (Handover $moveLead $argsChanged[0] 'o4-move' $argsChanged[1] $argsChanged[2] $argsChanged[3]) 409 'Changed intent idempotency conflict'
+    foreach($argsChanged in @(@($memberId,0,'Territory handover'),@($bMember,1,'Territory handover'),@($bMember,0,'Changed reason'))) {
+        Assert-Status (Handover $moveLead $argsChanged[0] 'o4-move' $argsChanged[1] $argsChanged[2]) 409 'Changed intent idempotency conflict'
     }
     # Register a third real member for B -> C repeatability proof.
     $cEmail='handover.c@example.test'
     Assert-Status (Send-Json 'POST' '/auth/accounts' (@{email=$cEmail;password=$password;displayName='O4 C'}|ConvertTo-Json -Compress) (Claim-Headers $authorization 'o4-register-c')) 201 'Register target C'
     $parts=(Invoke-SqlScalar "SELECT AccountId+'|'+MemberId FROM iam.Accounts WHERE Email='$cEmail';").Split('|');$cMember=$parts[1]
     Invoke-Sql "UPDATE iam.Accounts SET Status='Active',EmailVerifiedAt=SYSUTCDATETIME() WHERE AccountId='$($parts[0])'; INSERT INTO workspace.Memberships(MembershipId,WorkspaceId,AccountId,MemberId,Status,CreatedAt) VALUES ('o4_c','$workspaceId','$($parts[0])','$cMember','Active',SYSUTCDATETIME());"
-    $second=Handover $moveLead $cMember 'o4-repeat' $moved.version;Assert-Status $second 200 'Later B to C succeeds'
+    $second=Send-Json 'POST' "/workflows/lead-handover/$moveLead" (Handover-Body $cMember) (Claim-Headers $bAuth 'handover-o4-repeat' $moved.version);Assert-Status $second 200 'Later B to C succeeds'
     Assert-Completion $moveLead ($second.Body|ConvertFrom-Json) $cMember 12
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE LeadId='$moveLead' AND CompletedAt IS NOT NULL AND ActiveLeadKey IS NULL;") -eq '2') 'Both historical anchors retained'
     Check-O4 ((Invoke-SqlScalar $activitySnapshotSql) -eq $activityHash) 'Activities and historical authorship unchanged'
@@ -207,8 +262,8 @@ try {
     foreach($kind in @('assign','claim','handover')) {
         for($iteration=0;$iteration -lt 3;$iteration++) {
             $id=Owned-Lead "O4 Race $kind $iteration"
-            $left=New-O4Message "/leads/$id/handover" (Handover-Body $bMember) (Claim-Headers $authorization "o4-race-$kind-$iteration-h")
-            $right=if($kind -eq 'assign'){New-O4Message "/leads/$id/assign" (@{ownerId=$cMember;reason='race'}|ConvertTo-Json -Compress) (Claim-Headers $bAuth "o4-race-$kind-$iteration-r")}elseif($kind -eq 'claim'){New-ClaimMessage $id (Claim-Headers $bAuth "o4-race-$kind-$iteration-r")}else{New-O4Message "/leads/$id/handover" (Handover-Body $cMember) (Claim-Headers $bAuth "o4-race-$kind-$iteration-r")}
+            $left=New-O4Message "/workflows/lead-handover/$id" (Handover-Body $bMember) (Claim-Headers $authorization "o4-race-$kind-$iteration-h")
+            $right=if($kind -eq 'assign'){New-O4Message "/leads/$id/assign" (@{ownerId=$cMember;reason='race'}|ConvertTo-Json -Compress) (Claim-Headers $bAuth "o4-race-$kind-$iteration-r")}elseif($kind -eq 'claim'){New-ClaimMessage $id (Claim-Headers $bAuth "o4-race-$kind-$iteration-r")}else{New-O4Message "/workflows/lead-handover/$id" (Handover-Body $cMember) (Claim-Headers $bAuth "o4-race-$kind-$iteration-r")}
             $statuses=Race-O4 $left $right
             Check-O4 (@($statuses|Where-Object {$_ -eq 200}).Count -eq 1 -and @($statuses|Where-Object {$_ -in @(409,412)}).Count -eq 1) "Real $kind race single winner"
             if($kind -eq 'claim'){Check-O4 ($statuses[0] -eq 200 -and $statuses[1] -eq 409) 'Claim on owned Lead cannot win ownership race'}
@@ -240,7 +295,7 @@ try {
     }
     Check-O4 $ready 'Real fault host listening'
     $probeHeaders=$authorization.Clone();$probeHeaders['X-Verifier-Control']=$env:LeadHandoverVerifier__ControlKey
-    $fenceBody=@{leadId=$fenceLead;handoverId='handover_o4_cancelled';newOwnerId=$bMember;operation='resolve'}
+    $fenceBody=@{leadId=$fenceLead;handoverId='handover_o4_cancelled';nextOwnerId=$bMember;operation='resolve'}
     $fenced=Send-Json 'POST' '/__verifier/lead-reservation' ($fenceBody|ConvertTo-Json -Compress) $probeHeaders
     Assert-Status $fenced 409 'Service creates durable reservation cancellation fence'
     Check-O4 (($fenced.Body|ConvertFrom-Json).errorCode -eq 'HANDOVER_RESERVATION_FENCED') 'Cancellation fence has canonical code'
@@ -250,7 +305,7 @@ try {
     Check-O4 (($late.Body|ConvertFrom-Json).errorCode -eq 'HANDOVER_RESERVATION_FENCED') 'Late Reserve observes persisted cancellation proof'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$fenceLead' AND ScopeOwnerId='$memberId' AND PendingHandoverId IS NULL AND Version=0;") -eq '1') 'Fence and late Reserve never mutate Lead version or reservation'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.AuditRecords WHERE AggregateId='$fenceLead' AND Operation='handoverLead:reserve:fenced';") -eq '1') 'Exactly one durable reservation fence audit'
-    $proofBody=@{leadId=$proofLead;handoverId='handover_o4_existing_reservation';newOwnerId=$bMember;operation='reserve'}
+    $proofBody=@{leadId=$proofLead;handoverId='handover_o4_existing_reservation';nextOwnerId=$bMember;operation='reserve'}
     $reserve=Send-Json 'POST' '/__verifier/lead-reservation' ($proofBody|ConvertTo-Json -Compress) $probeHeaders
     Assert-Status $reserve 200 'Real human Reserve commits before service resolution'
     $proofBody.operation='resolve'
@@ -262,7 +317,7 @@ try {
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.AuditRecords WHERE AggregateId='$proofLead' AND Operation='handoverLead:reserve';") -eq '1') 'Service resolution never duplicates Reserve commit'
     $proofBody.operation='release'
     Assert-Status (Send-Json 'POST' '/__verifier/lead-reservation' ($proofBody|ConvertTo-Json -Compress) $probeHeaders) 200 'Release completed verifier reservation under real service authority'
-    $failed=Handover $recoveryLead $bMember 'o4-recovery' 0 $move
+    $failed=Handover $recoveryLead $bMember 'o4-recovery' 0
     Assert-Status $failed 500 'Failure after Tasks commit never returns false success'
     $anchor=Invoke-SqlScalar "SELECT HandoverId FROM workflow.LeadHandoverAnchors WHERE LeadId='$recoveryLead';"
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$recoveryLead' AND ScopeOwnerId='$memberId' AND PendingHandoverId='$anchor';") -eq '1') 'Failed request retains recoverable exact Lead reservation'
@@ -281,12 +336,12 @@ try {
     Invoke-Sql "DELETE FROM access.WorkspaceServiceCapabilityGrants WHERE WorkspaceId='$workspaceId' AND ServicePrincipalId='svc_lead_handover_recovery' AND Capability='leads.handover.recover';"
     # A human retry still has Lead authority, but lost Task admission after the irreversible commit.
     # With service recovery temporarily denied, it must retain coordination rather than abort/release.
-    $humanRetry=Handover $recoveryLead $bMember 'o4-recovery' 0 $move
+    $humanRetry=Handover $recoveryLead $bMember 'o4-recovery' 0
     Check-O4 ($humanRetry.Status -in @(409,503)) 'Committed retry with revoked Task grants waits for recovery authority'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$recoveryLead' AND ScopeOwnerId='$memberId' AND PendingHandoverId='$anchor';") -eq '1') 'Human retry after Tasks commit never releases reservation'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor' AND CompletedAt IS NULL AND ActiveLeadKey IS NOT NULL AND Stage<>'ManualReview';") -eq '1') 'Human retry keeps committed workflow recoverable'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Revoked-grant human retry never duplicates or compensates Tasks'
-    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET ExecutionLeaseExpiresAt=DATEADD(minute,-1,SYSUTCDATETIME()),NextRetryAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE HandoverId='$anchor'; DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='leads.handover';"
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET ExecutionLeaseExpiresAt=DATEADD(minute,-1,SYSUTCDATETIME()),NextRetryAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE HandoverId='$anchor'; DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='leads.assign';"
     $denied=Send-Json 'POST' '/__verifier/recover' '{}' $control;Assert-Status $denied 200 'Service recovery scan without grant'
     Check-O4 (($denied.Body|ConvertFrom-Json).completed -eq 0) 'Recovery denied without service grant'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Denied recovery never compensates Tasks'
@@ -296,13 +351,13 @@ try {
     Check-O4 (($recovered.Body|ConvertFrom-Json).completed -eq 1) 'Recovery completes without original human grants'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Recovery neither duplicates nor compensates Tasks'
     Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(40),TakeoverDueAt,127) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';") -eq $frozenDue) 'In-flight SLA frozen across config change and restart'
-    Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','leads.handover');"
-    Assert-Status (Handover $recoveryLead $bMember 'o4-recovery' 0 $move) 403 'Completed replay rechecks current Task capability'
+    Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','leads.assign');"
+    Assert-Status (Handover $recoveryLead $bMember 'o4-recovery' 0) 403 'Completed replay rechecks current Task capability'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Denied completed replay preserves committed Tasks'
     Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','tasks.create'),('$roleId','tasks.assign'); INSERT INTO access.RoleDataScopes(PolicyId,WorkspaceId,RoleId,ResourceKey,Scope,AllowedOwnerIdsJson) VALUES ('o4_completed_task_scope','$workspaceId','$roleId','tasks','OWN','[]');"
-    Assert-Status (Handover $recoveryLead $bMember 'o4-recovery' 0 $move) 404 'Completed replay rechecks current Task record authority'
+    Assert-Status (Handover $recoveryLead $bMember 'o4-recovery' 0) 200 'Completed replay checks resource capability without post-transfer Task scope'
     Invoke-Sql "DELETE FROM access.RoleDataScopes WHERE PolicyId='o4_completed_task_scope';"
-    $final=Handover $recoveryLead $bMember 'o4-recovery' 0 $move;Assert-Status $final 200 'Recovered final replay'
+    $final=Handover $recoveryLead $bMember 'o4-recovery' 0;Assert-Status $final 200 'Recovered final replay'
     $finalDoc=$final.Body|ConvertFrom-Json;Assert-Completion $recoveryLead $finalDoc $bMember 12
     Check-O4 ($finalDoc.outcome -eq 'REPLAYED') 'Recovered intent returns stable successful replay'
     [pscustomobject]@{Status='PASS';Database=$DatabaseName;O4Checks=$o4.Count;HttpChecks=$checks.Count;RealRaces=$races;Recovery=@{LeadId=$recoveryLead;HandoverId=$anchor;FailureHttp=$failed.Status;RevokedTaskGrantRetryHttp=$humanRetry.Status;TakeoverCount=1;Recovered=$true;FrozenDueAt=$frozenDue};Limitations=@('Lease expiry accelerated by SQL; race coverage is bounded to three real requests per pairing.','Migration Down guards checked statically; rollback not executed.')}|ConvertTo-Json -Depth 8

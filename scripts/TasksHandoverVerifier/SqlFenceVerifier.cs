@@ -13,7 +13,7 @@ static partial class SqlVerifier
         var fixture = new Fixture();
         Participant Create(TasksDbContext context) => new(new TaskAuthorization(fixture.Access),
             new CurrentWorkspace(fixture.Trusted), fixture.Service, fixture.Members, new EfTasksPersistence(context), TimeProvider.System);
-        var command = fixture.Command(LeadHandoverTaskPolicies.Move) with { HandoverId = "handover_fence_wins", LeadId = "lead_fence_wins" };
+        var command = fixture.Command() with { HandoverId = "handover_fence_wins", LeadId = "lead_fence_wins" };
         var pauseBeforeKey = new PauseBeforeKeyRead();
         var pausedOptions = new DbContextOptionsBuilder<TasksDbContext>(options).AddInterceptors(pauseBeforeKey).Options;
         await using var pausedContext = new TasksDbContext(pausedOptions);

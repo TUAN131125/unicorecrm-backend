@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.Platform;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.Migrations;
+using UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migrations;
 
 if (args.Length > 1) throw new ArgumentException("Pass at most one SQL Server connection string; a fresh isolated database is created automatically.");
 var passed = 0;
@@ -49,7 +50,6 @@ var oldOwner = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "PreHand
 var accessPolicy = assembly.GetType("UnicoreCRM.Platform.AccessControl.Application.ProvisionInitialWorkspaceAccess.InitialWorkspaceAccessPolicy", true)!;
 var knownPrevious = accessPolicy.GetMethod("IsKnownPreviousCapabilitySet", BindingFlags.Static | BindingFlags.NonPublic)!;
 bool IsKnown(string[] capabilities) => (bool)knownPrevious.Invoke(null, [capabilities])!;
-Check(IsKnown(oldOwner), "exact sorted frozen pre-Handover owner admitted for upgrade");
 // Historical sets come from the frozen baseline fixture, never from the runtime predecessor properties.
 var preClaimOwner = oldOwner.Where(capability => capability != "leads.claim").ToArray();
 var preQueueOwner = preClaimOwner.Where(capability => capability != "leads.queue.read").ToArray();
@@ -60,16 +60,28 @@ Check(!IsKnown(preClaimOwner.Where(capability => capability != "tasks.create").T
 Check(!IsKnown(preQueueOwner.Where(capability => capability != "tasks.create").ToArray()),
     "custom pre-Queue subset cannot receive owner upgrade");
 var currentOwner = (IReadOnlyList<string>)accessPolicy.GetMethod("Validated", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, null)!;
-Check(currentOwner.Except(oldOwner, StringComparer.Ordinal).SequenceEqual(["leads.handover"])
-    && !oldOwner.Except(currentOwner, StringComparer.Ordinal).Any(), "frozen owner upgrade adds only leads.handover");
+Check(currentOwner.SequenceEqual(oldOwner, StringComparer.Ordinal), "current owner equals frozen pre-Handover owner without new human authority");
+Check(!currentOwner.Contains("leads.handover", StringComparer.Ordinal), "human handover capability absent from owner catalog");
+var assignableCatalog = assembly.GetType("UnicoreCRM.Platform.AccessControl.Application.Common.AssignableCapabilityCatalog", true)!
+    .GetMethod("Contains", BindingFlags.Static | BindingFlags.NonPublic)!;
+Check(!(bool)assignableCatalog.Invoke(null, ["leads.handover"])!, "human handover capability not assignable to custom roles");
+Check(new[] { "leads.assign", "tasks.assign", "tasks.create" }.All(capability =>
+    (bool)assignableCatalog.Invoke(null, [capability])!), "canonical human admission capabilities remain assignable");
 Check(!IsKnown(oldOwner.Where(capability => capability != "tasks.create").ToArray()), "arbitrary custom subset cannot receive owner upgrade");
-Check(!IsKnown(["leads.assign"]), "assign capability alone cannot receive handover grant");
+Check(!IsKnown(["leads.assign"]), "assign capability alone cannot receive owner upgrade");
+Check(!IsKnown(oldOwner.Append("leads.handover").Order(StringComparer.Ordinal).ToArray()), "obsolete human capability cannot receive additive owner upgrade");
 Check(!IsKnown(oldOwner.Append("leads.handover.recover").Order(StringComparer.Ordinal).ToArray()), "unexpected capability cannot receive owner upgrade");
 var predecessors = accessPolicy.GetProperties(BindingFlags.Static | BindingFlags.NonPublic)
     .Where(property => property.Name.StartsWith("Pre", StringComparison.Ordinal) && property.PropertyType == typeof(IReadOnlyList<string>))
     .ToArray();
 Check(predecessors.All(property => !((IReadOnlyList<string>)property.GetValue(null)!).Contains("leads.handover", StringComparer.Ordinal)),
     "historical predecessor chain excludes leads.handover");
+var removal = new RemoveHumanLeadHandoverCapability();
+Check(removal.UpOperations.Single() is SqlOperation removalSql
+    && removalSql.Sql.Contains("[access].[RoleCapabilities]", StringComparison.Ordinal)
+    && removalSql.Sql.Contains("N'leads.handover'", StringComparison.Ordinal)
+    && removalSql.Sql.Contains("[WorkspaceDirectoryRevisions]", StringComparison.Ordinal), "additive migration removes stored human grants and invalidates directory revision");
+Check(removal.DownOperations.Count == 0, "rollback does not restore obsolete human authority");
 
 var connection = new SqlConnectionStringBuilder(args.Length == 1 ? args[0]
     : "Server=(localdb)\\MSSQLLocalDB;Integrated Security=True;TrustServerCertificate=True")
@@ -119,6 +131,46 @@ try
     catch (InvalidOperationException exception) when (exception.Message == "Stored workspace handover acceptance SLA is invalid.") { rejected = true; }
     Check(rejected, "reader rejects invalid persisted SLA");
     Check(!db.ChangeTracker.Entries().Any(), "reader does not track configuration entities");
+
+    var accessContextType = assembly.GetType("UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.AccessControlDbContext", true)!;
+    var accessDb = (DbContext)scope.ServiceProvider.GetRequiredService(accessContextType);
+    var accessMigrator = accessDb.GetService<IMigrator>();
+    await accessMigrator.MigrateAsync("20261001044231_LeadHandoverRecoveryGrant");
+    await accessDb.Database.ExecuteSqlRawAsync("""
+        INSERT INTO [access].[WorkspaceDirectoryRevisions] ([WorkspaceId], [Revision])
+        VALUES (N'ws_legacy', 7), (N'ws_custom', 11), (N'ws_clean', 13);
+        INSERT INTO [access].[Roles]
+            ([RoleId], [WorkspaceId], [Name], [NormalizedName], [Description], [SourceTemplateId], [IsActive], [Version], [CreatedAt], [UpdatedAt])
+        VALUES
+            (N'role_owner', N'ws_legacy', N'Workspace Owner', N'WORKSPACE OWNER', NULL, N'system:workspace-owner', 1, 0, SYSUTCDATETIME(), SYSUTCDATETIME()),
+            (N'role_custom', N'ws_custom', N'Custom', N'CUSTOM', NULL, NULL, 1, 3, SYSUTCDATETIME(), SYSUTCDATETIME()),
+            (N'role_inactive', N'ws_custom', N'Inactive', N'INACTIVE', NULL, NULL, 0, 4, SYSUTCDATETIME(), SYSUTCDATETIME()),
+            (N'role_clean', N'ws_clean', N'Clean', N'CLEAN', NULL, NULL, 1, 2, SYSUTCDATETIME(), SYSUTCDATETIME());
+        INSERT INTO [access].[RoleCapabilities] ([RoleId], [Capability])
+        VALUES (N'role_owner', N'leads.handover'), (N'role_custom', N'leads.handover'),
+            (N'role_inactive', N'leads.handover'), (N'role_custom', N'leads.assign'),
+            (N'role_inactive', N'tasks.create'), (N'role_clean', N'tasks.assign');
+        INSERT INTO [access].[WorkspaceServiceCapabilityGrants] ([WorkspaceId], [ServicePrincipalId], [Capability], [GrantedAt])
+        VALUES (N'ws_legacy', N'svc_lead_handover_recovery', N'leads.handover.recover', SYSUTCDATETIME());
+        """);
+    foreach (var capability in oldOwner)
+        await accessDb.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO [access].[RoleCapabilities] ([RoleId], [Capability]) VALUES (N'role_owner', {capability})");
+    await accessMigrator.MigrateAsync("20261001100000_RemoveHumanLeadHandoverCapability");
+    Check(await accessDb.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM [access].[RoleCapabilities] WHERE [Capability] = N'leads.handover'").SingleAsync() == 0,
+        "migration removes human grant from owner, custom and inactive roles");
+    var storedOwner = await accessDb.Database.SqlQuery<string>($"SELECT [Capability] AS [Value] FROM [access].[RoleCapabilities] WHERE [RoleId] = N'role_owner'").ToArrayAsync();
+    Check(storedOwner.Order(StringComparer.Ordinal).SequenceEqual(currentOwner, StringComparer.Ordinal), "migrated owner converges to exact current capability set");
+    Check(await accessDb.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM [access].[RoleCapabilities] WHERE ([RoleId] = N'role_custom' AND [Capability] = N'leads.assign') OR ([RoleId] = N'role_inactive' AND [Capability] = N'tasks.create') OR ([RoleId] = N'role_clean' AND [Capability] = N'tasks.assign')").SingleAsync() == 3,
+        "migration preserves unrelated custom and inactive role permissions");
+    Check(await accessDb.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM [access].[WorkspaceServiceCapabilityGrants] WHERE [ServicePrincipalId] = N'svc_lead_handover_recovery' AND [Capability] = N'leads.handover.recover'").SingleAsync() == 1,
+        "migration preserves recovery service authority");
+    Check(await accessDb.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM [access].[WorkspaceDirectoryRevisions] WHERE ([WorkspaceId] = N'ws_legacy' AND [Revision] = 8) OR ([WorkspaceId] = N'ws_custom' AND [Revision] = 12) OR ([WorkspaceId] = N'ws_clean' AND [Revision] = 13)").SingleAsync() == 3,
+        "migration advances affected workspaces once and preserves unaffected revision");
+    Check(await accessDb.Database.SqlQuery<long>($"SELECT [Version] AS [Value] FROM [access].[Roles] WHERE [RoleId] = N'role_owner'").SingleAsync() == 0,
+        "capability cleanup preserves untouched seed identity for historical upgrades");
+    await accessDb.Database.ExecuteSqlRawAsync(((SqlOperation)removal.UpOperations.Single()).Sql);
+    Check(await accessDb.Database.SqlQuery<long>($"SELECT [Revision] AS [Value] FROM [access].[WorkspaceDirectoryRevisions] WHERE [WorkspaceId] = N'ws_custom'").SingleAsync() == 12,
+        "repeated cleanup does not advance revision again");
     Console.WriteLine($"Lead Handover Workspace verification: PASS={passed} FAIL=0");
 }
 finally

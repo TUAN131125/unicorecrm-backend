@@ -13,11 +13,19 @@ using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 
 namespace UnicoreCRM.Workflows.Atomic.Application.HandoverLead;
 
-internal interface ILeadHandoverRecoveryRunner { Task<int> ResumeDueAsync(CancellationToken ct); }
+internal interface ILeadHandoverRecoveryRunner
+{
+    Task<int> ResumeDueAsync(CancellationToken ct);
+}
 internal enum LeadHandoverFaultPoint { AfterTasksCommit, AfterLeadCommit }
-internal interface ILeadHandoverFaultInjector { Task AfterParticipantCommitAsync(LeadHandoverFaultPoint point, CancellationToken ct); }
+internal interface ILeadHandoverFaultInjector
+{
+    Task AfterParticipantCommitAsync(LeadHandoverFaultPoint point, CancellationToken ct);
+}
 internal sealed class NoopLeadHandoverFaultInjector : ILeadHandoverFaultInjector
-{ public Task AfterParticipantCommitAsync(LeadHandoverFaultPoint point, CancellationToken ct) => Task.CompletedTask; }
+{
+    public Task AfterParticipantCommitAsync(LeadHandoverFaultPoint point, CancellationToken ct) => Task.CompletedTask;
+}
 
 internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant leads,
     ILeadHandoverTaskParticipant tasks, ILeadHandoverPolicyReader policies, IServiceAccessAuthorizer services,
@@ -32,22 +40,22 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
     {
         var errors = Validate(command.Request);
         if (errors.Count > 0) return new(false, null, "VALIDATION_FAILED", 422, errors);
-        var request = command.Request with { NewOwnerId = command.Request.NewOwnerId!.Trim(), Reason = command.Request.Reason!.Trim() };
+        var request = command.Request with { NextOwnerId = command.Request.NextOwnerId!.Trim(), Reason = command.Request.Reason!.Trim() };
         var preparationCommand = new PrepareLeadHandoverCommand(command.LeadId, command.RequestId,
-            command.CorrelationId, command.ExpectedVersion, request.NewOwnerId!);
+            command.CorrelationId, command.ExpectedVersion, request.NextOwnerId!);
         var access = await leads.AuthorizeAsync(preparationCommand, ct);
         if (!access.IsSuccess) return Fail(access.ErrorCode!, access.ErrorStatus!.Value);
         var trusted = access.TrustedWorkspace!;
         var fingerprint = Hash(JsonSerializer.Serialize(new { command.LeadId, command.ExpectedVersion,
-            request.NewOwnerId, request.Reason, request.OpenTaskPolicy }, Json));
+            request.NextOwnerId, request.Reason }, Json));
         var scope = Hash($"{trusted.WorkspaceId}\nhandoverLeadWithTasks\n{trusted.MemberId}\n{command.LeadId}\n{command.IdempotencyKey}");
         var prior = await db.LeadHandoverAnchors.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scope, ct);
         if (prior is not null)
         {
-            if (prior.RequestFingerprint != fingerprint) return new(false, null, "IDEMPOTENCY_KEY_REUSED", 409, IdempotencyKey: command.IdempotencyKey);
-            return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, ct);
+            if (!MatchesIntent(prior, command.ExpectedVersion, request)) return new(false, null, "IDEMPOTENCY_KEY_REUSED", 409, IdempotencyKey: command.IdempotencyKey);
+            return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, access, true, ct);
         }
-        var prepared = await leads.PrepareAsync(preparationCommand, ct);
+        var prepared = await leads.PrepareAsync(preparationCommand, ct, access);
         if (!prepared.IsSuccess) return new(false, null, prepared.ErrorCode, prepared.ErrorStatus,
             ExpectedVersion: command.ExpectedVersion, CurrentVersion: prepared.Version);
         var policy = await policies.FindAsync(trusted.WorkspaceId, ct);
@@ -55,32 +63,39 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
         var now = time.GetUtcNow();
         var anchor = new LeadHandoverAnchor(scope, trusted.WorkspaceId, command.LeadId, command.IdempotencyKey, fingerprint,
             command.ExpectedVersion, trusted.AccountId, trusted.MemberId, trusted.MembershipId, command.CorrelationId,
-            command.RequestId, prepared.OwnerId!, request.NewOwnerId!, request.Reason!, request.OpenTaskPolicy!, policy.AcceptanceSlaHours, now);
+            command.RequestId, prepared.OwnerId!, request.NextOwnerId!, request.Reason!, policy.AcceptanceSlaHours, now);
         var taskAdmission = await tasks.ValidateAsync(TaskCommand(anchor, trusted.MemberId), ct);
         if (!taskAdmission.IsSuccess) return new(false, null, taskAdmission.ErrorCode, taskAdmission.ErrorStatus, taskAdmission.FieldErrors);
         db.LeadHandoverAnchors.Add(anchor);
-        try { await db.SaveChangesAsync(ct); }
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
         catch (DbUpdateException exception) when (exception.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
         {
             db.ChangeTracker.Clear();
             prior = await db.LeadHandoverAnchors.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scope, ct);
-            if (prior is not null && prior.RequestFingerprint == fingerprint) return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, ct);
+            if (prior is not null && MatchesIntent(prior, command.ExpectedVersion, request))
+                return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, access, true, ct);
             return Fail("LEAD_HANDOVER_IN_PROGRESS", 409);
         }
-        return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, false, ct), command, ct);
+        return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, false, ct), command, prepared, false, ct);
     }
 
-    private async Task<LeadHandoverOperationResult> ProjectAsync(LeadHandoverOperationResult result, LeadHandoverCommand command, CancellationToken ct)
+    private async Task<LeadHandoverOperationResult> ProjectAsync(LeadHandoverOperationResult result, LeadHandoverCommand command, LeadHandoverPreparation admission, bool replay, CancellationToken ct)
     {
         if (!result.IsSuccess) return result;
-        // Completion/recovery is durable before human disclosure. Every successful HTTP
-        // path, including a retry resumed mid-workflow, uses current Tasks record authority.
-        var anchor = await db.LeadHandoverAnchors.AsNoTracking().SingleAsync(
-            x => x.HandoverId == result.Response!.CommandId && x.LeadId == command.LeadId, ct);
-        var disclosure = await tasks.AuthorizeReplayAsync(TaskCommand(anchor, anchor.OriginalPrincipalId), ct);
-        if (!disclosure.IsSuccess) return Fail(disclosure.ErrorCode!, disclosure.ErrorStatus!.Value);
-        var document = await leads.ProjectAsync(result.Response!.Result.Lead, command.RequestId, command.CorrelationId, ct);
-        return document is null ? Fail("ACCESS_DENIED", 403) : result with {
+        // A new execution uses its captured admission. Ownership changes cannot revoke
+        // its success response. Later requests recheck resource/field permissions only.
+        if (replay)
+        {
+            var anchor = await db.LeadHandoverAnchors.AsNoTracking().SingleAsync(
+                x => x.HandoverId == result.Response!.CommandId && x.LeadId == command.LeadId, ct);
+            var disclosure = await tasks.AuthorizeReplayAsync(TaskCommand(anchor, anchor.OriginalPrincipalId), ct);
+            if (!disclosure.IsSuccess) return Fail(disclosure.ErrorCode!, disclosure.ErrorStatus!.Value);
+        }
+        var document = leads.Project(result.Response!.Result.Lead, admission);
+        return result with {
             Response = result.Response with { Result = result.Response.Result with { Lead = document } } };
     }
 
@@ -96,7 +111,11 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
         {
             var grant = await services.AuthorizeAsync(item.WorkspaceId, RecoveryPrincipal,
                 AccessRequirement.ForCanonicalCapability("leads.handover.recover"), item.CorrelationId, ct);
-            if (!grant.IsAllowed) { logger.LogWarning("Handover recovery denied in workspace {WorkspaceId}", item.WorkspaceId); continue; }
+            if (!grant.IsAllowed)
+            {
+                logger.LogWarning("Handover recovery denied in workspace {WorkspaceId}", item.WorkspaceId);
+                continue;
+            }
             if ((await ResumeAsync(item.ScopeKey, RecoveryPrincipal, true, ct)).IsSuccess) count++;
         }
         return count;
@@ -145,7 +164,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                 if (executor != RecoveryPrincipal)
                 {
                     var admission = await leads.AuthorizeAsync(new(anchor.LeadId, anchor.RequestId,
-                        anchor.CorrelationId, anchor.ExpectedLeadVersion, anchor.NewOwnerId, RequiresOwnerWrite: true), ct);
+                        anchor.CorrelationId, anchor.ExpectedLeadVersion, anchor.NextOwnerId, RequiresOwnerWrite: true), ct);
                     if (!admission.IsSuccess) return await StopBeforeTasksAsync(anchor, attempt,
                         admission.ErrorCode!, admission.ErrorStatus!.Value, executor, ct);
                 }
@@ -176,7 +195,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                 var task = JsonSerializer.Deserialize<LeadHandoverTaskResult>(anchor.TasksResultJson!, Json)!;
                 var response = new LeadHandoverResponse(anchor.HandoverId, anchor.CorrelationId, anchor.LeadId, "LEAD",
                     lead.Version, anchor.HandoverOccurredAt.UtcDateTime.ToString("O"), replay ? "REPLAYED" : "COMMITTED",
-                    new(lead.Result, anchor.OpenTaskPolicy, task.ReassignedTaskIds, task.HandoverTaskId!, task.HandoverTaskVersion!.Value,
+                    new(lead.Result, task.ReassignedTaskIds, task.HandoverTaskId!, task.HandoverTaskVersion!.Value,
                         anchor.TakeoverDueAt.UtcDateTime.ToString("O"), anchor.ResolvedSlaHours), [],
                     JsonSerializer.Deserialize<string[]>(anchor.EmittedEventIdsJson)!, JsonSerializer.Deserialize<string[]>(anchor.AuditEvidenceIdsJson)!);
                 db.IntegrationOutboxMessages.Add(new WorkflowIntegrationOutboxMessage(anchor, lead.Version, time.GetUtcNow()));
@@ -229,23 +248,32 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
     }
     private async Task<LeadHandoverOperationResult> RetryAsync(LeadHandoverAnchor anchor, string attempt, string code, CancellationToken ct)
     {
-        var now = time.GetUtcNow(); anchor.Retry(attempt, code, now.AddMinutes(1), now);
-        await db.SaveChangesAsync(ct); return Fail(code, 503);
+        var now = time.GetUtcNow();
+        anchor.Retry(attempt, code, now.AddMinutes(1), now);
+        await db.SaveChangesAsync(ct);
+        return Fail(code, 503);
     }
     private static LeadHandoverParticipantCommand LeadCommand(LeadHandoverAnchor a, string stage, string executor) =>
         new(new(a.WorkspaceId, a.OriginalAccountId, a.OriginalMemberId, a.OriginalMembershipId), a.LeadId, a.HandoverId,
-            a.PreviousOwnerId, a.NewOwnerId, a.Reason, a.OpenTaskPolicy, a.ExpectedLeadVersion, $"{a.HandoverId}:{stage}",
+            a.PreviousOwnerId, a.NextOwnerId, a.Reason, a.ExpectedLeadVersion, $"{a.HandoverId}:{stage}",
             a.RequestId, a.CorrelationId, a.OriginalPrincipalId, executor);
     private static LeadHandoverTaskCommand TaskCommand(LeadHandoverAnchor a, string executor) =>
         new(new(a.WorkspaceId, a.OriginalAccountId, a.OriginalMemberId, a.OriginalMembershipId), a.LeadId, a.HandoverId,
-            a.NewOwnerId, a.Reason, a.OpenTaskPolicy, a.TakeoverDueAt, a.RequestId, a.CorrelationId,
+            a.NextOwnerId, a.Reason, a.TakeoverDueAt, a.RequestId, a.CorrelationId,
             a.OriginalPrincipalId, executor == RecoveryPrincipal ? executor : null);
+    // The anchor already stores every canonical intent field. Compare those fields
+    // rather than a historical wire-format hash, so an upgraded completed command
+    // remains replayable without admitting any obsolete public field or policy.
+    private static bool MatchesIntent(LeadHandoverAnchor anchor, long expectedVersion, LeadHandoverRequest request) =>
+        anchor.ExpectedLeadVersion == expectedVersion
+        && string.Equals(anchor.NextOwnerId, request.NextOwnerId, StringComparison.Ordinal)
+        && string.Equals(anchor.Reason, request.Reason, StringComparison.Ordinal);
+
     internal static Dictionary<string, string[]> Validate(LeadHandoverRequest request)
     {
         var fields = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(request.NewOwnerId) || request.NewOwnerId.Trim().Length > 128) fields["newOwnerId"] = ["A valid member is required."];
+        if (string.IsNullOrWhiteSpace(request.NextOwnerId) || request.NextOwnerId.Trim().Length > 128) fields["nextOwnerId"] = ["A valid member is required."];
         if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 1000) fields["reason"] = ["Reason must contain 1..1000 characters."];
-        if (request.OpenTaskPolicy is not (LeadHandoverTaskPolicies.Keep or LeadHandoverTaskPolicies.Move)) fields["openTaskPolicy"] = ["An explicit canonical Task policy is required."];
         return fields;
     }
     private static LeadHandoverOperationResult Fail(string code, int status) => new(false, null, code, status);

@@ -9,7 +9,7 @@ public static class LeadHandoverEndpoints
 {
     public static IEndpointRouteBuilder MapLeadHandoverEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/leads/{leadId}/handover", HandoverAsync)
+        endpoints.MapPost("/workflows/lead-handover/{leadId}", HandoverAsync)
             .RequireAuthorization().RequireTrustedWorkspace().WithName("handoverLeadWithTasks");
         return endpoints;
     }

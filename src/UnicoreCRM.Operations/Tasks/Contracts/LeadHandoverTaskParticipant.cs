@@ -10,14 +10,8 @@ public interface ILeadHandoverTaskParticipant
     /// <summary>Service-only. Success returns exact committed proof. HANDOVER_TASKS_FENCED (409)
     /// proves durable cancellation and is the only failure allowing Lead reservation release.</summary>
     Task<LeadHandoverTaskResult> ResolveOrFenceAsync(LeadHandoverTaskCommand command, CancellationToken cancellationToken);
-    /// <summary>Human-only disclosure guard over existing proof and current Task record scopes; never creates Tasks.</summary>
+    /// <summary>Human-only disclosure guard over existing proof and current Tasks capabilities and proof field visibility; never creates Tasks.</summary>
     Task<LeadHandoverTaskResult> AuthorizeReplayAsync(LeadHandoverTaskCommand command, CancellationToken cancellationToken);
-}
-
-public static class LeadHandoverTaskPolicies
-{
-    public const string Keep = "KEEP_CURRENT_ASSIGNEES";
-    public const string Move = "MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER";
 }
 
 /// <param name="ExecutorServicePrincipalId">Null for a current human request; recovery must use svc_lead_handover_recovery.</param>
@@ -26,9 +20,8 @@ public sealed record LeadHandoverTaskCommand(
     TrustedWorkspaceContext TrustedWorkspace,
     string LeadId,
     string HandoverId,
-    string NewOwnerId,
+    string NextOwnerId,
     string Reason,
-    string OpenTaskPolicy,
     DateTimeOffset FrozenDueAt,
     string RequestId,
     string CorrelationId,

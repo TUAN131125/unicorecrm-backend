@@ -36,7 +36,6 @@ internal static class WorkspaceCapabilityPolicy
         "invoices.update_draft",
         "invoices.void",
         "leads.assign",
-        "leads.handover",
         "leads.bulk",
         "leads.create",
         "leads.delete",

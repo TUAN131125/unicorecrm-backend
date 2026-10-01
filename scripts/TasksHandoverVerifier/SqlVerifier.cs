@@ -24,7 +24,7 @@ static partial class SqlVerifier
             var seed = fixture.Add();
             setup.Tasks.Add(seed);
             await setup.SaveChangesAsync();
-            var command = fixture.Command(LeadHandoverTaskPolicies.Move);
+            var command = fixture.Command();
             Participant Create(TasksDbContext context) => new(new TaskAuthorization(fixture.Access),
                 new CurrentWorkspace(fixture.Trusted), fixture.Service, fixture.Members, new EfTasksPersistence(context), TimeProvider.System);
             await using (var preflight = new TasksDbContext(options))

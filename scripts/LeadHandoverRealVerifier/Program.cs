@@ -86,7 +86,7 @@ app.MapPost("/__verifier/lead-reservation", async (ReservationProbe body, HttpCo
     var trusted = current.Require();
     var service = body.Operation is "resolve" or "release";
     var command = new LeadHandoverParticipantCommand(trusted, body.LeadId, body.HandoverId,
-        trusted.MemberId, body.NewOwnerId, "Reservation fence fixture", "KEEP_CURRENT_ASSIGNEES", 0,
+        trusted.MemberId, body.NextOwnerId, "Reservation fence fixture", 0,
         body.HandoverId + (body.Operation == "release" ? ":release" : ":reserve"),
         "req-verifier-lead-fence", "corr-verifier-lead-fence", trusted.MemberId,
         service ? "svc_lead_handover_recovery" : trusted.MemberId);
@@ -101,7 +101,7 @@ app.MapPost("/__verifier/lead-reservation", async (ReservationProbe body, HttpCo
 }).RequireAuthorization().RequireTrustedWorkspace();
 app.Run();
 
-internal sealed record ReservationProbe(string LeadId, string HandoverId, string NewOwnerId, string Operation);
+internal sealed record ReservationProbe(string LeadId, string HandoverId, string NextOwnerId, string Operation);
 
 internal sealed class CommitFault(bool enabled) : ILeadHandoverFaultInjector
 {

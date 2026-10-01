@@ -18,6 +18,8 @@ internal sealed class Participant(
     internal const string RecoveryPrincipal = "svc_lead_handover_recovery";
     private const string Operation = "leadHandoverTasks";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly RecordAccessRepresentation ProofRepresentation = RecordAccessRepresentation.Create(
+        "lead-handover-task-proof", TaskFieldSecurity.FieldKeys.Where(field => field is not ("id" or "resourceVersion" or "dueAt")).ToArray());
     private enum ExecutionMode { Validate, Execute, ResolveOrFence, AuthorizeReplay }
 
     public Task<LeadHandoverTaskResult> ValidateAsync(LeadHandoverTaskCommand command, CancellationToken cancellationToken) =>
@@ -36,11 +38,9 @@ internal sealed class Participant(
     {
         var fields = new Dictionary<string, string[]>();
         foreach (var (key, value) in new[] { ("leadId", command.LeadId), ("handoverId", command.HandoverId),
-                     ("newOwnerId", command.NewOwnerId), ("originalActorId", command.OriginalActorId) })
+                     ("nextOwnerId", command.NextOwnerId), ("originalActorId", command.OriginalActorId) })
             if (!TaskValidation.IsEntityId(value)) fields[key] = ["A valid entity identifier is required."];
         var reason = TaskValidation.Text(command.Reason, "reason", 1, 1000, true, fields);
-        if (command.OpenTaskPolicy is not (LeadHandoverTaskPolicies.Keep or LeadHandoverTaskPolicies.Move))
-            fields["openTaskPolicy"] = ["An explicit canonical open Task policy is required."];
         if (command.FrozenDueAt == default) fields["frozenDueAt"] = ["The frozen due instant is required."];
         foreach (var (key, value) in new[] { ("requestId", command.RequestId), ("correlationId", command.CorrelationId) })
             TaskValidation.Text(value, key, 1, 128, true, fields);
@@ -64,44 +64,48 @@ internal sealed class Participant(
         {
             if (!currentWorkspace.IsResolved || currentWorkspace.Require() != trusted || trusted.MemberId != command.OriginalActorId)
                 return Failure(TaskErrors.WorkspaceMismatch());
-            var access = await authorization.AuthorizeAsync(TaskCapabilities.Create, metadata, cancellationToken);
+            var representation = mode == ExecutionMode.AuthorizeReplay ? ProofRepresentation : RecordAccessRepresentation.Full;
+            var access = await authorization.AuthorizeAsync(TaskCapabilities.Create, metadata, cancellationToken, representation);
             if (!access.IsSuccess) return Failure(access.Error!);
             if (access.Value!.Trusted != trusted) return Failure(TaskErrors.WorkspaceMismatch());
             createAccess = access.Value;
-            if (command.OpenTaskPolicy == LeadHandoverTaskPolicies.Move)
-            {
-                access = await authorization.AuthorizeAsync(TaskCapabilities.Assign, metadata, cancellationToken);
-                if (!access.IsSuccess) return Failure(access.Error!);
-                if (access.Value!.Trusted != trusted) return Failure(TaskErrors.WorkspaceMismatch());
-                assignAccess = access.Value;
-            }
+            access = await authorization.AuthorizeAsync(TaskCapabilities.Assign, metadata, cancellationToken, representation);
+            if (!access.IsSuccess) return Failure(access.Error!);
+            if (access.Value!.Trusted != trusted) return Failure(TaskErrors.WorkspaceMismatch());
+            assignAccess = access.Value;
         }
 
         // Scope is the durable handover, independent of the current executor and request attempt.
         var scope = TaskCommandSupport.Fingerprint(new { trusted.WorkspaceId, Operation, command.HandoverId });
         var fingerprint = TaskCommandSupport.Fingerprint(new { command.LeadId, command.HandoverId,
-            command.NewOwnerId, Reason = reason, command.OpenTaskPolicy, command.FrozenDueAt, command.OriginalActorId });
+            command.NextOwnerId, Reason = reason, command.FrozenDueAt, command.OriginalActorId });
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var existing = await persistence.FindLeadHandoverIdempotencyForUpdateAsync(scope, cancellationToken);
         if (existing is not null)
         {
-            var error = TaskCommandSupport.ReplayError(existing, fingerprint);
-            if (error is not null) return Failure(error);
+            // Disclosure follows a Workflow-validated stored intent. Historical wire
+            // hashes may differ after contract repair; immutable proof identity must not.
+            if (mode == ExecutionMode.AuthorizeReplay)
+            {
+                if (existing.WorkspaceId != trusted.WorkspaceId || existing.Operation != Operation
+                    || existing.ActorId != command.OriginalActorId || existing.TargetId != command.LeadId
+                    || existing.IdempotencyKey != command.HandoverId)
+                    return Failure(TaskErrors.AccessDenied());
+            }
+            else
+            {
+                var error = TaskCommandSupport.ReplayError(existing, fingerprint);
+                if (error is not null) return Failure(error);
+            }
             var replay = JsonSerializer.Deserialize<LeadHandoverTaskResult>(existing.ResponseJson, JsonOptions)
                 ?? throw new InvalidOperationException("Invalid stored Lead Handover Tasks result.");
             if (!replay.IsSuccess) return replay;
             if (mode == ExecutionMode.ResolveOrFence) return replay;
-            if (!recovery)
-            {
-                // Replays do not discover or mutate tasks created after the original snapshot.
-                foreach (var id in replay.ReassignedTaskIds.Append(replay.HandoverTaskId!))
-                {
-                    var task = await persistence.ReadTaskAsync(trusted.WorkspaceId, id, cancellationToken);
-                    if (task is null) return Failure(TaskErrors.NotFound());
-                    var denied = await authorization.EnforceRecordAsync(assignAccess ?? createAccess!, task, Operation, metadata, cancellationToken);
-                    if (denied is not null) return Failure(denied);
-                }
-            }
+            // Proof replay discloses no Task bodies. Ownership is an admission rule;
+            // this command's reassignment must not invalidate the stored success.
+            if (!recovery && new[] { "id", "resourceVersion", "dueAt" }
+                .Any(field => !createAccess!.Authorization.CanRead(field) || !assignAccess!.Authorization.CanRead(field)))
+                return Failure(TaskErrors.AccessDenied());
             return replay with { Outcome = "REPLAYED" };
         }
 
@@ -117,7 +121,8 @@ internal sealed class Participant(
                     command.OriginalActorId, executor = RecoveryPrincipal, command.RequestId, command.CorrelationId }, JsonOptions), fenceNow);
             var fenced = new LeadHandoverTaskResult(false, [], null, null, null, "FENCED", "HANDOVER_TASKS_FENCED", 409)
             {
-                EmittedEventIds = [message.EventId], AuditEvidenceIds = [audit.AuditId]
+                EmittedEventIds = [message.EventId],
+                AuditEvidenceIds = [audit.AuditId]
             };
             persistence.AddAudit(audit);
             persistence.AddOutbox(message);
@@ -136,30 +141,21 @@ internal sealed class Participant(
         if (recovery) return Failure(new TaskOperationError("HANDOVER_TASKS_NOT_COMMITTED", 409,
             "Human Tasks admission is required before the first participant commit."));
 
-        if (!await members.IsActiveMemberAsync(trusted.WorkspaceId, command.NewOwnerId, cancellationToken))
-            return Failure(TaskErrors.Validation(new Dictionary<string, string[]> { ["newOwnerId"] = ["An active workspace member is required."] }));
+        if (!await members.IsActiveMemberAsync(trusted.WorkspaceId, command.NextOwnerId, cancellationToken))
+            return Failure(TaskErrors.Validation(new Dictionary<string, string[]> { ["nextOwnerId"] = ["An active workspace member is required."] }));
         var references = new TaskReferenceData(null, null, "leads", command.LeadId, null,
             "LEAD_HANDOVER", command.HandoverId, reason);
-        if (!recovery)
-        {
-            var denied = TaskFieldSecurity.GuardCreateWrite(createAccess!.Authorization, null, references);
-            if (denied is not null) return Failure(denied);
-            if (assignAccess is not null)
-            {
-                denied = TaskAuthorization.EnforceFieldWrite(assignAccess, "assigneeId");
-                if (denied is not null) return Failure(denied);
-            }
-        }
-        IReadOnlyList<TaskItem> eligible = command.OpenTaskPolicy == LeadHandoverTaskPolicies.Move
-            ? await persistence.LoadEligibleLeadHandoverTasksForUpdateAsync(trusted.WorkspaceId, command.LeadId, cancellationToken)
-            : [];
+        var fieldDenied = TaskFieldSecurity.GuardCreateWrite(createAccess!.Authorization, null, references);
+        if (fieldDenied is not null) return Failure(fieldDenied);
+        fieldDenied = TaskAuthorization.EnforceFieldWrite(assignAccess!, "assigneeId");
+        if (fieldDenied is not null) return Failure(fieldDenied);
+        var eligible = await persistence.LoadEligibleLeadHandoverTasksForUpdateAsync(trusted.WorkspaceId, command.LeadId, cancellationToken);
         // Validate the entire locked snapshot before the first domain mutation.
-        if (!recovery)
-            foreach (var task in eligible)
-            {
-                var denied = await authorization.EnforceRecordAsync(assignAccess!, task, Operation, metadata, cancellationToken);
-                if (denied is not null) return Failure(denied);
-            }
+        foreach (var task in eligible)
+        {
+            var denied = await authorization.EnforceRecordAsync(assignAccess!, task, Operation, metadata, cancellationToken);
+            if (denied is not null) return Failure(denied);
+        }
         if (mode == ExecutionMode.Validate) return new(true, [], null, null, command.FrozenDueAt, "VALIDATED");
         var now = timeProvider.GetUtcNow();
         var eventIds = new List<string>();
@@ -168,14 +164,14 @@ internal sealed class Participant(
         {
             var priorVersion = task.Version;
             var priorAssignee = task.AssigneeId;
-            if (!task.Assign(command.NewOwnerId, now)) throw new InvalidOperationException("Locked eligible Task was not OPEN.");
+            if (!task.Assign(command.NextOwnerId, now)) throw new InvalidOperationException("Locked eligible Task was not OPEN.");
             var proof = RecordEvidence(task, "TASK_ASSIGNED", priorVersion, priorAssignee, command, now);
             eventIds.Add(proof.EventId);
             auditIds.Add(proof.AuditId);
         }
         var title = reason!.Length <= 300 ? reason : reason[..300];
         var takeover = new TaskItem(trusted.WorkspaceId, title, null, TaskPriority.Normal,
-            command.NewOwnerId, command.FrozenDueAt, references, null, now);
+            command.NextOwnerId, command.FrozenDueAt, references, null, now);
         persistence.AddTask(takeover);
         var takeoverProof = RecordEvidence(takeover, "TASK_CREATED", null, null, command, now);
         eventIds.Add(takeoverProof.EventId);
@@ -203,7 +199,7 @@ internal sealed class Participant(
         var message = new TaskOutboxMessage(eventType, task.TaskId, task.WorkspaceId, command.CorrelationId,
             JsonSerializer.Serialize(new { taskId = task.TaskId, resourceVersion = task.Version,
                 command.HandoverId, command.LeadId, command.OriginalActorId, executor,
-                command.NewOwnerId, priorAssignee, reason = command.Reason.Trim(), command.OpenTaskPolicy,
+                command.NextOwnerId, priorAssignee, reason = command.Reason.Trim(),
                 command.FrozenDueAt, command.RequestId, command.CorrelationId }, JsonOptions), now);
         persistence.AddAudit(audit);
         persistence.AddOutbox(message);

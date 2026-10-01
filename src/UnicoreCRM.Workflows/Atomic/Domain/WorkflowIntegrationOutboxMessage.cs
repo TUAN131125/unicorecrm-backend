@@ -20,7 +20,7 @@ internal sealed class WorkflowIntegrationOutboxMessage
         OccurredAt=occurredAt;ExportState="PENDING";
         IntegrationEnvelopeJson=IntegrationEventSerialization.CreateEnvelope(EventId,WorkflowIntegrationEvents.LeadHandoverCompleted,
             anchor.WorkspaceId,"Workflows","LEAD_HANDOVER",anchor.HandoverId,leadVersion,occurredAt,anchor.CorrelationId,
-            new { anchor.HandoverId, anchor.LeadId, anchor.PreviousOwnerId, anchor.NewOwnerId, anchor.OpenTaskPolicy,
+            new { anchor.HandoverId, anchor.LeadId, anchor.PreviousOwnerId, anchor.NextOwnerId,
                 anchor.Reason, anchor.HandoverOccurredAt, anchor.TakeoverDueAt, anchor.ResolvedSlaHours });
     }
     internal string EventId{get;private set;}=null!; internal string WorkspaceId{get;private set;}=null!; internal string CorrelationId{get;private set;}=null!;

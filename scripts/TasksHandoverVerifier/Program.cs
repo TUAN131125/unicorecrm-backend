@@ -14,32 +14,39 @@ void Check(bool value, string name)
     Console.WriteLine($"PASS {name}");
 }
 var fixture = new Fixture();
+fixture.Access.OwnOnly = true;
 var open = fixture.Add();
-var completed = fixture.Add(); completed.Complete("done", DateTimeOffset.UtcNow);
-var cancelled = fixture.Add(); cancelled.Cancel("cancel", DateTimeOffset.UtcNow);
-var archived = fixture.Add(); archived.Archive("archive", DateTimeOffset.UtcNow);
+var completed = fixture.Add();
+completed.Complete("done", DateTimeOffset.UtcNow);
+var cancelled = fixture.Add();
+cancelled.Cancel("cancel", DateTimeOffset.UtcNow);
+var archived = fixture.Add();
+archived.Archive("archive", DateTimeOffset.UtcNow);
 var otherLead = fixture.Add(lead: "lead_other");
 var otherWorkspace = fixture.Add(workspace: "ws_other");
-var move = fixture.Command(LeadHandoverTaskPolicies.Move);
+var move = fixture.Command();
 var validation = await fixture.Participant.ValidateAsync(move, default);
-Check(validation.IsSuccess && fixture.Persistence.Audits.Count == 0 && open.AssigneeId == "member_old", "preflight writes no domain evidence or Task state");
+Check(validation.IsSuccess && fixture.Persistence.Audits.Count == 0 && open.AssigneeId == fixture.Trusted.MemberId, "preflight writes no domain evidence or Task state");
 fixture.Access.DeniedRecord = open.TaskId;
 var denied = await fixture.Participant.ExecuteAsync(move, default);
-Check(!denied.IsSuccess && fixture.Persistence.Items.Count == 6 && fixture.Persistence.Audits.Count == 0 && open.AssigneeId == "member_old", "record denial fails complete set before mutation");
+Check(!denied.IsSuccess && fixture.Persistence.Items.Count == 6 && fixture.Persistence.Audits.Count == 0 && open.AssigneeId == fixture.Trusted.MemberId, "record denial fails complete set before mutation");
 fixture.Access.DeniedRecord = null;
 fixture.Access.DeniedCapability = "tasks.assign";
-Check(!(await fixture.Participant.ExecuteAsync(move, default)).IsSuccess, "MOVE requires tasks.assign even without visible task targets");
+Check(!(await fixture.Participant.ExecuteAsync(move, default)).IsSuccess, "Handover requires tasks.assign even without visible task targets");
 fixture.Access.DeniedCapability = "tasks.create";
-Check(!(await fixture.Participant.ExecuteAsync(move, default)).IsSuccess, "MOVE requires tasks.create");
+Check(!(await fixture.Participant.ExecuteAsync(move, default)).IsSuccess, "Handover requires tasks.create");
 fixture.Access.DeniedCapability = null;
 var result = await fixture.Participant.ExecuteAsync(move, default);
-Check(result.IsSuccess && result.ReassignedTaskIds.SequenceEqual([open.TaskId]) && open.AssigneeId == "member_new", "MOVE transfers authoritative eligible set");
-Check(new[] { completed, cancelled, archived, otherLead, otherWorkspace }.All(task => task.AssigneeId == "member_old"), "ineligible tasks untouched");
+Check(result.IsSuccess && result.ReassignedTaskIds.SequenceEqual([open.TaskId]) && open.AssigneeId == "member_new", "Handover transfers authoritative eligible set");
+Check(new[] { completed, cancelled, archived, otherLead, otherWorkspace }.All(task => task.AssigneeId == fixture.Trusted.MemberId), "ineligible tasks untouched");
 var takeover = fixture.Persistence.Items.Single(task => task.TaskId == result.HandoverTaskId);
 Check(takeover.Status == UnicoreCRM.Operations.Tasks.Domain.TaskStatus.Open && takeover.Priority == TaskPriority.Normal &&
       takeover.AssigneeId == "member_new" && takeover.SourceType == "LEAD_HANDOVER" && takeover.SourceId == move.HandoverId &&
       takeover.SourceEvidence == move.Reason.Trim() && takeover.RecordModuleKey == "leads" && takeover.RecordId == move.LeadId &&
-      takeover.DueAt == move.FrozenDueAt, "mandatory takeover frozen semantics");
+      takeover.DueAt == move.FrozenDueAt && takeover.Title == move.Reason.Trim() && takeover.Description is null,
+      "mandatory takeover frozen semantics and canonical presentation");
+Check((await fixture.Participant.AuthorizeReplayAsync(move, default)).IsSuccess && fixture.Access.RecordCalls == 3,
+    "OWN admission succeeds and proof replay succeeds after all committed assignees move away");
 var lateTask = fixture.Add();
 var audits = fixture.Persistence.Audits.Count;
 var events = fixture.Persistence.Events.Count;
@@ -48,7 +55,7 @@ Check(result.EmittedEventIds.SequenceEqual(fixture.Persistence.Events.Select(ite
 fixture.Members.Active = false;
 var replay = await fixture.Participant.ExecuteAsync(move, default);
 Check(replay.IsSuccess && replay.Outcome == "REPLAYED" && replay.HandoverTaskId == result.HandoverTaskId &&
-      replay.HandoverTaskDueAt == result.HandoverTaskDueAt && lateTask.AssigneeId == "member_old" &&
+      replay.HandoverTaskDueAt == result.HandoverTaskDueAt && lateTask.AssigneeId == fixture.Trusted.MemberId &&
       fixture.Persistence.Audits.Count == audits && fixture.Persistence.Events.Count == events, "replay survives target deactivation without rediscovery or duplicate evidence");
 Check(replay.EmittedEventIds.SequenceEqual(result.EmittedEventIds) && replay.AuditEvidenceIds.SequenceEqual(result.AuditEvidenceIds), "replay preserves proof IDs");
 Check((await fixture.Participant.ExecuteAsync(move with { Reason = "changed" }, default)).ErrorCode == "IDEMPOTENCY_KEY_REUSED", "conflicting durable intent rejected");
@@ -59,23 +66,38 @@ fixture.Service.Allowed = false;
 Check(!(await fixture.Participant.ExecuteAsync(recovery, default)).IsSuccess, "recovery requires service authorization");
 fixture.Service.Allowed = true;
 Check((await fixture.Participant.ExecuteAsync(recovery with { HandoverId = "handover_uncommitted" }, default)).ErrorCode == "HANDOVER_TASKS_NOT_COMMITTED", "service recovery cannot admit uncommitted side effects");
-var keepFixture = new Fixture();
-var retained = keepFixture.Add();
-keepFixture.Access.DeniedCapability = "tasks.assign";
-var keep = keepFixture.Command(LeadHandoverTaskPolicies.Keep);
-var keepResult = await keepFixture.Participant.ExecuteAsync(keep, default);
-Check(keepResult.IsSuccess && keepResult.ReassignedTaskIds.Count == 0 && retained.AssigneeId == "member_old" && keepFixture.Persistence.Loads == 0, "KEEP requires no assign authority and leaves existing tasks untouched");
-Check((await keepFixture.Participant.ExecuteAsync(keep, default)).HandoverTaskId == keepResult.HandoverTaskId && keepFixture.Persistence.Items.Count == 2, "KEEP exactly-once replay");
+var historical = new Fixture();
+var historicalCommand = historical.Command();
+await historical.Participant.ExecuteAsync(historicalCommand, default);
+var historicalProof = historical.Persistence.Records.Single();
+var legacyProof = new TaskIdempotencyRecord(historicalProof.ScopeKey, historicalProof.WorkspaceId,
+    historicalProof.Operation, historicalProof.ActorId, historicalProof.TargetId, historicalProof.IdempotencyKey,
+    "historical-wire-format-fingerprint", historicalProof.ResponseJson, historicalProof.CreatedAt);
+historical.Persistence.ReplaceIdempotency(legacyProof);
+Check((await historical.Participant.AuthorizeReplayAsync(historicalCommand, default)).IsSuccess,
+    "historical committed proof disclosure does not depend on obsolete wire fingerprint");
+Check((await historical.Participant.ExecuteAsync(historicalCommand, default)).ErrorCode == "IDEMPOTENCY_KEY_REUSED",
+    "execution still enforces fingerprint despite historical disclosure repair");
+foreach (var wrong in new[] {
+    new TaskIdempotencyRecord(legacyProof.ScopeKey, legacyProof.WorkspaceId, legacyProof.Operation,
+        "member_other", legacyProof.TargetId, legacyProof.IdempotencyKey, legacyProof.Fingerprint, legacyProof.ResponseJson, legacyProof.CreatedAt),
+    new TaskIdempotencyRecord(legacyProof.ScopeKey, legacyProof.WorkspaceId, legacyProof.Operation,
+        legacyProof.ActorId, "lead_other", legacyProof.IdempotencyKey, legacyProof.Fingerprint, legacyProof.ResponseJson, legacyProof.CreatedAt) })
+{
+    historical.Persistence.ReplaceIdempotency(wrong);
+    Check((await historical.Participant.AuthorizeReplayAsync(historicalCommand, default)).ErrorCode == "ACCESS_DENIED",
+        "historical proof disclosure rejects mismatched actor or target identity");
+}
 var invalid = new Fixture();
-var command = invalid.Command(LeadHandoverTaskPolicies.Keep);
+var command = invalid.Command();
 foreach (var bad in new[] { command with { Reason = " " }, command with { Reason = new string('x', 1001) },
-             command with { OpenTaskPolicy = "" }, command with { OpenTaskPolicy = "OTHER" }, command with { NewOwnerId = "" } })
+             command with { NextOwnerId = "" } })
     Check((await invalid.Participant.ExecuteAsync(bad, default)).ErrorCode == "VALIDATION_FAILED", "invalid frozen command rejected");
 invalid.Members.Active = false;
 Check((await invalid.Participant.ExecuteAsync(command, default)).ErrorCode == "VALIDATION_FAILED", "inactive target rejected before first commit");
 Check((await invalid.Participant.ExecuteAsync(command with { TrustedWorkspace = command.TrustedWorkspace with { WorkspaceId = "ws_other" } }, default)).ErrorCode == "WORKSPACE_MISMATCH", "trusted workspace mismatch refused");
 var fenceFixture = new Fixture();
-var fenceCommand = fenceFixture.Command(LeadHandoverTaskPolicies.Move);
+var fenceCommand = fenceFixture.Command();
 Check(!(await fenceFixture.Participant.ResolveOrFenceAsync(fenceCommand, default)).IsSuccess && fenceFixture.Persistence.Audits.Count == 0,
     "human cannot fence participant");
 var serviceFenceCommand = fenceCommand with { ExecutorServicePrincipalId = Participant.RecoveryPrincipal };
@@ -91,7 +113,7 @@ Check(repeatedFence.AuditEvidenceIds.SequenceEqual(fence.AuditEvidenceIds) && fe
     "repeated fence preserves evidence without duplication");
 Check((await fenceFixture.Participant.ExecuteAsync(fenceCommand, default)).ErrorCode == "HANDOVER_TASKS_FENCED" && fenceFixture.Persistence.Items.Count == 0,
     "late human execute observes fence before null takeover traversal");
-Check((await fenceFixture.Participant.ResolveOrFenceAsync(serviceFenceCommand with { NewOwnerId = "member_other" }, default)).ErrorCode == "IDEMPOTENCY_KEY_REUSED",
+Check((await fenceFixture.Participant.ResolveOrFenceAsync(serviceFenceCommand with { NextOwnerId = "member_other" }, default)).ErrorCode == "IDEMPOTENCY_KEY_REUSED",
     "fence rejects changed intent");
 fixture.Service.Allowed = true;
 var resolved = await fixture.Participant.ResolveOrFenceAsync(recovery, default);
@@ -100,13 +122,52 @@ Check(resolved.IsSuccess && resolved.Outcome == "COMMITTED" && resolved.Handover
     "resolve committed proof bypasses revoked human authority without duplicate evidence");
 fixture.Access.DeniedCapability = null;
 fixture.Access.DeniedRecord = result.HandoverTaskId;
-Check(!(await fixture.Participant.AuthorizeReplayAsync(move, default)).IsSuccess,
-    "human disclosure guard refuses current Task record denial");
+Check((await fixture.Participant.AuthorizeReplayAsync(move, default)).IsSuccess,
+    "proof replay does not recheck post-transfer Task ownership");
 fixture.Access.DeniedRecord = null;
+foreach (var capability in new[] { "tasks.create", "tasks.assign" })
+{
+    fixture.Access.DeniedCapability = capability;
+    Check((await fixture.Participant.AuthorizeReplayAsync(move, default)).ErrorCode == "ACCESS_DENIED",
+        "later proof replay requires current " + capability);
+}
+fixture.Access.DeniedCapability = null;
+foreach (var field in new[] { "id", "resourceVersion", "dueAt" })
+{
+    fixture.Access.HiddenField = field;
+    Check((await fixture.Participant.AuthorizeReplayAsync(move, default)).ErrorCode == "ACCESS_DENIED",
+        "later proof replay refuses hidden " + field);
+}
+fixture.Access.HiddenField = "title";
+Check((await fixture.Participant.AuthorizeReplayAsync(move, default)).IsSuccess,
+    "proof replay does not expose a currently hidden Task title");
+fixture.Access.HiddenField = null;
 Check((await fixture.Participant.AuthorizeReplayAsync(move, default)).IsSuccess && fixture.Persistence.Audits.Count == audits,
     "human disclosure guard reads existing proof without mutation");
 Check((await fenceFixture.Participant.AuthorizeReplayAsync(fenceCommand with { HandoverId = "handover_absent" }, default)).ErrorCode == "HANDOVER_TASKS_NOT_COMMITTED" && fenceFixture.Persistence.Items.Count == 0,
     "disclosure guard never admits new Tasks");
+var mixedScope = new Fixture();
+mixedScope.Access.OwnOnly = true;
+var admittedTask = mixedScope.Add();
+var inaccessibleTask = mixedScope.Add();
+inaccessibleTask.Assign("member_other", DateTimeOffset.UtcNow);
+Check((await mixedScope.Participant.ExecuteAsync(mixedScope.Command(), default)).ErrorCode == "RESOURCE_NOT_FOUND" &&
+    admittedTask.AssigneeId == mixedScope.Trusted.MemberId && mixedScope.Persistence.Items.Count == 2 &&
+    mixedScope.Persistence.Audits.Count == 0 && mixedScope.Persistence.Events.Count == 0,
+    "one inaccessible eligible Task rejects entire snapshot before any mutation");
+var longReason = new Fixture();
+var longResult = await longReason.Participant.ExecuteAsync(longReason.Command() with { Reason = "  " + new string('x', 1000) + "  " }, default);
+var longTakeover = longReason.Persistence.Items.Single();
+Check(longResult.IsSuccess && longTakeover.Title == new string('x', 300) && longTakeover.Description is null &&
+    longTakeover.SourceEvidence == new string('x', 1000), "1000-character trimmed evidence retains canonical 300-character title");
+var fieldAdmission = new Fixture();
+foreach (var field in new[] { "title", "priority", "assigneeId", "dueAt", "recordRef", "sourceRef" })
+{
+    fieldAdmission.Access.HiddenField = field;
+    Check((await fieldAdmission.Participant.ExecuteAsync(fieldAdmission.Command(), default)).ErrorCode == "ACCESS_DENIED" &&
+        fieldAdmission.Persistence.Items.Count == 0 && fieldAdmission.Persistence.Audits.Count == 0,
+        "initial admission requires write authority for " + field);
+}
 Console.WriteLine($"{passed} passed, 0 failed. In-memory participant verification; SQL range-lock concurrency requires integration verification.");
 if (args.Contains("--sql")) await SqlVerifier.RunAsync();
 
@@ -123,11 +184,11 @@ sealed class Fixture
         Access = new(Trusted);
         Participant = new(new TaskAuthorization(Access), new CurrentWorkspace(Trusted), Service, Members, Persistence, TimeProvider.System);
     }
-    internal LeadHandoverTaskCommand Command(string policy) => new(Trusted, "lead_test", "handover_test", "member_new",
-        "  takeover reason  ", policy, new DateTimeOffset(2026, 10, 3, 4, 5, 6, TimeSpan.Zero), "request_test", "correlation_test", Trusted.MemberId);
+    internal LeadHandoverTaskCommand Command() => new(Trusted, "lead_test", "handover_test", "member_new",
+        "  takeover reason  ", new DateTimeOffset(2026, 10, 3, 4, 5, 6, TimeSpan.Zero), "request_test", "correlation_test", Trusted.MemberId);
     internal TaskItem Add(string lead = "lead_test", string workspace = "ws_test")
     {
-        var task = new TaskItem(workspace, "task", null, TaskPriority.Normal, "member_old", DateTimeOffset.UtcNow,
+        var task = new TaskItem(workspace, "task", null, TaskPriority.Normal, Trusted.MemberId, DateTimeOffset.UtcNow,
             new(null, null, "leads", lead, null, null, null, null), null, DateTimeOffset.UtcNow);
         Persistence.AddTask(task);
         return task;
@@ -159,19 +220,28 @@ sealed class Evaluator(TrustedWorkspaceContext trusted) : IRecordAccessEvaluator
 {
     internal string? DeniedCapability;
     internal string? DeniedRecord;
+    internal string? HiddenField;
+    internal bool OwnOnly;
+    internal int RecordCalls;
     public Task<RecordAccessAuthorization> AuthorizeResourceAsync(string resourceKey, string requiredCapability,
         IReadOnlyList<string>? requestedFields, RecordAccessRepresentation representation, RecordAccessRequestContext requestContext, CancellationToken cancellationToken)
     {
         // The production constructor is internal to Platform; this isolated verifier supplies owner-boundary decisions.
         var constructor = typeof(RecordAccessAuthorization).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
         return Task.FromResult((RecordAccessAuthorization)constructor.Invoke([
-            requiredCapability != DeniedCapability, "AUTHORIZED", trusted, RecordAccessScopeFilter.Workspace, null, "WORKSPACE",
-            requestedFields!.ToDictionary(key => key, _ => RecordFieldEnforcement.ReadWrite), Array.Empty<string>(),
+            requiredCapability != DeniedCapability, "AUTHORIZED", trusted,
+            OwnOnly ? RecordAccessScopeFilter.OwnedByMember : RecordAccessScopeFilter.Workspace,
+            OwnOnly ? trusted.MemberId : null, OwnOnly ? "OWN" : "WORKSPACE",
+            requestedFields!.ToDictionary(key => key, key => key == HiddenField ? RecordFieldEnforcement.Withheld : RecordFieldEnforcement.ReadWrite), Array.Empty<string>(),
             new[] { "tasks.create", "tasks.assign", "tasks.read" }, "policy_test", resourceKey, requiredCapability, true, false, false]));
     }
     public Task<RecordAccessRecordDecision> AuthorizeRecordAsync(RecordAccessAuthorization authorization, string recordId,
-        RecordAccessFacts facts, string enforcementPoint, RecordAccessRequestContext requestContext, CancellationToken cancellationToken) =>
-        Task.FromResult(new RecordAccessRecordDecision(recordId != DeniedRecord, "WORKSPACE", true));
+        RecordAccessFacts facts, string enforcementPoint, RecordAccessRequestContext requestContext, CancellationToken cancellationToken)
+    {
+        RecordCalls++;
+        return Task.FromResult(new RecordAccessRecordDecision(recordId != DeniedRecord &&
+            (!OwnOnly || facts.OwnerMemberId == trusted.MemberId), OwnOnly ? "OWN" : "WORKSPACE", true));
+    }
 }
 sealed class MemoryPersistence : ITasksPersistence
 {
@@ -179,6 +249,8 @@ sealed class MemoryPersistence : ITasksPersistence
     internal readonly List<TaskAuditRecord> Audits = [];
     internal readonly List<TaskOutboxMessage> Events = [];
     private readonly Dictionary<string, TaskIdempotencyRecord> records = [];
+    internal IEnumerable<TaskIdempotencyRecord> Records => records.Values;
+    internal void ReplaceIdempotency(TaskIdempotencyRecord record) => records[record.ScopeKey] = record;
     internal int Loads;
     public Task<ITasksTransaction> BeginSerializableAsync(CancellationToken cancellationToken) => Task.FromResult<ITasksTransaction>(new Transaction());
     public Task<TaskItem?> LoadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken) => ReadTaskAsync(workspaceId, taskId, cancellationToken);

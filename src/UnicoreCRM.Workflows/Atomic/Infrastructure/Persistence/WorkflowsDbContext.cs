@@ -59,13 +59,13 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
             entity.HasKey(x => x.ScopeKey);
             entity.Property(x => x.ScopeKey).HasMaxLength(64);
             entity.HasIndex(x => x.HandoverId).IsUnique();
-            foreach (var name in new[] { "HandoverId", "WorkspaceId", "LeadId", "IdempotencyKey", "OriginalAccountId", "OriginalMemberId", "OriginalMembershipId", "OriginalPrincipalId", "CorrelationId", "RequestId", "PreviousOwnerId", "NewOwnerId", "ExecutionAttemptId", "ExecutionPrincipalId" })
+            foreach (var name in new[] { "HandoverId", "WorkspaceId", "LeadId", "IdempotencyKey", "OriginalAccountId", "OriginalMemberId", "OriginalMembershipId", "OriginalPrincipalId", "CorrelationId", "RequestId", "PreviousOwnerId", "NextOwnerId", "ExecutionAttemptId", "ExecutionPrincipalId" })
                 entity.Property(name).HasMaxLength(128);
             entity.Property(x => x.ActiveLeadKey).HasMaxLength(257);
             entity.HasIndex(x => x.ActiveLeadKey).IsUnique().HasFilter("[ActiveLeadKey] IS NOT NULL");
             entity.Property(x => x.RequestFingerprint).HasMaxLength(64);
+            entity.Property(x => x.NextOwnerId).HasColumnName("NewOwnerId");
             entity.Property(x => x.Reason).HasMaxLength(1000);
-            entity.Property(x => x.OpenTaskPolicy).HasMaxLength(64);
             entity.Property(x => x.Stage).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.LastErrorCategory).HasMaxLength(32);
             entity.Property(x => x.LastErrorCode).HasMaxLength(128);
