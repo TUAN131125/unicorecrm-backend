@@ -47,7 +47,8 @@ function Task-Fixtures([string] $id) {
     Invoke-Sql "INSERT INTO tasks.Activities(ActivityId,WorkspaceId,Type,Subject,Body,ActorId,OccurredAt,RecordModuleKey,RecordId,RecordLabel,Version) VALUES ('o4_activity_$id','$workspaceId',0,'Historical O4','Keep authorship','$memberId',SYSUTCDATETIME(),'leads','$id','O4',0);"
 }
 function Assert-Completion([string] $id,$doc,[string] $owner,[int] $sla) {
-    Check-O4 ($doc.result.lead.ownerId -eq $owner) 'Result contains authoritative Lead owner'
+    Check-O4 ((@($doc.result.PSObject.Properties.Name | Sort-Object) -join ',') -eq 'handoverTaskDueAt,handoverTaskId,handoverTaskVersion,reassignedTaskIds,resolvedHandoverAcceptanceSlaHours') 'Receipt contains only safe Task command proof fields'
+    Check-O4 ($doc.aggregateId -eq $id) 'Receipt identifies Lead through aggregate metadata'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM leads.Leads WHERE LeadId='$id' AND ScopeOwnerId='$owner' AND JSON_VALUE(Profile,'$.ownerId')='$owner' AND PendingHandoverId IS NULL;") -eq '1') 'Lead completion clears exact reservation'
     $task=$doc.result.handoverTaskId;$anchor=$doc.commandId
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor' AND LeadId='$id' AND WorkspaceId='$workspaceId' AND NewOwnerId='$owner' AND Reason='Territory handover' AND LEN(RequestFingerprint)=64;") -eq '1') 'Anchor persists canonical owner reason and request fingerprint'
@@ -184,10 +185,11 @@ try {
     $oldHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($oldIntent)))
     $oldTaskIntent=[ordered]@{leadId=$ownLead;handoverId=$historicalAnchor;newOwnerId=$bMember;reason='Territory handover';openTaskPolicy='MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER';frozenDueAt=([DateTimeOffset]$ownDoc.result.handoverTaskDueAt).ToString("yyyy-MM-ddTHH:mm:ss.FFFFFFFzzz",[Globalization.CultureInfo]::InvariantCulture);originalActorId=$memberId}|ConvertTo-Json -Compress
     $oldTaskHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($oldTaskIntent)))
-    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET RequestFingerprint='$oldHash',ResponseJson=JSON_MODIFY(ResponseJson,'$.result.openTaskPolicy','MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER') WHERE HandoverId='$historicalAnchor'; UPDATE tasks.IdempotencyRecords SET Fingerprint='$oldTaskHash' WHERE IdempotencyKey='$historicalAnchor' AND Operation='leadHandoverTasks';"
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET RequestFingerprint='$oldHash',ResponseJson=JSON_MODIFY(JSON_MODIFY(ResponseJson,'$.result.openTaskPolicy','MOVE_LEAD_OPEN_TASKS_TO_NEW_OWNER'),'$.result.lead',JSON_QUERY((SELECT 'Protected historical profile' AS displayName,'private-phone' AS phone,'private@example.test' AS email FOR JSON PATH,WITHOUT_ARRAY_WRAPPER))) WHERE HandoverId='$historicalAnchor'; UPDATE tasks.IdempotencyRecords SET Fingerprint='$oldTaskHash' WHERE IdempotencyKey='$historicalAnchor' AND Operation='leadHandoverTasks';"
     $historicalReplay=Handover $ownLead $bMember 'o4-own'
     Assert-Status $historicalReplay 200 'Historical committed anchor replays through canonical request after wire repair'
     $historicalDoc=$historicalReplay.Body|ConvertFrom-Json
+    Check-O4 (-not ($historicalDoc.result.PSObject.Properties.Name -contains 'lead') -and -not $historicalReplay.Body.Contains('private-phone') -and -not $historicalReplay.Body.Contains('private@example.test')) 'Historical full Lead receipt is sanitized on upgraded replay'
     Check-O4 ($historicalDoc.commandId -eq $ownDoc.commandId -and $historicalDoc.outcome -eq 'REPLAYED' -and -not($historicalDoc.result.PSObject.Properties.Name -contains 'openTaskPolicy')) 'Historical outcome is retained without obsolete public policy'
     Check-O4 ((Hash-Tasks "RecordId='$ownLead'") -eq $ownHash) 'Historical replay does not mutate or rediscover Tasks'
     Assert-Status (Handover $ownLead $bMember 'o4-own' 0 'different reason') 409 'Historical key still rejects changed canonical intent'
@@ -342,13 +344,34 @@ try {
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor' AND CompletedAt IS NULL AND ActiveLeadKey IS NOT NULL AND Stage<>'ManualReview';") -eq '1') 'Human retry keeps committed workflow recoverable'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Revoked-grant human retry never duplicates or compensates Tasks'
     Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET ExecutionLeaseExpiresAt=DATEADD(minute,-1,SYSUTCDATETIME()),NextRetryAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE HandoverId='$anchor'; DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='leads.assign';"
+    $deferralRace=Send-Json 'POST' "/__verifier/deferral-concurrency/$anchor" '{}' $control
+    Assert-Status $deferralRace 200 'Real SQL stale deferral versus competing worker lease'
+    $deferralRaceDoc=$deferralRace.Body|ConvertFrom-Json
+    Check-O4 ($deferralRaceDoc.conflictCaught -and $deferralRaceDoc.leasePreserved -and $deferralRaceDoc.stagePreserved -and $deferralRaceDoc.activeLeaseGuard) 'Rowversion rejects stale deferral and preserves winning worker lease and stage'
+    $leasedVersion=Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';"
+    Assert-Status (Send-Json 'POST' '/__verifier/recover' '{}' $control) 200 'Denied scan with active valid lease'
+    Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';") -eq $leasedVersion) 'Denial never defers a workflow owned by an active valid lease'
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET ExecutionLeaseExpiresAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE HandoverId='$anchor';"
     $denied=Send-Json 'POST' '/__verifier/recover' '{}' $control;Assert-Status $denied 200 'Service recovery scan without grant'
     Check-O4 (($denied.Body|ConvertFrom-Json).completed -eq 0) 'Recovery denied without service grant'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Denied recovery never compensates Tasks'
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor' AND NextRetryAt>SYSUTCDATETIME() AND NextRetryAt<=DATEADD(minute,2,SYSUTCDATETIME()) AND LastErrorCategory='TRANSIENT' AND LastErrorCode='RECOVERY_ACCESS_DENIED' AND Stage='LeadReserved' AND ActiveLeadKey IS NOT NULL;") -eq '1') 'Denied recovery has bounded durable backoff without stage or reservation loss'
+    $deferredVersion=Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';"
+    Assert-Status (Send-Json 'POST' '/__verifier/recover' '{}' $control) 200 'Repeated denied recovery scan'
+    Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';") -eq $deferredVersion) 'Deferred anchor is not hot-looped before retry time'
+    # Ten persisted denied coordination fixtures in A precede the real recoverable participant commit in B.
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; DECLARE @columns nvarchar(max), @values nvarchar(max), @sql nvarchar(max); SELECT @columns=STRING_AGG(CONVERT(nvarchar(max),QUOTENAME(name)),','), @values=STRING_AGG(CONVERT(nvarchar(max),CASE name WHEN 'ScopeKey' THEN 'CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(''fairness_scope_'',n)),2)' WHEN 'HandoverId' THEN 'CONCAT(''handover_fairness_'',n)' WHEN 'LeadId' THEN 'CONCAT(''lead_fairness_'',n)' WHEN 'ActiveLeadKey' THEN 'CONCAT(''${foreignWorkspaceId}:lead_fairness_'',n)' WHEN 'WorkspaceId' THEN '''$foreignWorkspaceId''' WHEN 'UpdatedAt' THEN 'DATEADD(day,CASE WHEN n=0 THEN -2 ELSE -1 END,SYSUTCDATETIME())' WHEN 'NextRetryAt' THEN 'DATEADD(minute,-1,SYSUTCDATETIME())' WHEN 'ExecutionAttemptId' THEN 'CASE WHEN n=0 THEN ''fairness_valid_lease'' ELSE NULL END' WHEN 'ExecutionPrincipalId' THEN 'NULL' WHEN 'ExecutionLeaseAcquiredAt' THEN 'NULL' WHEN 'ExecutionLeaseExpiresAt' THEN 'CASE WHEN n=0 THEN DATEADD(minute,2,SYSUTCDATETIME()) ELSE NULL END' ELSE QUOTENAME(name) END),',') FROM sys.columns WHERE object_id=OBJECT_ID('workflow.LeadHandoverAnchors') AND name<>'RowVersion'; SET @sql='INSERT INTO workflow.LeadHandoverAnchors ('+@columns+') SELECT '+@values+' FROM workflow.LeadHandoverAnchors CROSS JOIN (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(10)) numbers(n) WHERE HandoverId=''$anchor'''; EXEC sp_executesql @sql; DELETE FROM access.WorkspaceServiceCapabilityGrants WHERE WorkspaceId='$foreignWorkspaceId' AND ServicePrincipalId='svc_lead_handover_recovery' AND Capability='leads.handover.recover';"
     Invoke-Sql "INSERT INTO access.WorkspaceServiceCapabilityGrants(WorkspaceId,ServicePrincipalId,Capability,GrantedAt) VALUES ('$workspaceId','svc_lead_handover_recovery','leads.handover.recover',SYSUTCDATETIME());"
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET NextRetryAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE HandoverId='$anchor';"
+    $fairnessLeaseVersion=Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='handover_fairness_0';"
+    $fairness=Send-Json 'POST' '/__verifier/recover' '{}' $control
+    Assert-Status $fairness 200 'First fairness scan reaches ten oldest denied anchors'
+    Check-O4 (($fairness.Body|ConvertFrom-Json).completed -eq 0) 'First bounded batch defers ten denied anchors'
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId LIKE 'handover_fairness_%' AND NextRetryAt>SYSUTCDATETIME() AND LastErrorCode='RECOVERY_ACCESS_DENIED' AND Stage='LeadReserved' AND ActiveLeadKey IS NOT NULL AND TasksResultJson IS NULL AND CompletedAt IS NULL;") -eq '10') 'Ten denied anchors retain stage reservation and participant evidence with future retry'
     $recovered=Send-Json 'POST' '/__verifier/recover' '{}' $control
     Assert-Status $recovered 200 'Service recovery scan'
-    Check-O4 (($recovered.Body|ConvertFrom-Json).completed -eq 1) 'Recovery completes without original human grants'
+    Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='handover_fairness_0';") -eq $fairnessLeaseVersion) 'Oldest active lease is excluded before batch limit and remains unchanged'
+    Check-O4 (($recovered.Body|ConvertFrom-Json).completed -eq 1) 'Second bounded fairness scan completes authorized eleventh anchor after grant restoration'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Recovery neither duplicates nor compensates Tasks'
     Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(40),TakeoverDueAt,127) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';") -eq $frozenDue) 'In-flight SLA frozen across config change and restart'
     Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','leads.assign');"

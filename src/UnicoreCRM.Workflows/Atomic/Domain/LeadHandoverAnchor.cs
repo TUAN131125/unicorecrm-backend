@@ -101,6 +101,18 @@ internal sealed class LeadHandoverAnchor
         NextRetryAt = null;
         ReleaseLease(now);
     }
+    internal bool DeferRecoveryAccessDenied(DateTimeOffset now)
+    {
+        if (Stage is LeadHandoverStage.Completed or LeadHandoverStage.ManualReview
+            || NextRetryAt > now
+            || (ExecutionAttemptId is not null && ExecutionLeaseExpiresAt > now)) return false;
+        NextRetryAt = now.AddMinutes(1);
+        UpdatedAt = now;
+        LastErrorCategory = "TRANSIENT";
+        LastErrorCode = "RECOVERY_ACCESS_DENIED";
+        return true;
+    }
+
     internal void Retry(string attemptId, string code, DateTimeOffset next, DateTimeOffset now)
     {
         RequireLease(attemptId, now);

@@ -20,6 +20,7 @@ using UnicoreCRM.Platform.Workspace.Application.Common;
 using UnicoreCRM.Platform.Workspace.Infrastructure.Persistence;
 using UnicoreCRM.Platform.Workspace.Domain;
 using UnicoreCRM.Crm.Leads.Contracts;
+using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 
 // Test-only composition root. All authorization, persistence and participants are production services.
 // Only the fault injector and scheduling of the real recovery runner are controlled by this verifier.
@@ -77,6 +78,32 @@ app.MapPost("/__verifier/recover", async (HttpContext context, ILeadHandoverReco
     if (context.Connection.RemoteIpAddress is null || !System.Net.IPAddress.IsLoopback(context.Connection.RemoteIpAddress)
         || context.Request.Headers["X-Verifier-Control"].ToString() != controlKey) return Results.StatusCode(403);
     return Results.Json(new { completed = await runner.ResumeDueAsync(ct) });
+});
+
+// Real SQL ordering: a competing worker acquires its lease after the deferral read.
+app.MapPost("/__verifier/deferral-concurrency/{handoverId}", async (string handoverId, HttpContext context,
+    IServiceScopeFactory scopes, CancellationToken ct) =>
+{
+    if (context.Connection.RemoteIpAddress is null || !System.Net.IPAddress.IsLoopback(context.Connection.RemoteIpAddress)
+        || context.Request.Headers["X-Verifier-Control"].ToString() != controlKey) return Results.StatusCode(403);
+    await using var deferredScope = scopes.CreateAsyncScope();
+    await using var workerScope = scopes.CreateAsyncScope();
+    var deferredDb = deferredScope.ServiceProvider.GetRequiredService<WorkflowsDbContext>();
+    var workerDb = workerScope.ServiceProvider.GetRequiredService<WorkflowsDbContext>();
+    var deferred = await deferredDb.LeadHandoverAnchors.SingleAsync(x => x.HandoverId == handoverId, ct);
+    var worker = await workerDb.LeadHandoverAnchors.SingleAsync(x => x.HandoverId == handoverId, ct);
+    var stage = worker.Stage;
+    var now = DateTimeOffset.UtcNow;
+    if (!deferred.DeferRecoveryAccessDenied(now)) return Results.Conflict();
+    worker.AcquireLease("verifier_competing_worker", "svc_lead_handover_recovery", now, TimeSpan.FromMinutes(2));
+    await workerDb.SaveChangesAsync(ct);
+    var conflictCaught = false;
+    try { await deferredDb.SaveChangesAsync(ct); }
+    catch (DbUpdateConcurrencyException) { conflictCaught = true; }
+    workerDb.ChangeTracker.Clear();
+    var current = await workerDb.LeadHandoverAnchors.SingleAsync(x => x.HandoverId == handoverId, ct);
+    return Results.Json(new { conflictCaught, leasePreserved = current.OwnsLease("verifier_competing_worker", now),
+        stagePreserved = current.Stage == stage, activeLeaseGuard = !current.DeferRecoveryAccessDenied(now) });
 });
 app.MapPost("/__verifier/lead-reservation", async (ReservationProbe body, HttpContext context,
     ICurrentWorkspace current, ILeadHandoverParticipant participant, CancellationToken ct) =>

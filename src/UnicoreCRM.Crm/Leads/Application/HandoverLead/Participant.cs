@@ -8,10 +8,6 @@ namespace UnicoreCRM.Crm.Leads.Application.HandoverLead;
 internal sealed class Participant(LeadAuthorization authorization, ILeadsPersistence persistence,
     IWorkspaceMemberReferenceValidator members, IServiceAccessAuthorizer serviceAccess, TimeProvider time) : ILeadHandoverParticipant
 {
-    public LeadDocument Project(LeadDocument document, LeadHandoverPreparation admission) =>
-        LeadFieldSecurity.Project(document, admission.Authorization
-            ?? throw new InvalidOperationException("Handover projection requires request-local admission."));
-
     public async Task<LeadHandoverPreparation> AuthorizeAsync(PrepareLeadHandoverCommand command, CancellationToken ct)
     {
         var metadata = new LeadRequestMetadata(command.RequestId, command.CorrelationId);

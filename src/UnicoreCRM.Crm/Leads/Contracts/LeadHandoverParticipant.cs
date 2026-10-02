@@ -15,7 +15,6 @@ public sealed record LeadHandoverParticipantResult(bool IsSuccess, LeadMutationR
     string? ErrorCode = null, int? ErrorStatus = null);
 public interface ILeadHandoverParticipant
 {
-    LeadDocument Project(LeadDocument document, LeadHandoverPreparation admission);
     Task<LeadHandoverPreparation> AuthorizeAsync(PrepareLeadHandoverCommand command, CancellationToken cancellationToken);
     Task<LeadHandoverPreparation> PrepareAsync(PrepareLeadHandoverCommand command, CancellationToken cancellationToken, LeadHandoverPreparation? admission = null);
     Task<LeadHandoverParticipantResult> ReserveAsync(LeadHandoverParticipantCommand command, CancellationToken cancellationToken);

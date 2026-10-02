@@ -53,7 +53,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
         if (prior is not null)
         {
             if (!MatchesIntent(prior, command.ExpectedVersion, request)) return new(false, null, "IDEMPOTENCY_KEY_REUSED", 409, IdempotencyKey: command.IdempotencyKey);
-            return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, access, true, ct);
+            return await AuthorizeReceiptAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, true, ct);
         }
         var prepared = await leads.PrepareAsync(preparationCommand, ct, access);
         if (!prepared.IsSuccess) return new(false, null, prepared.ErrorCode, prepared.ErrorStatus,
@@ -76,13 +76,13 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
             db.ChangeTracker.Clear();
             prior = await db.LeadHandoverAnchors.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scope, ct);
             if (prior is not null && MatchesIntent(prior, command.ExpectedVersion, request))
-                return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, access, true, ct);
+                return await AuthorizeReceiptAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, true, ct);
             return Fail("LEAD_HANDOVER_IN_PROGRESS", 409);
         }
-        return await ProjectAsync(await ResumeAsync(scope, trusted.MemberId, false, ct), command, prepared, false, ct);
+        return await AuthorizeReceiptAsync(await ResumeAsync(scope, trusted.MemberId, false, ct), command, false, ct);
     }
 
-    private async Task<LeadHandoverOperationResult> ProjectAsync(LeadHandoverOperationResult result, LeadHandoverCommand command, LeadHandoverPreparation admission, bool replay, CancellationToken ct)
+    private async Task<LeadHandoverOperationResult> AuthorizeReceiptAsync(LeadHandoverOperationResult result, LeadHandoverCommand command, bool replay, CancellationToken ct)
     {
         if (!result.IsSuccess) return result;
         // A new execution uses its captured admission. Ownership changes cannot revoke
@@ -94,9 +94,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
             var disclosure = await tasks.AuthorizeReplayAsync(TaskCommand(anchor, anchor.OriginalPrincipalId), ct);
             if (!disclosure.IsSuccess) return Fail(disclosure.ErrorCode!, disclosure.ErrorStatus!.Value);
         }
-        var document = leads.Project(result.Response!.Result.Lead, admission);
-        return result with {
-            Response = result.Response with { Result = result.Response.Result with { Lead = document } } };
+        return result;
     }
 
     public async Task<int> ResumeDueAsync(CancellationToken ct)
@@ -104,8 +102,10 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
         var now = time.GetUtcNow();
         var ids = await db.LeadHandoverAnchors.AsNoTracking()
             .Where(x => x.Stage != LeadHandoverStage.Completed && x.Stage != LeadHandoverStage.ManualReview
-                && (x.NextRetryAt == null || x.NextRetryAt <= now))
-            .OrderBy(x => x.UpdatedAt).Select(x => new { x.ScopeKey, x.WorkspaceId, x.CorrelationId }).Take(10).ToArrayAsync(ct);
+                && (x.NextRetryAt == null || x.NextRetryAt <= now)
+                && (x.ExecutionAttemptId == null || x.ExecutionLeaseExpiresAt == null || x.ExecutionLeaseExpiresAt <= now))
+            .OrderBy(x => x.UpdatedAt).ThenBy(x => x.ScopeKey)
+            .Select(x => new { x.ScopeKey, x.WorkspaceId, x.CorrelationId }).Take(10).ToArrayAsync(ct);
         var count = 0;
         foreach (var item in ids)
         {
@@ -113,12 +113,23 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                 AccessRequirement.ForCanonicalCapability("leads.handover.recover"), item.CorrelationId, ct);
             if (!grant.IsAllowed)
             {
+                await DeferDeniedRecoveryAsync(item.ScopeKey, ct);
                 logger.LogWarning("Handover recovery denied in workspace {WorkspaceId}", item.WorkspaceId);
                 continue;
             }
             if ((await ResumeAsync(item.ScopeKey, RecoveryPrincipal, true, ct)).IsSuccess) count++;
         }
         return count;
+    }
+
+    private async Task DeferDeniedRecoveryAsync(string scope, CancellationToken ct)
+    {
+        db.ChangeTracker.Clear();
+        var anchor = await db.LeadHandoverAnchors.SingleOrDefaultAsync(x => x.ScopeKey == scope, ct);
+        if (anchor is null || !anchor.DeferRecoveryAccessDenied(time.GetUtcNow())) return;
+        // Rowversion prevents this deferral from overwriting concurrent lease acquisition or progress.
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); }
     }
 
     private async Task<LeadHandoverOperationResult> ResumeAsync(string scope, string executor, bool replay, CancellationToken ct)
@@ -195,7 +206,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                 var task = JsonSerializer.Deserialize<LeadHandoverTaskResult>(anchor.TasksResultJson!, Json)!;
                 var response = new LeadHandoverResponse(anchor.HandoverId, anchor.CorrelationId, anchor.LeadId, "LEAD",
                     lead.Version, anchor.HandoverOccurredAt.UtcDateTime.ToString("O"), replay ? "REPLAYED" : "COMMITTED",
-                    new(lead.Result, task.ReassignedTaskIds, task.HandoverTaskId!, task.HandoverTaskVersion!.Value,
+                    new(task.ReassignedTaskIds, task.HandoverTaskId!, task.HandoverTaskVersion!.Value,
                         anchor.TakeoverDueAt.UtcDateTime.ToString("O"), anchor.ResolvedSlaHours), [],
                     JsonSerializer.Deserialize<string[]>(anchor.EmittedEventIdsJson)!, JsonSerializer.Deserialize<string[]>(anchor.AuditEvidenceIdsJson)!);
                 db.IntegrationOutboxMessages.Add(new WorkflowIntegrationOutboxMessage(anchor, lead.Version, time.GetUtcNow()));
