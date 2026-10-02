@@ -35,6 +35,8 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
     internal const string RecoveryPrincipal = "svc_lead_handover_recovery";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(2);
+    private const int RecoveryCandidateLimit = 100;
+    private const int RecoveryExecutionLimit = 10;
 
     public async Task<LeadHandoverOperationResult> ExecuteAsync(LeadHandoverCommand command, CancellationToken ct)
     {
@@ -105,10 +107,12 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                 && (x.NextRetryAt == null || x.NextRetryAt <= now)
                 && (x.ExecutionAttemptId == null || x.ExecutionLeaseExpiresAt == null || x.ExecutionLeaseExpiresAt <= now))
             .OrderBy(x => x.UpdatedAt).ThenBy(x => x.ScopeKey)
-            .Select(x => new { x.ScopeKey, x.WorkspaceId, x.CorrelationId }).Take(10).ToArrayAsync(ct);
+            .Select(x => new { x.ScopeKey, x.WorkspaceId, x.CorrelationId }).Take(RecoveryCandidateLimit).ToArrayAsync(ct);
         var count = 0;
+        var executions = 0;
         foreach (var item in ids)
         {
+            if (executions >= RecoveryExecutionLimit) break;
             var grant = await services.AuthorizeAsync(item.WorkspaceId, RecoveryPrincipal,
                 AccessRequirement.ForCanonicalCapability("leads.handover.recover"), item.CorrelationId, ct);
             if (!grant.IsAllowed)
@@ -117,6 +121,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                 logger.LogWarning("Handover recovery denied in workspace {WorkspaceId}", item.WorkspaceId);
                 continue;
             }
+            executions++;
             if ((await ResumeAsync(item.ScopeKey, RecoveryPrincipal, true, ct)).IsSuccess) count++;
         }
         return count;

@@ -46,6 +46,10 @@ function Task-Fixtures([string] $id) {
     }
     Invoke-Sql "INSERT INTO tasks.Activities(ActivityId,WorkspaceId,Type,Subject,Body,ActorId,OccurredAt,RecordModuleKey,RecordId,RecordLabel,Version) VALUES ('o4_activity_$id','$workspaceId',0,'Historical O4','Keep authorship','$memberId',SYSUTCDATETIME(),'leads','$id','O4',0);"
 }
+function Recovery-DeniedFixtures([string] $sourceAnchor,[string] $prefix,[int] $deniedCount,[bool] $includeLease) {
+    $leaseBit=if($includeLease){1}else{0}
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; DECLARE @columns nvarchar(max), @values nvarchar(max), @sql nvarchar(max); SELECT @columns=STRING_AGG(CONVERT(nvarchar(max),QUOTENAME(name)),','), @values=STRING_AGG(CONVERT(nvarchar(max),CASE name WHEN 'ScopeKey' THEN 'CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(''${prefix}_scope_'',n)),2)' WHEN 'HandoverId' THEN 'CONCAT(''handover_${prefix}_'',n)' WHEN 'LeadId' THEN 'CONCAT(''lead_${prefix}_'',n)' WHEN 'ActiveLeadKey' THEN 'CONCAT(''${foreignWorkspaceId}:lead_${prefix}_'',n)' WHEN 'WorkspaceId' THEN '''$foreignWorkspaceId''' WHEN 'UpdatedAt' THEN 'DATEADD(day,CASE WHEN n=0 THEN -2 ELSE -1 END,SYSUTCDATETIME())' WHEN 'NextRetryAt' THEN 'DATEADD(minute,-1,SYSUTCDATETIME())' WHEN 'ExecutionAttemptId' THEN 'CASE WHEN n=0 THEN ''${prefix}_valid_lease'' ELSE NULL END' WHEN 'ExecutionPrincipalId' THEN 'NULL' WHEN 'ExecutionLeaseAcquiredAt' THEN 'NULL' WHEN 'ExecutionLeaseExpiresAt' THEN 'CASE WHEN n=0 THEN DATEADD(minute,2,SYSUTCDATETIME()) ELSE NULL END' ELSE QUOTENAME(name) END),',') FROM sys.columns WHERE object_id=OBJECT_ID('workflow.LeadHandoverAnchors') AND name<>'RowVersion'; SET @sql='INSERT INTO workflow.LeadHandoverAnchors ('+@columns+') SELECT '+@values+' FROM workflow.LeadHandoverAnchors CROSS JOIN (SELECT TOP ($deniedCount) ROW_NUMBER() OVER (ORDER BY object_id) AS n FROM sys.all_objects UNION ALL SELECT 0 WHERE $leaseBit=1) numbers WHERE HandoverId=''$sourceAnchor'''; EXEC sp_executesql @sql; DELETE FROM access.WorkspaceServiceCapabilityGrants WHERE WorkspaceId='$foreignWorkspaceId' AND ServicePrincipalId='svc_lead_handover_recovery' AND Capability='leads.handover.recover';"
+}
 function Assert-Completion([string] $id,$doc,[string] $owner,[int] $sla) {
     Check-O4 ((@($doc.result.PSObject.Properties.Name | Sort-Object) -join ',') -eq 'handoverTaskDueAt,handoverTaskId,handoverTaskVersion,reassignedTaskIds,resolvedHandoverAcceptanceSlaHours') 'Receipt contains only safe Task command proof fields'
     Check-O4 ($doc.aggregateId -eq $id) 'Receipt identifies Lead through aggregate metadata'
@@ -283,6 +287,7 @@ try {
     # Prepare a real fixture before replacing the normal host with the test-only fault composition.
     $fenceLead=Owned-Lead 'O4 Reservation Fence';$proofLead=Owned-Lead 'O4 Reservation Proof'
     $recoveryLead=Owned-Lead 'O4 Recovery';Task-Fixtures $recoveryLead
+    $throughputLead=Owned-Lead 'O4 Throughput';Task-Fixtures $throughputLead
     Stop-ApiHost $hostProcess;$hostProcess=$null
     $verifierDll=(Resolve-Path "$PSScriptRoot/LeadHandoverRealVerifier/bin/Debug/net10.0/UnicoreCRM.LeadHandover.RealVerifier.dll").Path
     $env:LeadHandoverVerifier__ControlKey=[Guid]::NewGuid().ToString('N')
@@ -360,18 +365,18 @@ try {
     Assert-Status (Send-Json 'POST' '/__verifier/recover' '{}' $control) 200 'Repeated denied recovery scan'
     Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';") -eq $deferredVersion) 'Deferred anchor is not hot-looped before retry time'
     # Ten persisted denied coordination fixtures in A precede the real recoverable participant commit in B.
-    Invoke-Sql "SET QUOTED_IDENTIFIER ON; DECLARE @columns nvarchar(max), @values nvarchar(max), @sql nvarchar(max); SELECT @columns=STRING_AGG(CONVERT(nvarchar(max),QUOTENAME(name)),','), @values=STRING_AGG(CONVERT(nvarchar(max),CASE name WHEN 'ScopeKey' THEN 'CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(''fairness_scope_'',n)),2)' WHEN 'HandoverId' THEN 'CONCAT(''handover_fairness_'',n)' WHEN 'LeadId' THEN 'CONCAT(''lead_fairness_'',n)' WHEN 'ActiveLeadKey' THEN 'CONCAT(''${foreignWorkspaceId}:lead_fairness_'',n)' WHEN 'WorkspaceId' THEN '''$foreignWorkspaceId''' WHEN 'UpdatedAt' THEN 'DATEADD(day,CASE WHEN n=0 THEN -2 ELSE -1 END,SYSUTCDATETIME())' WHEN 'NextRetryAt' THEN 'DATEADD(minute,-1,SYSUTCDATETIME())' WHEN 'ExecutionAttemptId' THEN 'CASE WHEN n=0 THEN ''fairness_valid_lease'' ELSE NULL END' WHEN 'ExecutionPrincipalId' THEN 'NULL' WHEN 'ExecutionLeaseAcquiredAt' THEN 'NULL' WHEN 'ExecutionLeaseExpiresAt' THEN 'CASE WHEN n=0 THEN DATEADD(minute,2,SYSUTCDATETIME()) ELSE NULL END' ELSE QUOTENAME(name) END),',') FROM sys.columns WHERE object_id=OBJECT_ID('workflow.LeadHandoverAnchors') AND name<>'RowVersion'; SET @sql='INSERT INTO workflow.LeadHandoverAnchors ('+@columns+') SELECT '+@values+' FROM workflow.LeadHandoverAnchors CROSS JOIN (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(10)) numbers(n) WHERE HandoverId=''$anchor'''; EXEC sp_executesql @sql; DELETE FROM access.WorkspaceServiceCapabilityGrants WHERE WorkspaceId='$foreignWorkspaceId' AND ServicePrincipalId='svc_lead_handover_recovery' AND Capability='leads.handover.recover';"
+    Recovery-DeniedFixtures $anchor 'fairness' 10 $true
     Invoke-Sql "INSERT INTO access.WorkspaceServiceCapabilityGrants(WorkspaceId,ServicePrincipalId,Capability,GrantedAt) VALUES ('$workspaceId','svc_lead_handover_recovery','leads.handover.recover',SYSUTCDATETIME());"
     Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET NextRetryAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE HandoverId='$anchor';"
     $fairnessLeaseVersion=Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='handover_fairness_0';"
     $fairness=Send-Json 'POST' '/__verifier/recover' '{}' $control
     Assert-Status $fairness 200 'First fairness scan reaches ten oldest denied anchors'
-    Check-O4 (($fairness.Body|ConvertFrom-Json).completed -eq 0) 'First bounded batch defers ten denied anchors'
+    Check-O4 (($fairness.Body|ConvertFrom-Json).completed -eq 1) 'First bounded scan defers ten denied anchors and completes authorized eleventh'
     Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId LIKE 'handover_fairness_%' AND NextRetryAt>SYSUTCDATETIME() AND LastErrorCode='RECOVERY_ACCESS_DENIED' AND Stage='LeadReserved' AND ActiveLeadKey IS NOT NULL AND TasksResultJson IS NULL AND CompletedAt IS NULL;") -eq '10') 'Ten denied anchors retain stage reservation and participant evidence with future retry'
     $recovered=Send-Json 'POST' '/__verifier/recover' '{}' $control
     Assert-Status $recovered 200 'Service recovery scan'
     Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(32),RowVersion,2) FROM workflow.LeadHandoverAnchors WHERE HandoverId='handover_fairness_0';") -eq $fairnessLeaseVersion) 'Oldest active lease is excluded before batch limit and remains unchanged'
-    Check-O4 (($recovered.Body|ConvertFrom-Json).completed -eq 1) 'Second bounded fairness scan completes authorized eleventh anchor after grant restoration'
+    Check-O4 (($recovered.Body|ConvertFrom-Json).completed -eq 0) 'Repeated fairness scan does not duplicate authorized recovery'
     Check-O4 ((Hash-Tasks "RecordId='$recoveryLead'") -eq $committedHash) 'Recovery neither duplicates nor compensates Tasks'
     Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(40),TakeoverDueAt,127) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$anchor';") -eq $frozenDue) 'In-flight SLA frozen across config change and restart'
     Invoke-Sql "INSERT INTO access.RoleCapabilities(RoleId,Capability) VALUES ('$roleId','leads.assign');"
@@ -383,6 +388,34 @@ try {
     $final=Handover $recoveryLead $bMember 'o4-recovery' 0;Assert-Status $final 200 'Recovered final replay'
     $finalDoc=$final.Body|ConvertFrom-Json;Assert-Completion $recoveryLead $finalDoc $bMember 12
     Check-O4 ($finalDoc.outcome -eq 'REPLAYED') 'Recovered intent returns stable successful replay'
+    # A fresh real participant commit proves throughput separately from the ten-denied regression.
+    Stop-ApiHost $hostProcess;$hostProcess=$null
+    $env:LeadHandoverVerifier__InjectFault='true'
+    $hostProcess=Start-Process dotnet -ArgumentList @($verifierDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $temporaryDirectory 'throughput-fault.out.log') -RedirectStandardError (Join-Path $temporaryDirectory 'throughput-fault.err.log') -PassThru
+    $ready=$false
+    for($i=0;$i -lt 80;$i++){try{if((Send-Json 'GET' '/auth/session' $null @{}).Status -eq 401){$ready=$true;break}}catch{};if($hostProcess.HasExited){throw 'Throughput fault host exited'};Start-Sleep -Milliseconds 250}
+    Check-O4 $ready 'Throughput fault host listening'
+    Assert-Status (Handover $throughputLead $bMember 'o4-throughput' 0) 500 'Throughput fixture fails after real Tasks commit'
+    $throughputAnchor=Invoke-SqlScalar "SELECT HandoverId FROM workflow.LeadHandoverAnchors WHERE LeadId='$throughputLead';"
+    $throughputTaskHash=Hash-Tasks "RecordId='$throughputLead'"
+    $throughputDue=Invoke-SqlScalar "SELECT CONVERT(varchar(40),TakeoverDueAt,127) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$throughputAnchor';"
+    Stop-ApiHost $hostProcess;$hostProcess=$null
+    $env:LeadHandoverVerifier__InjectFault='false'
+    Invoke-Sql "SET QUOTED_IDENTIFIER ON; UPDATE workflow.LeadHandoverAnchors SET ExecutionLeaseExpiresAt=DATEADD(minute,-1,SYSUTCDATETIME()),NextRetryAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE HandoverId='$throughputAnchor';"
+    Recovery-DeniedFixtures $throughputAnchor 'throughput' 51 $false
+    $hostProcess=Start-Process dotnet -ArgumentList @($verifierDll) -WorkingDirectory $contentRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $temporaryDirectory 'throughput-recovery.out.log') -RedirectStandardError (Join-Path $temporaryDirectory 'throughput-recovery.err.log') -PassThru
+    $ready=$false
+    for($i=0;$i -lt 80;$i++){try{if((Send-Json 'GET' '/auth/session' $null @{}).Status -eq 401){$ready=$true;break}}catch{};if($hostProcess.HasExited){throw 'Throughput recovery host exited'};Start-Sleep -Milliseconds 250}
+    Check-O4 $ready 'Throughput recovery host listening'
+    $throughput=Send-Json 'POST' '/__verifier/recover' '{}' $control
+    Assert-Status $throughput 200 'Bounded throughput scan with fifty-one older denied workflows'
+    Check-O4 (($throughput.Body|ConvertFrom-Json).completed -eq 1) 'One bounded scan reaches healthy recovery behind fifty-one denied workflows'
+    Check-O4 ((Invoke-SqlScalar "SELECT COUNT(*) FROM workflow.LeadHandoverAnchors WHERE HandoverId LIKE 'handover_throughput_%' AND NextRetryAt>SYSUTCDATETIME() AND LastErrorCategory='TRANSIENT' AND LastErrorCode='RECOVERY_ACCESS_DENIED' AND Stage='LeadReserved' AND ActiveLeadKey IS NOT NULL AND TasksResultJson IS NULL AND CompletedAt IS NULL;") -eq '51') 'Fifty-one denied workflows receive durable backoff and preserve stage reservation evidence'
+    Check-O4 ((Hash-Tasks "RecordId='$throughputLead'") -eq $throughputTaskHash) 'Throughput recovery neither duplicates nor compensates committed Tasks'
+    Check-O4 ((Invoke-SqlScalar "SELECT CONVERT(varchar(40),TakeoverDueAt,127) FROM workflow.LeadHandoverAnchors WHERE HandoverId='$throughputAnchor';") -eq $throughputDue) 'Throughput recovery preserves frozen dueAt'
+    $throughputReplay=Handover $throughputLead $bMember 'o4-throughput' 0
+    Assert-Status $throughputReplay 200 'Throughput recovered exact command replay'
+    Assert-Completion $throughputLead ($throughputReplay.Body|ConvertFrom-Json) $bMember 48
     [pscustomobject]@{Status='PASS';Database=$DatabaseName;O4Checks=$o4.Count;HttpChecks=$checks.Count;RealRaces=$races;Recovery=@{LeadId=$recoveryLead;HandoverId=$anchor;FailureHttp=$failed.Status;RevokedTaskGrantRetryHttp=$humanRetry.Status;TakeoverCount=1;Recovered=$true;FrozenDueAt=$frozenDue};Limitations=@('Lease expiry accelerated by SQL; race coverage is bounded to three real requests per pairing.','Migration Down guards checked statically; rollback not executed.')}|ConvertTo-Json -Depth 8
 } catch {
     [pscustomobject]@{Status='FAIL';Database=$DatabaseName;O4ChecksPassed=$o4.Count;HttpChecksPassed=$checks.Count;CompletedRaces=$races.Count;Failure=$_.Exception.Message;HostLogs=$temporaryDirectory.FullName}|ConvertTo-Json -Depth 5
