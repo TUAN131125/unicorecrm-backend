@@ -19,11 +19,27 @@ function Invoke-ContactWriteAccessCases {
     Add-Result 'Contact descriptor permits authorized update' 'True' ([string]$allowed.canUpdate)
     Add-Result 'Contact descriptor permits authorized archive' 'True' ([string]$allowed.canDelete)
 
+    # Contact Detail requests canonical owner-declared fields, not compatibility aliases.
+    $profileFields = @('fullName','workEmail','personalEmail','mobilePhone','workPhone','otherPhone','organizationRelationships','ownerId','consent')
+    function Get-ContactProfileAccess([string[]] $Fields = $profileFields) {
+        $result = Invoke-Contact -Method POST -Path '/access/records/evaluate' -Body (@{
+            resourceKey = 'contacts'; recordId = $contactA; requestedFields = $Fields
+        } | ConvertTo-Json -Compress)
+        Add-Result 'Contact field-profile evaluation HTTP' '200' ([string]$result.Status)
+        return $result.Body
+    }
+    $profileEvidence = @{ noPolicy = (Get-ContactProfileAccess) }
+    Add-Result 'canonical Contact profile without policies has no restricted fields' '0' `
+        ([string]@($profileEvidence.noPolicy.fieldAccess.PSObject.Properties | Where-Object Value -ne 'READ_WRITE').Count)
+    $profileEvidence.unknown = Get-ContactProfileAccess ($profileFields + 'unknownContactField')
+    Add-Result 'unknown Contact profile field stays fail-closed' 'HIDDEN' $profileEvidence.unknown.fieldAccess.unknownContactField
+
     foreach ($case in @(@('contacts.update', 'canUpdate'), @('contacts.delete', 'canDelete'))) {
         Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleCapabilities WHERE RoleId='$roleId' AND Capability='$($case[0])'"
         $denied = Get-ContactAccess $contactA
         Add-Result "missing $($case[0]) denies $($case[1]) even for Owner" 'False' ([string]$denied.($case[1]))
         Add-Result "missing $($case[0]) preserves readable record" 'True' ([string]$denied.canRead)
+        $profileEvidence[$case[1]] = Get-ContactProfileAccess
         Invoke-SqlNonQuery -Database $DatabaseName -Query "INSERT INTO access.RoleCapabilities VALUES ('$roleId','$($case[0])')"
     }
 
@@ -48,6 +64,11 @@ INSERT INTO access.RoleFieldSecurity (PolicyId,WorkspaceId,RoleId,ResourceKey,Fi
     Add-Result 'field policy does not erase admitted record update' 'True' ([string]$fields.canUpdate)
     Add-Result 'hidden Contact field remains hidden' 'HIDDEN' $fields.fieldAccess.workEmail
     Add-Result 'read-only Contact field remains read-only' 'READ_ONLY' $fields.fieldAccess.notes
+    $profileEvidence.realPolicy = Get-ContactProfileAccess
+    Add-Result 'canonical Contact profile retains real field restriction' 'HIDDEN' $profileEvidence.realPolicy.fieldAccess.workEmail
+    if ($env:CONTACT_FIELD_PROFILE_EVIDENCE_PATH) {
+        $profileEvidence | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $env:CONTACT_FIELD_PROFILE_EVIDENCE_PATH -Encoding utf8
+    }
     Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId IN ('field_c0_hidden','field_c0_readonly')"
 
     $created = Invoke-Api -Method POST -Path '/contacts' -Token $script:Token -WorkspaceId $script:WorkspaceId `
