@@ -11,6 +11,8 @@ internal sealed partial class ContactRecordAccessFactProvider(IContactsPersisten
     private static readonly RecordAccessResourceDescriptor ContactsDescriptor = RecordAccessResourceDescriptor.Create(
         resourceKey: ContactAuthorization.ResourceKey,
         readCapability: ContactCapabilities.Read.Capability,
+        updateCapability: ContactCapabilities.Update.Capability,
+        deleteCapability: ContactCapabilities.Archive.Capability,
         enforceableFields: ContactFieldSecurity.EnforceableFields);
 
     public RecordAccessResourceDescriptor Descriptor => ContactsDescriptor;

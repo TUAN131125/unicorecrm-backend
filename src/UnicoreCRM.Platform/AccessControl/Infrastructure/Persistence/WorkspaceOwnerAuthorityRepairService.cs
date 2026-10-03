@@ -72,7 +72,12 @@ internal sealed class WorkspaceOwnerAuthorityRepairService(
                     if (HasCurrentSystemIdentity(role) && exactCurrent)
                         alreadyCurrent++;
                     else
+                    {
                         skippedCustomized++;
+                        logger.LogWarning(
+                            "UNKNOWN_OWNER_AUTHORITY_DRIFT: Workspace {WorkspaceId}, role {RoleId}; authority unchanged.",
+                            workspaceId, role.RoleId);
+                    }
                     continue;
                 }
 

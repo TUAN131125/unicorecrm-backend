@@ -295,7 +295,7 @@ CREATE DATABASE [$DatabaseName];
         -Token $script:Token -WorkspaceId $script:WorkspaceId
     Add-Result 'provisioned Workspace bootstrap succeeds' '200' $provisionedBootstrap.Status
     Add-Result 'initial Workspace provisioning enables exact Contacts module set' `
-        'contacts,leads,deals,tasks' `
+        'leads,customers,contacts,deals,quotes,orders,support,organizations,tasks,payments,invoices,shipping,returns' `
         ((@($provisionedBootstrap.Body.configuration.enabledModuleKeys)) -join ',')
 
     $contactsTable = Get-Scalar -Database $DatabaseName `
@@ -566,6 +566,11 @@ VALUES
     Add-Result 'no update Contact success path' 'False' ($putProbe.Status -ge 200 -and $putProbe.Status -lt 300).ToString()
     Add-Result 'mutation probes changed no Contact state' ([string]$countBeforeMutationProbe) `
         ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts'))
+
+    # Run after existing read/audit assertions: the effective-access endpoint deliberately audits denials.
+    . (Join-Path $PSScriptRoot 'contact-write-access-cases.ps1')
+    Invoke-ContactWriteAccessCases
+    Invoke-WorkspaceOwnerRepairCases
 
     $healthy = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
     Add-Result 'ApiHost healthy after denied requests' '200' $healthy.Status
