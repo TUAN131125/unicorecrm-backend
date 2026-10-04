@@ -40,7 +40,7 @@ public sealed record CreateContactRequest(
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record UpdateContactRequest(
-    string? FullName,
+    string? FullName = null,
     string? OwnerId = null,
     string? Salutation = null,
     string? JobTitle = null,

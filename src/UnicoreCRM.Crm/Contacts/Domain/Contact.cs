@@ -60,26 +60,44 @@ internal sealed class Contact
         NormalizedPersonalEmail = ContactEmailIdentity.Normalize(Profile.PersonalEmail);
     }
 
-    internal void Update(string? ownerId, string fullName, ContactProfile profile, DateTimeOffset now)
+    internal void ApplyPatch(ContactPatch patch, DateTimeOffset now)
     {
         if (ArchivedAt is not null)
             throw new InvalidOperationException("An archived Contact cannot be updated.");
-        OwnerId = ownerId;
-        FullName = fullName;
-        // The public profile contract deliberately does not own consent/address-detail or
-        // cross-module relationship writes yet. A profile update must preserve those existing
-        // authoritative facts rather than clearing them as collateral damage.
-        Profile = profile with
+        if (patch.SuppliedFields.Count == 0)
+            throw new InvalidOperationException("A Contact patch must touch at least one field.");
+        if (patch.SuppliedFields.Contains("fullName"))
         {
-            AddressDetails = Profile.AddressDetails,
-            Consent = Profile.Consent,
-            DoNotCall = Profile.DoNotCall,
-            DoNotEmail = Profile.DoNotEmail,
-            DoNotSms = Profile.DoNotSms,
-            DoNotZalo = Profile.DoNotZalo,
-            DoNotContact = Profile.DoNotContact,
-            DoNotContactReason = Profile.DoNotContactReason,
-            OrganizationRelationships = Profile.OrganizationRelationships
+            if (string.IsNullOrWhiteSpace(patch.FullName))
+                throw new InvalidOperationException("A supplied Contact name must be nonblank.");
+            FullName = patch.FullName;
+        }
+        if (patch.SuppliedFields.Contains("ownerId")) OwnerId = patch.OwnerId;
+        // Start from existing authoritative state: private consent/address/relationship
+        // facts and every omitted public field retain their existing values.
+        Profile = Profile with
+        {
+            Salutation = patch.SuppliedFields.Contains("salutation") ? patch.Profile.Salutation : Profile.Salutation,
+            JobTitle = patch.SuppliedFields.Contains("jobTitle") ? patch.Profile.JobTitle : Profile.JobTitle,
+            Department = patch.SuppliedFields.Contains("department") ? patch.Profile.Department : Profile.Department,
+            RoleAtCompany = patch.SuppliedFields.Contains("roleAtCompany") ? patch.Profile.RoleAtCompany : Profile.RoleAtCompany,
+            WorkEmail = patch.SuppliedFields.Contains("workEmail") ? patch.Profile.WorkEmail : Profile.WorkEmail,
+            PersonalEmail = patch.SuppliedFields.Contains("personalEmail") ? patch.Profile.PersonalEmail : Profile.PersonalEmail,
+            MobilePhone = patch.SuppliedFields.Contains("mobilePhone") ? patch.Profile.MobilePhone : Profile.MobilePhone,
+            WorkPhone = patch.SuppliedFields.Contains("workPhone") ? patch.Profile.WorkPhone : Profile.WorkPhone,
+            OtherPhone = patch.SuppliedFields.Contains("otherPhone") ? patch.Profile.OtherPhone : Profile.OtherPhone,
+            ZaloId = patch.SuppliedFields.Contains("zaloId") ? patch.Profile.ZaloId : Profile.ZaloId,
+            Facebook = patch.SuppliedFields.Contains("facebook") ? patch.Profile.Facebook : Profile.Facebook,
+            PreferredContactChannel = patch.SuppliedFields.Contains("preferredContactChannel") ? patch.Profile.PreferredContactChannel : Profile.PreferredContactChannel,
+            Address = patch.SuppliedFields.Contains("address") ? patch.Profile.Address : Profile.Address,
+            Source = patch.SuppliedFields.Contains("source") ? patch.Profile.Source : Profile.Source,
+            DecisionRole = patch.SuppliedFields.Contains("decisionRole") ? patch.Profile.DecisionRole : Profile.DecisionRole,
+            RelationshipLevel = patch.SuppliedFields.Contains("relationshipLevel") ? patch.Profile.RelationshipLevel : Profile.RelationshipLevel,
+            PainPoint = patch.SuppliedFields.Contains("painPoint") ? patch.Profile.PainPoint : Profile.PainPoint,
+            NeedSummary = patch.SuppliedFields.Contains("needSummary") ? patch.Profile.NeedSummary : Profile.NeedSummary,
+            Notes = patch.SuppliedFields.Contains("notes") ? patch.Profile.Notes : Profile.Notes,
+            Tags = patch.SuppliedFields.Contains("tags") ? patch.Profile.Tags : Profile.Tags,
+            DisplayName = patch.SuppliedFields.Contains("displayName") ? patch.Profile.DisplayName : Profile.DisplayName,
         };
         UpdatedAt = now;
         Version++;
@@ -104,6 +122,8 @@ internal sealed class Contact
         Version++;
     }
 }
+
+internal sealed record ContactPatch(IReadOnlySet<string> SuppliedFields, string? FullName, string? OwnerId, ContactProfile Profile);
 
 internal sealed record ContactProfile
 {

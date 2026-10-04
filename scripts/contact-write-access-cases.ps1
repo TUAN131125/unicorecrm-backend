@@ -218,3 +218,198 @@ VALUES ('role_c0_second','ws_c0_ambiguous','Second Owner','SECOND OWNER',NULL,'s
     Add-Result 'unrelated real fixture Owner capabilities unchanged' ($current -join ',') `
         ((@(Invoke-Sql -Database $DatabaseName -Query "SELECT Capability FROM access.RoleCapabilities WHERE RoleId='$roleId' ORDER BY Capability" | ForEach-Object Capability)) -join ',')
 }
+
+
+# Real HTTP -> configured JSON -> command -> domain -> SQL regression proof.
+function Invoke-ContactPatchSemanticsCases {
+    $script:ContactPatchCounter = 0
+    $initial = [ordered]@{
+        fullName = 'Patch Authority'; ownerId = $callerMemberId; salutation = 'Ms'; jobTitle = 'Director'
+        department = 'Sales'; roleAtCompany = 'Sponsor'; workEmail = 'patch.work@example.test'
+        personalEmail = 'patch.personal@example.test'; mobilePhone = '090123'; workPhone = '091234'
+        otherPhone = '092345'; zaloId = 'patch-zalo'; facebook = 'https://example.test/patch'
+        preferredContactChannel = 'email'; address = 'Preserved address'; source = 'Verifier'
+        decisionRole = 'buyer'; relationshipLevel = 'good'; painPoint = 'Preserved pain'
+        needSummary = 'Preserved need'; notes = 'Initial note'; tags = @(' Core ', 'core', '', 'VIP')
+        displayName = 'Patch display'
+    }
+    $created = Invoke-Api -Method POST -Path '/contacts' -Token $script:Token -WorkspaceId $script:WorkspaceId `
+        -IdempotencyKey 'patch-create-fixture' -Body ($initial | ConvertTo-Json -Compress)
+    Add-Result 'PATCH fixture create remains valid' '201' ([string]$created.Status)
+    $script:PatchContactId = $created.Body.aggregateId
+    if (-not $script:PatchContactId) { throw 'Contact PATCH fixture creation failed.' }
+    $id = $script:PatchContactId
+    # These facts are not part of UpdateContact and must never be overwritten by a patch.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+UPDATE contacts.Contacts SET Profile = JSON_MODIFY(JSON_MODIFY(JSON_MODIFY(JSON_MODIFY(Profile,
+ '$.addressDetails',JSON_QUERY('{"line1":"Private address","line2":null,"ward":null,"district":null,"province":null,"country":null,"postalCode":null,"formatted":null}')),
+ '$.consent',JSON_QUERY('{"current":{"email":"granted"},"ledger":[],"updatedAt":"2026-10-04T00:00:00+00:00","lawfulBasis":null}')),
+ '$.doNotContact',CAST(1 AS bit)), '$.organizationRelationships',JSON_QUERY('[]')) WHERE ContactId='$id';
+"@
+    function Read-PatchRow {
+        return (Invoke-Sql -Database $DatabaseName -Query "SELECT FullName,OwnerId,Version,Profile FROM contacts.Contacts WHERE ContactId='$script:PatchContactId'")[0]
+    }
+    function Read-PatchState {
+        return [string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Version,'|',FullName,'|',COALESCE(OwnerId,'<null>'),'|',Profile) FROM contacts.Contacts WHERE ContactId='$script:PatchContactId'")
+    }
+    function Send-ContactPatch {
+        param([string]$Body, [string]$Key, [Nullable[long]]$Version = $null)
+        $script:ContactPatchCounter++
+        if (-not $Key) { $Key = "patch-case-$($script:ContactPatchCounter)" }
+        if ($null -eq $Version) { $Version = [long](Read-PatchRow).Version }
+        return Invoke-Api -Method PATCH -Path "/contacts/$script:PatchContactId" -Token $script:Token `
+            -WorkspaceId $script:WorkspaceId -IdempotencyKey $Key -IfMatch ('"{0}"' -f $Version) -Body $Body
+    }
+    $before = Read-PatchRow
+    $beforeProfile = $before.Profile | ConvertFrom-Json
+    $notes = Send-ContactPatch '{"notes":"updated"}'
+    Add-Result 'notes_only HTTP' '200' ([string]$notes.Status)
+    $after = Read-PatchRow
+    Add-Result 'fullName_omitted preserves authoritative name' $before.FullName $after.FullName
+    Add-Result 'owner_omitted preserves authoritative owner' $before.OwnerId $after.OwnerId
+    Add-Result 'nonempty PATCH increments version exactly once' ([string]([long]$before.Version + 1)) ([string]$after.Version)
+    $afterProfile = $after.Profile | ConvertFrom-Json
+    Add-Result 'notes-only applies supplied value' 'updated' $afterProfile.notes
+    foreach ($property in $beforeProfile.PSObject.Properties) {
+        if ($property.Name -eq 'notes') { continue }
+        Add-Result "notes-only preserves omitted $($property.Name)" `
+            ($property.Value | ConvertTo-Json -Compress -Depth 20) `
+            ($afterProfile.($property.Name) | ConvertTo-Json -Compress -Depth 20)
+    }
+    Add-Result 'existing tags trim/distinct/empty normalization preserved' 'Core,VIP' (@($afterProfile.tags) -join ',')
+    Add-Result 'one CONTACT_UPDATED outbox event per successful patch' '1' ([string](Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$id' AND EventType='CONTACT_UPDATED'"))
+    $profileBeforeName = $after.Profile
+    $name = Send-ContactPatch '{"fullName":"Updated Name"}'
+    Add-Result 'fullName_value HTTP' '200' ([string]$name.Status)
+    Add-Result 'fullName_value changes only name' 'Updated Name' (Read-PatchRow).FullName
+    Add-Result 'fullName_value preserves entire profile' $profileBeforeName (Read-PatchRow).Profile
+    foreach ($case in @(@('fullName_null','{"fullName":null}'), @('fullName_blank','{"fullName":"   "}'),
+                         @('empty_patch','{}'), @('unknown_field','{"unknownProperty":"x"}'),
+                         @('mixed_unknown','{"notes":"x","unknownProperty":"x"}'))) {
+        $state = Read-PatchState
+        $invalid = Send-ContactPatch $case[1]
+        $status = if ($case[0] -match 'unknown') { '400' } else { '422' }
+        Add-Result "$($case[0]) HTTP rejection" $status ([string]$invalid.Status)
+        Add-Result "$($case[0]) error code" 'VALIDATION_FAILED' $invalid.Body.code
+        Add-Result "$($case[0]) preserves entire persisted state" $state (Read-PatchState)
+    }
+    $clear = Send-ContactPatch '{"notes":null}'
+    Add-Result 'optional_null HTTP' '200' ([string]$clear.Status)
+    Add-Result 'optional_null clears notes' 'True' ([string]($null -eq ((Read-PatchRow).Profile | ConvertFrom-Json).notes))
+    # Omitted/explicit-null owner must not look up the now-inactive existing member.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE workspace.Memberships SET Status='Suspended' WHERE WorkspaceId='$($script:WorkspaceId)' AND MemberId='mem-contacts-read-other'"
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE contacts.Contacts SET OwnerId='mem-contacts-read-other' WHERE ContactId='$id'"
+    $omittedOwner = Send-ContactPatch '{"notes":"owner omitted"}'
+    Add-Result 'owner omitted skips inactive-member validation HTTP' '200' ([string]$omittedOwner.Status)
+    Add-Result 'owner omitted preserves inactive owner reference' 'mem-contacts-read-other' (Read-PatchRow).OwnerId
+    $clearOwner = Send-ContactPatch '{"ownerId":null}'
+    Add-Result 'owner_null HTTP' '200' ([string]$clearOwner.Status)
+    Add-Result 'owner_null authoritative unassign' 'True' ([string]((Read-PatchRow).OwnerId -is [DBNull]))
+    $badOwner = Send-ContactPatch '{"ownerId":"mem-contacts-read-other"}'
+    Add-Result 'present inactive owner still rejected' '422' ([string]$badOwner.Status)
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE workspace.Memberships SET Status='Active' WHERE WorkspaceId='$($script:WorkspaceId)' AND MemberId='mem-contacts-read-other'"
+    $validOwner = Send-ContactPatch ('{"ownerId":"' + $callerMemberId + '"}')
+    Add-Result 'present active owner HTTP' '200' ([string]$validOwner.Status)
+    Add-Result 'present active owner assigned' $callerMemberId (Read-PatchRow).OwnerId
+    # FullName read-only must not block a notes-only write; explicitly touched fields must deny.
+    Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+INSERT INTO access.RoleFieldSecurity (PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES
+('field_patch_owner','$($script:WorkspaceId)','$roleId','contacts','ownerId','ReadOnly'),
+('field_patch_name','$($script:WorkspaceId)','$roleId','contacts','fullName','ReadOnly');
+"@
+    Add-Result 'notes write ignores omitted read-only owner/name' '200' ([string](Send-ContactPatch '{"notes":"allowed"}').Status)
+    foreach ($body in @('{"ownerId":null}', '{"fullName":"Denied"}')) {
+        $state = Read-PatchState
+        $denied = Send-ContactPatch $body
+        Add-Result 'explicit supplied read-only field denied HTTP' '403' ([string]$denied.Status)
+        Add-Result 'explicit supplied read-only field denial code' 'ACCESS_DENIED' $denied.Body.code
+        Add-Result 'field denial cannot mutate state' $state (Read-PatchState)
+    }
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "UPDATE access.RoleFieldSecurity SET Access='Hidden' WHERE PolicyId='field_patch_owner'"
+    Add-Result 'notes write ignores omitted hidden owner' '200' ([string](Send-ContactPatch '{"notes":"hidden owner omitted"}').Status)
+    Add-Result 'explicit hidden owner denied' '403' ([string](Send-ContactPatch '{"ownerId":null}').Status)
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId IN ('field_patch_owner','field_patch_name')"
+    $version = [long](Read-PatchRow).Version
+    $first = Send-ContactPatch '{"notes":"idem"}' 'patch-idem-value' $version
+    $firstState = Read-PatchState
+    $replay = Send-ContactPatch '{"notes":"idem"}' 'patch-idem-value' $version
+    Add-Result 'same canonical patch safely replays HTTP' '200' ([string]$replay.Status)
+    Add-Result 'same canonical patch replay outcome' 'REPLAYED' $replay.Body.outcome
+    Add-Result 'replay cannot increment version or mutate state' $firstState (Read-PatchState)
+    # Exact committed replay survives later field-policy changes; response still uses current projection.
+    function Read-PatchCommitEvidence {
+        return [string](Get-Scalar -Database $DatabaseName -Query "SELECT CONCAT(Version,'|',(SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$script:PatchContactId'),'|',(SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$script:PatchContactId')) FROM contacts.Contacts WHERE ContactId='$script:PatchContactId'")
+    }
+    $committedEvidence = Read-PatchCommitEvidence
+    foreach ($policy in @('ReadOnly','Hidden')) {
+        Invoke-SqlNonQuery -Database $DatabaseName -Query @"
+DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_patch_replay';
+INSERT INTO access.RoleFieldSecurity (PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access)
+VALUES ('field_patch_replay','$($script:WorkspaceId)','$roleId','contacts','notes','$policy');
+"@
+        $policyReplay = Send-ContactPatch '{"notes":"idem"}' 'patch-idem-value' $version
+        Add-Result "exact replay after $policy policy HTTP" '200' ([string]$policyReplay.Status)
+        Add-Result "exact replay after $policy policy outcome" 'REPLAYED' $policyReplay.Body.outcome
+        Add-Result "exact replay after $policy has no version/audit/outbox mutation" $committedEvidence (Read-PatchCommitEvidence)
+        Add-Result "exact replay after $policy preserves persisted state" $firstState (Read-PatchState)
+        if ($policy -eq 'Hidden') {
+            Add-Result 'hidden replay response uses current field projection' 'False' ([string]($policyReplay.Body.result.contact.PSObject.Properties.Name -contains 'notes'))
+        } else {
+            Add-Result 'read-only replay response retains readable field' 'idem' $policyReplay.Body.result.contact.notes
+        }
+        $newRestricted = Send-ContactPatch '{"notes":"new restricted value"}'
+        Add-Result "new $policy notes PATCH denied HTTP" '403' ([string]$newRestricted.Status)
+        Add-Result "new $policy notes PATCH denial code" 'ACCESS_DENIED' $newRestricted.Body.code
+        Add-Result "new $policy denial has no version/audit/outbox mutation" $committedEvidence (Read-PatchCommitEvidence)
+        $policyMismatch = Send-ContactPatch '{"notes":null}' 'patch-idem-value' $version
+        Add-Result "different fingerprint after $policy retains reuse conflict" '409' ([string]$policyMismatch.Status)
+        Add-Result "different fingerprint after $policy reuse code" 'IDEMPOTENCY_KEY_REUSED' $policyMismatch.Body.code
+    }
+    Invoke-SqlNonQuery -Database $DatabaseName -Query "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='field_patch_replay'"
+    $reuse = Send-ContactPatch '{"notes":null}' 'patch-idem-value' $version
+    Add-Result 'same key value vs null conflict HTTP' '409' ([string]$reuse.Status)
+    Add-Result 'same key value vs null conflict code' 'IDEMPOTENCY_KEY_REUSED' $reuse.Body.code
+    $version = [long](Read-PatchRow).Version
+    [void](Send-ContactPatch '{"notes":null}' 'patch-idem-presence' $version)
+    $differentFields = Send-ContactPatch '{"notes":null,"ownerId":null}' 'patch-idem-presence' $version
+    Add-Result 'omission vs explicit null differs in canonical intent' '409' ([string]$differentFields.Status)
+    Add-Result 'presence mismatch idempotency code' 'IDEMPOTENCY_KEY_REUSED' $differentFields.Body.code
+    $state = Read-PatchState
+    $stale = Send-ContactPatch '{"notes":"stale"}' 'patch-stale-version' 0
+    Add-Result 'stale If-Match partial patch HTTP' '409' ([string]$stale.Status)
+    Add-Result 'stale If-Match error code' 'RESOURCE_VERSION_CONFLICT' $stale.Body.code
+    Add-Result 'stale If-Match cannot mutate state' $state (Read-PatchState)
+    Add-Result 'tags explicit null HTTP' '200' ([string](Send-ContactPatch '{"tags":null}').Status)
+    Add-Result 'tags explicit null clears' 'True' ([string]($null -eq ((Read-PatchRow).Profile | ConvertFrom-Json).tags))
+    Add-Result 'displayName remains writable' '200' ([string](Send-ContactPatch '{"displayName":"New display"}').Status)
+    Add-Result 'displayName supplied value persisted' 'New display' ((Read-PatchRow).Profile | ConvertFrom-Json).displayName
+    # Every nullable public profile member supports explicit clearing, including displayName.
+    foreach ($field in @('salutation','jobTitle','department','roleAtCompany','workEmail','personalEmail',
+                         'mobilePhone','workPhone','otherPhone','zaloId','facebook','preferredContactChannel',
+                         'address','source','decisionRole','relationshipLevel','painPoint','needSummary','notes','tags','displayName')) {
+        $beforeClear = Read-PatchRow
+        $cleared = Send-ContactPatch ('{"' + $field + '":null}')
+        Add-Result "$field explicit null HTTP" '200' ([string]$cleared.Status)
+        $afterClear = Read-PatchRow
+        Add-Result "$field explicit null persisted" 'True' ([string]($null -eq ($afterClear.Profile | ConvertFrom-Json).$field))
+        Add-Result "$field clear preserves fullName" $beforeClear.FullName $afterClear.FullName
+        Add-Result "$field clear preserves owner" $beforeClear.OwnerId $afterClear.OwnerId
+    }
+    $invalidTagBody = @{ tags = @((1..101 | ForEach-Object { "tag$_" })) } | ConvertTo-Json -Compress
+    foreach ($invalidBody in @('{"ownerId":"   "}', '{"workEmail":"invalid"}', '{"relationshipLevel":"invalid"}', $invalidTagBody,
+                              ('{"tags":["' + ('x' * 101) + '"]}'))) {
+        $state = Read-PatchState
+        $invalidValue = Send-ContactPatch $invalidBody
+        Add-Result 'existing PATCH value constraints reject invalid input' '422' ([string]$invalidValue.Status)
+        Add-Result 'legacy supplied-value validation code preserved' 'VALIDATION_FAILED' $invalidValue.Body.code
+        Add-Result 'invalid supplied profile creates no mutation' $state (Read-PatchState)
+    }
+    # Configured case-insensitive ASP.NET naming must touch the canonical field key.
+    Add-Result 'configured case-insensitive naming HTTP' '200' ([string](Send-ContactPatch '{"NOTES":"case accepted"}').Status)
+    Add-Result 'configured naming records actual touched value' 'case accepted' ((Read-PatchRow).Profile | ConvertFrom-Json).notes
+    $events = [long](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$id' AND EventType='CONTACT_UPDATED'")
+    Add-Result 'successful version increments match exact update-event count' ([string](Read-PatchRow).Version) ([string]$events)
+    Add-Result 'one update audit per committed version' ([string]$events) ([string](Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$id' AND Operation='updateContact'"))
+}

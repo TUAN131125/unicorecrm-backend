@@ -1,4 +1,8 @@
 using System.Text.Json.Serialization;
+using System.Reflection;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Frozen;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -74,9 +78,9 @@ public static class ContactsEndpoints
     private static async Task<IResult> UpdateContactAsync(string contactId, HttpContext context, Application.UpdateContact.Handler handler, CancellationToken cancellationToken)
     {
         if (!ContactsHttp.TryCommandMetadata(context, true, out var metadata, out var error)) return error!;
-        var body = await ContactsHttp.ReadBodyAsync<UpdateContactRequest>(context, metadata!.CorrelationId, cancellationToken);
+        var body = await ContactsHttp.ReadUpdateBodyAsync(context, metadata!.CorrelationId, cancellationToken);
         if (body.Error is not null) return body.Error;
-        var result = await handler.HandleAsync(new(contactId, body.Value!, metadata), cancellationToken);
+        var result = await handler.HandleAsync(new(contactId, body.Value!.Request, metadata, body.Value.SuppliedFields), cancellationToken);
         return ContactsHttp.Result(result, metadata.CorrelationId);
     }
 
@@ -214,6 +218,29 @@ internal static class ContactsHttp
         }
     }
 
+    internal static async Task<BodyRead<ContactUpdateBody>> ReadUpdateBodyAsync(HttpContext context, string correlationId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var options = context.RequestServices.GetRequiredService<IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions;
+            var document = await context.Request.ReadFromJsonAsync<JsonElement>(options, cancellationToken);
+            if (document.ValueKind != JsonValueKind.Object) throw new JsonException();
+            var request = document.Deserialize<UpdateContactRequest>(options);
+            if (request is null) throw new JsonException();
+            var comparer = options.PropertyNameCaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+            var names = typeof(UpdateContactRequest).GetProperties().ToDictionary(
+                property => property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                    ?? options.PropertyNamingPolicy?.ConvertName(property.Name) ?? property.Name,
+                property => JsonNamingPolicy.CamelCase.ConvertName(property.Name), comparer);
+            var supplied = document.EnumerateObject().Select(property => names[property.Name]).ToFrozenSet(StringComparer.Ordinal);
+            return new(new ContactUpdateBody(request, supplied), null);
+        }
+        catch (JsonException)
+        {
+            return new(null, Error(ContactErrors.Validation(new Dictionary<string, string[]> { ["body"] = ["The JSON request body is invalid."] }, 400), correlationId));
+        }
+    }
+
     private static bool TryExpectedVersion(string value, out long? version)
     {
         version = null;
@@ -237,6 +264,8 @@ internal static class ContactsHttp
             statusCode: error.Status,
             contentType: "application/problem+json");
 }
+
+internal sealed record ContactUpdateBody(UpdateContactRequest Request, IReadOnlySet<string> SuppliedFields);
 
 internal sealed record BodyRead<T>(T? Value, IResult? Error);
 

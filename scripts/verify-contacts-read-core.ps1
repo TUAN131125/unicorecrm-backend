@@ -195,7 +195,7 @@ $crmProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/UnicoreCRM.Crm.cspro
 $demoEmail = 'contacts.read.provisioned@example.test'
 $demoPassword = 'Contacts-Read-Core!2026'
 $hostProcess = $null
-$logPath = Join-Path ([IO.Path]::GetTempPath()) ("unicore-contacts-read-$([Guid]::NewGuid().ToString('N')).log")
+$logPath = Join-Path $contentRoot 'bin/Debug/net10.0/contact-verifier.log'
 $contactA = 'contact_read_core_a'
 $contactB = 'contact_read_core_b'
 $contactC = 'contact_read_core_c'
@@ -570,6 +570,7 @@ VALUES
     # Run after existing read/audit assertions: the effective-access endpoint deliberately audits denials.
     . (Join-Path $PSScriptRoot 'contact-write-access-cases.ps1')
     Invoke-ContactWriteAccessCases
+    Invoke-ContactPatchSemanticsCases
     Invoke-WorkspaceOwnerRepairCases
 
     $healthy = Invoke-Api -Method 'GET' -Path '/auth/session' -Token $script:Token
@@ -609,6 +610,7 @@ END;
     }
 }
 
+Remove-Item -LiteralPath $logPath, "$logPath.err" -ErrorAction SilentlyContinue
 $script:Results | ForEach-Object { Write-Host $_ }
 Write-Host ("Contacts Read Core verification: passed={0} failed={1}" -f $script:Passed, $script:Failed)
 if ($script:Failed -ne 0) { throw 'Contacts Read Core verification failed.' }

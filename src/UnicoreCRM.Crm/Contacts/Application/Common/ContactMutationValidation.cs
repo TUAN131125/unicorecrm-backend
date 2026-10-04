@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using UnicoreCRM.Crm.Contacts.Contracts;
 using UnicoreCRM.Crm.Contacts.Domain;
 
@@ -17,17 +18,40 @@ internal static class ContactMutationValidation
             request.Source, request.DecisionRole, request.RelationshipLevel, request.PainPoint, request.NeedSummary,
             request.Notes, request.Tags, request.DisplayName, out fullName, out ownerId, out profile, out errors);
 
-    internal static bool TryProfile(
-        UpdateContactRequest request,
-        out string? fullName,
-        out string? ownerId,
-        out ContactProfile? profile,
-        out IReadOnlyDictionary<string, string[]> errors) =>
-        TryProfile(request.FullName, request.OwnerId, request.Salutation, request.JobTitle, request.Department,
-            request.RoleAtCompany, request.WorkEmail, request.PersonalEmail, request.MobilePhone, request.WorkPhone,
-            request.OtherPhone, request.ZaloId, request.Facebook, request.PreferredContactChannel, request.Address,
-            request.Source, request.DecisionRole, request.RelationshipLevel, request.PainPoint, request.NeedSummary,
-            request.Notes, request.Tags, request.DisplayName, out fullName, out ownerId, out profile, out errors);
+    internal static bool TryPatch(
+        UpdateContactRequest request, IReadOnlySet<string> supplied,
+        out ContactPatch? patch, out IReadOnlyDictionary<string, string[]> errors)
+    {
+        patch = null;
+        if (supplied.Count == 0)
+        {
+            errors = new Dictionary<string, string[]> { ["body"] = ["At least one writable Contact field must be supplied."] };
+            return false;
+        }
+        T? Value<T>(string field, T? value) where T : class => supplied.Contains(field) ? value : null;
+        TryProfile(
+            Value("fullName", request.FullName), Value("ownerId", request.OwnerId),
+            Value("salutation", request.Salutation), Value("jobTitle", request.JobTitle),
+            Value("department", request.Department), Value("roleAtCompany", request.RoleAtCompany),
+            Value("workEmail", request.WorkEmail), Value("personalEmail", request.PersonalEmail),
+            Value("mobilePhone", request.MobilePhone), Value("workPhone", request.WorkPhone),
+            Value("otherPhone", request.OtherPhone), Value("zaloId", request.ZaloId),
+            Value("facebook", request.Facebook), Value("preferredContactChannel", request.PreferredContactChannel),
+            Value("address", request.Address), Value("source", request.Source),
+            Value("decisionRole", request.DecisionRole), Value("relationshipLevel", request.RelationshipLevel),
+            Value("painPoint", request.PainPoint), Value("needSummary", request.NeedSummary),
+            Value("notes", request.Notes), Value("tags", request.Tags),
+            Value("displayName", request.DisplayName),
+            out var fullName, out var ownerId, out var profile, out errors, supplied.Contains("fullName"));
+
+        if (supplied.Contains("ownerId") && request.OwnerId is not null && ownerId is null)
+        {
+            errors = new Dictionary<string, string[]>(errors) { ["ownerId"] = ["ownerId must reference an active Workspace member."] };
+        }
+        if (errors.Count != 0 || profile is null) return false;
+        patch = new ContactPatch(supplied.ToFrozenSet(StringComparer.Ordinal), fullName, ownerId, profile);
+        return true;
+    }
 
     private static bool TryProfile(
         string? suppliedName, string? suppliedOwnerId, string? salutation, string? jobTitle, string? department,
@@ -36,10 +60,10 @@ internal static class ContactMutationValidation
         string? source, string? decisionRole, string? relationshipLevel, string? painPoint, string? needSummary,
         string? notes, IReadOnlyList<string>? suppliedTags, string? displayName,
         out string? fullName, out string? ownerId, out ContactProfile? profile,
-        out IReadOnlyDictionary<string, string[]> errors)
+        out IReadOnlyDictionary<string, string[]> errors, bool requireName = true)
     {
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        fullName = Text(suppliedName, "fullName", ContactNameBound.MaxLength, true, fields);
+        fullName = Text(suppliedName, "fullName", ContactNameBound.MaxLength, requireName, fields);
         ownerId = Text(suppliedOwnerId, "ownerId", 128, false, fields);
         var normalizedWorkEmail = Email(workEmail, "workEmail", fields);
         var normalizedPersonalEmail = Email(personalEmail, "personalEmail", fields);
