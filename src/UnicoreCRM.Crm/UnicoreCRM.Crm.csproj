@@ -18,6 +18,8 @@
     <!-- Customers consumes only CommercialEvidence's narrow purchase-health signal contract. -->
     <ProjectReference Include="../UnicoreCRM.CommercialEvidence/UnicoreCRM.CommercialEvidence.csproj" />
     <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+    <!-- Contacts consumes the Tasks-owned authorized follow-up read projection only. -->
+    <ProjectReference Include="../UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
     <!-- Leads consumes the narrow Products-owned snapshot reader contract only. -->
     <ProjectReference Include="../UnicoreCRM.Sales/UnicoreCRM.Sales.csproj" />
   </ItemGroup>

@@ -18,6 +18,14 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<UnicoreCRM.Operations.Tasks.Contracts.ContactFollowUpProjectionRow>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView(UnicoreCRM.Operations.Tasks.Contracts.ContactFollowUpProjectionRow.ViewName, UnicoreCRM.Operations.Tasks.Contracts.ContactFollowUpProjectionRow.Schema);
+            entity.Property(row => row.WorkspaceId).HasMaxLength(128);
+            entity.Property(row => row.ContactId).HasMaxLength(128);
+            entity.Property(row => row.AssigneeId).HasMaxLength(128);
+        });
         modelBuilder.HasDefaultSchema("contacts");
         modelBuilder.Entity<Contact>(entity =>
         {
@@ -36,6 +44,10 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.Property(item => item.NormalizedWorkEmail).HasMaxLength(320);
             entity.Property(item => item.NormalizedPersonalEmail).HasMaxLength(320);
             entity.HasIndex(item => new { item.WorkspaceId, item.CreatedAt, item.ContactId });
+            // Keyset list orders use UpdatedAt/ContactId DESC or FullName/ContactId ASC.
+            // SQL Server can scan the timestamp index backwards within an equal WorkspaceId.
+            entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.ContactId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.FullName, item.ContactId });
             entity.HasIndex(item => new { item.WorkspaceId, item.OwnerId, item.CreatedAt, item.ContactId });
             // Detection indexes for the Workspace-wide duplicate guard. Deliberately NOT unique: no
             // authority makes email a Contact uniqueness invariant, the field is optional so many

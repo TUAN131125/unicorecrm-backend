@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <ProjectReference Include="../../src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Domain/*.cs" Link="Tasks/Domain/%(Filename)%(Extension)" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/Common/*.cs" Link="Tasks/Common/%(Filename)%(Extension)" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/TaskContracts.cs" Link="Tasks/TaskContracts.cs" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ContactFollowUpProjection.cs" Link="Tasks/ContactFollowUpProjection.cs" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/ReadContactFollowUp/*.cs" Link="Tasks/ReadContactFollowUp/%(Filename)%(Extension)" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs" Link="Tasks/TasksDbContext.cs" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/*.cs" Link="Tasks/Migrations/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

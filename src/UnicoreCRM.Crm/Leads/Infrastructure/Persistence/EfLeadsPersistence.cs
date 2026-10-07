@@ -6,7 +6,7 @@ using UnicoreCRM.Crm.Leads.Domain;
 
 namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
 
-internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersistence
+internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersistence, ILeadKanbanPersistence
 {
     public async Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new LeadsTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
@@ -69,6 +69,45 @@ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersi
         CancellationToken cancellationToken) =>
         FilteredLeads(workspaceId, scopeOwnerMemberId, ownerId, assignmentState, canReadUnassigned, workState, normalizedSearch, includePhoneSearch)
             .LongCountAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Lead>> ListColumnAsync(string workspaceId, string? scopeOwnerMemberId,
+        string? ownerId, string? assignmentState, bool canReadUnassigned, string column,
+        LeadWorkState? workState, string? normalizedSearch, bool includePhoneSearch,
+        DateTimeOffset? cursorUpdatedAt, string? cursorLeadId, int take, CancellationToken cancellationToken)
+    {
+        var query = FilteredColumn(workspaceId, scopeOwnerMemberId, ownerId, assignmentState,
+            canReadUnassigned, column, workState, normalizedSearch, includePhoneSearch);
+        if (cursorUpdatedAt is not null && cursorLeadId is not null)
+            query = query.Where(item => item.UpdatedAt < cursorUpdatedAt
+                || (item.UpdatedAt == cursorUpdatedAt && string.Compare(item.LeadId, cursorLeadId) < 0));
+        return await query.OrderByDescending(item => item.UpdatedAt).ThenByDescending(item => item.LeadId)
+            .Take(take).ToArrayAsync(cancellationToken);
+    }
+
+    public Task<long> CountColumnAsync(string workspaceId, string? scopeOwnerMemberId,
+        string? ownerId, string? assignmentState, bool canReadUnassigned, string column,
+        LeadWorkState? workState, string? normalizedSearch, bool includePhoneSearch, CancellationToken cancellationToken) =>
+        FilteredColumn(workspaceId, scopeOwnerMemberId, ownerId, assignmentState,
+            canReadUnassigned, column, workState, normalizedSearch, includePhoneSearch).LongCountAsync(cancellationToken);
+
+    private IQueryable<Lead> FilteredColumn(string workspaceId, string? scopeOwnerMemberId,
+        string? ownerId, string? assignmentState, bool canReadUnassigned, string column,
+        LeadWorkState? workState, string? normalizedSearch, bool includePhoneSearch)
+    {
+        var query = FilteredLeads(workspaceId, scopeOwnerMemberId, ownerId, assignmentState,
+            canReadUnassigned, workState, normalizedSearch, includePhoneSearch);
+        return column switch {
+            "NEW" => query.Where(item => item.WorkState == LeadWorkState.New),
+            "CONTACTING" => query.Where(item => item.WorkState == LeadWorkState.Contacting),
+            "VERIFYING" => query.Where(item => item.WorkState == LeadWorkState.Verifying),
+            "POSITIVE_OUTCOME" => query.Where(item => item.WorkState == LeadWorkState.Closed
+                && (item.QualificationOutcome == LeadQualificationOutcome.Opportunity || item.QualificationOutcome == LeadQualificationOutcome.Customer
+                    || item.QualificationOutcome == LeadQualificationOutcome.Nurture)),
+            "NURTURE" => query.Where(item => item.WorkState == LeadWorkState.Closed && item.QualificationOutcome == LeadQualificationOutcome.Nurture),
+            "DISQUALIFIED" => query.Where(item => item.WorkState == LeadWorkState.Closed && item.QualificationOutcome == LeadQualificationOutcome.Disqualified),
+            _ => query.Where(item => false)
+        };
+    }
 
     private IQueryable<Lead> FilteredLeads(
         string workspaceId,

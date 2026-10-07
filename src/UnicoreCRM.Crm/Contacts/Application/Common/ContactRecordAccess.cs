@@ -50,7 +50,8 @@ internal static class ContactFieldSecurity
             ["notes"] = false,
             ["tags"] = false,
             ["organizationRelationships"] = false,
-            ["displayName"] = false
+            ["displayName"] = false,
+            ["nextFollowUpAt"] = false
         };
 
     internal static IReadOnlyList<string> FieldKeys { get; } =

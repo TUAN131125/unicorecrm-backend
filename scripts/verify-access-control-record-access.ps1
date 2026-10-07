@@ -1176,8 +1176,8 @@ VALUES
 
     $contactList = Invoke-Support -Method 'GET' -Path '/contacts'
     Add-Result 'contacts: OWN list excludes the hidden Contact' 'False' `
-        ($contactList.Body.id -contains $contactOtherId).ToString()
-    Add-Result 'contacts: OWN list returns only caller-owned Contact' '1' ([int]$contactList.Body.Count)
+        ($contactList.Body.items.id -contains $contactOtherId).ToString()
+    Add-Result 'contacts: OWN list returns only caller-owned Contact' '1' ([int]$contactList.Body.items.Count)
 
     # ---- WORKSPACE restores every record through the same enforcement path ----
     Set-ModuleScope -RoleId $roleId -Database $DatabaseName -Scope 'Workspace'
@@ -1266,10 +1266,21 @@ VALUES ('field_retro_task_required', '$($script:WorkspaceId)', '$roleId', 'tasks
             @{ Name = 'products'; Path = '/products' },
             @{ Name = 'contacts'; Path = '/contacts' })) {
         $before = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
-        $capabilityBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        # Contact pages also read the Tasks-owned follow-up projection. Assert each
+        # owner capability independently; extra decisions in either owner still fail.
+        $capabilityQuery = 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        if ($module.Name -eq 'contacts') {
+            $capabilityQuery += " WHERE RequiredCapability = 'contacts.read'"
+            $taskCapabilityBefore = Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability = 'tasks.read'"
+        }
+        $capabilityBefore = Get-Scalar -Database $DatabaseName -Query $capabilityQuery
         [void](Invoke-Support -Method 'GET' -Path $module.Path)
+        if ($module.Name -eq 'contacts') {
+            Add-Result 'authority: Contact follow-up projection authorizes tasks.read exactly once' '1' `
+                ([int](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability = 'tasks.read'") - [int]$taskCapabilityBefore)
+        }
         $after = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
-        $capabilityAfter = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        $capabilityAfter = Get-Scalar -Database $DatabaseName -Query $capabilityQuery
         Add-Result ("cost: {0} list evaluates no per-row record decision" -f $module.Name) '0' ([int]$after - [int]$before)
         Add-Result ("authority: {0} list authorizes exactly once" -f $module.Name) '1' ([int]$capabilityAfter - [int]$capabilityBefore)
     }
@@ -1840,12 +1851,23 @@ SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability
             @{ Name = 'contacts'; Path = '/contacts' },
             @{ Name = 'activities'; Path = '/activities' })) {
         $before = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions'
-        $capabilityBefore = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        # Contact pages also read the Tasks-owned follow-up projection. Assert each
+        # owner capability independently; extra decisions in either owner still fail.
+        $capabilityQuery = 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions'
+        if ($module.Name -eq 'contacts') {
+            $capabilityQuery += " WHERE RequiredCapability = 'contacts.read'"
+            $taskCapabilityBefore = Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability = 'tasks.read'"
+        }
+        $capabilityBefore = Get-Scalar -Database $DatabaseName -Query $capabilityQuery
         [void](Invoke-Support -Method 'GET' -Path $module.Path)
+        if ($module.Name -eq 'contacts') {
+            Add-Result 'authority: Contact follow-up projection authorizes tasks.read exactly once' '1' `
+                ([int](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) AS N FROM access.AuthorizationDecisions WHERE RequiredCapability = 'tasks.read'") - [int]$taskCapabilityBefore)
+        }
         Add-Result ("cost: {0} list still evaluates no per-row record decision" -f $module.Name) '0' `
             ([int](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.RecordAccessDecisions') - [int]$before)
         Add-Result ("authority: {0} list still authorizes exactly once" -f $module.Name) '1' `
-            ([int](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) AS N FROM access.AuthorizationDecisions') - [int]$capabilityBefore)
+            ([int](Get-Scalar -Database $DatabaseName -Query $capabilityQuery) - [int]$capabilityBefore)
     }
 
     # --------------------- 24. FINAL HARDENING: ANTI-LEAK, REPLAY AND REPRESENTATION

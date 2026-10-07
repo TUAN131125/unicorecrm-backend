@@ -16,6 +16,9 @@ internal static class LeadsModule
         services.AddDbContext<LeadsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "leads")));
         services.AddScoped<ILeadsPersistence, EfLeadsPersistence>();
+        services.AddScoped<ILeadKanbanPersistence, EfLeadsPersistence>();
+        services.AddDataProtection();
+        services.AddScoped<Application.ListLeadKanbanColumn.Handler>();
         services.AddDevelopmentSchemaMigration(
             "leads",
             (provider, cancellationToken) => provider.GetRequiredService<LeadsDbContext>().Database.MigrateAsync(cancellationToken));

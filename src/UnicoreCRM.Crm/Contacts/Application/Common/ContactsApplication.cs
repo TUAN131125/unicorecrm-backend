@@ -28,11 +28,18 @@ internal interface IContactsTransaction : IAsyncDisposable
     Task CommitAsync(CancellationToken cancellationToken);
 }
 
-internal sealed class ContactsPersistenceConcurrencyException : Exception { }
+internal sealed class ContactsPersistenceConcurrencyException : Exception
+{
+    internal ContactsPersistenceConcurrencyException() { }
+    internal ContactsPersistenceConcurrencyException(Exception innerException)
+        : base("Contact persistence encountered a concurrency conflict.", innerException) { }
+}
 internal sealed class ContactsRelationshipConflictException : Exception { }
 
 internal interface IContactsPersistence
 {
+    Task<ListContacts.ContactListSlice> ReadContactPageAsync(ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<string, long>> ReadContactStatusCountsAsync(ListContacts.ContactListSpecification specification, CancellationToken cancellationToken);
     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
     Task<Contact?> LoadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Contact>> ReadContactsAsync(

@@ -18,6 +18,8 @@ public static class ContactsEndpoints
     {
         endpoints.MapGet("/contacts", ListContactsAsync)
             .RequireAuthorization().RequireTrustedWorkspace().WithName("listContacts");
+        endpoints.MapGet("/contacts/summary", ContactListSummaryAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("getContactListSummary");
         endpoints.MapGet("/contacts/{contactId}", GetContactAsync)
             .RequireAuthorization().RequireTrustedWorkspace().WithName("getContact");
         endpoints.MapPost("/contacts", CreateContactAsync)
@@ -50,8 +52,32 @@ public static class ContactsEndpoints
     {
         if (!ContactsHttp.TryMetadata(context, out var metadata, out var error))
             return error!;
-        var result = await handler.HandleAsync(new(metadata!), cancellationToken);
+        if (!TryListQuery(context, metadata!, out var query, out var invalid)) return invalid!;
+        var result = await handler.HandleAsync(query!, cancellationToken);
         return ContactsHttp.Result(result, metadata!.CorrelationId);
+    }
+
+    private static async Task<IResult> ContactListSummaryAsync(HttpContext context, Application.ListContacts.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ContactsHttp.TryMetadata(context, out var metadata, out var error)) return error!;
+        if (!TryListQuery(context, metadata!, out var query, out var invalid)) return invalid!;
+        return ContactsHttp.Result(await handler.SummaryAsync(query!, cancellationToken), metadata!.CorrelationId);
+    }
+
+    private static bool TryListQuery(HttpContext context, ContactRequestMetadata metadata, out Application.ListContacts.Query? query, out IResult? error)
+    {
+        query = null; error = null;
+        string? Value(string key) => context.Request.Query.TryGetValue(key, out var value) ? value.ToString() : null;
+        var supported = new HashSet<string>(StringComparer.Ordinal) { "cursor", "limit", "search", "status", "ownerId", "ownerScope", "source", "relationshipLevel", "decisionRole", "doNotContact", "link", "sort", "nextFollowUpDate", "followUp" };
+        var fields = new Dictionary<string, string[]>();
+        foreach (var (key, values) in context.Request.Query)
+            if (!supported.Contains(key) || values.Count != 1) fields[key] = ["Unsupported or repeated query parameter."];
+        int? limit = null; bool? dnc = null;
+        if (Value("limit") is { } rawLimit) { if (int.TryParse(rawLimit, out var parsed)) limit = parsed; else fields["limit"] = ["Invalid limit."]; }
+        if (Value("doNotContact") is { } rawDnc) { if (bool.TryParse(rawDnc, out var parsed)) dnc = parsed; else fields["doNotContact"] = ["Invalid boolean."]; }
+        if (fields.Count > 0) { error = ContactsHttp.Result(ContactOperationResult<object>.Failure(ContactErrors.Validation(fields)), metadata.CorrelationId); return false; }
+        query = new(metadata, new(Value("search"), Value("status"), Value("ownerId"), Value("ownerScope"), Value("source"), Value("relationshipLevel"), Value("decisionRole"), dnc, Value("link"), Value("sort") ?? "recentlyUpdated", Value("nextFollowUpDate"), Value("followUp")), Value("cursor"), limit);
+        return true;
     }
 
     private static async Task<IResult> GetContactAsync(

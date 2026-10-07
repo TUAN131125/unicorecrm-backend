@@ -9,6 +9,71 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence;
 
 internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : IContactsPersistence
 {
+    public async Task<Application.ListContacts.ContactListSlice> ReadContactPageAsync(Application.ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken)
+    {
+        var filtered = ContactRows(specification);
+        var total = await filtered.LongCountAsync(cancellationToken);
+        var page = filtered;
+        if (specification.CursorId is { } id)
+        {
+            if (specification.Filters.Sort == "nameAsc")
+            {
+                var name = specification.CursorName!;
+                page = page.Where(c => string.Compare(c.Contact.FullName, name) > 0 || (c.Contact.FullName == name && string.Compare(c.Contact.ContactId, id) > 0));
+            }
+            else if (specification.Filters.Sort == "nextFollowUp")
+            {
+                var due = specification.CursorFollowUpAt;
+                page = specification.CursorFollowUpIsNull
+                    ? page.Where(c => c.NextFollowUpAt == null && string.Compare(c.Contact.ContactId, id) > 0)
+                    : page.Where(c => c.NextFollowUpAt == null || c.NextFollowUpAt > due || (c.NextFollowUpAt == due && string.Compare(c.Contact.ContactId, id) > 0));
+            }
+            else
+            {
+                var updated = specification.CursorUpdatedAt!.Value;
+                page = page.Where(c => c.Contact.UpdatedAt < updated || (c.Contact.UpdatedAt == updated && string.Compare(c.Contact.ContactId, id) < 0));
+            }
+        }
+        page = specification.Filters.Sort switch
+        {
+            "nameAsc" => page.OrderBy(c => c.Contact.FullName).ThenBy(c => c.Contact.ContactId),
+            "nextFollowUp" => page.OrderBy(c => c.NextFollowUpAt == null).ThenBy(c => c.NextFollowUpAt).ThenBy(c => c.Contact.ContactId),
+            _ => page.OrderByDescending(c => c.Contact.UpdatedAt).ThenByDescending(c => c.Contact.ContactId)
+        };
+        var rows = await page.Take(limit).ToArrayAsync(cancellationToken);
+        return new(rows.Select(row => new Application.ListContacts.ContactPageRow(row.Contact, row.NextFollowUpAt)).ToArray(), total);
+    }
+
+    public async Task<IReadOnlyDictionary<string, long>> ReadContactStatusCountsAsync(Application.ListContacts.ContactListSpecification specification, CancellationToken cancellationToken)
+        => await ContactRows(specification).GroupBy(c => c.Contact.Status)
+            .Select(g => new { Status = g.Key, Count = g.LongCount() }).ToDictionaryAsync(g => g.Status, g => g.Count, cancellationToken);
+
+    private sealed class ContactSqlRow
+    {
+        public Contact Contact { get; init; } = null!;
+        public DateTimeOffset? NextFollowUpAt { get; init; }
+    }
+
+    private IQueryable<ContactSqlRow> ContactRows(Application.ListContacts.ContactListSpecification specification)
+    {
+        var contacts = ContactListSql.Filter(dbContext, specification);
+        IQueryable<ContactSqlRow> rows;
+        if (specification.FollowUpAuthority is { } authority)
+        {
+            var followUps = authority.Compose(dbContext.Set<UnicoreCRM.Operations.Tasks.Contracts.ContactFollowUpProjectionRow>().AsNoTracking());
+            rows = from contact in contacts
+                   join followUp in followUps on new { contact.WorkspaceId, ContactId = contact.ContactId } equals new { followUp.WorkspaceId, followUp.ContactId } into joined
+                   from followUp in joined.DefaultIfEmpty()
+                   select new ContactSqlRow { Contact = contact, NextFollowUpAt = (DateTimeOffset?)followUp.NextFollowUpAt };
+        }
+        else rows = contacts.Select(c => new ContactSqlRow { Contact = c, NextFollowUpAt = null });
+        if (specification.DayStart is { } start)
+            rows = specification.Filters.FollowUp == "overdue"
+                ? rows.Where(row => row.NextFollowUpAt < start)
+                : rows.Where(row => row.NextFollowUpAt >= start && row.NextFollowUpAt < specification.DayEnd);
+        return rows;
+    }
+
     public void AddReadAudit(ContactReadAuditRecord audit) => dbContext.ReadAuditRecords.Add(audit);
 
     public async Task<IContactsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
@@ -54,7 +119,7 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
         }
         catch (DbUpdateConcurrencyException exception)
         {
-            throw new ContactsPersistenceConcurrencyException { Source = exception.Source };
+            throw new ContactsPersistenceConcurrencyException(exception) { Source = exception.Source };
         }
         catch (DbUpdateException exception) when (ContainsRelationshipConstraintViolation(exception))
         {
@@ -64,13 +129,13 @@ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : ICont
         {
             // A competing request may win a unique idempotency, outbox, or audit key. Do not
             // misreport those infrastructure races as a relationship-domain conflict.
-            throw new ContactsPersistenceConcurrencyException { Source = exception.Source };
+            throw new ContactsPersistenceConcurrencyException(exception) { Source = exception.Source };
         }
         catch (Exception exception) when (ContainsSqlError(exception, 1205))
         {
             // SQL Server chooses one SERIALIZABLE contender as a deadlock victim. That loser is
             // a canonical optimistic-concurrency conflict, not an unhandled server failure.
-            throw new ContactsPersistenceConcurrencyException { Source = exception.Source };
+            throw new ContactsPersistenceConcurrencyException(exception) { Source = exception.Source };
         }
     }
 

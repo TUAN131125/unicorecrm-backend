@@ -102,12 +102,18 @@ internal sealed class ContactQualificationParticipantVerifier(string connectionS
             "SELECT COUNT(*) FROM sys.indexes WHERE name = N'IX_Contacts_WorkspaceId_NormalizedWorkEmail'"));
         Check("personal-email detection index exists", 1L, await ScalarLongAsync(
             "SELECT COUNT(*) FROM sys.indexes WHERE name = N'IX_Contacts_WorkspaceId_NormalizedPersonalEmail'"));
-        Check("no UNIQUE constraint on any Contacts index", 0L, await ScalarLongAsync("""
+        Check("no UNIQUE constraint imposes normalized email identity", 0L, await ScalarLongAsync("""
             SELECT COUNT(*) FROM sys.indexes i
             JOIN sys.objects o ON o.object_id = i.object_id
             JOIN sys.schemas s ON s.schema_id = o.schema_id
             WHERE s.name = N'contacts' AND o.name = N'Contacts'
-              AND i.is_unique = 1 AND i.is_primary_key = 0
+              AND i.is_unique = 1
+              AND EXISTS (
+                  SELECT 1 FROM sys.index_columns ic
+                  JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                  WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id
+                    AND ic.key_ordinal > 0
+                    AND c.name IN (N'NormalizedWorkEmail', N'NormalizedPersonalEmail'))
             """));
         Check("Contacts AuditRecords table exists", 1L, await ScalarLongAsync(
             "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=N'contacts' AND TABLE_NAME=N'AuditRecords'"));
@@ -416,8 +422,8 @@ internal sealed class ContactQualificationParticipantVerifier(string connectionS
     }
 
     /// <summary>
-    /// The boundary must stay internal. Any HTTP verb mapping or foreign persistence type inside the
-    /// Contacts owner would mean a public mutation surface or a broken ownership boundary.
+    /// Qualification resolution stays internal. Dedicated Contact HTTP commands are independently
+    /// admitted; the participant cannot own HTTP mapping or foreign persistence.
     /// </summary>
     private void VerifyCallableSurface()
     {
@@ -430,7 +436,6 @@ internal sealed class ContactQualificationParticipantVerifier(string connectionS
 
         foreach (var forbidden in new[]
                  {
-                     "MapPost(", "MapPut(", "MapPatch(", "MapDelete(",
                      "LeadsDbContext", "CustomersDbContext", "OrganizationsDbContext", "DealsDbContext",
                      "Leads.Infrastructure", "Customers.Infrastructure", "Organizations.Infrastructure",
                      "UnicoreCRM.Workflows"
@@ -439,8 +444,11 @@ internal sealed class ContactQualificationParticipantVerifier(string connectionS
             Check($"no forbidden surface: {forbidden}", false, source.Contains(forbidden, StringComparison.Ordinal));
         }
 
-        var mappedGets = source.Split("MapGet(").Length - 1;
-        Check("Contacts still maps exactly the two admitted reads", 2, mappedGets);
+        var participantSource = File.ReadAllText(Path.Combine(root, "Application", "ResolveQualificationContact", "Handler.cs"));
+        foreach (var verb in new[] { "MapGet(", "MapPost(", "MapPut(", "MapPatch(", "MapDelete(" })
+            Check($"qualification participant has no HTTP mapping: {verb}", false, participantSource.Contains(verb, StringComparison.Ordinal));
+        Check("qualification operation is not exposed as an HTTP endpoint", false,
+            source.Contains("WithName(\"resolveQualificationContact\")", StringComparison.Ordinal));
     }
 
     // ---------------------------------------------------------------- harness

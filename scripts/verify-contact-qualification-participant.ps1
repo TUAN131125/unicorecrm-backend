@@ -6,7 +6,7 @@
     Applies the real Contacts and AccessControl migrations to an isolated SQL Server database,
     provisions real initial Workspace access through the production AccessControl contract, and
     executes the internal participant boundary through production DI. The boundary has no HTTP route
-    and none is created; the run additionally proves no public Contact mutation route exists.
+    and none is created; the run additionally proves qualification resolution has no public route.
 #>
 [CmdletBinding()]
 param(
@@ -38,14 +38,13 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Contacts has pending EF model changes.' }
         Write-Host 'PASS | no pending Contacts EF model change'
 
-        # The public Contacts surface must remain exactly the two admitted reads.
+        # Qualification resolution remains an internal participant. Dedicated public Contact
+        # commands are separately admitted and verified by the Contact read/command suites.
         $endpoints = Get-Content -Raw -Path (Join-Path $repositoryRoot 'src/UnicoreCRM.Crm/Contacts/Contracts/ContactsEndpoints.cs')
-        foreach ($verb in @('MapPost(', 'MapPut(', 'MapPatch(', 'MapDelete(')) {
-            if ($endpoints.IndexOf($verb, [StringComparison]::Ordinal) -ge 0) {
-                throw "A public Contact mutation route was introduced: $verb"
-            }
+        if ($endpoints -match 'WithName\("resolveQualificationContact"\)' -or $endpoints -match 'Map(?:Post|Put|Patch|Delete)\("[^"\r\n]*qualification') {
+            throw 'Qualification resolution must not have a public Contact route.'
         }
-        Write-Host 'PASS | no public Contact mutation route'
+        Write-Host 'PASS | qualification resolution has no public Contact route'
 
         Write-Host 'CONTACT QUALIFICATION PARTICIPANT: PASS'
     }

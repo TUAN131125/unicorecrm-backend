@@ -17,7 +17,11 @@ param(
 
     [int] $ReadyTimeoutSeconds = 420,
 
-    [switch] $KeepDatabase
+    [switch] $KeepDatabase,
+
+    [string] $EvidenceDirectory,
+
+    [switch] $SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -204,6 +208,14 @@ $secretA = 'contact-a-private@example.test'
 $secretB = 'CONTACT-B-HIDDEN-BUSINESS-VALUE'
 $secretC = 'CONTACT-C-FOREIGN-BUSINESS-VALUE'
 
+if ($DatabaseName -notmatch '^UnicoreCRM_ContactsVerify_[A-Za-z0-9_]+$') {
+    throw 'Use a disposable database named UnicoreCRM_ContactsVerify_<unique suffix>.'
+}
+if (-not [string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+    [void](New-Item -ItemType Directory -Path $EvidenceDirectory -Force)
+    $logPath = Join-Path $EvidenceDirectory 'contact-verifier-host.log'
+}
+
 try {
     Write-Host "Provisioning isolated database $DatabaseName on $SqlServer ..."
     Invoke-SqlNonQuery -Query @"
@@ -232,11 +244,15 @@ CREATE DATABASE [$DatabaseName];
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = 'false'
     $env:AI__Provider__Kind = 'DevelopmentDeterministic'
+    # Record actual SQL execution, without logging parameter business values.
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command', 'Information', 'Process')
 
     Push-Location $repositoryRoot
     try {
-        & dotnet build $hostProject -v q --nologo | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "ApiHost build failed with exit code $LASTEXITCODE." }
+        if (-not $SkipBuild) {
+            & dotnet build $hostProject -v q --nologo | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "ApiHost build failed with exit code $LASTEXITCODE." }
+        }
         & dotnet run --no-build --no-launch-profile --project $hostProject -- --migrate | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Owner schema migration failed with exit code $LASTEXITCODE." }
         & dotnet run --no-build --no-launch-profile --project $hostProject -- --seed-demo | Out-Null
@@ -339,7 +355,10 @@ VALUES
 
     $provisionedList = Invoke-Contact -Method 'GET' -Path '/contacts'
     Add-Result 'provisioned contacts.read permits the first Contacts list' '200' $provisionedList.Status
-    Add-Result 'first Contacts success does not depend on a manual capability grant' '2' ([string]$provisionedList.Body.Count)
+    Add-Result 'first Contacts success does not depend on a manual capability grant' '2' ([string]$provisionedList.Body.items.Count)
+    if ($provisionedList.Status -ne 200) {
+        throw "First real SQL Contact page failed with HTTP $($provisionedList.Status): $($provisionedList.Raw)"
+    }
 
     Invoke-SqlNonQuery -Database $DatabaseName `
         -Query "DELETE FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'contacts.read'"
@@ -352,12 +371,12 @@ VALUES
 
     $workspaceList = Invoke-Contact -Method 'GET' -Path '/contacts'
     Add-Result 'WORKSPACE list succeeds' '200' $workspaceList.Status
-    Add-Result 'list is the admitted plain array representation' '2' ([string]$workspaceList.Body.Count)
-    Add-Result 'list includes trusted Contact A' 'True' ($workspaceList.Body.id -contains $contactA).ToString()
-    Add-Result 'list includes trusted Contact B' 'True' ($workspaceList.Body.id -contains $contactB).ToString()
-    Add-Result 'foreign Workspace Contact absent from list' 'False' ($workspaceList.Body.id -contains $contactC).ToString()
+    Add-Result 'list envelope contains the admitted Contact collection' '2' ([string]$workspaceList.Body.items.Count)
+    Add-Result 'list includes trusted Contact A' 'True' ($workspaceList.Body.items.id -contains $contactA).ToString()
+    Add-Result 'list includes trusted Contact B' 'True' ($workspaceList.Body.items.id -contains $contactB).ToString()
+    Add-Result 'foreign Workspace Contact absent from list' 'False' ($workspaceList.Body.items.id -contains $contactC).ToString()
     Add-Result 'foreign business value absent from list bytes' 'True' ($workspaceList.Raw -notmatch [regex]::Escape($secretC)).ToString()
-    Add-Result 'unadmitted page metadata absent' 'True' ($workspaceList.Raw -notmatch 'pageInfo|totalCount|nextCursor').ToString()
+    Add-Result 'complete page has exact total and no continuation' '2|False|' "$($workspaceList.Body.pageInfo.totalCount)|$($workspaceList.Body.pageInfo.hasNextPage)|$($workspaceList.Body.pageInfo.nextCursor)"
 
     $contactDetail = Invoke-Contact -Method 'GET' -Path "/contacts/$contactA"
     Add-Result 'own Workspace detail succeeds' '200' $contactDetail.Status
@@ -384,15 +403,15 @@ VALUES
     Add-Result 'scope-hidden response leaks no business value' 'True' `
         (($hiddenDetail.Raw -notmatch [regex]::Escape($secretB)) -and ($hiddenDetail.Raw -notmatch 'Contact Beta')).ToString()
     $ownList = Invoke-Contact -Method 'GET' -Path '/contacts'
-    Add-Result 'OWN list returns only caller-owned Contact' '1' ([string]$ownList.Body.Count)
-    Add-Result 'OWN list excludes hidden Contact before materialization' $contactA $ownList.Body[0].id
+    Add-Result 'OWN list returns only caller-owned Contact' '1' ([string]$ownList.Body.items.Count)
+    Add-Result 'OWN list excludes hidden Contact before materialization' $contactA $ownList.Body.items[0].id
 
     foreach ($unsupported in @('Team', 'Custom')) {
         Set-ContactScope -RoleId $roleId -Scope $unsupported
         Add-Result ("{0} detail fails closed" -f $unsupported.ToUpperInvariant()) '404' `
             (Invoke-Contact -Method 'GET' -Path "/contacts/$contactA").Status
         Add-Result ("{0} list fails closed" -f $unsupported.ToUpperInvariant()) '0' `
-            ([string](Invoke-Contact -Method 'GET' -Path '/contacts').Body.Count)
+            ([string](Invoke-Contact -Method 'GET' -Path '/contacts').Body.items.Count)
     }
 
     Set-ContactScope -RoleId $roleId -Scope 'Workspace'
@@ -448,21 +467,33 @@ VALUES ('field_contacts_read_required', '$($script:WorkspaceId)', '$roleId', 'co
 
     $recordDecisionsBefore = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM access.RecordAccessDecisions"
-    $authorizationsBefore = Get-Scalar -Database $DatabaseName `
+    $allAuthorizationsBefore = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM access.AuthorizationDecisions"
+    $contactAuthorizationsBefore = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$($script:WorkspaceId)' AND RequiredCapability='contacts.read'"
+    $taskAuthorizationsBefore = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$($script:WorkspaceId)' AND RequiredCapability='tasks.read'"
     $listReadAuditBefore = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM contacts.ReadAuditRecords WHERE Operation = 'listContacts'"
     [void](Invoke-Contact -Method 'GET' -Path '/contacts')
     $recordDecisionsAfter = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM access.RecordAccessDecisions"
-    $authorizationsAfter = Get-Scalar -Database $DatabaseName `
+    $allAuthorizationsAfter = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM access.AuthorizationDecisions"
+    $contactAuthorizationsAfter = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$($script:WorkspaceId)' AND RequiredCapability='contacts.read'"
+    $taskAuthorizationsAfter = Get-Scalar -Database $DatabaseName `
+        -Query "SELECT COUNT(*) FROM access.AuthorizationDecisions WHERE WorkspaceId='$($script:WorkspaceId)' AND RequiredCapability='tasks.read'"
     $listReadAuditAfter = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM contacts.ReadAuditRecords WHERE Operation = 'listContacts'"
     Add-Result 'list performs no per-row record evaluations' '0' `
         ([string]([int]$recordDecisionsAfter - [int]$recordDecisionsBefore))
-    Add-Result 'list performs exactly one resource authorization' '1' `
-        ([string]([int]$authorizationsAfter - [int]$authorizationsBefore))
+    Add-Result 'list performs exactly one Contacts resource authorization' '1' `
+        ([string]([int]$contactAuthorizationsAfter - [int]$contactAuthorizationsBefore))
+    Add-Result 'list performs exactly one Tasks follow-up authorization' '1' `
+        ([string]([int]$taskAuthorizationsAfter - [int]$taskAuthorizationsBefore))
+    Add-Result 'list performs no additional resource authorizations' '2' `
+        ([string]([int]$allAuthorizationsAfter - [int]$allAuthorizationsBefore))
     Add-Result 'successful list writes one Contacts read audit' '1' `
         ([string]([int]$listReadAuditAfter - [int]$listReadAuditBefore))
 
@@ -516,7 +547,7 @@ VALUES
     Add-Result 'Archive physically preserves Contact row' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.Contacts WHERE ContactId='$archiveId'"))
     Add-Result 'Archive writes one audit record' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.AuditRecords WHERE AggregateId='$archiveId' AND Operation='archiveContact'"))
     Add-Result 'Archive emits one CONTACT_ARCHIVED event' '1' ([string](Get-Scalar -Database $DatabaseName -Query "SELECT COUNT(*) FROM contacts.OutboxMessages WHERE AggregateId='$archiveId' AND EventType='CONTACT_ARCHIVED'"))
-    Add-Result 'active list excludes archived Contact' 'False' ((Invoke-Contact -Method 'GET' -Path '/contacts').Body.id -contains $archiveId).ToString()
+    Add-Result 'active list excludes archived Contact' 'False' ((Invoke-Contact -Method 'GET' -Path '/contacts').Body.items.id -contains $archiveId).ToString()
     $archivedDetail = Invoke-Contact -Method 'GET' -Path "/contacts/$archiveId"
     Add-Result 'direct detail retains archived Contact' '200' $archivedDetail.Status
     Add-Result 'direct detail represents archived state' 'archived|1' "$($archivedDetail.Body.status)|$($archivedDetail.Body.version)"
@@ -568,6 +599,8 @@ VALUES
         ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM contacts.Contacts'))
 
     # Run after existing read/audit assertions: the effective-access endpoint deliberately audits denials.
+    . (Join-Path $PSScriptRoot 'contact-paging-cases.ps1')
+    Invoke-ContactPagingCases
     . (Join-Path $PSScriptRoot 'contact-write-access-cases.ps1')
     Invoke-ContactWriteAccessCases
     Invoke-ContactPatchSemanticsCases
@@ -580,6 +613,17 @@ VALUES
     if (Test-Path -LiteralPath $logPath) { $logText += Get-Content -Raw -LiteralPath $logPath }
     if (Test-Path -LiteralPath "$logPath.err") { $logText += Get-Content -Raw -LiteralPath "$logPath.err" }
     Add-Result 'foreign Contact value absent from host logs' 'True' ($logText -notmatch [regex]::Escape($secretC)).ToString()
+    $commands = [regex]::Matches($logText, '(?s)Executed DbCommand.*?(?=\r?\n(?:info|warn|fail|dbug|trce):|\z)')
+    $contactCommands = @($commands | Where-Object { $_.Value -match 'SELECT c\.\* FROM \[contacts\]\.\[Contacts\]' })
+    Add-Result 'real SQL executes composed bounded Contact page query' 'True' (@($contactCommands | Where-Object { $_.Value -match 'SELECT TOP\(' -and $_.Value -match 'ORDER BY' }).Count -gt 0).ToString()
+    Add-Result 'real SQL executes filtered Contact count' 'True' (@($contactCommands | Where-Object { $_.Value -match 'COUNT_BIG\(' -and $_.Value -match 'CHARINDEX' }).Count -gt 0).ToString()
+    Add-Result 'real SQL executes Contact status aggregation' 'True' (@($contactCommands | Where-Object { $_.Value -match 'COUNT_BIG\(' -and $_.Value -match 'GROUP BY' }).Count -gt 0).ToString()
+}
+catch {
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+        @($_.ToString(), $_.ScriptStackTrace, $script:Results) | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'contact-verifier-failure.txt')
+    }
+    throw
 }
 finally {
     if ($null -ne $hostProcess -and -not $hostProcess.HasExited) {
@@ -610,7 +654,12 @@ END;
     }
 }
 
-Remove-Item -LiteralPath $logPath, "$logPath.err" -ErrorAction SilentlyContinue
+if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+    Remove-Item -LiteralPath $logPath, "$logPath.err" -ErrorAction SilentlyContinue
+}
+else {
+    $script:Results | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'contact-verifier-results.txt')
+}
 $script:Results | ForEach-Object { Write-Host $_ }
 Write-Host ("Contacts Read Core verification: passed={0} failed={1}" -f $script:Passed, $script:Failed)
 if ($script:Failed -ne 0) { throw 'Contacts Read Core verification failed.' }

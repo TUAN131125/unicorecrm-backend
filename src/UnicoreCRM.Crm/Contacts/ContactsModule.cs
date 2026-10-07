@@ -21,6 +21,7 @@ internal static class ContactsModule
             "contacts",
             (provider, cancellationToken) => provider.GetRequiredService<ContactsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<ContactAuthorization>();
+        services.AddDataProtection();
         services.AddScoped<Application.ListContacts.Handler>();
         services.AddScoped<Application.GetContact.Handler>();
         services.AddScoped<Contracts.IContactSummaryReader, Application.ReadContactSummary.ContactSummaryReader>();

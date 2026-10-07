@@ -1161,7 +1161,19 @@ Runtime verification was re-run on 2026-08-26 against the isolated `UnicoreCRM_P
 
 Product configuration mutations, import, export, demo-data reset, inventory, purchasing, promotions, tax configuration, currency conversion, Quotes, and Orders remain unimplemented and fail closed.
 
-## Contacts Read Core implementation authority
+## Current Contact paging and derived follow-up authority
+
+The approved 2026-10-06 remediation supersedes the original unbounded Contact array with bounded server paging, authorized count and status summary, data-protected keyset continuation, direct Contact filters and Tasks-derived nextFollowUpAt. The implementation and security/performance boundaries are recorded in [Contact query architecture](CONTACT_QUERY_ARCHITECTURE.md). Current default ordering is updatedAt DESC/ContactId DESC; name and authorized next-follow-up sorts also execute in SQL. Search/filter values are parameterized and optional field visibility governs their inclusion. myContacts is the server-resolved ownerScope=my semantic.
+
+Tasks alone owns tasks.ContactFollowUpReadProjection and its migration. Contacts maps the public Tasks contract with HasNoKey/ToView and consumes resolver-issued ContactFollowUpReadAuthority.Compose; trusted workspace and OWN assignee predicates are applied before the final Task-derived minimum. Contact authorization is additional. No direct Contacts query of Tasks or Activities tables is introduced, no per-Contact enrichment query exists, and no duplicated mutable Contact follow-up state is stored. Tasks denial withholds ordinary follow-up projection and refuses explicit follow-up filtering/sorting.
+
+TaskActivity record-scope and field-security authority remains unresolved. Existing WORKSPACE/no-restrictive-policy reachability is preserved and is not reinterpreted as Activity FLS. Contact lastContactedAt remains unavailable in connected mode until dedicated Activity security authority exists; it has no current backend projection, sort or filter. This optional blocker does not block core Contact paging. priority, teamContacts and inactiveLongTime remain unavailable; other unavailable optional projections do not receive invented semantics.
+
+Contacts migration 20261006144337_ContactListReadProjectionIndexes adds only WorkspaceId/UpdatedAt/ContactId and WorkspaceId/FullName/ContactId indexes and updates the snapshot for the keyless Tasks view mapping. It does not create Tasks persistence. Clean/current-upgrade, existing-data preservation, rollback/reapply, index key order, and pending-model validation are recorded under scripts/ContactFollowUpVerifier/evidence/contacts-migration-indexes.txt. Bounded/set-based query structure is established; measured 10K concurrent-load proof is not established. The earlier read-core evidence below is historical and does not describe the current list envelope or mutation availability.
+
+Fresh 2026-10-07 execution: solution build succeeded with zero warnings/errors; the focused Tasks runtime/SQL verifier succeeded; the real-host Contacts verifier reported 545 checks passed and zero failed, including composed bounded SQL page/count/status summary and separate one-per-owner Contacts/Tasks authorizations with zero per-row record evaluations. Evidence and exact commands are in scripts/ContactFollowUpVerifier/evidence/current-query-review.md and contacts-read-current/. This author-session review is not a separate-principal independent-review attestation or release freeze. Activity production source and the existing user configuration blob remain unchanged.
+
+## Contacts Read Core implementation authority — historical baseline
 
 Contacts Read Core admits and implements exactly the two canonical Contacts-owned reads `listContacts` (`GET /contacts`) and `getContact` (`GET /contacts/{contactId}`). Both operation rows are `PRODUCTION_CONTRACT_READY`; both require authenticated IdentityAuth context, a trusted active Workspace membership, and the canonical `contacts.read` capability. No Contact create, replace, archive, restore, merge, import, export, relationship-summary, or other mutation/read operation is introduced by this slice. The operation registry still marks Contact commands blocked, and this implementation does not reinterpret a ready read contract as mutation authority.
 
@@ -1371,7 +1383,7 @@ an unrelated custom role. Support reported `83/0`; Products, AI Assistant, Inbou
 Email Verification OTP returned `Status: PASS`. Both affected EF models reported no pending changes,
 `git diff --check` passed, and the solution built with zero warnings and zero errors.
 
-This is Contacts Read Core integration only. The exact OpenAPI list remains an unpaginated plain array
+This records the original Contacts Read Core integration. Its historical OpenAPI list was an unpaginated plain array
 with the scale limitation recorded above. Contact mutations, relationship-summary composition,
 `TEAM`, `CUSTOM`, masked rendering, Organizations and generic AccessControl administration remain
 outside this hardening and keep their prior blocked or `AUTHORITY_GAP` status. It does not establish

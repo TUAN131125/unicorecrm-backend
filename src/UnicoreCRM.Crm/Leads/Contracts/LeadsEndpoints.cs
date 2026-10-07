@@ -12,6 +12,7 @@ public static class LeadsEndpoints
 {
     public static IEndpointRouteBuilder MapLeadsEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        MapGet(endpoints, "/leads/kanban/{column}", ListLeadKanbanColumnAsync, "listLeadKanbanColumn");
         MapGet(endpoints, "/leads", ListLeadsAsync, "listLeads");
         MapPost(endpoints, "/leads", CreateLeadAsync, "createLead");
         MapGet(endpoints, "/leads/{leadId}", GetLeadAsync, "getLead");
@@ -57,6 +58,20 @@ public static class LeadsEndpoints
         var page = result.Value!;
         return Results.Json(new LeadListResponse(
             page.Items,
+            new LeadPageInfo(page.HasNextPage, page.NextCursor, page.TotalCount)));
+    }
+
+    private static async Task<IResult> ListLeadKanbanColumnAsync(
+        string column, string? cursor, int? limit, string? search, string? workState,
+        string? ownerId, string? assignmentState, HttpContext context,
+        Application.ListLeadKanbanColumn.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!LeadsHttp.TryMetadata(context, false, false, out var metadata, out var error)) return error!;
+        var result = await handler.HandleAsync(new(cursor, limit, search, column, workState,
+            ownerId, assignmentState, metadata!.RequestId, metadata.CorrelationId), cancellationToken);
+        if (!result.IsSuccess) return LeadsHttp.Error(result.Error!, metadata.CorrelationId);
+        var page = result.Value!;
+        return Results.Json(new LeadListResponse(page.Items,
             new LeadPageInfo(page.HasNextPage, page.NextCursor, page.TotalCount)));
     }
 
