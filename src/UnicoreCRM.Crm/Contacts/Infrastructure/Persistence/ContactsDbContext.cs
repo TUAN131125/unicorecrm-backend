@@ -46,9 +46,11 @@ internal sealed class ContactsDbContext(DbContextOptions<ContactsDbContext> opti
             entity.HasIndex(item => new { item.WorkspaceId, item.CreatedAt, item.ContactId });
             // Keyset list orders use UpdatedAt/ContactId DESC or FullName/ContactId ASC.
             // SQL Server can scan the timestamp index backwards within an equal WorkspaceId.
-            entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.ContactId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.ContactId })
+                .IncludeProperties(item => new { item.Status, item.ArchivedAt, item.OwnerId });
             entity.HasIndex(item => new { item.WorkspaceId, item.FullName, item.ContactId });
-            entity.HasIndex(item => new { item.WorkspaceId, item.OwnerId, item.CreatedAt, item.ContactId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.OwnerId, item.CreatedAt, item.ContactId })
+                .IncludeProperties(item => new { item.Status, item.ArchivedAt });
             // Detection indexes for the Workspace-wide duplicate guard. Deliberately NOT unique: no
             // authority makes email a Contact uniqueness invariant, the field is optional so many
             // keyless Contacts must coexist, and a constraint here would bind every future Contact

@@ -4,6 +4,7 @@
     <AssemblyName>UnicoreCRM.Operations</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="UnicoreCRM.SqlPerformanceBench" />
     <InternalsVisibleTo Include="UnicoreCRM.LeadHandover.RealVerifier" />
     <InternalsVisibleTo Include="UnicoreCRM.AI.ProactiveVerifier" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

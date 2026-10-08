@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>UnicoreCRM.SqlPerformanceBench</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Update="Seed.sql" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="../../src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <ProjectReference Include="../../src/UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
+  </ItemGroup>
+</Project>
