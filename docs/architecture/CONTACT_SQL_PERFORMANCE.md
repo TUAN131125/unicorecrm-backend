@@ -36,3 +36,5 @@ Reproduce with `scripts/SqlPerformanceBench` using a fresh absolute evidence dir
 
 
 A separate disposable 10K HTTP fixture also ran 25/100/250/500-client stages without HTTP errors or timeouts. Aggregate p95 was 171/775/2,578/5,268ms; RPS was 41/113/108/91. These 30-second sampling targets used one API replica and 500ms think time. Throughput saturation and increasing latency prohibit a production-capacity claim. The 1000-client stage lacked its 8GiB free-memory reserve and was skipped. SQL CPU permissions, wait attribution and thread-pool starvation were not established. This is not a 10K-concurrency proof or soak test.
+
+The subsequent search/runtime investigation is documented in [CONTACT_SEARCH_RUNTIME_DIAGNOSTICS.md](CONTACT_SEARCH_RUNTIME_DIAGNOSTICS.md). It corrects harness accounting, rejects non-equivalent/regressing search prototypes and leaves concurrent saturation attribution unestablished because resource guards prevented load stages.

@@ -17,9 +17,11 @@ using UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
 
-// Deliberately no connection-string input or application configuration reads.
+// SQL fixture mode does not read application configuration or accept connection strings.
+// API load mode validates its explicitly supplied fixture settings in ApiLoad.
 // Integrated identity only. All writes are confined to a freshly allocated database.
 if(args.Length==2 && args[0]=="--api-load") {await ApiLoad.Run(args[1]);return;}
+if(args.Length==2 && args[0]=="--validate-harness") {await HarnessVerification.Run(args[1]);return;}
 if (args.Length < 2 || !Path.IsPathRooted(args[1]))
     throw new ArgumentException("Usage: SqlPerformanceBench <server> <absolute evidence directory> [max-tier:10000|100000|500000] [iterations:20..100]");
 var server = args[0];
@@ -38,7 +40,10 @@ var indexedSearchExperiment = args.Length > 4 && args[4] == "--indexed-search-ex
 var migrationVerification = args.Length > 4 && args[4] == "--migration-verification";
 var cursorVerification = args.Length > 4 && args[4] == "--cursor-verification";
 var baselineMeasurements = args.Length > 4 && args[4] == "--baseline";
-if (args.Length > 4 && !countIndexExperiment && !ownerIndexExperiment && !searchProjectionExperiment && !indexedSearchExperiment && !migrationVerification && !cursorVerification && !baselineMeasurements) throw new ArgumentException("Unknown experiment.");
+var searchInvestigation = args.Length > 4 && args[4] == "--search-investigation";
+var searchParityEdge = args.Length > 4 && args[4] == "--search-parity-edge";
+if (searchInvestigation && maximum > 100000) throw new ArgumentException("Search investigation is bounded to 10K/100K.");
+if (args.Length > 4 && !countIndexExperiment && !ownerIndexExperiment && !searchProjectionExperiment && !indexedSearchExperiment && !migrationVerification && !cursorVerification && !baselineMeasurements && !searchInvestigation && !searchParityEdge) throw new ArgumentException("Unknown experiment.");
 if (!new[] { 10000, 100000, 500000 }.Contains(maximum) || iterations is < 20 or > 100)
     throw new ArgumentException("Invalid bounded tier/iteration selection.");
 var runId = Guid.NewGuid().ToString("N");
@@ -104,13 +109,28 @@ try
             await contacts.Database.GetService<IMigrator>().MigrateAsync(baselineMigration);
         for (var start = previous+1; start <= tier; start += 5000)
         {
+            try { await ResourceGuard(control,tier); }
+            catch(InvalidOperationException e){throw new ResourceLimitException(e.Message);}
             using var seed = new SqlCommand(seedSql, connection) { CommandTimeout = 60 };
             seed.Parameters.AddWithValue("@from", start); seed.Parameters.AddWithValue("@to", Math.Min(start+4999,tier));
             await seed.ExecuteNonQueryAsync();
+            await Save("seed-progress.json",new{requestedTier=tier,seededContacts=Math.Min(start+4999,tier),seededLeads=Math.Min(start+4999,tier),batch=5000});
         }
         previous = tier;
         Console.WriteLine($"SEEDED {tier} contacts and leads in {seedWatch.Elapsed.TotalSeconds:F1}s");
         await Save($"tier-{tier}-seed.json",new{seed="deterministic integer arithmetic v1",contacts=tier,leads=tier,workspaces=26,batch=5000,incrementalSeedSeconds=seedWatch.Elapsed.TotalSeconds});
+        try { await ResourceGuard(control,tier); }
+        catch(InvalidOperationException e){throw new ResourceLimitException(e.Message);}
+        if(searchParityEdge)
+        {
+            await SearchInvestigation.Differential(tier,contacts,connection,capture,Save);
+            break;
+        }
+        if(searchInvestigation)
+        {
+            await SearchInvestigation.Run(tier,contacts,persistence,connection,capture,Measure,Save);
+            continue;
+        }
         if(cursorVerification)
         {
             await Save($"tier-{tier}-cursor-validation.json",await CursorVerification.Run(persistence,connection));
@@ -329,11 +349,13 @@ sealed class Capture:DbCommandInterceptor
 {
     public static readonly string[] SearchFields=["displayName","workEmail","personalEmail","mobilePhone","workPhone","otherPhone"];
     public bool SearchProjection {get;set;}
+    public Func<string,string>? Rewrite {get;set;}
     public bool Enabled {get;set;}
     public List<Snapshot> Commands {get;}=[];
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,CommandEventData eventData,InterceptionResult<DbDataReader> result,CancellationToken cancellationToken=default)
     {
         if(SearchProjection)foreach(var field in SearchFields)command.CommandText=command.CommandText.Replace($"UPPER(JSON_VALUE(c.[Profile], '$.{field}'))",$"c.[Search_{field}]",StringComparison.Ordinal);
+        if(Rewrite is not null) command.CommandText=Rewrite(command.CommandText);
         if(Enabled)Commands.Add(new(command.CommandText,command.Parameters.Cast<SqlParameter>().Select(p=>(SqlParameter)((ICloneable)p).Clone()).ToArray()));return ValueTask.FromResult(result);
     }
 }
