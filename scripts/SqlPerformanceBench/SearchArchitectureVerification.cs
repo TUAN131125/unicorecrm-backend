@@ -8,7 +8,7 @@ using UnicoreCRM.Operations.Tasks.Contracts;
 internal static class SearchArchitectureVerification
 {
     internal static async Task Run(ContactsDbContext db,EfContactsPersistence persistence,SqlConnection connection,Capture capture,
-        Func<string,string> rewrite,Func<string,object,Task> save,int tier)
+        Func<string,string> rewrite,Func<string,object,Task> save,int tier,bool boundedEdgePages=false)
     {
         var results=new List<object>();
         var result="FAIL";
@@ -33,10 +33,14 @@ internal static class SearchArchitectureVerification
             {
                 var spec=new ContactListSpecification(probeWorkspace,null,new(Search:needle),fields);
                 capture.Rewrite=null;
-                var baseline=await ContactListSql.Filter(db,spec).OrderBy(c=>c.ContactId).Select(c=>new{c.ContactId,c.Status}).ToArrayAsync();
+                var baselineQuery=ContactListSql.Filter(db,spec).OrderBy(c=>c.ContactId).Select(c=>new{c.ContactId,c.Status});
+                if(boundedEdgePages)baselineQuery=baselineQuery.Take(100);
+                var baseline=await baselineQuery.ToArrayAsync();
                 var summary=await ContactListSql.Filter(db,spec).GroupBy(c=>c.Status).Select(g=>new{Status=g.Key,Count=g.LongCount()}).OrderBy(c=>c.Status).ToArrayAsync();
                 capture.Rewrite=rewrite;
-                var candidate=await ContactListSql.Filter(db,spec).OrderBy(c=>c.ContactId).Select(c=>new{c.ContactId,c.Status}).ToArrayAsync();
+                var candidateQuery=ContactListSql.Filter(db,spec).OrderBy(c=>c.ContactId).Select(c=>new{c.ContactId,c.Status});
+                if(boundedEdgePages)candidateQuery=candidateQuery.Take(100);
+                var candidate=await candidateQuery.ToArrayAsync();
                 var candidateSummary=await ContactListSql.Filter(db,spec).GroupBy(c=>c.Status).Select(g=>new{Status=g.Key,Count=g.LongCount()}).OrderBy(c=>c.Status).ToArrayAsync();
                 Assert(JsonSerializer.Serialize(baseline)==JsonSerializer.Serialize(candidate)&&JsonSerializer.Serialize(summary)==JsonSerializer.Serialize(candidateSummary),"JSON/Unicode/field differential");
                 results.Add(new{kind="json-unicode-fls",needle,readableFields=fields,result="PASS",matchingCount=baseline.Length});

@@ -62,3 +62,16 @@ Writes use identical single-row fixtures, one warmup plus 20 transactions for cr
 `--search-architecture-validation` requires max-tier 10000 and runs focused final validation: immediate mutation search parity, failed constraint/rollback/stale-version/multirow checks, EF create/update/archive compatibility, matching Unicode and page-10 read measurements, and protected cursor Handler checks with explicit fixture decisions. It creates its own fresh GUID fixture through the same safe lifecycle. It does not run concurrent API load.
 
 Promotion still requires controlled 100K evidence, full public authorization/command consistency, safe canonical migration/backfill and acceptable common-search/write/storage tradeoffs. Passing fixture checks alone never enables the prototype in production.
+
+## Independent search feasibility experiments
+
+`--search-feasibility` accepts maximum tier 10000 or 100000. It measures the current query, an unhinted TOP candidate/full-row join, and an inner primary-key candidate variant. Count and summary remain canonical. Controlled differential checks and sequential live-page mutations run before timing; actual plans must establish whether qualifying lookups were reduced. No production query selection, search-length heuristic or schema change is introduced. Qualification-to-materialization concurrent parity under locking READ COMMITTED remains NOT_ESTABLISHED; a derived TOP is not a snapshot.
+
+At 10K this mode also runs the independent EF/trigger experiment. Use `--ef-trigger-feasibility` with maximum tier 10000 to run only that workstream in a fresh owned fixture. It captures generated SQL for canonical mappings without/with a trigger and an isolated `UseSqlOutputClause(false)` model. Lifecycle, stale-version, rollback, exact timestamp/version/scalar checks and raw-versus-EF write distributions are recorded. Public command authorization/audit/outbox/idempotency integration is not exercised. Conditional trigger maintenance still recomputes search scalars and maintains SourceVersion. Timing includes transaction/log-diagnostic overhead.
+
+```powershell
+dotnet run --project scripts/SqlPerformanceBench -- . <fresh-absolute-evidence-directory> 100000 20 --search-feasibility
+dotnet run --project scripts/SqlPerformanceBench -- . <another-fresh-absolute-evidence-directory> 10000 20 --ef-trigger-feasibility
+```
+
+See `docs/architecture/CONTACT_SEARCH_FEASIBILITY.md` for the boundaries and admission decision. Resource stops retain completed evidence and do not certify missing 100K cases. Both modes retain the same GUID ownership, managed DATA-path and verified cleanup rules; neither runs concurrent API load.
