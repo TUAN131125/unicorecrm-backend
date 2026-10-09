@@ -42,8 +42,12 @@ var cursorVerification = args.Length > 4 && args[4] == "--cursor-verification";
 var baselineMeasurements = args.Length > 4 && args[4] == "--baseline";
 var searchInvestigation = args.Length > 4 && args[4] == "--search-investigation";
 var searchParityEdge = args.Length > 4 && args[4] == "--search-parity-edge";
+var searchArchitecture = args.Length > 4 && args[4] == "--search-architecture";
+var architectureValidation = args.Length > 4 && args[4] == "--search-architecture-validation";
+if(architectureValidation && maximum!=10000)throw new ArgumentException("Focused architecture validation requires 10K only");
+if (searchArchitecture && maximum > 100000) throw new ArgumentException("Search architecture proof is bounded to 10K/100K.");
 if (searchInvestigation && maximum > 100000) throw new ArgumentException("Search investigation is bounded to 10K/100K.");
-if (args.Length > 4 && !countIndexExperiment && !ownerIndexExperiment && !searchProjectionExperiment && !indexedSearchExperiment && !migrationVerification && !cursorVerification && !baselineMeasurements && !searchInvestigation && !searchParityEdge) throw new ArgumentException("Unknown experiment.");
+if (args.Length > 4 && !countIndexExperiment && !ownerIndexExperiment && !searchProjectionExperiment && !indexedSearchExperiment && !migrationVerification && !cursorVerification && !baselineMeasurements && !searchInvestigation && !searchParityEdge && !searchArchitecture && !architectureValidation) throw new ArgumentException("Unknown experiment.");
 if (!new[] { 10000, 100000, 500000 }.Contains(maximum) || iterations is < 20 or > 100)
     throw new ArgumentException("Invalid bounded tier/iteration selection.");
 var runId = Guid.NewGuid().ToString("N");
@@ -125,6 +129,15 @@ try
         {
             await SearchInvestigation.Differential(tier,contacts,connection,capture,Save);
             break;
+        }
+        if(searchArchitecture || architectureValidation)
+        {
+            await SearchArchitecture.Run(tier,contacts,persistence,connection,capture,Measure,Save,async()=>
+            {
+                try {return await ResourceGuard(control,tier);}
+                catch(InvalidOperationException e){throw new ResourceLimitException(e.Message);}
+            },architectureValidation);
+            continue;
         }
         if(searchInvestigation)
         {

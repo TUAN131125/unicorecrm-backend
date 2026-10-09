@@ -41,3 +41,5 @@ Observed/unobserved serial p95 differences ranged from -5.37% to +4.76%. Sequent
 Backend, harness and hook builds passed without warnings. Harness checks, canonical Contact HTTP (551 per fixture), access (569), cursor (17), Tasks follow-up and Lead Kanban verification passed. Nine GUID-owned fixture databases were cleaned after marker/server/managed-file/manifest/session checks; final metadata showed none remaining. No business database, Development configuration, migration, frontend, DataProtection or deployment infrastructure changed.
 
 Raw plans, requests, manifests, resource stops, parity failures and telemetry remain external evidence. Reproduce using the benchmark README. A host with sufficient guarded headroom is required for fresh 100K timing and controlled concurrent attribution. No production performance improvement or sustained capacity is claimed.
+
+The subsequent isolated scalar projection proof is recorded in [CONTACT_SEARCH_ARCHITECTURE_PROOF.md](CONTACT_SEARCH_ARCHITECTURE_PROOF.md). It measured read/write/storage tradeoffs and found EF update incompatibility; production promotion remains NOT_ADMITTED.
