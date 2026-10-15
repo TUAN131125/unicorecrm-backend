@@ -5,7 +5,7 @@ namespace UnicoreCRM.Crm.Deals.Application.ReplaceDealProfile;
 
 internal sealed record Command(string DealId, ReplaceDealProfileRequest Request, DealCommandMetadata Metadata);
 
-internal sealed class Handler(DealAuthorization authorization, DealMutationExecution execution)
+internal sealed class Handler(DealAuthorization authorization, DealMutationExecution execution, DealReferenceValidation references)
 {
     internal async Task<DealOperationResult<DealMutationResponse>> HandleAsync(
         Command command,
@@ -54,7 +54,8 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
 
                 return deal.ReplaceProfile(profile!, now) ? null : DealErrors.LifecycleConflict(deal.DealId);
             },
-            null,
+            (_, token) => references.ValidateAsync(command.Request.BuyerRef,
+                command.Request.InterestedProductIds, metadata, token),
             (recordAccess, record) => authorization.EnforceRecordAsync(
                 recordAccess, record, "replaceDealProfile", metadata, cancellationToken),
             // Field-write authorization is applied inside the mutation callback, which runs only

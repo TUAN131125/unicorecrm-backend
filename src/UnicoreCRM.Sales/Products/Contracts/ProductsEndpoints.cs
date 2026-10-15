@@ -12,6 +12,7 @@ public static class ProductsEndpoints
 {
     public static IEndpointRouteBuilder MapProductsEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        MapGet(endpoints, "/products/selection", SearchProductSelectionsAsync, "searchProductSelections");
         MapGet(endpoints, "/products", ListProductsAsync, "listProducts");
         MapPost(endpoints, "/products", CreateProductAsync, "createProduct");
         MapPost(endpoints, "/products/archive-batch", ArchiveBatchAsync, "archiveProductsBatch");
@@ -40,6 +41,28 @@ public static class ProductsEndpoints
     // deliberately not mapped, so POST and DELETE on the configuration paths reach no handler.
     private static void MapPatch(IEndpointRouteBuilder endpoints, string path, Delegate handler, string name) =>
         endpoints.MapPatch(path, handler).RequireAuthorization().RequireTrustedWorkspace().WithName(name);
+
+
+    private static async Task<IResult> SearchProductSelectionsAsync(
+        HttpContext context, Application.SearchProductSelections.Handler handler, CancellationToken cancellationToken)
+    {
+        if (!ProductsHttp.TryMetadata(context, false, false, out var metadata, out var error)) return error!;
+        var query = context.Request.Query;
+        var fields = new Dictionary<string, string[]>();
+        foreach (var key in new[] { "q", "limit", "cursor" })
+            if (query[key].Count > 1) fields[key] = ["Provide only one value."];
+        var limit = 20;
+        if (query.ContainsKey("limit") && !int.TryParse(query["limit"], NumberStyles.None, CultureInfo.InvariantCulture, out limit))
+            fields["limit"] = ["limit must be an integer between 1 and 50."];
+        if (query.ContainsKey("ids") && query.ContainsKey("limit")) fields["ids"] = ["ids cannot be combined with limit."];
+        if (fields.Count != 0) return ProductsHttp.Result(ProductOperationResult<ProductSelectionPage>.Failure(ProductErrors.Validation(fields, 400)), metadata!.CorrelationId);
+        var result = await handler.HandleAsync(new(
+            query.ContainsKey("q") ? query["q"].ToString() : null, limit,
+            query.ContainsKey("cursor") ? query["cursor"].ToString() : null,
+            query.ContainsKey("ids") ? query["ids"].Select(value => value ?? string.Empty).ToArray() : null,
+            new(metadata!.RequestId, metadata.CorrelationId)), cancellationToken);
+        return ProductsHttp.Result(result, metadata.CorrelationId);
+    }
 
     private static async Task<IResult> ListProductsAsync(
         HttpContext context,

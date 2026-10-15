@@ -9,6 +9,41 @@ namespace UnicoreCRM.Sales.Products.Infrastructure.Persistence;
 
 internal sealed class EfProductsPersistence(ProductsDbContext dbContext) : IProductsPersistence
 {
+
+    // Profile is stored as JSON by the existing value converter. Query JSON_VALUE in SQL rather
+    // than attempting an untranslatable CLR Profile predicate or materialising the catalog.
+    public async Task<IReadOnlyList<ProductSelectionRow>> SearchProductSelectionsAsync(
+        string workspaceId, string search, string normalizedSkuSearch, int take,
+        DateTimeOffset? afterCreatedAt, string? afterId, CancellationToken cancellationToken) =>
+        await dbContext.Database.SqlQuery<ProductSelectionRow>($"""
+            SELECT [ProductId] AS [Id], JSON_VALUE([Profile], '$.name') AS [Name],
+                   JSON_VALUE([Profile], '$.sku') AS [Sku], JSON_VALUE([Profile], '$.status') AS [Status],
+                   [Version], [CreatedAt]
+            FROM [products].[Products]
+            WHERE [WorkspaceId] = {workspaceId} AND [ArchivedAt] IS NULL
+              AND JSON_VALUE([Profile], '$.status') = 'ACTIVE'
+              AND ({search} = '' OR CHARINDEX({search}, JSON_VALUE([Profile], '$.name')) > 0
+                   OR CHARINDEX({normalizedSkuSearch}, [NormalizedSku]) > 0)
+            """)
+            .Where(item => afterCreatedAt == null || item.CreatedAt < afterCreatedAt
+                || (item.CreatedAt == afterCreatedAt && string.Compare(item.Id, afterId) > 0))
+            .OrderByDescending(item => item.CreatedAt).ThenBy(item => item.Id)
+            .Take(take).ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProductSelectionRow>> ResolveProductSelectionsAsync(
+        string workspaceId, IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
+    {
+        var jsonIds = System.Text.Json.JsonSerializer.Serialize(ids);
+        return await dbContext.Database.SqlQuery<ProductSelectionRow>($"""
+            SELECT [ProductId] AS [Id], JSON_VALUE([Profile], '$.name') AS [Name],
+                   JSON_VALUE([Profile], '$.sku') AS [Sku], JSON_VALUE([Profile], '$.status') AS [Status],
+                   [Version], [CreatedAt]
+            FROM [products].[Products]
+            WHERE [WorkspaceId] = {workspaceId}
+              AND [ProductId] IN (SELECT [value] FROM OPENJSON({jsonIds}))
+            """).OrderBy(item => item.Id).ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IProductsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new ProductsTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
 

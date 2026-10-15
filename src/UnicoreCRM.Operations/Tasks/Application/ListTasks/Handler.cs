@@ -26,6 +26,7 @@ internal sealed record Query(
 internal sealed class Handler(
     TaskAuthorization authorization,
     ITasksPersistence persistence,
+    IDealTaskReferenceAuthority dealReferences,
     TimeProvider timeProvider)
 {
     internal async Task<TaskOperationResult<TaskListResponse>> HandleAsync(Query query, CancellationToken cancellationToken)
@@ -62,6 +63,14 @@ internal sealed class Handler(
             return TaskOperationResult<TaskListResponse>.Failure(TaskErrors.Validation(fields));
 
         var trusted = access.Value!.Trusted;
+        if (string.Equals(query.RecordModuleKey?.Trim(), "deals", StringComparison.OrdinalIgnoreCase) && query.RecordId is not null)
+        {
+            var reference = await dealReferences.ValidateAsync(trusted.WorkspaceId, query.RecordId, true,
+                query.RequestId, query.CorrelationId, cancellationToken);
+            if (reference != DealTaskReferenceStatus.Available)
+                return TaskOperationResult<TaskListResponse>.Failure(reference == DealTaskReferenceStatus.AccessDenied
+                    ? TaskErrors.AccessDenied() : TaskErrors.NotFound());
+        }
 
         // The record scope becomes a query predicate rather than a per-row decision: AccessControl
         // resolves the filter once and Tasks pushes it into the owner query ahead of the count, the

@@ -11,6 +11,7 @@ internal sealed class Handler(
     TaskAuthorization authorization,
     ITasksPersistence persistence,
     IWorkspaceMemberReferenceValidator memberValidator,
+    IDealTaskReferenceAuthority dealReferences,
     TimeProvider timeProvider)
 {
     internal async Task<TaskOperationResult<TaskMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
@@ -23,6 +24,14 @@ internal sealed class Handler(
             return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.Validation(fields));
 
         var trusted = access.Value!.Trusted;
+        if (string.Equals(input!.References.RecordModuleKey, "deals", StringComparison.OrdinalIgnoreCase))
+        {
+            var reference = await dealReferences.ValidateAsync(trusted.WorkspaceId, input.References.RecordId!, true,
+                metadata.RequestId, metadata.CorrelationId, cancellationToken);
+            if (reference != DealTaskReferenceStatus.Available)
+                return TaskOperationResult<TaskMutationResponse>.Failure(reference == DealTaskReferenceStatus.AccessDenied
+                    ? TaskErrors.AccessDenied() : TaskErrors.NotFound());
+        }
         var fingerprint = TaskCommandSupport.Fingerprint(input!);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "createTask", "WORKSPACE", command.Metadata.IdempotencyKey,
@@ -45,6 +54,20 @@ internal sealed class Handler(
         var createWriteError = TaskFieldSecurity.GuardCreateWrite(access.Value!.Authorization, input!.Description, input.References);
         if (createWriteError is not null)
             return TaskOperationResult<TaskMutationResponse>.Failure(createWriteError);
+
+        if (string.Equals(input.References.RecordModuleKey, "deals", StringComparison.OrdinalIgnoreCase))
+        {
+            var reference = await dealReferences.ValidateAsync(trusted.WorkspaceId, input.References.RecordId!, false,
+                metadata.RequestId, metadata.CorrelationId, cancellationToken);
+            if (reference != DealTaskReferenceStatus.Available)
+                return TaskOperationResult<TaskMutationResponse>.Failure(reference switch
+                {
+                    DealTaskReferenceStatus.AccessDenied => TaskErrors.AccessDenied(),
+                    DealTaskReferenceStatus.Ineligible => TaskErrors.Validation(new Dictionary<string, string[]>
+                    { ["recordRef.recordId"] = ["An archived Deal cannot receive a new follow-up Task."] }),
+                    _ => TaskErrors.NotFound()
+                });
+        }
 
         // Only a genuinely new command evaluates current mutable member state.
         if (!await memberValidator.IsActiveMemberAsync(trusted.WorkspaceId, input.AssigneeId, cancellationToken))

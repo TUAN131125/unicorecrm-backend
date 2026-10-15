@@ -33,7 +33,8 @@ internal sealed partial class Handler(
         var customerResolution = await customerTargets.ResolveVisibleAsync(access.Value.Trusted,
             customers.Select(item => item.CustomerId).Distinct(StringComparer.Ordinal).ToArray(), query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
 
-        var visibleOrganizations = organizationResolution.CanReadResource
+        var canReadOrganizations = access.Value.Authorization.CanRead("organizationRelationships");
+        var visibleOrganizations = canReadOrganizations && organizationResolution.CanReadResource
             ? organizations.Where(item => organizationResolution.VisibleTargets.ContainsKey(item.OrganizationId)).ToArray()
             : [];
         var visibleCustomers = customerResolution.CanReadResource
@@ -52,8 +53,9 @@ internal sealed partial class Handler(
             var update = await authorization.AuthorizeAsync(query.Metadata, ContactCapabilities.Update, cancellationToken);
             if (update.IsSuccess)
             {
-                if (organizationResolution.CanReadResource) allowed.Add("createContactOrganizationRelationship");
-                if (visibleOrganizations.Any(item => item.EffectiveTo is null))
+                var canWriteOrganizations = update.Value!.Authorization.CanWrite("organizationRelationships");
+                if (canReadOrganizations && canWriteOrganizations && organizationResolution.CanReadResource) allowed.Add("createContactOrganizationRelationship");
+                if (canWriteOrganizations && visibleOrganizations.Any(item => item.EffectiveTo is null))
                 {
                     allowed.Add("updateContactOrganizationRelationship");
                     allowed.Add("endContactOrganizationRelationship");

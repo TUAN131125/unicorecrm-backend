@@ -31,6 +31,11 @@ internal sealed record ProductOperationResult<T>(T? Value, ProductOperationError
 
 internal interface IProductsPersistence
 {
+    Task<IReadOnlyList<ProductSelectionRow>> SearchProductSelectionsAsync(
+        string workspaceId, string search, string normalizedSkuSearch, int take,
+        DateTimeOffset? afterCreatedAt, string? afterId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ProductSelectionRow>> ResolveProductSelectionsAsync(
+        string workspaceId, IReadOnlyCollection<string> ids, CancellationToken cancellationToken);
     Task<IProductsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
     /// <summary>
     /// Loads a Product for mutation. The trusted Workspace is a query predicate, not a check applied
@@ -189,3 +194,5 @@ internal static class ProductErrors
     internal static ProductOperationError ConfigurationCorrupt() =>
         new("INTERNAL_ERROR", 500, "Internal error");
 }
+
+internal sealed record ProductSelectionRow(string Id, string Name, string Sku, string Status, long Version, DateTimeOffset CreatedAt);

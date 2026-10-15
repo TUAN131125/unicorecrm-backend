@@ -21,6 +21,9 @@ internal static class DealsModule
             (provider, cancellationToken) => provider.GetRequiredService<DealsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<DealAuthorization>();
         services.AddScoped<DealMutationExecution>();
+        services.AddScoped<DealReferenceValidation>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IDealTaskReferenceAuthority,
+            Application.ValidateTaskReference.DealTaskReferenceAuthority>();
         services.AddScoped<Contracts.IDealSummaryReader, Application.ReadDealSummary.DealSummaryReader>();
         services.AddScoped<Application.ListDeals.Handler>();
         services.AddScoped<Application.GetDeal.Handler>();

@@ -49,7 +49,7 @@ var pageStore=new MemoryStore();var pageReconciler=new CustomerHealthRiskReconci
 await pageReconciler.ReconcilePageAsync("workspace_a",[new("customer_x","member_a","ACTIVE","UNKNOWN","UNKNOWN","NONE","V1","1"),new("customer_y","member_a","ACTIVE","WATCH","MEDIUM","WATCH","V1","1")],"corr-page",default);
 Check("one active-cycle batch read per Customer page",1,pageStore.BatchReads);
 var currentOwner=WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities;
-var preProactive=currentOwner.Where(x=>x is not "ai.proactive.use" and not "ai.proactive.manage").Order(StringComparer.Ordinal).ToArray();
+var preProactive=currentOwner.Where(x=>x is not "leads.claim" and not "leads.queue.read" and not "ai.proactive.use" and not "ai.proactive.manage").Order(StringComparer.Ordinal).ToArray();
 var preAi=preProactive.Where(x=>x is not "ai.configuration.read" and not "ai.configuration.manage").Order(StringComparer.Ordinal).ToArray();
 Check("pre-Proactive owner snapshot admitted",true,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preProactive));
 Check("actual pre-AI configuration snapshot admitted",true,InitialWorkspaceAccessPolicy.IsKnownPreviousCapabilitySet(preAi));

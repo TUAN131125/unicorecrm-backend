@@ -11,6 +11,7 @@ internal sealed class Handler(
     DealAuthorization authorization,
     IDealsPersistence persistence,
     IWorkspaceMemberReferenceValidator memberValidator,
+    DealReferenceValidation references,
     TimeProvider timeProvider)
 {
     internal async Task<DealOperationResult<DealMutationResponse>> HandleAsync(
@@ -97,6 +98,10 @@ internal sealed class Handler(
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.OwnerNotAssignable());
 
         var now = timeProvider.GetUtcNow();
+        var referenceError = await references.ValidateAsync(command.Request.BuyerRef,
+            command.Request.InterestedProductIds, metadata, cancellationToken);
+        if (referenceError is not null)
+            return DealOperationResult<DealMutationResponse>.Failure(referenceError);
         var deal = new Deal(
             trusted.WorkspaceId,
             profile,

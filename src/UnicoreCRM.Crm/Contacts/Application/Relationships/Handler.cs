@@ -37,6 +37,8 @@ internal sealed partial class Handler(
         var fingerprint = ContactMutationSupport.Fingerprint(new { command.ContactId, organizationId, role, command.Request.IsPrimaryAffiliation, command.Request.EffectiveFrom, command.Metadata.ExpectedVersion });
         var replay = await ReplayAsync(prepared.Value, command.Metadata, "createContactOrganizationRelationship", command.ContactId, fingerprint, cancellationToken);
         if (replay is not null) return replay;
+        var writeError = ContactFieldSecurity.GuardWrite(prepared.Value.Access.Authorization, "organizationRelationships");
+        if (writeError is not null) return ContactOperationResult<ContactMutationResponse>.Failure(writeError);
         // Archived Organizations remain readable for historical summaries, but are not eligible
         // targets for a new relationship. Replay is checked first so an already-committed command
         // keeps its idempotency guarantee if the Organization was archived afterwards.
@@ -76,6 +78,8 @@ internal sealed partial class Handler(
         var fingerprint = ContactMutationSupport.Fingerprint(new { command.ContactId, command.RelationshipId, command.Request.Role, command.Request.IsPrimaryAffiliation, command.Metadata.ExpectedVersion });
         var replay = await ReplayAsync(prepared.Value, command.Metadata, "updateContactOrganizationRelationship", command.ContactId, fingerprint, cancellationToken);
         if (replay is not null) return replay;
+        var writeError = ContactFieldSecurity.GuardWrite(prepared.Value.Access.Authorization, "organizationRelationships");
+        if (writeError is not null) return ContactOperationResult<ContactMutationResponse>.Failure(writeError);
         if (!target.IsMutationEligible(relationship.OrganizationId))
             return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         if (relationship.EffectiveTo is not null) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
@@ -106,6 +110,8 @@ internal sealed partial class Handler(
         var fingerprint = ContactMutationSupport.Fingerprint(new { command.ContactId, command.RelationshipId, reason, command.Request.EffectiveTo, command.Metadata.ExpectedVersion });
         var replay = await ReplayAsync(prepared.Value, command.Metadata, "endContactOrganizationRelationship", command.ContactId, fingerprint, cancellationToken);
         if (replay is not null) return replay;
+        var writeError = ContactFieldSecurity.GuardWrite(prepared.Value.Access.Authorization, "organizationRelationships");
+        if (writeError is not null) return ContactOperationResult<ContactMutationResponse>.Failure(writeError);
         if (relationship.EffectiveTo is not null) return ContactOperationResult<ContactMutationResponse>.Failure(ContactErrors.NotFound());
         if (!TryEffectiveTo(command.Request.EffectiveTo, relationship.EffectiveFrom, now, out var effectiveTo, out error)) return ContactOperationResult<ContactMutationResponse>.Failure(error!);
         var contact = await LoadMutableContactAsync(prepared.Value, command.Metadata, cancellationToken);
@@ -202,6 +208,13 @@ internal sealed partial class Handler(
         if (guarded is null) { await transaction.DisposeAsync(); return ContactOperationResult<Prepared>.Failure(ContactErrors.NotFound()); }
         var denied = await authorization.EnforceRecordAsync(access.Value, guarded, operation, request, cancellationToken);
         if (denied is not null) { await transaction.DisposeAsync(); return ContactOperationResult<Prepared>.Failure(denied); }
+        // A replay still needs current read authority for the protected response field.
+        if (operation.EndsWith("OrganizationRelationship", StringComparison.Ordinal)
+            && !access.Value.Authorization.CanRead("organizationRelationships"))
+        {
+            await transaction.DisposeAsync();
+            return ContactOperationResult<Prepared>.Failure(ContactErrors.AccessDenied());
+        }
         return ContactOperationResult<Prepared>.Success(new(access.Value, transaction, contactId));
     }
 

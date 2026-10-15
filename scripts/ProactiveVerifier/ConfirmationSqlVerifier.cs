@@ -41,7 +41,7 @@ internal static class ConfirmationSqlVerifier
             await using var taskDb = new TasksDbContext(taskOptions);
             await using var aiDb = new AiExecutionDbContext(options);
             var handler = new UnicoreCRM.Operations.Tasks.Application.CreateTask.Handler(new TaskAuthorization(access),
-                new EfTasksPersistence(taskDb), new ActiveMembers(), new FixedClock(now));
+                new EfTasksPersistence(taskDb), new ActiveMembers(), new UnexpectedDealReferences(), new FixedClock(now));
             IProactiveTaskCreationParticipant tasks = new Participant(handler);
             if (loseAck) tasks = new LostAcknowledgement(tasks);
             var app = new ProactiveTaskConfirmationApplication(new FakeCurrentWorkspace(item.WorkspaceId, "member"),
@@ -119,6 +119,14 @@ internal static class ConfirmationSqlVerifier
         await using (var observed = new AiExecutionDbContext(options)) Check("concurrent audit once", await observed.ProactiveAudits.CountAsync(x => x.AuditId == evidence.AuditId) == 1);
         Console.WriteLine($"PROACTIVE_CONFIRMATION_TASKS_SQL_PASS cases={passed}");
         return passed;
+    }
+
+    // Proactive confirmation creates only PROACTIVE_AI provenance, never a Deal reference.
+    private sealed class UnexpectedDealReferences : IDealTaskReferenceAuthority
+    {
+        public Task<DealTaskReferenceStatus> ValidateAsync(string workspaceId, string dealId, bool allowArchived,
+            string requestId, string correlationId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Proactive confirmation must not validate an invented Deal reference.");
     }
 
     private sealed class ActiveMembers : IWorkspaceMemberReferenceValidator
