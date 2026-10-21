@@ -1,0 +1,23 @@
+{
+  "status": "ACT-PERF PASS; UI acceptance BLOCKED; no ACCEPTED checkpoint",
+  "commits": {
+    "backend": "7b734f98a7173af2e24e094392826a20b6e11359",
+    "frontend": "99db1773c03ce4a4b820db7e793da6eca872f862"
+  },
+  "security": {
+    "passed": 531,
+    "failed": 0
+  },
+  "connectedRegression": {
+    "passed": 83,
+    "failed": 0
+  },
+  "ui": {
+    "passedSteps": 9,
+    "blockedSteps": 1,
+    "runnerExit": 1
+  },
+  "sourceFiles": 57,
+  "measuredRequests": 107,
+  "note": "Patches are cumulative against listed HEADs, include previous P0 changes, and exclude unrelated untracked user work. changes.json identifies deltas since previous review."
+}

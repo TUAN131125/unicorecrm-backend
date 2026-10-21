@@ -1,0 +1,90 @@
+{
+  "status": "CONDITIONAL_FUNCTIONAL_CHECKPOINT",
+  "recordedAtUtc": "2026-10-21T12:23:10.289226+00:00",
+  "authority": "Explicit human approval in current chat: UNICORECRM — CONDITIONAL P0 CHECKPOINT APPROVAL",
+  "approvedCandidate": {
+    "file": "cumulative-candidate-manifest.json",
+    "sha256": "16efc5bf70fad10c8e8d1a03849bd1520017991e347a2e154c916d63c51215f2",
+    "sourceFiles": 103,
+    "cumulativeDiffs": "Verified byte-identical before staging"
+  },
+  "frontendCommit": "7d41aba85f33c80855f598f3ab24371c0fb510e8",
+  "backendBaseCommit": "7b734f98a7173af2e24e094392826a20b6e11359",
+  "backendCheckpointCommit": "The commit containing this approval record; external handoff manifest resolves both full commit SHAs after creation to avoid self-reference.",
+  "functionalScope": [
+    "Login",
+    "Workspace",
+    "Lead",
+    "Contact/Organization",
+    "Customer",
+    "Task",
+    "Complete Task",
+    "Activity/History",
+    "Refresh/Relogin"
+  ],
+  "F01": {
+    "approval": "APPROVED_FOR_PINNED_CANDIDATE_ONLY",
+    "operation": "POST /activities",
+    "allowedWriteTypes": [
+      "CALL",
+      "EMAIL",
+      "MEETING",
+      "NOTE",
+      "MESSAGE"
+    ],
+    "clientSystemWrite": false,
+    "readSystemRepresentation": true
+  },
+  "compatibility": {
+    "gate": "FAIL",
+    "findings": 43,
+    "F01IntentionalNarrowingApproved": 1,
+    "preExistingFindings": 42,
+    "preExistingFindingsAccepted": 0,
+    "acceptedBaselineChanged": false,
+    "checkerChanged": false,
+    "acceptBreakingBaselineExecuted": false,
+    "externalOrOlderClientCompatibility": "NOT_VERIFIED"
+  },
+  "conditionalWaivers": {
+    "scope": "Only proven baseline failures, only this paired P0 functional checkpoint; never production, new regressions or unexecuted tests",
+    "failuresRemainFAIL": [
+      "Backend architecture: 33 PASS / 4 FAIL, no baseline message delta",
+      "Frontend full verify: group 10 dependency cycles",
+      "Quality pipeline inventory: 347 vs 345",
+      "Repository inventory drift",
+      "Task create form source gate composition mismatch",
+      "Broad Task/commercial integration: pre-existing Quote A assertion at line 214"
+    ]
+  },
+  "verification": {
+    "securityPerformanceAssertions": 580,
+    "connectedAssertions": 128,
+    "uiOnlySteps": 12,
+    "dealQuoteController": "PASS in-process controlled owner port",
+    "quoteMutationSqlAcceptance": "BLOCKED: runtime routes missing"
+  },
+  "additionalGates": {
+    "typecheck": "PASS",
+    "build": "PASS",
+    "deterministicGeneration": "PASS (output bytes); compatibility remains FAIL",
+    "dealQuoteController": "PASS in-process only",
+    "quoteMutationEndToEnd": "BLOCKED",
+    "TEAMPositiveAuthorization": "BLOCKED / not implemented; fail-closed",
+    "productionLoad": "NOT_RUN / outside scope",
+    "fullReleaseAcceptance": "NOT_RUN / outside scope"
+  },
+  "excluded": [
+    "Quote creation/approval/acceptance mutation E2E",
+    "TEAM positive authorization",
+    "Production load",
+    "Full production release acceptance",
+    "P1 implementation"
+  ],
+  "productionReady": false,
+  "sourceChangesDuringFinalization": false,
+  "artifactPolicy": "Only approved hash-indexed sanitized verification evidence. Excludes runtime host/bootstrap logs, credentials, browser traces, databases and key rings.",
+  "historicalDocuments": "Proposal reports and manifest retain their original pre-approval state. This record supersedes only approval/checkpoint status; their evidence, FAIL and BLOCKED results remain unchanged.",
+  "rollback": "Fix forward or use a separately approved secure paired target. Never revert the complete security checkpoint to vulnerable base commits. Retain SQL data and additive index. Review hashes and merge unrelated user work; do not reset or delete.",
+  "pushOrDeployAuthorized": false
+}

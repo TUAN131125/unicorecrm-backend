@@ -1,0 +1,6 @@
+{
+  "status": 404,
+  "ownerChangedBeforeRelease": true,
+  "barrier": "SQL idempotency table lock",
+  "idempotencyKey": "activity-own"
+}

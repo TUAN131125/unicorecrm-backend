@@ -9,6 +9,18 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence;
 
 internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : IContactsPersistence
 {
+    // Read-side reference facts owned by this module; historical relations remain facts.
+    public string ActivityReadFactsSql => """
+SELECT c.WorkspaceId, c.ContactId AS RecordId, c.OwnerId, CASE WHEN c.ArchivedAt IS NULL AND c.Status<>N'archived' THEN 1 ELSE 0 END AS CanLog,
+    N'CONTACT' AS RelationshipType, c.ContactId AS RelationshipId
+FROM contacts.Contacts c
+UNION ALL
+SELECT c.WorkspaceId, c.ContactId AS RecordId, c.OwnerId, CASE WHEN c.ArchivedAt IS NULL AND c.Status<>N'archived' AND r.EffectiveTo IS NULL THEN 1 ELSE 0 END AS CanLog,
+    N'ORGANIZATION_ACCOUNT' AS RelationshipType, r.OrganizationId AS RelationshipId
+FROM contacts.Contacts c INNER JOIN contacts.OrganizationRelationships r
+    ON r.WorkspaceId=c.WorkspaceId AND r.ContactId=c.ContactId
+""";
+
     public async Task<Application.ListContacts.ContactListSlice> ReadContactPageAsync(Application.ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken)
     {
         var filtered = ContactRows(specification);

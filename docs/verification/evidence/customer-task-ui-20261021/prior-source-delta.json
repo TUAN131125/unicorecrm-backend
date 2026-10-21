@@ -1,0 +1,14 @@
+[
+  {
+    "repository": "backend",
+    "file": "scripts/verify-activity-security.ps1"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/guidance/content/crm/extendedScreens.ts"
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/e2e/crm-ui-real.spec.ts"
+  }
+]

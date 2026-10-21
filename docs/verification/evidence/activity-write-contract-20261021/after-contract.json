@@ -1,0 +1,55 @@
+{
+  "contractVersion": "0.24.0-contract.0",
+  "writeTypeReference": "ManualActivityType",
+  "writeEnum": [
+    "CALL",
+    "EMAIL",
+    "MEETING",
+    "NOTE",
+    "MESSAGE"
+  ],
+  "readEnum": [
+    "CALL",
+    "EMAIL",
+    "MEETING",
+    "NOTE",
+    "MESSAGE",
+    "SYSTEM"
+  ],
+  "logActivityRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "type",
+      "subject"
+    ],
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/ManualActivityType"
+      },
+      "subject": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "body": {
+        "type": "string",
+        "minLength": 0,
+        "maxLength": 10000
+      },
+      "relationshipRef": {
+        "$ref": "#/components/schemas/BuyerRef",
+        "description": "Optional together with recordRef, or the primary target when recordRef is absent. CONTACT and ORGANIZATION_ACCOUNT are supported. All references require consistent owner-owned relationship facts and independent authorization."
+      },
+      "recordRef": {
+        "$ref": "#/components/schemas/RecordReference",
+        "description": "Supported manual Activity target: leads, contacts, organizations or customers. RecordId must exist in the authenticated Workspace and permit the current caller. Task/deal references are not supported by this HTTP Activity operation."
+      },
+      "sourceRef": {
+        "$ref": "#/components/schemas/TaskSourceReference",
+        "description": "Optional UI origin without evidence. Id must equal the primary target ID. Allowed types by primary module: leads LEAD_ACTIVITY/LEAD_DETAIL; contacts CONTACT_ACTIVITY/CONTACT_DETAIL; organizations ORGANIZATION_ACTIVITY/ORGANIZATION_DETAIL; customers CUSTOMER_ACTIVITY/CUSTOMER_DETAIL/CUSTOMER_360. SYSTEM and arbitrary source types are rejected with 422."
+      }
+    },
+    "description": "Manual HTTP Activity only; SYSTEM and unknown types return 422. At least one supported CRM recordRef (leads, contacts, organizations, customers) or relationshipRef (CONTACT, ORGANIZATION_ACCOUNT) is required. A relationship-only request targets that Contact or Organization. When both are supplied, the record owner must prove the relationship and every target must independently pass current read capability, record scope, field policy, Workspace and write-lifecycle validation. Missing, foreign, denied or ineligible targets return 404 without exposing record existence. Structurally contradictory references return 422; a relationship not proved by owner data returns 404. SourceRef is optional, is only a UI origin marker, and must never contain audit evidence. Data-dependent authorization/relationship checks are Backend authority, not JSON Schema guarantees."
+  }
+}

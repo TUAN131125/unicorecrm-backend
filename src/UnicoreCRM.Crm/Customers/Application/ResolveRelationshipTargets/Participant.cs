@@ -8,6 +8,19 @@ namespace UnicoreCRM.Crm.Customers.Application.ResolveRelationshipTargets;
 internal sealed class Participant(CustomerAuthorization authorization, ICustomersPersistence persistence, TimeProvider timeProvider)
     : ICustomerRelationshipTargetParticipant
 {
+    public async Task<CustomerRelationshipTargetResolution> ResolveSubjectAsync(
+        TrustedWorkspaceContext trusted, string subjectType, string subjectId,
+        string requestId, string correlationId, CancellationToken cancellationToken)
+    {
+        // Canonical account subjects are distinct from Contact stakeholder memberships.
+        // Resolve by the persisted unique subject, then apply the same Customer security.
+        if (subjectType is not ("CONTACT" or "ORGANIZATION_ACCOUNT"))
+            return new(false, new Dictionary<string, string?>(), new HashSet<string>(StringComparer.Ordinal));
+        var record = await persistence.LoadBySubjectAsync(trusted.WorkspaceId, subjectType, subjectId, cancellationToken);
+        return await ResolveVisibleAsync(trusted, record is null ? [] : [record.CustomerId],
+            requestId, correlationId, cancellationToken);
+    }
+
     public async Task<CustomerRelationshipTargetResolution> ResolveVisibleAsync(
         TrustedWorkspaceContext trusted, IReadOnlyCollection<string> customerIds,
         string requestId, string correlationId, CancellationToken cancellationToken)

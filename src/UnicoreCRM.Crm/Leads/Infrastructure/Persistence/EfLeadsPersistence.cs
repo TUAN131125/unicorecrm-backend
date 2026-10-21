@@ -8,6 +8,11 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
 
 internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersistence, ILeadKanbanPersistence
 {
+    // Module-owned read-side reference projection, containing no Activity content.
+    public string ActivityReadFactsSql => """
+SELECT WorkspaceId, LeadId AS RecordId, ScopeOwnerId AS OwnerId, CASE WHEN ArchivedAt IS NULL THEN 1 ELSE 0 END AS CanLog, RelationshipType, RelationshipId FROM leads.Leads
+""";
+
     public async Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new LeadsTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
 

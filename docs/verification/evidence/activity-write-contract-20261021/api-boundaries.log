@@ -1,0 +1,10 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.api-management-boundaries
+
+
+[quality 1/1] START architecture/quality.api-management-boundaries (check:api-management-boundaries)
+API management boundaries: PASS (328 cataloged operations; canonical platform boundary; no retired imports).
+[quality 1/1] PASS architecture/quality.api-management-boundaries (1.1s)
+
+[quality] PASS 1/1 passed across 1 groups (1.1s).

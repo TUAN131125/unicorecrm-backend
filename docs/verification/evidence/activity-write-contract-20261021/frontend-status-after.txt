@@ -1,0 +1,75 @@
+ M docs/api/api-operation-catalog.json
+ M docs/api/generated-client-manifest.json
+ M docs/api/openapi.json
+ M docs/api/openapi.sha256
+ M docs/api/operation-coverage-ledger.json
+ M scripts/quality/quality-pipeline.json
+ M src/guidance/content/crm/extendedScreens.ts
+ M src/guidance/content/crm/screens.ts
+ M src/modules/contacts/presentation/hooks/useContactOverview.ts
+ M src/modules/contacts/presentation/model/contactCustomerLookup.ts
+ M src/modules/contacts/presentation/model/contactHistory.ts
+ M src/modules/customers/presentation/detail/CustomerConnectedWorkspace.tsx
+ M src/modules/customers/presentation/detail/CustomerRelationshipPanel.tsx
+ M src/modules/deals/presentation/hooks/useDealDetailController.tsx
+ M src/modules/leads/application/commands/leadActivityCommands.ts
+ M src/modules/leads/presentation/hooks/useLeadFormController.tsx
+ M src/modules/leads/presentation/hooks/useLeadHistory.ts
+ M src/modules/leads/presentation/model/leadHistory.ts
+ M src/modules/tasks/application/ports/TaskApiRuntime.ts
+ M src/modules/tasks/domain/model/task.types.ts
+ M src/modules/tasks/infrastructure/http/TaskApiMapper.ts
+ M src/modules/tasks/presentation/components/RelationshipActivityCreateModal.tsx
+ M src/modules/tasks/presentation/pages/TaskDetailPage.tsx
+ M src/modules/tasks/public/api.ts
+ M src/platform/api/contracts/generatedOpenApiRuntimeContract.ts
+ M src/platform/api/generated/accessGovernanceApi.ts
+ M src/platform/api/generated/aiApi.ts
+ M src/platform/api/generated/commercialApi.ts
+ M src/platform/api/generated/communicationsApi.ts
+ M src/platform/api/generated/crmConfigurationApi.ts
+ M src/platform/api/generated/financialApi.ts
+ M src/platform/api/generated/financialConfigurationApi.ts
+ M src/platform/api/generated/identityApi.ts
+ M src/platform/api/generated/integrationConfigurationApi.ts
+ M src/platform/api/generated/productConfigurationApi.ts
+ M src/platform/api/generated/receivablesApi.ts
+ M src/platform/api/generated/studioQuickSetupApi.ts
+ M src/platform/api/generated/workspaceBootstrapApi.ts
+ M src/platform/api/generated/workspaceConfigurationApi.ts
+ M src/workflows/lead-customer-conversion/presentation/LeadCustomerConversionPage.tsx
+ M tests/contract/contact-history.test.mts
+ M tests/contract/contact-overview.test.mts
+ M tests/contract/customer-relationship-panel.test.mts
+ M tests/contract/lead-history.test.mts
+?? backend-work/
+?? playwright.crm-real.config.ts
+?? playwright.crm-ui.config.ts
+?? review-artifacts/B2_DEAL_PRODUCT_EVIDENCE.txt
+?? review-artifacts/B2_contact_INVENTORY_AUDIT.json
+?? review-artifacts/B2_deal-product_INVENTORY_AUDIT.json
+?? review-artifacts/B2_lead_INVENTORY_AUDIT.json
+?? review-artifacts/B2_organization-customer_INVENTORY_AUDIT.json
+?? review-artifacts/B2_shared_INVENTORY_AUDIT.json
+?? review-artifacts/B2_task-commercial_INVENTORY_AUDIT.json
+?? review-artifacts/CRM_B2_B5_PRESENTATION_INVENTORY.json
+?? review-artifacts/CRM_B2_B5_PRESENTATION_INVENTORY.md
+?? review-artifacts/CRM_B2_B5_PRESENTATION_PARITY_FROM_LEAD_001.patch
+?? review-artifacts/CRM_B2_B5_PRESENTATION_PARITY_FROM_LEAD_001_REPORT.txt
+?? review-artifacts/CRM_B2_B5_PRESENTATION_PARITY_FROM_LEAD_001_REVISION_01_REPORT.txt
+?? review-artifacts/CRM_B2_B5_PRESENTATION_PARITY_MATRIX.json
+?? review-artifacts/CRM_B2_B5_PRESENTATION_PARITY_RESULT.json
+?? review-artifacts/CRM_B2_B5_VERIFICATION_CHECKPOINT.json
+?? review-artifacts/CRM_B2_FORM_PARITY_REPORT.txt
+?? review-artifacts/CRM_B2_ORGANIZATION_CUSTOMER_EVIDENCE.json
+?? review-artifacts/CRM_B3_POPUP_PARITY_REPORT.txt
+?? review-artifacts/CRM_B4_DIALOG_PARITY_REPORT.txt
+?? review-artifacts/CRM_B5_CROSS_SCREEN_CONSISTENCY_REPORT.txt
+?? review-artifacts/lead-auxiliary-audit.mts
+?? src/modules/tasks/domain/rules/manualActivityType.ts
+?? tests/contract/activity-manual-write.test.mts
+?? tests/contract/customer-task-create-session.test.mts
+?? tests/contract/lead-manual-activity.test.mts
+?? tests/e2e/crm-real.spec.ts
+?? tests/e2e/crm-ui-real.spec.ts
+?? tests/fixtures/typechecks/

@@ -21,6 +21,7 @@ internal sealed record CustomerOperationResult<T>(T? Value, CustomerOperationErr
 
 internal interface ICustomersPersistence
 {
+    string ActivityReadFactsSql { get; }
     Task<Customer?> ReadCustomerAsync(string workspaceId, string customerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, IReadOnlyCollection<string> customerIds, CancellationToken cancellationToken);

@@ -1,0 +1,21 @@
+[
+  "docs/api/openapi.sha256",
+  "docs/api/generated-client-manifest.json",
+  "docs/api/operation-coverage-ledger.json",
+  "src/platform/api/generated/identityApi.ts",
+  "src/platform/api/generated/workspaceBootstrapApi.ts",
+  "src/platform/api/generated/accessGovernanceApi.ts",
+  "src/platform/api/generated/receivablesApi.ts",
+  "src/platform/api/generated/financialApi.ts",
+  "src/platform/api/generated/commercialApi.ts",
+  "src/platform/api/generated/workspaceConfigurationApi.ts",
+  "src/platform/api/generated/studioQuickSetupApi.ts",
+  "src/platform/api/generated/crmConfigurationApi.ts",
+  "src/platform/api/generated/productConfigurationApi.ts",
+  "src/platform/api/generated/financialConfigurationApi.ts",
+  "src/platform/api/generated/integrationConfigurationApi.ts",
+  "src/platform/api/generated/aiApi.ts",
+  "src/platform/api/generated/communicationsApi.ts",
+  "src/platform/api/contracts/generatedOpenApiRuntimeContract.ts",
+  "docs/api/api-operation-catalog.json"
+]

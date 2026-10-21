@@ -21,6 +21,7 @@ internal sealed record OrganizationOperationResult<T>(T? Value, OrganizationOper
 
 internal interface IOrganizationsPersistence
 {
+    string ActivityReadFactsSql { get; }
     Task<Organization?> ReadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, IReadOnlyCollection<string> organizationIds, CancellationToken cancellationToken);

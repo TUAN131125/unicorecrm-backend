@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Login",
+    "status": "PASS",
+    "reason": "Real sign-in through UI"
+  },
+  {
+    "name": "Workspace",
+    "status": "PASS",
+    "reason": "Authenticated Workspace selected"
+  },
+  {
+    "name": "Create Lead",
+    "status": "PASS",
+    "reason": "Lead created through UI with Source empty"
+  },
+  {
+    "name": "Link/Create Contact",
+    "status": "PASS",
+    "reason": "Contact created through UI; used as conversion subject below"
+  },
+  {
+    "name": "Organization relationship",
+    "status": "PASS",
+    "reason": "Organization created and affiliated through UI"
+  },
+  {
+    "name": "Conversion",
+    "status": "PASS",
+    "reason": "Existing Contact submitted using the conversion UI"
+  },
+  {
+    "name": "Customer",
+    "status": "PASS",
+    "reason": "Authoritative connected Customer workspace opened"
+  },
+  {
+    "name": "Task",
+    "status": "PASS",
+    "reason": "Customer Task created through UI"
+  },
+  {
+    "name": "Complete Task",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Activity/History",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Refresh",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Relogin",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  }
+]

@@ -1,5 +1,6 @@
 using UnicoreCRM.Crm.Leads.Application.Common;
 using UnicoreCRM.Crm.Leads.Contracts;
+using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 
@@ -11,8 +12,17 @@ namespace UnicoreCRM.Crm.Leads.Application.ProvideLeadRecordAccessFacts;
 /// authoritative for the decision. It authorizes nothing, queries only the trusted Workspace, and
 /// writes no Lead state, audit record or outbox message.
 /// </summary>
-internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence) : IRecordAccessFactProvider
+internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence) : IActivityReferenceAuthority
 {
+    public string ReadFactsSql => persistence.ActivityReadFactsSql;
+
+    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
+        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
+    {
+        var lead = await persistence.ReadLeadAsync(workspace.WorkspaceId, recordId, cancellationToken);
+        return lead is not null && (!forWrite || lead.ArchivedAt is null)
+            && (relationship is null || (relationship.Type == lead.RelationshipType && relationship.Id == lead.RelationshipId));
+    }
     /// <summary>
     /// Only capabilities behind an admitted Leads operation are declared. Leads has no delete,
     /// export or approval operation, so none is declared and none can ever be granted.

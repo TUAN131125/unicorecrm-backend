@@ -1,0 +1,13 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.presentation-responsibility
+
+
+[quality 1/1] START architecture/quality.presentation-responsibility (check:presentation-responsibility)
+Presentation responsibility contracts: PASS
+- Thin entrypoints protected: 9
+- Controller hooks are render-free and views do not own browser persistence.
+- Customer detail tab orchestration delegates its relationship, sales, transaction and work sections.
+[quality 1/1] PASS architecture/quality.presentation-responsibility (4.5s)
+
+[quality] PASS 1/1 passed across 1 groups (4.5s).

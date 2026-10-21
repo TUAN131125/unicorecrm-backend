@@ -1,0 +1,5 @@
+AssertionError [ERR_ASSERTION]: The input did not match the regular expression /CANONICAL SUBJECT CUSTOMER/. Input:
+
+'Tình trạng quan hệChưa có hồ sơ liên kết hiển thịĐang hoạt động0 tổ chức liên kết0 hồ sơ khách hàngCông việc đang mở0Hồ sơ nghề nghiệpChức danhFinance managerBộ phậnHIDDEN-DEPARTMENTXem hồ sơ đầy đủTổ chức liên kếtChưa có liên kết tổ chức hiển thị trong phạm vi hiện tại.Liên kết hồ sơ khách hàngChưa liên kết hồ sơ khách hàng trong phạm vi hiển thị.Xem các quan hệChưa có tổng hợp kinh doanh và dịch vụ đáng tin cậy cho liên hệ này. Xem các tab nghiệp vụ để kiểm tra bản ghi liên quan trong phạm vi được phép.'
+
+    at <anonymous> (D:\Project_All\UnicoreCRM\frontend\unicorecrm-web\tests\contract\contact-overview.test.mts:75:45)

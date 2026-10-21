@@ -1,0 +1,703 @@
+[
+  {
+    "pageInfo": null,
+    "code": "TOKEN_INVALID",
+    "itemCount": 1,
+    "status": 401,
+    "path": "/auth/session",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-1",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/auth/sessions",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-2",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/auth/session",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-3",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-4",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-5",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-6",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-7",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-8",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 422,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-9",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 422,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-10",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 422,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-11",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-12",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-13",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities?recordId=activity_contact_other",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-14",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-15",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-16",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-17",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-18",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-19",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-20",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities?type=SYSTEM",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-21",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities?search=legacy",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-22",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-23",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-24",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities?search=isolated",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-25",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-26",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 422,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-27",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 422,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-28",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 422,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-29",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-30",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-31",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-32",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 3
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-33",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AgAAAA",
+      "totalCount": 3
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1&cursor=AQAAAA",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-34",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 3
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1&cursor=AgAAAA",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-35",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/leads",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-36",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-37",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-38",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-39",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-40",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-41",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-42",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-43",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-44",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities?recordModuleKey=customers",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-45",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-46",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-47",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 403,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-48",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/auth/sessions",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-49",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 201,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-50",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-51",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-52",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/auth/sessions",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-53",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "code": null,
+    "itemCount": 0,
+    "status": 200,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-54",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 404,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-55",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/auth/sessions",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-56",
+    "method": "POST"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 403,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-57",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 403,
+    "path": "/activities",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-58",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 109
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-59",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1009
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-60",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 2209
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-61",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5009
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-62",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5109
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-63",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 6009
+    },
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/activities?limit=1",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-64",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5003
+    },
+    "code": null,
+    "itemCount": 50,
+    "status": 200,
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-65",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/auth/session",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-67",
+    "method": "GET"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5003
+    },
+    "code": null,
+    "itemCount": 50,
+    "status": 200,
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-68",
+    "method": "GET"
+  },
+  {
+    "pageInfo": null,
+    "code": null,
+    "itemCount": 1,
+    "status": 200,
+    "path": "/auth/sessions",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-69",
+    "method": "POST"
+  },
+  {
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5003
+    },
+    "code": null,
+    "itemCount": 50,
+    "status": 200,
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own",
+    "correlationId": "activity-7181c51bad644ec9bb95d938e8cdd091-70",
+    "method": "GET"
+  }
+]

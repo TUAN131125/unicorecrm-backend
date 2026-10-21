@@ -1,0 +1,29 @@
+[
+  {
+    "itemCount": 1,
+    "status": 401,
+    "method": "GET",
+    "path": "/auth/session",
+    "pageInfo": null,
+    "code": "TOKEN_INVALID",
+    "correlationId": "activity-793dd9ac12bf4b7097d547eb50afa26c-1"
+  },
+  {
+    "itemCount": 1,
+    "status": 200,
+    "method": "POST",
+    "path": "/auth/sessions",
+    "pageInfo": null,
+    "code": null,
+    "correlationId": "activity-793dd9ac12bf4b7097d547eb50afa26c-2"
+  },
+  {
+    "itemCount": 1,
+    "status": 200,
+    "method": "GET",
+    "path": "/auth/session",
+    "pageInfo": null,
+    "code": null,
+    "correlationId": "activity-793dd9ac12bf4b7097d547eb50afa26c-3"
+  }
+]

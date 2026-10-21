@@ -1,0 +1,11 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.relationship-activity-form-contracts
+
+
+[quality 1/1] START contract/quality.relationship-activity-form-contracts (test:relationship-activity-form-contracts)
+A2A Note contracts: PASS
+Relationship activity form contracts PASS: 5 canonical forms, Lead/Contact/Customer/Organization/Deal standardized, zero duplicate adapter state.
+[quality 1/1] PASS contract/quality.relationship-activity-form-contracts (0.3s)
+
+[quality] PASS 1/1 passed across 1 groups (0.3s).

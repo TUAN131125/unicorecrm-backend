@@ -1,13 +1,24 @@
 using System.Text.RegularExpressions;
 using UnicoreCRM.Crm.Organizations.Application.Common;
 using UnicoreCRM.Crm.Organizations.Contracts;
+using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 
 namespace UnicoreCRM.Crm.Organizations.Application.ProvideOrganizationRecordAccessFacts;
 
-internal sealed partial class OrganizationRecordAccessFactProvider(IOrganizationsPersistence persistence) : IRecordAccessFactProvider
+internal sealed partial class OrganizationRecordAccessFactProvider(IOrganizationsPersistence persistence) : IActivityReferenceAuthority
 {
+    public string ReadFactsSql => persistence.ActivityReadFactsSql;
+
+    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
+        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
+    {
+        var organization = await persistence.ReadOrganizationAsync(workspace.WorkspaceId, recordId, cancellationToken);
+        return organization is not null && (!forWrite || organization.Status != "archived")
+            && (relationship is null || (relationship.Type == "ORGANIZATION_ACCOUNT" && relationship.Id == recordId));
+    }
+
     private static readonly RecordAccessResourceDescriptor OrganizationsDescriptor = RecordAccessResourceDescriptor.Create(
         resourceKey: OrganizationAuthorization.ResourceKey,
         readCapability: OrganizationCapabilities.Read.Capability,

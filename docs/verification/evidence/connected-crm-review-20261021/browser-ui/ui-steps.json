@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Login",
+    "status": "PASS",
+    "reason": "Real sign-in through UI"
+  },
+  {
+    "name": "Workspace",
+    "status": "PASS",
+    "reason": "Authenticated Workspace selected"
+  },
+  {
+    "name": "Create Lead",
+    "status": "BLOCKED",
+    "reason": "Required Lead source has no selectable value in the isolated connected Workspace"
+  },
+  {
+    "name": "Link/Create Contact",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Organization relationship",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Conversion",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Customer",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Task",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Activity/History",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  },
+  {
+    "name": "Refresh",
+    "status": "BLOCKED",
+    "reason": "Earlier UI prerequisite has not completed"
+  }
+]

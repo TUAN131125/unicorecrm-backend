@@ -1,0 +1,38 @@
+[
+  {
+    "method": "POST",
+    "path": "/leads",
+    "status": 201,
+    "correlationId": "d7776c54-8ed6-41c8-bf5f-267f28e5aed0"
+  },
+  {
+    "method": "POST",
+    "path": "/contacts",
+    "status": 201,
+    "correlationId": "dc157d43-7993-47ee-bec1-e43867f391c9"
+  },
+  {
+    "method": "POST",
+    "path": "/organizations",
+    "status": 200,
+    "correlationId": "b4f38e28-28ea-44fa-83a5-60b5a062dddd"
+  },
+  {
+    "method": "POST",
+    "path": "/contacts/contact_57ba85b4b55648829d0a71a4b384bfdb/organization-relationships",
+    "status": 200,
+    "correlationId": "1916070b-6a32-462b-a71a-72d62120cf92"
+  },
+  {
+    "method": "POST",
+    "path": "/workflows/lead-customer-conversion/lead_4c5ffe3b774644be8acc93aa94e2e602",
+    "status": 200,
+    "correlationId": "1d7b66f0-fb21-42d4-b97c-5e695d8feb02"
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "status": 201,
+    "correlationId": "7a5234ee-1eb1-4d62-817f-c8c2ff82a43f"
+  }
+]

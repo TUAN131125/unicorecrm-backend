@@ -1,0 +1,68 @@
+[
+  {
+    "code": "TOKEN_INVALID",
+    "method": "GET",
+    "status": 401,
+    "correlationId": "activity-4e250039bf384f40bb03d9dddab6a392-1",
+    "itemCount": 1,
+    "path": "/auth/session",
+    "pageInfo": null
+  },
+  {
+    "code": null,
+    "method": "POST",
+    "status": 200,
+    "correlationId": "activity-4e250039bf384f40bb03d9dddab6a392-2",
+    "itemCount": 1,
+    "path": "/auth/sessions",
+    "pageInfo": null
+  },
+  {
+    "code": null,
+    "method": "GET",
+    "status": 200,
+    "correlationId": "activity-4e250039bf384f40bb03d9dddab6a392-3",
+    "itemCount": 1,
+    "path": "/auth/session",
+    "pageInfo": null
+  },
+  {
+    "code": null,
+    "method": "GET",
+    "status": 200,
+    "correlationId": "activity-4e250039bf384f40bb03d9dddab6a392-5",
+    "itemCount": 1,
+    "path": "/auth/session",
+    "pageInfo": null
+  },
+  {
+    "code": null,
+    "method": "POST",
+    "status": 200,
+    "correlationId": "activity-4e250039bf384f40bb03d9dddab6a392-6",
+    "itemCount": 1,
+    "path": "/auth/sessions",
+    "pageInfo": null
+  },
+  {
+    "code": null,
+    "method": "GET",
+    "status": 200,
+    "correlationId": "activity-4e250039bf384f40bb03d9dddab6a392-7",
+    "itemCount": 1,
+    "path": "/tasks/task_bde86703b75c47e89e8512f0eff6a395",
+    "pageInfo": null
+  },
+  {
+    "code": null,
+    "method": "GET",
+    "status": 200,
+    "correlationId": "activity-4e250039bf384f40bb03d9dddab6a392-8",
+    "itemCount": 1,
+    "path": "/tasks?recordModuleKey=customers&recordId=customer_de0128eaa22b487fb40415133bb06120",
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    }
+  }
+]

@@ -1,0 +1,38 @@
+--- a/scripts/verify-activity-security.ps1
++++ b/scripts/verify-activity-security.ps1
+@@ -1,5 +1,5 @@
+ [CmdletBinding()]
+-param([string]$SqlServer = 'localhost', [int]$Port = 5389, [switch]$Browser, [switch]$ScaleReview, [switch]$ProjectionReview, [switch]$RaceReview, [switch]$UiReview, [switch]$CommitRaceReview, [switch]$CustomerTaskReview)
++param([string]$SqlServer = 'localhost', [int]$Port = 5389, [switch]$Browser, [switch]$ScaleReview, [switch]$ProjectionReview, [switch]$RaceReview, [switch]$UiReview, [switch]$CommitRaceReview, [switch]$CustomerTaskReview, [switch]$ActivityContractReview)
+ $ErrorActionPreference = 'Stop'
+ $runId = [Guid]::NewGuid().ToString('N')
+ $startedAt = [DateTimeOffset]::UtcNow.ToString('O')
+@@ -604,6 +604,28 @@
+             }
+         }
+     }
++    if ($ActivityContractReview) {
++        Scope tasks Workspace; Scope contacts Workspace; Scope customers Workspace
++        $null=Sql "UPDATE contacts.Contacts SET OwnerId='$member',ArchivedAt=NULL,Status='active' WHERE ContactId='activity_contact_own'; UPDATE customers.Customers SET Status='NEW' WHERE CustomerId='activity_customer'"
++        foreach ($manualType in @('CALL','EMAIL','MEETING','NOTE','MESSAGE')) {
++            $manual=Draft; $manual.type=$manualType
++            Check "F01 manual $manualType HTTP write" 201 (Api POST '/activities' $manual "f01-$manualType").Status
++        }
++        foreach ($invalidType in @('SYSTEM','UNKNOWN','note')) {
++            $invalid=Draft; $invalid.type=$invalidType
++            Check "F01 invalid $invalidType HTTP write" 422 (Api POST '/activities' $invalid "f01-invalid-$invalidType").Status
++        }
++        Check 'F01 unanchored manual request' 422 (Api POST '/activities' @{type='NOTE';subject='Unanchored contract'} 'f01-unanchored').Status
++        Check 'F01 missing record target' 404 (Api POST '/activities' (Draft 'f01_nonexistent') 'f01-missing').Status
++        Check 'F01 foreign Workspace record' 404 (Api POST '/activities' (Draft 'activity_contact_foreign') 'f01-foreign').Status
++        $conflict=Draft; $conflict.relationshipRef=@{type='CONTACT';id='activity_contact_other'}
++        Check 'F01 contradictory references' 422 (Api POST '/activities' $conflict 'f01-conflict').Status
++        $forged=Draft; $forged.sourceRef=@{type='SYSTEM';id='activity_contact_own';evidence='untrusted-client-claim'}
++        Check 'F01 forged source' 422 (Api POST '/activities' $forged 'f01-forged').Status
++        $valid=Draft 'activity_customer' 'customers'; $valid.relationshipRef=@{type='CONTACT';id='activity_contact_own'}; $valid.sourceRef=@{type='CUSTOMER_360';id='activity_customer'}
++        Check 'F01 canonical Customer Contact multi-reference' 201 (Api POST '/activities' $valid 'f01-canonical').Status
++        Check 'F01 relationship-only Contact Note' 201 (Api POST '/activities' @{type='NOTE';subject='Relationship only contract';relationshipRef=@{type='CONTACT';id='activity_contact_own'}} 'f01-relationship').Status
++    }
+ } finally {
+     if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id }
+     foreach ($setting in $oldEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($setting.Key, $setting.Value) }

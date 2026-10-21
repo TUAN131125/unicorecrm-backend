@@ -1,0 +1,50 @@
+[
+  {
+    "method": "POST",
+    "path": "/leads",
+    "status": 201,
+    "correlationId": "3ae291b5-8faa-4a16-af25-a0571572b84f"
+  },
+  {
+    "method": "POST",
+    "path": "/contacts",
+    "status": 201,
+    "correlationId": "bdf0d35f-ad5c-41f1-8634-e2a44b8c656f"
+  },
+  {
+    "method": "POST",
+    "path": "/organizations",
+    "status": 200,
+    "correlationId": "2e677af0-29b3-4ef9-9438-37f53459fa1d"
+  },
+  {
+    "method": "POST",
+    "path": "/contacts/contact_f8075211fe674e81a54bd304d28d7219/organization-relationships",
+    "status": 200,
+    "correlationId": "b4c884b7-84bf-4310-89e2-2683f317cd6f"
+  },
+  {
+    "method": "POST",
+    "path": "/workflows/lead-customer-conversion/lead_2a43ccdd80e342069fb129654e49310f",
+    "status": 200,
+    "correlationId": "2ae5e3a7-36eb-4ee4-86a4-0a7a2b9cab1f"
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "status": 201,
+    "correlationId": "b35a5d4e-2887-487d-8c93-f6052ad3dc40"
+  },
+  {
+    "method": "POST",
+    "path": "/tasks/task_bde86703b75c47e89e8512f0eff6a395/complete",
+    "status": 200,
+    "correlationId": "0a17d985-ef48-4b33-8e5c-d0097f2aadf2"
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "status": 201,
+    "correlationId": "53b78dd5-2096-4584-a344-ec9dd420eafa"
+  }
+]

@@ -1,0 +1,14 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.task-create-form-contracts
+
+
+[quality 1/1] START contract/quality.task-create-form-contracts (test:task-create-form-contracts)
+AssertionError [ERR_ASSERTION]: src/modules/tasks/presentation/components/TaskCreateModal.tsx must retain createTaskCommand.
+    at <anonymous> (D:\Project_All\UnicoreCRM\review-artifacts\connected-crm-20261021\pre-performance-frontend\tests\quality\contracts\check-task-create-form-contracts.mts:23:10)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (D:\Project_All\UnicoreCRM\review-artifacts\connected-crm-20261021\pre-performance-frontend\scripts\quality\run-node-entry.mjs:18:3)
+[quality 1/1] FAIL contract/quality.task-create-form-contracts: Node step failed with 1.
+
+[quality] FAIL 0/1 passed across 1 groups (0.4s).

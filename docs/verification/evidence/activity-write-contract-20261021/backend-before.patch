@@ -1,0 +1,735 @@
+diff --git a/.gitignore b/.gitignore
+index bab706b..40b48f3 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -21,3 +21,6 @@
+ # Transient output
+ *.log
+ *.tmp
++
++# Isolated acceptance runtime: local logs and generated data-protection keys are not source.
++/artifacts/activity-security/
+diff --git a/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj b/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj
+index e5f5d56..28b960b 100644
+--- a/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj
++++ b/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj
+@@ -7,6 +7,7 @@
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Domain/*.cs" Link="Tasks/Domain/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/Common/*.cs" Link="Tasks/Common/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/TaskContracts.cs" Link="Tasks/TaskContracts.cs" />
++    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs" Link="Tasks/ActivityReferenceAuthority.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ContactFollowUpProjection.cs" Link="Tasks/ContactFollowUpProjection.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/ReadContactFollowUp/*.cs" Link="Tasks/ReadContactFollowUp/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs" Link="Tasks/TasksDbContext.cs" />
+diff --git a/scripts/ContactFollowUpVerifier/Program.cs b/scripts/ContactFollowUpVerifier/Program.cs
+index a9dfc93..34bb439 100644
+--- a/scripts/ContactFollowUpVerifier/Program.cs
++++ b/scripts/ContactFollowUpVerifier/Program.cs
+@@ -59,7 +59,7 @@ Check(await ActivityReachable(), "existing unrestricted WORKSPACE Activity gate
+ foreach (var scope in new[] { RecordAccessScopeFilter.OwnedByMember, RecordAccessScopeFilter.Denied, RecordAccessScopeFilter.NotEvaluated })
+ {
+     evaluator.Scope = scope;
+-    Check(!await ActivityReachable(), $"existing Activity scope gate refuses {scope}");
++    Check(await ActivityReachable(), $"Tasks {scope} does not replace referenced CRM record scope");
+ }
+ evaluator.Scope = RecordAccessScopeFilter.Workspace;
+ foreach (var mode in new[] { RecordFieldEnforcement.ReadOnly, RecordFieldEnforcement.Withheld })
+@@ -128,7 +128,8 @@ try
+ }
+ finally
+ {
+-    await tasks.Database.EnsureDeletedAsync();
++    if (!args.Contains("--keep-database")) await tasks.Database.EnsureDeletedAsync();
++    else Console.WriteLine($"Isolated verification database retained: {database}");
+ }
+ 
+ sealed class ProjectionContext(DbContextOptions<ProjectionContext> options) : DbContext(options)
+diff --git a/scripts/TasksHandoverVerifier/Program.cs b/scripts/TasksHandoverVerifier/Program.cs
+index 835a8c3..9141e0e 100644
+--- a/scripts/TasksHandoverVerifier/Program.cs
++++ b/scripts/TasksHandoverVerifier/Program.cs
+@@ -245,6 +245,7 @@ sealed class Evaluator(TrustedWorkspaceContext trusted) : IRecordAccessEvaluator
+ }
+ sealed class MemoryPersistence : ITasksPersistence
+ {
++    public Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references, IReadOnlyList<ActivityReadScope> scopes, CancellationToken cancellationToken) => throw new NotSupportedException();
+     internal readonly List<TaskItem> Items = [];
+     internal readonly List<TaskAuditRecord> Audits = [];
+     internal readonly List<TaskOutboxMessage> Events = [];
+diff --git a/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj b/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj
+index a6e7397..a7d48fe 100644
+--- a/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj
++++ b/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj
+@@ -7,10 +7,12 @@
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Domain/*.cs" Link="Tasks/Domain/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/Common/*.cs" Link="Tasks/Common/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/TaskContracts.cs" Link="Tasks/TaskContracts.cs" />
++    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs" Link="Tasks/ActivityReferenceAuthority.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/LeadHandoverTaskParticipant.cs" Link="Tasks/LeadHandoverTaskParticipant.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/LeadHandover/Participant.cs" Link="Tasks/Participant.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs" Link="Tasks/TasksDbContext.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs" Link="Tasks/EfTasksPersistence.cs" />
++    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs" Link="Tasks/ActivityReadSql.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/*.cs" Link="Tasks/Migrations/%(Filename)%(Extension)" />
+   </ItemGroup>
+ </Project>
+diff --git a/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs b/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs
+index 195a61f..9ad62c4 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs
+@@ -38,6 +38,7 @@ internal sealed class ContactsRelationshipConflictException : Exception { }
+ 
+ internal interface IContactsPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<ListContacts.ContactListSlice> ReadContactPageAsync(ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken);
+     Task<IReadOnlyDictionary<string, long>> ReadContactStatusCountsAsync(ListContacts.ContactListSpecification specification, CancellationToken cancellationToken);
+     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs b/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs
+index ba8e900..c07f736 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs
+@@ -32,6 +32,8 @@ internal sealed partial class Handler(
+             organizations.Select(item => item.OrganizationId).Distinct(StringComparer.Ordinal).ToArray(), query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+         var customerResolution = await customerTargets.ResolveVisibleAsync(access.Value.Trusted,
+             customers.Select(item => item.CustomerId).Distinct(StringComparer.Ordinal).ToArray(), query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
++        var subjectResolution = await customerTargets.ResolveSubjectAsync(access.Value.Trusted,
++            "CONTACT", contact.ContactId, query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+ 
+         var canReadOrganizations = access.Value.Authorization.CanRead("organizationRelationships");
+         var visibleOrganizations = canReadOrganizations && organizationResolution.CanReadResource
+@@ -43,9 +45,11 @@ internal sealed partial class Handler(
+         var organizationDocuments = visibleOrganizations.Select(item => ContactProjection.OrganizationRelationship(item, organizationResolution.VisibleTargets[item.OrganizationId])).ToArray();
+         var customerDocuments = visibleCustomers.Select(item => ContactProjection.CustomerRelationship(item, customerResolution.VisibleTargets[item.CustomerId])).ToArray();
+         var activeOrganizationIds = visibleOrganizations.Where(item => item.EffectiveTo is null).Select(item => item.OrganizationId).Distinct(StringComparer.Ordinal).ToArray();
+-        var activeCustomerIds = visibleCustomers.Where(item => item.EffectiveTo is null).Select(item => item.CustomerId).Distinct(StringComparer.Ordinal).ToArray();
++        var activeCustomerIds = visibleCustomers.Where(item => item.EffectiveTo is null).Select(item => item.CustomerId)
++            .Concat(subjectResolution.VisibleTargets.Keys).Distinct(StringComparer.Ordinal).ToArray();
+         var linked = activeOrganizationIds.Select(id => new ContactRelationshipTargetDocument("organizations", id) { Label = organizationResolution.VisibleTargets[id] })
+-            .Concat(activeCustomerIds.Select(id => new ContactRelationshipTargetDocument("customers", id) { Label = customerResolution.VisibleTargets[id] })).ToArray();
++            .Concat(activeCustomerIds.Select(id => new ContactRelationshipTargetDocument("customers", id)
++            { Label = subjectResolution.VisibleTargets.TryGetValue(id, out var label) ? label : customerResolution.VisibleTargets[id] })).ToArray();
+ 
+         var allowed = new List<string>();
+         if (contact.ArchivedAt is null)
+diff --git a/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs
+index 9114b49..cddbee1 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs
+@@ -1,13 +1,32 @@
+ using System.Text.RegularExpressions;
+ using UnicoreCRM.Crm.Contacts.Application.Common;
+ using UnicoreCRM.Crm.Contacts.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+ namespace UnicoreCRM.Crm.Contacts.Application.ProvideContactRecordAccessFacts;
+ 
+-internal sealed partial class ContactRecordAccessFactProvider(IContactsPersistence persistence) : IRecordAccessFactProvider
++internal sealed partial class ContactRecordAccessFactProvider(IContactsPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var contact = await persistence.ReadContactAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        if (contact is null || (forWrite && (contact.ArchivedAt is not null || contact.Status == "archived"))) return false;
++        if (relationship is null) return true;
++        if (relationship.Type == "CONTACT") return relationship.Id == recordId;
++        if (relationship.Type != "ORGANIZATION_ACCOUNT" || relationship.Id is null) return false;
++        if (forWrite)
++            return await persistence.HasActiveOrganizationRelationshipAsync(workspace.WorkspaceId, recordId, relationship.Id, cancellationToken);
++        // Ending an affiliation prevents new writes; it does not erase a valid past
++        // interaction. Current access to both records is still required by Tasks.
++        var history = await persistence.ReadOrganizationRelationshipsAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return history.Any(item => item.OrganizationId == relationship.Id);
++    }
++
+     private static readonly RecordAccessResourceDescriptor ContactsDescriptor = RecordAccessResourceDescriptor.Create(
+         resourceKey: ContactAuthorization.ResourceKey,
+         readCapability: ContactCapabilities.Read.Capability,
+diff --git a/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs b/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs
+index c5ae29f..8bb6188 100644
+--- a/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs
++++ b/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs
+@@ -42,6 +42,8 @@ internal static class ContactsModule
+         services.AddScoped<Contracts.IContactQualificationParticipant,
+             Application.ResolveQualificationContact.Handler>();
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideContactRecordAccessFacts.ContactRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideContactRecordAccessFacts.ContactRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs b/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs
+index 5e0c8b8..6b35d96 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs
+@@ -9,6 +9,18 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence;
+ 
+ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : IContactsPersistence
+ {
++    // Read-side reference facts owned by this module; historical relations remain facts.
++    public string ActivityReadFactsSql => """
++SELECT c.WorkspaceId, c.ContactId AS RecordId, c.OwnerId, CASE WHEN c.ArchivedAt IS NULL AND c.Status<>N'archived' THEN 1 ELSE 0 END AS CanLog,
++    N'CONTACT' AS RelationshipType, c.ContactId AS RelationshipId
++FROM contacts.Contacts c
++UNION ALL
++SELECT c.WorkspaceId, c.ContactId AS RecordId, c.OwnerId, CASE WHEN c.ArchivedAt IS NULL AND c.Status<>N'archived' AND r.EffectiveTo IS NULL THEN 1 ELSE 0 END AS CanLog,
++    N'ORGANIZATION_ACCOUNT' AS RelationshipType, r.OrganizationId AS RelationshipId
++FROM contacts.Contacts c INNER JOIN contacts.OrganizationRelationships r
++    ON r.WorkspaceId=c.WorkspaceId AND r.ContactId=c.ContactId
++""";
++
+     public async Task<Application.ListContacts.ContactListSlice> ReadContactPageAsync(Application.ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken)
+     {
+         var filtered = ContactRows(specification);
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs b/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs
+index 7de321a..e77cb05 100644
+--- a/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs
++++ b/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs
+@@ -21,6 +21,7 @@ internal sealed record CustomerOperationResult<T>(T? Value, CustomerOperationErr
+ 
+ internal interface ICustomersPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<Customer?> ReadCustomerAsync(string workspaceId, string customerId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, IReadOnlyCollection<string> customerIds, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs
+index 31a4383..5cf65dc 100644
+--- a/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs
+@@ -1,13 +1,24 @@
+ using System.Text.RegularExpressions;
+ using UnicoreCRM.Crm.Customers.Application.Common;
+ using UnicoreCRM.Crm.Customers.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+ namespace UnicoreCRM.Crm.Customers.Application.ProvideCustomerRecordAccessFacts;
+ 
+-internal sealed partial class CustomerRecordAccessFactProvider(ICustomersPersistence persistence) : IRecordAccessFactProvider
++internal sealed partial class CustomerRecordAccessFactProvider(ICustomersPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var customer = await persistence.ReadCustomerAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return customer is not null && (!forWrite || customer.Status is "NEW" or "ACTIVE" or "INACTIVE")
++            && (relationship is null || (relationship.Type == customer.RelationshipType && relationship.Id == customer.RelationshipId));
++    }
++
+     private static readonly RecordAccessResourceDescriptor CustomersDescriptor = RecordAccessResourceDescriptor.Create(
+         resourceKey: CustomerAuthorization.ResourceKey,
+         readCapability: CustomerCapabilities.View.Capability,
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs b/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs
+index 6be34df..d161391 100644
+--- a/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs
++++ b/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs
+@@ -8,6 +8,19 @@ namespace UnicoreCRM.Crm.Customers.Application.ResolveRelationshipTargets;
+ internal sealed class Participant(CustomerAuthorization authorization, ICustomersPersistence persistence, TimeProvider timeProvider)
+     : ICustomerRelationshipTargetParticipant
+ {
++    public async Task<CustomerRelationshipTargetResolution> ResolveSubjectAsync(
++        TrustedWorkspaceContext trusted, string subjectType, string subjectId,
++        string requestId, string correlationId, CancellationToken cancellationToken)
++    {
++        // Canonical account subjects are distinct from Contact stakeholder memberships.
++        // Resolve by the persisted unique subject, then apply the same Customer security.
++        if (subjectType is not ("CONTACT" or "ORGANIZATION_ACCOUNT"))
++            return new(false, new Dictionary<string, string?>(), new HashSet<string>(StringComparer.Ordinal));
++        var record = await persistence.LoadBySubjectAsync(trusted.WorkspaceId, subjectType, subjectId, cancellationToken);
++        return await ResolveVisibleAsync(trusted, record is null ? [] : [record.CustomerId],
++            requestId, correlationId, cancellationToken);
++    }
++
+     public async Task<CustomerRelationshipTargetResolution> ResolveVisibleAsync(
+         TrustedWorkspaceContext trusted, IReadOnlyCollection<string> customerIds,
+         string requestId, string correlationId, CancellationToken cancellationToken)
+diff --git a/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs b/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs
+index abbfc04..ac260c8 100644
+--- a/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs
++++ b/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs
+@@ -12,6 +12,10 @@ internal sealed record CustomerRelationshipTargetResolution(
+ 
+ internal interface ICustomerRelationshipTargetParticipant
+ {
++    Task<CustomerRelationshipTargetResolution> ResolveSubjectAsync(
++        TrustedWorkspaceContext trusted, string subjectType, string subjectId,
++        string requestId, string correlationId, CancellationToken cancellationToken);
++
+     Task<CustomerRelationshipTargetResolution> ResolveVisibleAsync(
+         TrustedWorkspaceContext trusted,
+         IReadOnlyCollection<string> customerIds,
+diff --git a/src/UnicoreCRM.Crm/Customers/CustomersModule.cs b/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
+index ee36791..488653d 100644
+--- a/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
++++ b/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
+@@ -40,6 +40,8 @@ internal static class CustomersModule
+         services.AddScoped<ILeadCustomerConversionParticipant, Application.ResolveForLeadConversion.Participant>();
+         services.AddScoped<ICustomerRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideCustomerRecordAccessFacts.CustomerRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideCustomerRecordAccessFacts.CustomerRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs b/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs
+index 101818b..5b6e5db 100644
+--- a/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs
++++ b/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs
+@@ -9,6 +9,11 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
+ 
+ internal sealed class EfCustomersPersistence(CustomersDbContext dbContext) : ICustomersPersistence
+ {
++    // Module-owned read-side reference projection, containing no Activity content.
++    public string ActivityReadFactsSql => """
++SELECT WorkspaceId, CustomerId AS RecordId, OwnerId, CASE WHEN Status IN (N'NEW',N'ACTIVE',N'INACTIVE') THEN 1 ELSE 0 END AS CanLog, RelationshipType, RelationshipId FROM customers.Customers
++""";
++
+     public async Task<ICustomersTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new Transaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
+     public void AddCustomer(Customer customer) => dbContext.Customers.Add(customer);
+diff --git a/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs b/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs
+index 1079900..7100ec4 100644
+--- a/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs
+@@ -4,6 +4,7 @@ namespace UnicoreCRM.Crm.Leads.Application.Common;
+ 
+ internal interface ILeadsPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
+     Task<Lead?> LoadLeadForClaimAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
+     Task<Lead?> LoadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs
+index 5fdeca9..a8954dd 100644
+--- a/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs
+@@ -1,5 +1,6 @@
+ using UnicoreCRM.Crm.Leads.Application.Common;
+ using UnicoreCRM.Crm.Leads.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+@@ -11,8 +12,17 @@ namespace UnicoreCRM.Crm.Leads.Application.ProvideLeadRecordAccessFacts;
+ /// authoritative for the decision. It authorizes nothing, queries only the trusted Workspace, and
+ /// writes no Lead state, audit record or outbox message.
+ /// </summary>
+-internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence) : IRecordAccessFactProvider
++internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var lead = await persistence.ReadLeadAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return lead is not null && (!forWrite || lead.ArchivedAt is null)
++            && (relationship is null || (relationship.Type == lead.RelationshipType && relationship.Id == lead.RelationshipId));
++    }
+     /// <summary>
+     /// Only capabilities behind an admitted Leads operation are declared. Leads has no delete,
+     /// export or approval operation, so none is declared and none can ever be granted.
+diff --git a/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs b/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs
+index 502fcb8..d98a387 100644
+--- a/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs
+@@ -8,6 +8,11 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
+ 
+ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersistence, ILeadKanbanPersistence
+ {
++    // Module-owned read-side reference projection, containing no Activity content.
++    public string ActivityReadFactsSql => """
++SELECT WorkspaceId, LeadId AS RecordId, ScopeOwnerId AS OwnerId, CASE WHEN ArchivedAt IS NULL THEN 1 ELSE 0 END AS CanLog, RelationshipType, RelationshipId FROM leads.Leads
++""";
++
+     public async Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new LeadsTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
+ 
+diff --git a/src/UnicoreCRM.Crm/Leads/LeadsModule.cs b/src/UnicoreCRM.Crm/Leads/LeadsModule.cs
+index 7dae537..89cd952 100644
+--- a/src/UnicoreCRM.Crm/Leads/LeadsModule.cs
++++ b/src/UnicoreCRM.Crm/Leads/LeadsModule.cs
+@@ -54,6 +54,8 @@ internal static class LeadsModule
+         // Leads publishes its own record-access facts to AccessControl. AccessControl never reaches
+         // into LeadsDbContext; it resolves this owner-owned contract instead.
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs b/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs
+index 2797335..a7cd0fa 100644
+--- a/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs
++++ b/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs
+@@ -21,6 +21,7 @@ internal sealed record OrganizationOperationResult<T>(T? Value, OrganizationOper
+ 
+ internal interface IOrganizationsPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<Organization?> ReadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, IReadOnlyCollection<string> organizationIds, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs
+index c4c7e0e..a552b89 100644
+--- a/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs
+@@ -1,13 +1,24 @@
+ using System.Text.RegularExpressions;
+ using UnicoreCRM.Crm.Organizations.Application.Common;
+ using UnicoreCRM.Crm.Organizations.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+ namespace UnicoreCRM.Crm.Organizations.Application.ProvideOrganizationRecordAccessFacts;
+ 
+-internal sealed partial class OrganizationRecordAccessFactProvider(IOrganizationsPersistence persistence) : IRecordAccessFactProvider
++internal sealed partial class OrganizationRecordAccessFactProvider(IOrganizationsPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var organization = await persistence.ReadOrganizationAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return organization is not null && (!forWrite || organization.Status != "archived")
++            && (relationship is null || (relationship.Type == "ORGANIZATION_ACCOUNT" && relationship.Id == recordId));
++    }
++
+     private static readonly RecordAccessResourceDescriptor OrganizationsDescriptor = RecordAccessResourceDescriptor.Create(
+         resourceKey: OrganizationAuthorization.ResourceKey,
+         readCapability: OrganizationCapabilities.Read.Capability,
+diff --git a/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs b/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs
+index 2c9d897..791c61e 100644
+--- a/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs
+@@ -8,6 +8,11 @@ namespace UnicoreCRM.Crm.Organizations.Infrastructure.Persistence;
+ 
+ internal sealed class EfOrganizationsPersistence(OrganizationsDbContext dbContext) : IOrganizationsPersistence
+ {
++    // Module-owned read-side reference projection, containing no Activity content.
++    public string ActivityReadFactsSql => """
++SELECT WorkspaceId, OrganizationId AS RecordId, OwnerId, CASE WHEN Status<>N'archived' THEN 1 ELSE 0 END AS CanLog, N'ORGANIZATION_ACCOUNT' AS RelationshipType, OrganizationId AS RelationshipId FROM organizations.Organizations
++""";
++
+     public async Task<IOrganizationsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new Transaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
+     public void AddOrganization(Organization organization) => dbContext.Organizations.Add(organization);
+diff --git a/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs b/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs
+index 9d27f8b..3b57af2 100644
+--- a/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs
++++ b/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs
+@@ -34,6 +34,8 @@ internal static class OrganizationsModule
+         services.AddScoped<IOrganizationRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
+         services.AddScoped<IOrganizationCustomerSubjectParticipant, Application.ResolveCustomerSubject.Participant>();
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs b/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs
+index 01be1dc..a3872be 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs
+@@ -130,49 +130,14 @@ internal static class TaskFieldSecurity
+ }
+ 
+ /// <summary>
+-/// The <c>TaskActivity</c> reachability gate. It is <b>not</b> Activity field security, and must not
+-/// be described as such.
+-///
+-/// <para><c>listActivities</c> and <c>logActivity</c> are admitted operations that authorize the
+-/// <c>tasks.read</c> and <c>tasks.update</c> capabilities, which the operation registry proves. What
+-/// no current authority settles is what an Activity <em>is</em> for record access:</para>
+-///
+-/// <list type="bullet">
+-/// <item>A <c>TaskActivity</c> carries no task reference, so no Activity can be attributed to a Task
+-/// and Activities cannot be shown to live inside the <c>tasks</c> record scope.</item>
+-/// <item>Its <c>actorId</c> is the actor, not one of the admitted ownership attributes
+-/// (<c>ownerId</c>, <c>assigneeId</c>, <c>createdBy</c>, <c>assignedTo</c>), so there is no owner an
+-/// OWN, TEAM or CUSTOM scope could be evaluated against.</item>
+-/// <item>Activities declare no resource descriptor, no capability of their own and no field
+-/// vocabulary anywhere in current authority, and no authority defines field security for them.</item>
+-/// </list>
+-///
+-/// <para>Both are therefore <c>AUTHORITY_GAP</c>, and this gate fails closed on both counts rather
+-/// than inventing an answer:</para>
+-///
+-/// <list type="number">
+-/// <item><b>Record scope.</b> Activities are reachable only when the caller's effective <c>tasks</c>
+-/// scope is WORKSPACE. Under any restricted scope the caller sees none.</item>
+-/// <item><b>Field security.</b> An Activity carries <c>subject</c>, <c>body</c>, <c>recordLabel</c>
+-/// and source evidence, which are free text and a label for a referenced record of <em>any</em>
+-/// module, so an Activity can quote a value that a field policy withholds elsewhere. No authority
+-/// maps those to any field policy, so no Activity-level projection is invented. Instead, the moment
+-/// <em>any</em> restrictive field policy applies to <c>tasks</c>, Activities become unreachable.
+-/// That is a conservative refusal, not enforcement: it does not prove which Activity field the
+-/// policy governs, only that the caller is under some field restriction and Activity content cannot
+-/// be shown to respect it.</item>
+-/// </list>
+-///
+-/// <para>Neither condition attributes ownership to an Activity, gives it a field vocabulary, or
+-/// claims Task field policy governs Activity fields. Freezing real semantics requires a business
+-/// decision that does not exist yet.</para>
++/// Tasks capability and field restriction gate. Activity scope is inherited from every referenced
++/// CRM record through ActivityRecordAccess; the actor is never treated as the record owner.
++/// Free text remains unavailable under restrictive Tasks field policies.
+ /// </summary>
+ internal static class TaskActivitySecurity
+ {
+-    /// <summary>Whether Activities are reachable at all for this caller under the frozen fail-closed rules.</summary>
+     internal static bool IsReachable(TaskAccess access) =>
+-        access.Authorization.ScopeFilter == RecordAccessScopeFilter.Workspace
+-        && !access.Authorization.FieldEnforcement.Any(entry => entry.Value != RecordFieldEnforcement.ReadWrite);
++        !access.Authorization.FieldEnforcement.Any(entry => entry.Value != RecordFieldEnforcement.ReadWrite);
+ }
+ 
+ /// <summary>
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs b/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs
+index 6ed9121..461c9aa 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs
+@@ -1,4 +1,5 @@
+ using UnicoreCRM.Operations.Tasks.Domain;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ 
+ namespace UnicoreCRM.Operations.Tasks.Application.Common;
+ 
+@@ -36,13 +37,15 @@ internal sealed record ActivityListSpecification(
+     string? RecordId,
+     DateTimeOffset? OccurredFrom,
+     DateTimeOffset? OccurredTo,
+-    bool Descending);
++    bool Descending,
++    IReadOnlyList<ActivityReadScope>? ReadScopes = null);
+ 
+ internal sealed record TasksPage<T>(IReadOnlyList<T> Items, bool HasNextPage, int? NextOffset, int TotalCount);
+ 
+ internal interface ITasksPersistence
+ {
+     Task<ITasksTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
++    Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references, IReadOnlyList<ActivityReadScope> scopes, CancellationToken cancellationToken);
+     Task<TaskItem?> LoadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken);
+     Task<TaskItem?> ReadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken);
+     Task<TasksPage<TaskItem>> ListTasksAsync(string workspaceId, TaskListSpecification specification, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs b/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs
+index 5fab5d0..b4dbe0e 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs
+@@ -24,6 +24,7 @@ internal sealed record Query(
+ internal sealed class Handler(
+     TaskAuthorization authorization,
+     ITasksPersistence persistence,
++    ActivityRecordAccess recordAccess,
+     TimeProvider timeProvider)
+ {
+     internal async Task<TaskOperationResult<ActivityListResponse>> HandleAsync(Query query, CancellationToken cancellationToken)
+@@ -61,9 +62,8 @@ internal sealed class Handler(
+         if (fields.Count != 0)
+             return TaskOperationResult<ActivityListResponse>.Failure(TaskErrors.Validation(fields));
+ 
+-        // TaskActivity record-access and field-security semantics are both AUTHORITY_GAP, so
+-        // Activities fail closed. See TaskActivitySecurity for why neither can be proven and what
+-        // this gate does and does not claim.
++        // Free-text content cannot bypass restrictive Tasks field security.
++        // Referenced CRM owners govern record scope below.
+         if (!TaskActivitySecurity.IsReachable(access.Value!))
+         {
+             return TaskOperationResult<ActivityListResponse>.Success(
+@@ -71,6 +71,9 @@ internal sealed class Handler(
+         }
+ 
+         var trusted = access.Value!.Trusted;
++        // Resolve each module policy once; owner-owned SQL facts apply that scope to every
++        // reference in the final SQL query, before search/count/paging. No target/Activity scan.
++        var scopes = await recordAccess.ReadScopesAsync(access.Value, metadata, cancellationToken);
+         var page = await persistence.ListActivitiesAsync(
+             trusted.WorkspaceId,
+             new ActivityListSpecification(
+@@ -85,7 +88,8 @@ internal sealed class Handler(
+                 query.RecordId,
+                 occurredFrom,
+                 occurredTo,
+-                descending),
++                descending,
++                scopes),
+             cancellationToken);
+         var now = timeProvider.GetUtcNow();
+         persistence.AddAudit(new TaskAuditRecord(
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs
+index 66d8d89..eb1d233 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs
+@@ -10,7 +10,7 @@ internal sealed record Command(LogActivityRequest Request, TaskCommandMetadata M
+ internal sealed class Handler(
+     TaskAuthorization authorization,
+     ITasksPersistence persistence,
+-    ICustomerActivityReferenceAuthority customerReferences,
++    ActivityRecordAccess recordAccess,
+     TimeProvider timeProvider)
+ {
+     internal async Task<TaskOperationResult<ActivityMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
+@@ -22,29 +22,27 @@ internal sealed class Handler(
+         if (!LogActivityValidation.TryActivity(command.Request, out var input, out var fields))
+             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(fields));
+ 
+-        // TaskActivity record-access and field-security semantics are both AUTHORITY_GAP, so
+-        // Activities fail closed. See TaskActivitySecurity for why neither can be proven and what
+-        // this gate does and does not claim.
++        // Free-text content cannot bypass restrictive Tasks field security.
++        // Referenced CRM owners govern record scope below.
+         if (!TaskActivitySecurity.IsReachable(access.Value!))
+             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.AccessDenied());
+ 
+         var trusted = access.Value!.Trusted;
+-        if (string.Equals(input!.References.RecordModuleKey, "customers", StringComparison.OrdinalIgnoreCase))
+-        {
+-            // Until canonical subject AND its current target authority can be validated
+-            // through admitted contracts, Customer logs support only the direct reference.
+-            if (input.References.RelationshipType is not null)
+-                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(
+-                    new Dictionary<string, string[]> { ["relationshipRef"] = ["Customer Activity logging does not support relationshipRef."] }));
+-            // Current Customer authority and lifecycle also gate protected cached replay.
+-            if (!await customerReferences.CanReferenceAsync(trusted.WorkspaceId, input.References.RecordId!,
+-                metadata.RequestId, metadata.CorrelationId, cancellationToken))
+-                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
+-        }
+         var fingerprint = TaskCommandSupport.Fingerprint(input);
+         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "logActivity", "WORKSPACE", command.Metadata.IdempotencyKey);
+         var existing = await persistence.FindCreateIdempotencyForUpdateAsync(scopeKey, cancellationToken);
++        access = await authorization.AuthorizeAsync(TaskCapabilities.Update, metadata, cancellationToken);
++        if (!access.IsSuccess) return TaskOperationResult<ActivityMutationResponse>.Failure(access.Error!);
++        if (access.Value!.Trusted.WorkspaceId != trusted.WorkspaceId || !TaskActivitySecurity.IsReachable(access.Value))
++            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.AccessDenied());
++        // Receipt acquisition can wait behind another command. Resolve current record
++        // authority after that wait, including on replay, before exposing any content.
++        if (!await recordAccess.CanAccessAsync(access.Value, input!.References, metadata, true, cancellationToken))
++            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
++        var scopes = await recordAccess.ReadScopesAsync(access.Value, metadata, cancellationToken);
++        if (!await persistence.GuardActivityReferencesAsync(trusted.WorkspaceId, input.References, scopes, cancellationToken))
++            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
+         if (existing is not null)
+         {
+             var replayError = TaskCommandSupport.ReplayError(existing, fingerprint);
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs
+index c1ae558..d325c78 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs
+@@ -22,6 +22,19 @@ internal static class LogActivityValidation
+         var subject = TaskValidation.Text(request.Subject, "subject", 1, 300, true, fields);
+         var body = TaskValidation.Text(request.Body, "body", 0, 10000, false, fields);
+         var references = TaskValidation.References(request.RelationshipRef, request.RecordRef, request.SourceRef, fields);
++        if (references is not null)
++        {
++            var module = references.RecordModuleKey ?? ActivityRecordAccess.RelationshipModule(references.RelationshipType);
++            var id = references.RecordId ?? references.RelationshipId;
++            if (module is not ("leads" or "contacts" or "organizations" or "customers") || id is null)
++                fields["recordRef"] = ["Activity requires a supported CRM record or Contact/Organization relationship."];
++            var relatedModule = ActivityRecordAccess.RelationshipModule(references.RelationshipType);
++            if (relatedModule == module && references.RelationshipId != id)
++                fields["relationshipRef"] = ["References to the same module must identify the same record."];
++            // HTTP sourceRef is only a UI origin marker, never trusted audit evidence.
++            if (!ActivityRecordAccess.ValidSource(references, module, id))
++                fields["sourceRef"] = ["sourceRef must be a matching CRM Activity origin without audit evidence."];
++        }
+         errors = fields;
+         value = fields.Count == 0 ? new NormalizedActivity(type, subject!, body, references!) : null;
+         return value is not null;
+@@ -34,13 +47,12 @@ internal static class LogActivityValidation
+         "MEETING" => ActivityType.Meeting,
+         "NOTE" => ActivityType.Note,
+         "MESSAGE" => ActivityType.Message,
+-        "SYSTEM" => ActivityType.System,
+         _ => InvalidActivity(fields)
+     };
+ 
+     private static ActivityType InvalidActivity(IDictionary<string, string[]> fields)
+     {
+-        fields["type"] = ["type must be CALL, EMAIL, MEETING, NOTE, MESSAGE, or SYSTEM."];
++        fields["type"] = ["type must be CALL, EMAIL, MEETING, NOTE, or MESSAGE. SYSTEM is reserved for trusted system events."];
+         return ActivityType.Note;
+     }
+ }
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs
+index fc638d6..abc899b 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs
+@@ -9,6 +9,14 @@ namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
+ 
+ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersistence
+ {
++    public async Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references,
++        IReadOnlyList<Contracts.ActivityReadScope> scopes, CancellationToken cancellationToken)
++    {
++        RequireTransaction();
++        var guard = ActivityReadSql.CommitGuard(workspaceId, references, scopes);
++        return await dbContext.Database.SqlQueryRaw<int>(guard.Sql, guard.Parameters).SingleAsync(cancellationToken) == 1;
++    }
++
+     public async Task<ITasksTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new TasksTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
+ 
+@@ -90,7 +98,11 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
+         ActivityListSpecification specification,
+         CancellationToken cancellationToken)
+     {
+-        IQueryable<TaskActivity> query = dbContext.Activities.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
++        // No trusted SYSTEM writer exists yet. Legacy client-supplied SYSTEM rows cannot be
++        // exposed as system audit evidence; retain them in storage without publishing them.
++        var secured = ActivityReadSql.Build(workspaceId, specification.ReadScopes ?? []);
++        IQueryable<TaskActivity> query = dbContext.Activities.FromSqlRaw(secured.Sql, secured.Parameters)
++            .AsNoTracking().TagWith("Activity authorized reference query");
+         if (!string.IsNullOrEmpty(specification.Search))
+             query = query.Where(item => item.Subject.Contains(specification.Search) || (item.Body != null && item.Body.Contains(specification.Search)));
+         if (specification.Type is not null)
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs
+index bd21b33..e896bd9 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs
+@@ -93,6 +93,9 @@ namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
+ 
+                     b.HasIndex("WorkspaceId", "OccurredAt", "ActivityId");
+ 
++                    b.HasIndex("WorkspaceId", "RecordModuleKey", "RecordId", "OccurredAt", "ActivityId")
++                        .HasDatabaseName("IX_Activities_RecordHistory");
++
+                     b.ToTable("Activities", "tasks");
+                 });
+ 
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs
+index a25687e..c6fc7ab 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs
+@@ -66,6 +66,8 @@ internal sealed class TasksDbContext(DbContextOptions<TasksDbContext> options) :
+             entity.Property(item => item.SourceId).HasMaxLength(128);
+             entity.Property(item => item.SourceEvidence).HasMaxLength(1000);
+             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt, item.ActivityId });
++            entity.HasIndex(item => new { item.WorkspaceId, item.RecordModuleKey, item.RecordId, item.OccurredAt, item.ActivityId })
++                .HasDatabaseName("IX_Activities_RecordHistory");
+         });
+ 
+         modelBuilder.Entity<TaskIdempotencyRecord>(entity =>
+diff --git a/src/UnicoreCRM.Operations/Tasks/TasksModule.cs b/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
+index 8512eba..1bb4622 100644
+--- a/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
++++ b/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
+@@ -21,6 +21,7 @@ internal static class TasksModule
+             "tasks",
+             (provider, cancellationToken) => provider.GetRequiredService<TasksDbContext>().Database.MigrateAsync(cancellationToken));
+         services.AddScoped<TaskAuthorization>();
++        services.AddScoped<ActivityRecordAccess>();
+         services.AddScoped<Contracts.IContactFollowUpReadAuthorityResolver,
+             Application.ReadContactFollowUp.ContactFollowUpReadAuthorityResolver>();
+         services.AddScoped<Contracts.ILeadHandoverTaskParticipant, Application.LeadHandover.Participant>();

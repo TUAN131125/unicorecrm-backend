@@ -1,0 +1,16 @@
+[
+  {
+    "status": 200,
+    "sqlCommands": 914,
+    "totalCount": 5109,
+    "distinctContacts": 100,
+    "elapsedMs": 1486.5718
+  },
+  {
+    "status": 200,
+    "sqlCommands": 8180,
+    "totalCount": 6009,
+    "distinctContacts": 1000,
+    "elapsedMs": 10114.9019
+  }
+]

@@ -1,0 +1,162 @@
+--- a/src/modules/deals/presentation/hooks/useDealDetailController.tsx
++++ b/src/modules/deals/presentation/hooks/useDealDetailController.tsx
+@@ -192,12 +192,18 @@
+   };
+ 
+   const quoteState = deal ? getOpportunityQuoteState(deal, quotes) : "none";
++  const quoteTransitionPending = React.useRef(false);
+ 
+   const handleUpdateQuoteStatus = async (quoteId: string, newStatus: QuoteStatus) => {
+     const targetQuote = quotes.find((quote) => quote.id === quoteId);
+-    if (!targetQuote) return;
++    if (!targetQuote || quoteTransitionPending.current) return;
++    if (targetQuote.status === newStatus) {
++      triggerToast("success", locale === "vi" ? "Trạng thái báo giá đã được cập nhật." : "Quote status is already updated.");
++      return;
++    }
+ 
+     const now = new Date().toISOString();
++    quoteTransitionPending.current = true;
+     try {
+       const updatedQuote = newStatus === QuoteStatus.ACCEPTED
+         ? (await acceptQuoteAndCloseDealCommand(
+@@ -207,46 +213,18 @@
+         : (await transitionQuoteStatusCommand(quoteId, newStatus, now)).data;
+       if (!updatedQuote) return;
+ 
+-      let activityTitle = "";
+-      let activityDescription = "";
+-      if (newStatus === QuoteStatus.REVIEW) {
+-        activityTitle = locale === "vi" ? "Báo giá chuyển sang duyệt" : "Quote submitted for review";
+-        activityDescription = `#${targetQuote.quoteNumber} v${targetQuote.version}`;
+-      } else if (newStatus === QuoteStatus.SENT) {
+-        activityTitle = t("deals.activities.quoteSentTitle");
+-        activityDescription = t("deals.activities.quoteSentDescription", { quoteNumber: targetQuote.quoteNumber });
+-      } else if (newStatus === QuoteStatus.ACCEPTED) {
+-        activityTitle = t("deals.activities.quoteAcceptedTitle");
+-        activityDescription = t("deals.activities.quoteAcceptedDescription", { quoteNumber: targetQuote.quoteNumber });
+-      } else if (newStatus === QuoteStatus.REJECTED) {
+-        activityTitle = t("deals.activities.quoteRejectedTitle");
+-        activityDescription = t("deals.activities.quoteRejectedDescription", { quoteNumber: targetQuote.quoteNumber });
+-      }
+-
+-      if (deal && activityTitle) {
+-        await logDealTimelineActivity({
+-          activityType: "quote",
+-          taskType: "SYSTEM",
+-          title: activityTitle,
+-          description: activityDescription,
+-          occurredAt: now,
+-          sourceType: "QUOTE_STATUS",
+-          sourceId: targetQuote.id,
+-          metadata: {
+-            quoteId: targetQuote.id,
+-            quoteNumber: targetQuote.quoteNumber,
+-            quoteStatus: newStatus,
+-          },
+-        });
+-      }
+-
++      // The Quote command owns transition evidence. Manual Activity cannot record SYSTEM audit.
+       if (newStatus === QuoteStatus.ACCEPTED && deal) {
+         triggerToast("success", locale === "vi"
+           ? "Quote Accepted đã cung cấp commercial commitment evidence; Deal được đóng WON."
+           : "Quote Accepted supplied commercial commitment evidence; the Deal is now WON.");
++      } else {
++        triggerToast("success", locale === "vi" ? "Đã cập nhật trạng thái báo giá." : "Quote status updated.");
+       }
+     } catch (error) {
+       triggerToast("error", formatApplicationError(error, { locale }));
++    } finally {
++      quoteTransitionPending.current = false;
+     }
+   };
+ 
+--- a/src/guidance/content/crm/extendedScreens.ts
++++ b/src/guidance/content/crm/extendedScreens.ts
+@@ -201,7 +201,7 @@
+     id: "crm.deals.detail",
+     routeKey: "DEAL_DETAIL",
+     productSpace: "crm",
+-    version: 4,
++    version: 5,
+     reviewedAt: "2026-10-14",
+     title: text("Chi tiết cơ hội", "Opportunity detail"),
+     purpose: text("Theo dõi người mua, giá trị, giai đoạn, xác suất và các bước cần thực hiện để chốt cơ hội.", "Track buyer, value, stage, probability, and actions needed to close an opportunity."),
+@@ -209,6 +209,7 @@
+       task("follow-up", "Tạo công việc theo dõi cho cơ hội chưa lưu trữ, chọn người phụ trách và hạn. Mở công việc đã lưu từ danh sách liên quan. Khi chưa xác nhận kết quả, thử lại cùng yêu cầu.", "Create a follow-up task for an unarchived opportunity, choose an assignee and due date. Open saved work from the related list. Retry the same request when acknowledgement is unknown.", [CAPABILITIES.TASKS_CREATE]),
+       task("review", "Kiểm tra người mua, giá trị dự kiến, giai đoạn và bước tiếp theo.", "Review buyer, expected value, stage, and next step."),
+       task("update", "Cập nhật giai đoạn khi có bằng chứng tiến triển thực tế.", "Update the stage when real progress evidence exists.", [CAPABILITIES.DEALS_UPDATE]),
++      task("quote-status", "Kết quả cập nhật báo giá dựa trên xác nhận của lệnh báo giá. Không ghi Activity SYSTEM từ giao diện. Nếu lệnh bị từ chối, kiểm tra lỗi trước khi thử lại; hệ thống chặn gửi lặp khi đang xử lý.", "Quote status results follow the Quote command acknowledgement. The UI does not write SYSTEM Activities. If the command is rejected, review the error before retrying; duplicate submissions are blocked while processing."),
+       task("close", "Ghi lý do và kết quả khi thắng hoặc thua.", "Record the reason and outcome when won or lost.", [CAPABILITIES.DEALS_CLOSE]),
+     ],
+     relatedWorkflowIds: ["workflow.lead-to-order"],
+--- /dev/null
++++ b/tests/contract/deal-quote-transition-outcome.test.mts
+@@ -0,0 +1,66 @@
++import assert from "node:assert/strict";
++import { JSDOM } from "jsdom";
++const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: "http://localhost", pretendToBeVisual: true });
++for (const key of ["window", "document", "navigator", "localStorage", "HTMLElement", "Element", "Node", "Event", "CustomEvent", "EventTarget", "MutationObserver"] as const)
++  Object.defineProperty(globalThis, key, { value: key === "window" ? dom.window : dom.window[key], configurable: true });
++Object.defineProperties(globalThis, { IS_REACT_ACT_ENVIRONMENT: { value: true, configurable: true }, getComputedStyle: { value: dom.window.getComputedStyle.bind(dom.window), configurable: true } });
++Object.defineProperty(dom.window, "matchMedia", { value: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) });
++const React = await import("react"), { act } = React;
++const { createRoot } = await import("react-dom/client");
++const auth = await import("@/platform/identity-auth");
++assert.ok(auth.signIn({ email: "admin@unicorecrm.local", password: "admin123" }).ok);
++const { initializeApplicationComposition } = await import("@/app/composition");
++await initializeApplicationComposition({ mode: "demo" });
++const ac = await import("@/platform/access-control"), ws = await import("@/platform/workspace-context");
++await ac.loadAccessGovernance(ws.getWorkspaceContextSnapshot().workspaceId);
++const deals = await import("@/modules/deals/public/deals");
++const quotes = await import("@/modules/quotes/public/quotes");
++const { QuoteStatus } = await import("@/modules/quotes/domain/model/quote.types");
++const qservices = await import("@/modules/quotes/application/composition/quoteApplicationServices");
++const tservices = await import("@/modules/tasks/application/composition/taskApplicationServices");
++const qoriginal = qservices.getQuoteApplicationServices(), toriginal = tservices.getTaskApplicationServices();
++const seed = quotes.getQuotesSnapshot()[0]; assert.ok(seed);
++const deal = { id: "deal_quote_outcome", name: "Quote outcome", stage: "PROPOSAL", amount: 100, currency: "VND", ownerId: ac.resolveEffectiveAccess().memberId, buyerRef: { type: "CONTACT" as const, id: "contact_fixture" }, expectedCloseDate: "2026-12-01", interestedProducts: [], opportunityScore: 10, createdAt: "2026-10-21", updatedAt: "2026-10-21", lineItems: [], activities: [], resourceVersion: 1 };
++const opening = { ...seed, id: "quote_outcome", sourceDealId: deal.id, status: QuoteStatus.SENT, resourceVersion: 2 };
++let persisted = structuredClone(opening), calls = 0, commits = 0, activityCalls = 0, fail = false, hold = false, release: (() => void) | undefined;
++const { ApplicationError } = await import("@/shared/domain");
++qservices.configureQuoteApplication({ ...qoriginal, api: { ...qoriginal.api, mode: "test", commands: { ...qoriginal.api.commands,
++  async reject(id, _input, options) {
++    calls++; assert.equal(id, opening.id); assert.equal(options.expectedVersion, 2);
++    if (hold) await new Promise<void>(resolve => { release = resolve; });
++    if (fail) throw new ApplicationError({ code: "VERSION_CONFLICT", category: "CONFLICT", message: "Private rejection diagnostic", retryable: false });
++    persisted = { ...persisted, status: QuoteStatus.REJECTED, resourceVersion: 3 }; commits++;
++    return { quote: structuredClone(persisted), evidence: { authority: "test", commandId: "quote-command", correlationId: "quote-outcome-test", aggregateId: id, aggregateType: "QUOTE", version: 3, occurredAt: "2026-10-21T00:00:00Z", outcome: "COMMITTED", warnings: [], emittedEventIds: ["quote-rejected-event"], auditEvidenceIds: ["quote-rejected-audit"] } };
++  },
++} } });
++tservices.configureTaskApplication({ ...toriginal, api: { ...toriginal.api, commands: { ...toriginal.api.commands,
++  async logActivity() { activityCalls++; throw new ApplicationError({ code: "VALIDATION_FAILED", category: "VALIDATION", message: "SYSTEM forbidden", retryable: false }); },
++} } });
++const { useDealDetailController } = await import("@/modules/deals/presentation/hooks/useDealDetailController");
++const { I18nProvider } = await import("@/i18n"), { MemoryRouter, Routes, Route } = await import("react-router-dom");
++let model: ReturnType<typeof useDealDetailController> | undefined;
++function Probe() { model = useDealDetailController({ customers: [], contacts: [], setCustomers() {} }); return React.createElement("output", null, model.toast?.type); }
++const host = document.getElementById("root"); assert.ok(host); const root = createRoot(host);
++async function reset() { persisted = structuredClone(opening); await act(async () => { deals.replaceDeals([deal]); quotes.replaceQuotes([opening]); }); }
++try {
++  await reset();
++  await act(async () => root.render(React.createElement(I18nProvider, null, React.createElement(MemoryRouter, { initialEntries: [`/deals/${deal.id}`] }, React.createElement(Routes, null, React.createElement(Route, { path: "/deals/:dealId", element: React.createElement(Probe) }))))));
++  await reset(); assert.ok(model);
++  await act(async () => { await model?.handleUpdateQuoteStatus(opening.id, QuoteStatus.REJECTED); });
++  assert.equal(commits, 1); assert.equal(persisted.status, QuoteStatus.REJECTED); assert.equal(activityCalls, 0);
++  assert.equal(model?.toast?.type, "success", "confirmed Quote transition must report success independently of forbidden SYSTEM activity");
++  const beforeRetry = calls;
++  await act(async () => { await model?.handleUpdateQuoteStatus(opening.id, QuoteStatus.REJECTED); });
++  assert.equal(calls, beforeRetry, "retry of already-confirmed status must not send a conflicting transition");
++  await reset(); fail = true; const priorCommits = commits;
++  await act(async () => { await model?.handleUpdateQuoteStatus(opening.id, QuoteStatus.REJECTED); });
++  assert.equal(commits, priorCommits); assert.equal(persisted.status, QuoteStatus.SENT); assert.equal(model?.toast?.type, "error");
++  assert.ok(!model?.toast?.text.includes("Private rejection diagnostic"));
++  await reset(); fail = false; hold = true; const beforePending = calls;
++  let first: Promise<void> | undefined;
++  await act(async () => { first = model?.handleUpdateQuoteStatus(opening.id, QuoteStatus.REJECTED); await model?.handleUpdateQuoteStatus(opening.id, QuoteStatus.REJECTED); });
++  assert.equal(calls, beforePending + 1, "in-flight duplicate must send one command");
++  await act(async () => { release?.(); await first; });
++  assert.equal(model?.toast?.type, "success"); assert.equal(activityCalls, 0);
++  console.log("PASS real Deal controller + Quote command port: commit/success, real rejection/error, exact-status retry, pending duplicate, no manual SYSTEM Activity. In-process port evidence; not SQL commit proof.");
++} finally { await act(async () => root.unmount()); }

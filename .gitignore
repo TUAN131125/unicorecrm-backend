@@ -21,3 +21,6 @@
 # Transient output
 *.log
 *.tmp
+
+# Isolated acceptance runtime: local logs and generated data-protection keys are not source.
+/artifacts/activity-security/

@@ -1,0 +1,233 @@
+[
+  {
+    "repository": "frontend",
+    "file": "docs/api/openapi.json",
+    "kind": "source",
+    "sha256": "d894e313d9dad7ae78c0c9bb8fd865f06d2d04546bfbaca3683465780e7e1659",
+    "beforeSha256": "c0768ffb08cce4d3eceb8692981c8765c5ca0a6256c239d24e30870b99c3ba25"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/tasks/application/ports/TaskApiRuntime.ts",
+    "kind": "source",
+    "sha256": "c1a8a3879d1806544b42b2247290a2617952d14d58d10594d1b9e92804997440",
+    "beforeSha256": "18fed00240047dad0eb6d9126109968c4b3307c09c044c79b6782d4b0ccde37a"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/tasks/domain/model/task.types.ts",
+    "kind": "source",
+    "sha256": "e6323e3773355f6caf137f45b3fb8a0f6686cb09b71b9858329fff821492cebb",
+    "beforeSha256": "195ac276d16559001a34e55a813d6c398a34d3aaf2e685980499b982e61be6d1"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/tasks/infrastructure/http/TaskApiMapper.ts",
+    "kind": "source",
+    "sha256": "5450e376ef3b74b74f6dfda5a834b73780392ecab66d48b9aeff3c0417b4c668",
+    "beforeSha256": "3eaca9aa19d723f38ca8c0460e3d4f326e313bf8c587e6dfa534e67dfbc59688"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/tasks/public/api.ts",
+    "kind": "source",
+    "sha256": "b60a2b9f6aeae3491794866299f57fa0538ea02b092a4c85e594c524bd6e431b",
+    "beforeSha256": "de390903b4f743eb7c02712830b40cee3c0c9f4ef94e38cf22c75be44e452ced"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/leads/application/commands/leadActivityCommands.ts",
+    "kind": "source",
+    "sha256": "fe419faedb0987b992e384217d6090d2c40872e289f1c339175d357750943ef5",
+    "beforeSha256": "e141890f3df0a8dbd1272a821bbf2a033043e9edbf3b72af5af1e12491792f47"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/tasks/presentation/components/RelationshipActivityCreateModal.tsx",
+    "kind": "source",
+    "sha256": "eea63a98364500aba759e75c39426ffb875286dae68e71d224318e7b5dc297ac",
+    "beforeSha256": "41f4631c16a6c30bf09a24a8f6fa8eef39e39f519f193edaa44fc3845d3ef260"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/deals/presentation/hooks/useDealDetailController.tsx",
+    "kind": "source",
+    "sha256": "6ced84eff9af6a7b33b5e4f40d7453b60b179142d0dfdefe4c5f19c35abfc2b0",
+    "beforeSha256": "9e71339b204d13da3ab519175975e16945d4bd8d0caa4c182675b6dafb1d3f5a"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/tasks/domain/rules/manualActivityType.ts",
+    "kind": "source",
+    "sha256": "1c87fb721137611203b2bfcb6122b1a49a9ca659607b2e695391f1f4fb935ed3",
+    "beforeSha256": null
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/contract/activity-manual-write.test.mts",
+    "kind": "source",
+    "sha256": "687401cc8ce75a34b71b60fc8d0ceaf1188c7e0297c30fb99747d4056dd07b92",
+    "beforeSha256": null
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/contract/lead-manual-activity.test.mts",
+    "kind": "source",
+    "sha256": "8767df2950339321d68a9115a6342c7c3abd46a93c9595b06547d8e6cf3e9f25",
+    "beforeSha256": null
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/fixtures/typechecks/activity-manual-write.ts",
+    "kind": "source",
+    "sha256": "e6a3d18d95dbc0e5644263304103507c29b22e52b31f6c93c8d7c55c80d606b3",
+    "beforeSha256": null
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/fixtures/typechecks/activity-manual-write.tsconfig.json",
+    "kind": "source",
+    "sha256": "792326e3de5bf238c8c9fe6b8c26c303943a25abbcc64651190d672b882cc47c",
+    "beforeSha256": null
+  },
+  {
+    "repository": "frontend",
+    "file": "docs/api/openapi.sha256",
+    "kind": "generated",
+    "sha256": "c1295e07c2b714773cd58d5620723d273707351b51e60ea1a166ca07fead352a",
+    "beforeSha256": "5cfd94e163dc9f35c66b9a8924856b27d3a25b80298535deae3674fe145f7fa2"
+  },
+  {
+    "repository": "frontend",
+    "file": "docs/api/generated-client-manifest.json",
+    "kind": "generated",
+    "sha256": "486d22f40ad54d4fca8fb0e03ce7d1442f0dadf04d5f3dd4664510d23fafd44f",
+    "beforeSha256": "c0da3c34059649edf596129091ffbb08e5c1c9b32d1b05caa923181c52f7cd77"
+  },
+  {
+    "repository": "frontend",
+    "file": "docs/api/operation-coverage-ledger.json",
+    "kind": "generated",
+    "sha256": "16f35280d154adb96c2d36e183a4f54c716adeb047e692c4976b332e30ef2b61",
+    "beforeSha256": "8272fc4a3b3307bdbb173785da832b08e30abe5b67bbf0b81a1466072d0673dd"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/identityApi.ts",
+    "kind": "generated",
+    "sha256": "1912f0a59653bad13bbd6259f1c2acfbfed1caf83fd5280cc67754f82ddcd7e4",
+    "beforeSha256": "d27878bf0785fa4c8372982146774d55b62ef8a0f24fe7d28efb548b1a1e41be"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/workspaceBootstrapApi.ts",
+    "kind": "generated",
+    "sha256": "6ba0ebdf944fd20280a2fab7932b872a66f059ccbf63e14bbe45c2432dee6cf7",
+    "beforeSha256": "b87ea14015a7a5f8c63f5b5f7ae862de2768ada725ce4f688cf664c4b5e0ce9c"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/accessGovernanceApi.ts",
+    "kind": "generated",
+    "sha256": "5eb4ec0a20e78266a8d3082b5517b5fc6cd2c8a3b8442dad7ba3821f9a734852",
+    "beforeSha256": "86b07f6b3c44e7da2eac8cc726c859d5c87d449e07feb72a3c49bdbed91abaa5"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/receivablesApi.ts",
+    "kind": "generated",
+    "sha256": "3fd6719b7e36568a172f338fb36aaaf5922313080ab82bab7dfdbdaf198629a3",
+    "beforeSha256": "9327dd686a0b07bb0792e3b734a234f60964fa16e99ed087991e245386734c00"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/financialApi.ts",
+    "kind": "generated",
+    "sha256": "437e6bbda4c32575133499ffbd6d8f30839581753e9652bf1a82b59f2f0f0dad",
+    "beforeSha256": "6dc2935c034d1e72f5f75c596303b69dd86e16577d010ad00afb5a56e5f0acf4"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/commercialApi.ts",
+    "kind": "generated",
+    "sha256": "2cf2edc09d033369c7b370658bb0bd4d207a59653455432de2e1b5be6e76cb1f",
+    "beforeSha256": "840202a9c962b2562650cbf7ab523909fb2b062174c674c9e2cc5f891e251b12"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/workspaceConfigurationApi.ts",
+    "kind": "generated",
+    "sha256": "d93bc47de8b1fed2f6e34b3f22e86c7216c412397fb40898cd4d17efdb1310ba",
+    "beforeSha256": "c95428153c43397133231df88e638d4a256086822688050d0f7b307200456a1b"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/studioQuickSetupApi.ts",
+    "kind": "generated",
+    "sha256": "cf58205387265bf57a2a99c69e356d02bb46f63b87fc76f30a5e8447ff17f2b1",
+    "beforeSha256": "0c86e25f3f0225c436f25e9250b76c7f103b4b1833b22fd816dd8b6a7e41bab8"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/crmConfigurationApi.ts",
+    "kind": "generated",
+    "sha256": "6391834a3c0549de8350d3ee8b99b272df19effa412ad8b4176f1044ece9ef6d",
+    "beforeSha256": "3cb2c7836b464c3288f467885057bc19a5cb5074d74351e903a8cc8535b5cdf6"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/productConfigurationApi.ts",
+    "kind": "generated",
+    "sha256": "36dcbeb794aa83e40de2a6de2d124fd9f605a237bd5fd262b0ea59ef154716a9",
+    "beforeSha256": "06081880773172005373273db9c96c40e79319036fd483ad64f8fd7a340f309e"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/financialConfigurationApi.ts",
+    "kind": "generated",
+    "sha256": "c09ea8a72b4d0af7d22bd17a7a3de46bbde94a756b13ad9ec44738b48b743c08",
+    "beforeSha256": "7ff52208d308295dfdbcc9ab023765b436dbab016b3afed1c25b0d9cf1a41d18"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/integrationConfigurationApi.ts",
+    "kind": "generated",
+    "sha256": "57f7f2c6d552800179bd37ce174bf55e23da19ae06fddd6b54cf0a1190274131",
+    "beforeSha256": "920c33f50bf6144cb82645848730c8067273be3f2c2c53732fe6f0b52b025cc2"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/aiApi.ts",
+    "kind": "generated",
+    "sha256": "8905e7bff7a541ccd40a771f97bc7034946e1ba8cb3d9ae4b0cdf6bd2c33757e",
+    "beforeSha256": "4320fb8061f54dbb280e0e3a02a9ebc2de11e8dcd0fe411199c28640f88ee48f"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/generated/communicationsApi.ts",
+    "kind": "generated",
+    "sha256": "7a22fac9d9033e3bd255774a74aee4276033c770aa3ea8bcaeab4dcaaac8613a",
+    "beforeSha256": "47cb2701a41ecf4541ee9d52e0286772a55e1906b064fa8715838f1e843c3add"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/platform/api/contracts/generatedOpenApiRuntimeContract.ts",
+    "kind": "generated",
+    "sha256": "818e2ea3616bab9954ea77c597cbd4ba5539aea61c8f47ce7cc3e4d09e6763a2",
+    "beforeSha256": "941710de15b8fc63583bb64bafe46bfc07712619d2554e99f30391d287aecbfa"
+  },
+  {
+    "repository": "frontend",
+    "file": "docs/api/api-operation-catalog.json",
+    "kind": "generated",
+    "sha256": "0b19e952d29543c59916c865759c3aebcf357e398c623e858e53dac7f169e2fb",
+    "beforeSha256": "65a87e501e0d1cffdef3b26cef9f646fa9ad4febd0399dbc2ee843984aec1f2a"
+  },
+  {
+    "repository": "backend",
+    "file": "scripts/verify-activity-security.ps1",
+    "kind": "source",
+    "sha256": "bb746212280e85f1c5378fa2ae427df8abef24822a5b6a5d466d10fd62c78e57",
+    "beforeSha256": "dd7a7eaa6a0b837aa726cd79a0845ba1e833769f8d9bbccb97d1a33d77d82c6e"
+  }
+]

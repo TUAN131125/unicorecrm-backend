@@ -93,6 +93,9 @@ namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "OccurredAt", "ActivityId");
 
+                    b.HasIndex("WorkspaceId", "RecordModuleKey", "RecordId", "OccurredAt", "ActivityId")
+                        .HasDatabaseName("IX_Activities_RecordHistory");
+
                     b.ToTable("Activities", "tasks");
                 });
 

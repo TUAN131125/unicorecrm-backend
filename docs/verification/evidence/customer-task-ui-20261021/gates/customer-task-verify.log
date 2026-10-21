@@ -1,0 +1,72 @@
+
+> unicorecrm-web@0.24.0-contract.0 verify
+> node scripts/quality/run-quality-pipeline.mjs --without-acceptance
+
+
+[quality 1/327] START lint/quality.lint (lint)
+[quality 1/327] PASS lint/quality.lint (78.4s)
+
+[quality 2/327] START typecheck/quality.strict-core (typecheck:strict-core)
+[quality 2/327] PASS typecheck/quality.strict-core (3.6s)
+
+[quality 3/327] START typecheck/quality.strict-type-regions (check:strict-type-regions)
+Strict type regions PASS: 109 files, strict global source, exact optional/indexed access boundaries, zero any/as-any/non-null/suppressions.
+[quality 3/327] PASS typecheck/quality.strict-type-regions (1.9s)
+
+[quality 4/327] START typecheck/quality.type-safety-budget (check:type-safety-budget)
+Type-safety budget PASS: any=180, as-any=15, non-null=56.
+[quality 4/327] PASS typecheck/quality.type-safety-budget (12.5s)
+
+[quality 5/327] START architecture/quality.repository-naming (check:repository-naming)
+Repository naming and documentation contracts: OK (2351 files, 2297 text files, 143 markdown files)
+[quality 5/327] PASS architecture/quality.repository-naming (5.8s)
+
+[quality 6/327] START architecture/quality.package-lock-registry (check:package-lock-registry)
+Package lock registry portability: PASS
+[quality 6/327] PASS architecture/quality.package-lock-registry (0.3s)
+
+[quality 7/327] START architecture/quality.architecture (check:architecture)
+Architecture boundaries: OK
+Module self-barrel boundary check passed for 16 modules.
+[quality 7/327] PASS architecture/quality.architecture (29.1s)
+
+[quality 8/327] START architecture/quality.application-composition (check:application-composition)
+(node:3420) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/quality/core/typescript-path-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3420) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+Application composition contracts: PASS (15 self-composed connected modules, 5 workflows, fail-closed projection writes, narrow host bindings)
+Composition boundary gateways: PASS (connected transport metadata, error identity, demo reset)
+[quality 8/327] PASS architecture/quality.application-composition (1.7s)
+
+[quality 9/327] START architecture/quality.workspace-capability-manifest (check:workspace-capability-manifest)
+Workspace capability manifest contracts: PASS (authority mode, native UI read/write, external/historical/disabled states, shared route/sidebar source)
+[quality 9/327] PASS architecture/quality.workspace-capability-manifest (7.4s)
+
+[quality 10/327] START architecture/quality.backend-readiness (check:backend-readiness)
+(node:10196) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/quality/core/typescript-path-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10196) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+AssertionError [ERR_ASSERTION]: Circular dependencies remain: [["src/modules/contacts/presentation/components/ContactFormModal.tsx","src/modules/contacts/presentation/model/contactDraftRecovery.ts"],["src/modules/tasks/presentation/components/TaskCreateModal.tsx","src/modules/tasks/presentation/hooks/useTaskCreateController.ts"]]
++ actual - expected
+
++ [
++   [
++     'src/modules/contacts/presentation/components/ContactFormModal.tsx',
++     'src/modules/contacts/presentation/model/contactDraftRecovery.ts'
++   ],
++   [
++     'src/modules/tasks/presentation/components/TaskCreateModal.tsx',
++     'src/modules/tasks/presentation/hooks/useTaskCreateController.ts'
++   ]
++ ]
+- []
+
+    at <anonymous> (D:\Project_All\UnicoreCRM\frontend\unicorecrm-web\tests\quality\architecture\check-backend-readiness.mts:114:8)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/quality/run-node-entry.mjs:18:3
+[quality 10/327] FAIL architecture/quality.backend-readiness: Node step failed with 1.
+
+[quality] FAIL 9/327 passed across 10 groups (170.3s).

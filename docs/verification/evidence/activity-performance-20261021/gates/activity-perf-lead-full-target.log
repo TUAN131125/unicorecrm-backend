@@ -1,0 +1,52 @@
+Lead full-page target identity: Qualification Disqualified target/version/dirty/discard/duplicate/failure PASS
+You have Reduced Motion enabled on your device. Animations may not appear as expected.. For more information and steps for solving, visit https://motion.dev/troubleshooting/reduced-motion-disabled
+{
+  "qualificationCalls": [
+    {
+      "kind": "NURTURE",
+      "id": "qualification-A",
+      "version": 7
+    },
+    {
+      "kind": "NURTURE",
+      "id": "qualification-A",
+      "version": 7
+    },
+    {
+      "kind": "OPPORTUNITY",
+      "id": "qualification-A",
+      "version": 7
+    },
+    {
+      "kind": "OPPORTUNITY",
+      "id": "qualification-A",
+      "version": 7
+    },
+    {
+      "kind": "DIRECT_SALE",
+      "id": "qualification-A",
+      "version": 7
+    }
+  ],
+  "conversionCalls": [
+    {
+      "id": "qualification-A",
+      "version": 3,
+      "key": "43c15d7c-f68b-4aaf-aa93-b1ea0ea90420",
+      "subject": "subject-A"
+    },
+    {
+      "id": "qualification-A",
+      "version": 3,
+      "key": "43c15d7c-f68b-4aaf-aa93-b1ea0ea90420",
+      "subject": "subject-A"
+    },
+    {
+      "id": "qualification-B",
+      "version": 9,
+      "key": "72bf9e33-aa19-453c-84df-03fbe33793dc",
+      "subject": "subject-B"
+    }
+  ],
+  "result": "Lead full-page real integration PASS"
+}

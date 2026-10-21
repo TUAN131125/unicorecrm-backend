@@ -1,0 +1,5 @@
+{
+  "activityHttp": 201,
+  "barrier": "Activity INSERT blocked by test table lock",
+  "mutationCompletedBeforeActivityRelease": false
+}

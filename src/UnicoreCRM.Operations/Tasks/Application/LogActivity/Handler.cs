@@ -10,7 +10,7 @@ internal sealed record Command(LogActivityRequest Request, TaskCommandMetadata M
 internal sealed class Handler(
     TaskAuthorization authorization,
     ITasksPersistence persistence,
-    ICustomerActivityReferenceAuthority customerReferences,
+    ActivityRecordAccess recordAccess,
     TimeProvider timeProvider)
 {
     internal async Task<TaskOperationResult<ActivityMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
@@ -22,29 +22,27 @@ internal sealed class Handler(
         if (!LogActivityValidation.TryActivity(command.Request, out var input, out var fields))
             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(fields));
 
-        // TaskActivity record-access and field-security semantics are both AUTHORITY_GAP, so
-        // Activities fail closed. See TaskActivitySecurity for why neither can be proven and what
-        // this gate does and does not claim.
+        // Free-text content cannot bypass restrictive Tasks field security.
+        // Referenced CRM owners govern record scope below.
         if (!TaskActivitySecurity.IsReachable(access.Value!))
             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.AccessDenied());
 
         var trusted = access.Value!.Trusted;
-        if (string.Equals(input!.References.RecordModuleKey, "customers", StringComparison.OrdinalIgnoreCase))
-        {
-            // Until canonical subject AND its current target authority can be validated
-            // through admitted contracts, Customer logs support only the direct reference.
-            if (input.References.RelationshipType is not null)
-                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(
-                    new Dictionary<string, string[]> { ["relationshipRef"] = ["Customer Activity logging does not support relationshipRef."] }));
-            // Current Customer authority and lifecycle also gate protected cached replay.
-            if (!await customerReferences.CanReferenceAsync(trusted.WorkspaceId, input.References.RecordId!,
-                metadata.RequestId, metadata.CorrelationId, cancellationToken))
-                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
-        }
         var fingerprint = TaskCommandSupport.Fingerprint(input);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "logActivity", "WORKSPACE", command.Metadata.IdempotencyKey);
         var existing = await persistence.FindCreateIdempotencyForUpdateAsync(scopeKey, cancellationToken);
+        access = await authorization.AuthorizeAsync(TaskCapabilities.Update, metadata, cancellationToken);
+        if (!access.IsSuccess) return TaskOperationResult<ActivityMutationResponse>.Failure(access.Error!);
+        if (access.Value!.Trusted.WorkspaceId != trusted.WorkspaceId || !TaskActivitySecurity.IsReachable(access.Value))
+            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.AccessDenied());
+        // Receipt acquisition can wait behind another command. Resolve current record
+        // authority after that wait, including on replay, before exposing any content.
+        if (!await recordAccess.CanAccessAsync(access.Value, input!.References, metadata, true, cancellationToken))
+            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
+        var scopes = await recordAccess.ReadScopesAsync(access.Value, metadata, cancellationToken);
+        if (!await persistence.GuardActivityReferencesAsync(trusted.WorkspaceId, input.References, scopes, cancellationToken))
+            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
         if (existing is not null)
         {
             var replayError = TaskCommandSupport.ReplayError(existing, fingerprint);

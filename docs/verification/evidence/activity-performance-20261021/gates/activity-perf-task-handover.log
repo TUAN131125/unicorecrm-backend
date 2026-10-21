@@ -1,0 +1,4 @@
+D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Operations\Tasks\Infrastructure\Persistence\EfTasksPersistence.cs(16,21): error CS0103: The name 'ActivityReadSql' does not exist in the current context [D:\Project_All\UnicoreCRM\backend\scripts\TasksHandoverVerifier\TasksHandoverVerifier.csproj]
+D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Operations\Tasks\Infrastructure\Persistence\EfTasksPersistence.cs(103,23): error CS0103: The name 'ActivityReadSql' does not exist in the current context [D:\Project_All\UnicoreCRM\backend\scripts\TasksHandoverVerifier\TasksHandoverVerifier.csproj]
+
+The build failed. Fix the build errors and run again.

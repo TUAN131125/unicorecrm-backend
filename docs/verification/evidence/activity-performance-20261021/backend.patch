@@ -1,0 +1,1965 @@
+diff --git a/.gitignore b/.gitignore
+index bab706b..40b48f3 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -21,3 +21,6 @@
+ # Transient output
+ *.log
+ *.tmp
++
++# Isolated acceptance runtime: local logs and generated data-protection keys are not source.
++/artifacts/activity-security/
+diff --git a/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj b/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj
+index e5f5d56..28b960b 100644
+--- a/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj
++++ b/scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj
+@@ -7,6 +7,7 @@
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Domain/*.cs" Link="Tasks/Domain/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/Common/*.cs" Link="Tasks/Common/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/TaskContracts.cs" Link="Tasks/TaskContracts.cs" />
++    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs" Link="Tasks/ActivityReferenceAuthority.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ContactFollowUpProjection.cs" Link="Tasks/ContactFollowUpProjection.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/ReadContactFollowUp/*.cs" Link="Tasks/ReadContactFollowUp/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs" Link="Tasks/TasksDbContext.cs" />
+diff --git a/scripts/ContactFollowUpVerifier/Program.cs b/scripts/ContactFollowUpVerifier/Program.cs
+index a9dfc93..34bb439 100644
+--- a/scripts/ContactFollowUpVerifier/Program.cs
++++ b/scripts/ContactFollowUpVerifier/Program.cs
+@@ -59,7 +59,7 @@ Check(await ActivityReachable(), "existing unrestricted WORKSPACE Activity gate
+ foreach (var scope in new[] { RecordAccessScopeFilter.OwnedByMember, RecordAccessScopeFilter.Denied, RecordAccessScopeFilter.NotEvaluated })
+ {
+     evaluator.Scope = scope;
+-    Check(!await ActivityReachable(), $"existing Activity scope gate refuses {scope}");
++    Check(await ActivityReachable(), $"Tasks {scope} does not replace referenced CRM record scope");
+ }
+ evaluator.Scope = RecordAccessScopeFilter.Workspace;
+ foreach (var mode in new[] { RecordFieldEnforcement.ReadOnly, RecordFieldEnforcement.Withheld })
+@@ -128,7 +128,8 @@ try
+ }
+ finally
+ {
+-    await tasks.Database.EnsureDeletedAsync();
++    if (!args.Contains("--keep-database")) await tasks.Database.EnsureDeletedAsync();
++    else Console.WriteLine($"Isolated verification database retained: {database}");
+ }
+ 
+ sealed class ProjectionContext(DbContextOptions<ProjectionContext> options) : DbContext(options)
+diff --git a/scripts/TasksHandoverVerifier/Program.cs b/scripts/TasksHandoverVerifier/Program.cs
+index 835a8c3..9141e0e 100644
+--- a/scripts/TasksHandoverVerifier/Program.cs
++++ b/scripts/TasksHandoverVerifier/Program.cs
+@@ -245,6 +245,7 @@ sealed class Evaluator(TrustedWorkspaceContext trusted) : IRecordAccessEvaluator
+ }
+ sealed class MemoryPersistence : ITasksPersistence
+ {
++    public Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references, IReadOnlyList<ActivityReadScope> scopes, CancellationToken cancellationToken) => throw new NotSupportedException();
+     internal readonly List<TaskItem> Items = [];
+     internal readonly List<TaskAuditRecord> Audits = [];
+     internal readonly List<TaskOutboxMessage> Events = [];
+diff --git a/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj b/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj
+index a6e7397..a7d48fe 100644
+--- a/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj
++++ b/scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj
+@@ -7,10 +7,12 @@
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Domain/*.cs" Link="Tasks/Domain/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/Common/*.cs" Link="Tasks/Common/%(Filename)%(Extension)" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/TaskContracts.cs" Link="Tasks/TaskContracts.cs" />
++    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs" Link="Tasks/ActivityReferenceAuthority.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/LeadHandoverTaskParticipant.cs" Link="Tasks/LeadHandoverTaskParticipant.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/LeadHandover/Participant.cs" Link="Tasks/Participant.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs" Link="Tasks/TasksDbContext.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs" Link="Tasks/EfTasksPersistence.cs" />
++    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs" Link="Tasks/ActivityReadSql.cs" />
+     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/*.cs" Link="Tasks/Migrations/%(Filename)%(Extension)" />
+   </ItemGroup>
+ </Project>
+diff --git a/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs b/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs
+index 195a61f..9ad62c4 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs
+@@ -38,6 +38,7 @@ internal sealed class ContactsRelationshipConflictException : Exception { }
+ 
+ internal interface IContactsPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<ListContacts.ContactListSlice> ReadContactPageAsync(ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken);
+     Task<IReadOnlyDictionary<string, long>> ReadContactStatusCountsAsync(ListContacts.ContactListSpecification specification, CancellationToken cancellationToken);
+     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs b/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs
+index ba8e900..c07f736 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs
+@@ -32,6 +32,8 @@ internal sealed partial class Handler(
+             organizations.Select(item => item.OrganizationId).Distinct(StringComparer.Ordinal).ToArray(), query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+         var customerResolution = await customerTargets.ResolveVisibleAsync(access.Value.Trusted,
+             customers.Select(item => item.CustomerId).Distinct(StringComparer.Ordinal).ToArray(), query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
++        var subjectResolution = await customerTargets.ResolveSubjectAsync(access.Value.Trusted,
++            "CONTACT", contact.ContactId, query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+ 
+         var canReadOrganizations = access.Value.Authorization.CanRead("organizationRelationships");
+         var visibleOrganizations = canReadOrganizations && organizationResolution.CanReadResource
+@@ -43,9 +45,11 @@ internal sealed partial class Handler(
+         var organizationDocuments = visibleOrganizations.Select(item => ContactProjection.OrganizationRelationship(item, organizationResolution.VisibleTargets[item.OrganizationId])).ToArray();
+         var customerDocuments = visibleCustomers.Select(item => ContactProjection.CustomerRelationship(item, customerResolution.VisibleTargets[item.CustomerId])).ToArray();
+         var activeOrganizationIds = visibleOrganizations.Where(item => item.EffectiveTo is null).Select(item => item.OrganizationId).Distinct(StringComparer.Ordinal).ToArray();
+-        var activeCustomerIds = visibleCustomers.Where(item => item.EffectiveTo is null).Select(item => item.CustomerId).Distinct(StringComparer.Ordinal).ToArray();
++        var activeCustomerIds = visibleCustomers.Where(item => item.EffectiveTo is null).Select(item => item.CustomerId)
++            .Concat(subjectResolution.VisibleTargets.Keys).Distinct(StringComparer.Ordinal).ToArray();
+         var linked = activeOrganizationIds.Select(id => new ContactRelationshipTargetDocument("organizations", id) { Label = organizationResolution.VisibleTargets[id] })
+-            .Concat(activeCustomerIds.Select(id => new ContactRelationshipTargetDocument("customers", id) { Label = customerResolution.VisibleTargets[id] })).ToArray();
++            .Concat(activeCustomerIds.Select(id => new ContactRelationshipTargetDocument("customers", id)
++            { Label = subjectResolution.VisibleTargets.TryGetValue(id, out var label) ? label : customerResolution.VisibleTargets[id] })).ToArray();
+ 
+         var allowed = new List<string>();
+         if (contact.ArchivedAt is null)
+diff --git a/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs
+index 9114b49..cddbee1 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs
+@@ -1,13 +1,32 @@
+ using System.Text.RegularExpressions;
+ using UnicoreCRM.Crm.Contacts.Application.Common;
+ using UnicoreCRM.Crm.Contacts.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+ namespace UnicoreCRM.Crm.Contacts.Application.ProvideContactRecordAccessFacts;
+ 
+-internal sealed partial class ContactRecordAccessFactProvider(IContactsPersistence persistence) : IRecordAccessFactProvider
++internal sealed partial class ContactRecordAccessFactProvider(IContactsPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var contact = await persistence.ReadContactAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        if (contact is null || (forWrite && (contact.ArchivedAt is not null || contact.Status == "archived"))) return false;
++        if (relationship is null) return true;
++        if (relationship.Type == "CONTACT") return relationship.Id == recordId;
++        if (relationship.Type != "ORGANIZATION_ACCOUNT" || relationship.Id is null) return false;
++        if (forWrite)
++            return await persistence.HasActiveOrganizationRelationshipAsync(workspace.WorkspaceId, recordId, relationship.Id, cancellationToken);
++        // Ending an affiliation prevents new writes; it does not erase a valid past
++        // interaction. Current access to both records is still required by Tasks.
++        var history = await persistence.ReadOrganizationRelationshipsAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return history.Any(item => item.OrganizationId == relationship.Id);
++    }
++
+     private static readonly RecordAccessResourceDescriptor ContactsDescriptor = RecordAccessResourceDescriptor.Create(
+         resourceKey: ContactAuthorization.ResourceKey,
+         readCapability: ContactCapabilities.Read.Capability,
+diff --git a/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs b/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs
+index c5ae29f..8bb6188 100644
+--- a/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs
++++ b/src/UnicoreCRM.Crm/Contacts/ContactsModule.cs
+@@ -42,6 +42,8 @@ internal static class ContactsModule
+         services.AddScoped<Contracts.IContactQualificationParticipant,
+             Application.ResolveQualificationContact.Handler>();
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideContactRecordAccessFacts.ContactRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideContactRecordAccessFacts.ContactRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs b/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs
+index 5e0c8b8..6b35d96 100644
+--- a/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs
+@@ -9,6 +9,18 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence;
+ 
+ internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : IContactsPersistence
+ {
++    // Read-side reference facts owned by this module; historical relations remain facts.
++    public string ActivityReadFactsSql => """
++SELECT c.WorkspaceId, c.ContactId AS RecordId, c.OwnerId, CASE WHEN c.ArchivedAt IS NULL AND c.Status<>N'archived' THEN 1 ELSE 0 END AS CanLog,
++    N'CONTACT' AS RelationshipType, c.ContactId AS RelationshipId
++FROM contacts.Contacts c
++UNION ALL
++SELECT c.WorkspaceId, c.ContactId AS RecordId, c.OwnerId, CASE WHEN c.ArchivedAt IS NULL AND c.Status<>N'archived' AND r.EffectiveTo IS NULL THEN 1 ELSE 0 END AS CanLog,
++    N'ORGANIZATION_ACCOUNT' AS RelationshipType, r.OrganizationId AS RelationshipId
++FROM contacts.Contacts c INNER JOIN contacts.OrganizationRelationships r
++    ON r.WorkspaceId=c.WorkspaceId AND r.ContactId=c.ContactId
++""";
++
+     public async Task<Application.ListContacts.ContactListSlice> ReadContactPageAsync(Application.ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken)
+     {
+         var filtered = ContactRows(specification);
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs b/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs
+index 7de321a..e77cb05 100644
+--- a/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs
++++ b/src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs
+@@ -21,6 +21,7 @@ internal sealed record CustomerOperationResult<T>(T? Value, CustomerOperationErr
+ 
+ internal interface ICustomersPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<Customer?> ReadCustomerAsync(string workspaceId, string customerId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, IReadOnlyCollection<string> customerIds, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs
+index 31a4383..5cf65dc 100644
+--- a/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs
+@@ -1,13 +1,24 @@
+ using System.Text.RegularExpressions;
+ using UnicoreCRM.Crm.Customers.Application.Common;
+ using UnicoreCRM.Crm.Customers.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+ namespace UnicoreCRM.Crm.Customers.Application.ProvideCustomerRecordAccessFacts;
+ 
+-internal sealed partial class CustomerRecordAccessFactProvider(ICustomersPersistence persistence) : IRecordAccessFactProvider
++internal sealed partial class CustomerRecordAccessFactProvider(ICustomersPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var customer = await persistence.ReadCustomerAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return customer is not null && (!forWrite || customer.Status is "NEW" or "ACTIVE" or "INACTIVE")
++            && (relationship is null || (relationship.Type == customer.RelationshipType && relationship.Id == customer.RelationshipId));
++    }
++
+     private static readonly RecordAccessResourceDescriptor CustomersDescriptor = RecordAccessResourceDescriptor.Create(
+         resourceKey: CustomerAuthorization.ResourceKey,
+         readCapability: CustomerCapabilities.View.Capability,
+diff --git a/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs b/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs
+index 6be34df..d161391 100644
+--- a/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs
++++ b/src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs
+@@ -8,6 +8,19 @@ namespace UnicoreCRM.Crm.Customers.Application.ResolveRelationshipTargets;
+ internal sealed class Participant(CustomerAuthorization authorization, ICustomersPersistence persistence, TimeProvider timeProvider)
+     : ICustomerRelationshipTargetParticipant
+ {
++    public async Task<CustomerRelationshipTargetResolution> ResolveSubjectAsync(
++        TrustedWorkspaceContext trusted, string subjectType, string subjectId,
++        string requestId, string correlationId, CancellationToken cancellationToken)
++    {
++        // Canonical account subjects are distinct from Contact stakeholder memberships.
++        // Resolve by the persisted unique subject, then apply the same Customer security.
++        if (subjectType is not ("CONTACT" or "ORGANIZATION_ACCOUNT"))
++            return new(false, new Dictionary<string, string?>(), new HashSet<string>(StringComparer.Ordinal));
++        var record = await persistence.LoadBySubjectAsync(trusted.WorkspaceId, subjectType, subjectId, cancellationToken);
++        return await ResolveVisibleAsync(trusted, record is null ? [] : [record.CustomerId],
++            requestId, correlationId, cancellationToken);
++    }
++
+     public async Task<CustomerRelationshipTargetResolution> ResolveVisibleAsync(
+         TrustedWorkspaceContext trusted, IReadOnlyCollection<string> customerIds,
+         string requestId, string correlationId, CancellationToken cancellationToken)
+diff --git a/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs b/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs
+index abbfc04..ac260c8 100644
+--- a/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs
++++ b/src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs
+@@ -12,6 +12,10 @@ internal sealed record CustomerRelationshipTargetResolution(
+ 
+ internal interface ICustomerRelationshipTargetParticipant
+ {
++    Task<CustomerRelationshipTargetResolution> ResolveSubjectAsync(
++        TrustedWorkspaceContext trusted, string subjectType, string subjectId,
++        string requestId, string correlationId, CancellationToken cancellationToken);
++
+     Task<CustomerRelationshipTargetResolution> ResolveVisibleAsync(
+         TrustedWorkspaceContext trusted,
+         IReadOnlyCollection<string> customerIds,
+diff --git a/src/UnicoreCRM.Crm/Customers/CustomersModule.cs b/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
+index ee36791..488653d 100644
+--- a/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
++++ b/src/UnicoreCRM.Crm/Customers/CustomersModule.cs
+@@ -40,6 +40,8 @@ internal static class CustomersModule
+         services.AddScoped<ILeadCustomerConversionParticipant, Application.ResolveForLeadConversion.Participant>();
+         services.AddScoped<ICustomerRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideCustomerRecordAccessFacts.CustomerRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideCustomerRecordAccessFacts.CustomerRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs b/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs
+index 101818b..5b6e5db 100644
+--- a/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs
++++ b/src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs
+@@ -9,6 +9,11 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
+ 
+ internal sealed class EfCustomersPersistence(CustomersDbContext dbContext) : ICustomersPersistence
+ {
++    // Module-owned read-side reference projection, containing no Activity content.
++    public string ActivityReadFactsSql => """
++SELECT WorkspaceId, CustomerId AS RecordId, OwnerId, CASE WHEN Status IN (N'NEW',N'ACTIVE',N'INACTIVE') THEN 1 ELSE 0 END AS CanLog, RelationshipType, RelationshipId FROM customers.Customers
++""";
++
+     public async Task<ICustomersTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new Transaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
+     public void AddCustomer(Customer customer) => dbContext.Customers.Add(customer);
+diff --git a/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs b/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs
+index 1079900..7100ec4 100644
+--- a/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs
+@@ -4,6 +4,7 @@ namespace UnicoreCRM.Crm.Leads.Application.Common;
+ 
+ internal interface ILeadsPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
+     Task<Lead?> LoadLeadForClaimAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
+     Task<Lead?> LoadLeadAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs
+index 5fdeca9..a8954dd 100644
+--- a/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs
+@@ -1,5 +1,6 @@
+ using UnicoreCRM.Crm.Leads.Application.Common;
+ using UnicoreCRM.Crm.Leads.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+@@ -11,8 +12,17 @@ namespace UnicoreCRM.Crm.Leads.Application.ProvideLeadRecordAccessFacts;
+ /// authoritative for the decision. It authorizes nothing, queries only the trusted Workspace, and
+ /// writes no Lead state, audit record or outbox message.
+ /// </summary>
+-internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence) : IRecordAccessFactProvider
++internal sealed class LeadRecordAccessFactProvider(ILeadsPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var lead = await persistence.ReadLeadAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return lead is not null && (!forWrite || lead.ArchivedAt is null)
++            && (relationship is null || (relationship.Type == lead.RelationshipType && relationship.Id == lead.RelationshipId));
++    }
+     /// <summary>
+     /// Only capabilities behind an admitted Leads operation are declared. Leads has no delete,
+     /// export or approval operation, so none is declared and none can ever be granted.
+diff --git a/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs b/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs
+index 502fcb8..d98a387 100644
+--- a/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs
+@@ -8,6 +8,11 @@ namespace UnicoreCRM.Crm.Leads.Infrastructure.Persistence;
+ 
+ internal sealed class EfLeadsPersistence(LeadsDbContext dbContext) : ILeadsPersistence, ILeadKanbanPersistence
+ {
++    // Module-owned read-side reference projection, containing no Activity content.
++    public string ActivityReadFactsSql => """
++SELECT WorkspaceId, LeadId AS RecordId, ScopeOwnerId AS OwnerId, CASE WHEN ArchivedAt IS NULL THEN 1 ELSE 0 END AS CanLog, RelationshipType, RelationshipId FROM leads.Leads
++""";
++
+     public async Task<ILeadsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new LeadsTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
+ 
+diff --git a/src/UnicoreCRM.Crm/Leads/LeadsModule.cs b/src/UnicoreCRM.Crm/Leads/LeadsModule.cs
+index 7dae537..89cd952 100644
+--- a/src/UnicoreCRM.Crm/Leads/LeadsModule.cs
++++ b/src/UnicoreCRM.Crm/Leads/LeadsModule.cs
+@@ -54,6 +54,8 @@ internal static class LeadsModule
+         // Leads publishes its own record-access facts to AccessControl. AccessControl never reaches
+         // into LeadsDbContext; it resolves this owner-owned contract instead.
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs b/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs
+index 2797335..a7cd0fa 100644
+--- a/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs
++++ b/src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs
+@@ -21,6 +21,7 @@ internal sealed record OrganizationOperationResult<T>(T? Value, OrganizationOper
+ 
+ internal interface IOrganizationsPersistence
+ {
++    string ActivityReadFactsSql { get; }
+     Task<Organization?> ReadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, CancellationToken cancellationToken);
+     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, IReadOnlyCollection<string> organizationIds, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs b/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs
+index c4c7e0e..a552b89 100644
+--- a/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs
++++ b/src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs
+@@ -1,13 +1,24 @@
+ using System.Text.RegularExpressions;
+ using UnicoreCRM.Crm.Organizations.Application.Common;
+ using UnicoreCRM.Crm.Organizations.Contracts;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ using UnicoreCRM.Platform.AccessControl.Contracts;
+ using UnicoreCRM.Platform.Workspace.Contracts;
+ 
+ namespace UnicoreCRM.Crm.Organizations.Application.ProvideOrganizationRecordAccessFacts;
+ 
+-internal sealed partial class OrganizationRecordAccessFactProvider(IOrganizationsPersistence persistence) : IRecordAccessFactProvider
++internal sealed partial class OrganizationRecordAccessFactProvider(IOrganizationsPersistence persistence) : IActivityReferenceAuthority
+ {
++    public string ReadFactsSql => persistence.ActivityReadFactsSql;
++
++    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
++    {
++        var organization = await persistence.ReadOrganizationAsync(workspace.WorkspaceId, recordId, cancellationToken);
++        return organization is not null && (!forWrite || organization.Status != "archived")
++            && (relationship is null || (relationship.Type == "ORGANIZATION_ACCOUNT" && relationship.Id == recordId));
++    }
++
+     private static readonly RecordAccessResourceDescriptor OrganizationsDescriptor = RecordAccessResourceDescriptor.Create(
+         resourceKey: OrganizationAuthorization.ResourceKey,
+         readCapability: OrganizationCapabilities.Read.Capability,
+diff --git a/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs b/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs
+index 2c9d897..791c61e 100644
+--- a/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs
++++ b/src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs
+@@ -8,6 +8,11 @@ namespace UnicoreCRM.Crm.Organizations.Infrastructure.Persistence;
+ 
+ internal sealed class EfOrganizationsPersistence(OrganizationsDbContext dbContext) : IOrganizationsPersistence
+ {
++    // Module-owned read-side reference projection, containing no Activity content.
++    public string ActivityReadFactsSql => """
++SELECT WorkspaceId, OrganizationId AS RecordId, OwnerId, CASE WHEN Status<>N'archived' THEN 1 ELSE 0 END AS CanLog, N'ORGANIZATION_ACCOUNT' AS RelationshipType, OrganizationId AS RelationshipId FROM organizations.Organizations
++""";
++
+     public async Task<IOrganizationsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new Transaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
+     public void AddOrganization(Organization organization) => dbContext.Organizations.Add(organization);
+diff --git a/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs b/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs
+index 9d27f8b..3b57af2 100644
+--- a/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs
++++ b/src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs
+@@ -34,6 +34,8 @@ internal static class OrganizationsModule
+         services.AddScoped<IOrganizationRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
+         services.AddScoped<IOrganizationCustomerSubjectParticipant, Application.ResolveCustomerSubject.Participant>();
+         services.AddScoped<IRecordAccessFactProvider, Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
++        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
++            Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
+         return services;
+     }
+ }
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs b/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs
+index 01be1dc..a3872be 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs
+@@ -130,49 +130,14 @@ internal static class TaskFieldSecurity
+ }
+ 
+ /// <summary>
+-/// The <c>TaskActivity</c> reachability gate. It is <b>not</b> Activity field security, and must not
+-/// be described as such.
+-///
+-/// <para><c>listActivities</c> and <c>logActivity</c> are admitted operations that authorize the
+-/// <c>tasks.read</c> and <c>tasks.update</c> capabilities, which the operation registry proves. What
+-/// no current authority settles is what an Activity <em>is</em> for record access:</para>
+-///
+-/// <list type="bullet">
+-/// <item>A <c>TaskActivity</c> carries no task reference, so no Activity can be attributed to a Task
+-/// and Activities cannot be shown to live inside the <c>tasks</c> record scope.</item>
+-/// <item>Its <c>actorId</c> is the actor, not one of the admitted ownership attributes
+-/// (<c>ownerId</c>, <c>assigneeId</c>, <c>createdBy</c>, <c>assignedTo</c>), so there is no owner an
+-/// OWN, TEAM or CUSTOM scope could be evaluated against.</item>
+-/// <item>Activities declare no resource descriptor, no capability of their own and no field
+-/// vocabulary anywhere in current authority, and no authority defines field security for them.</item>
+-/// </list>
+-///
+-/// <para>Both are therefore <c>AUTHORITY_GAP</c>, and this gate fails closed on both counts rather
+-/// than inventing an answer:</para>
+-///
+-/// <list type="number">
+-/// <item><b>Record scope.</b> Activities are reachable only when the caller's effective <c>tasks</c>
+-/// scope is WORKSPACE. Under any restricted scope the caller sees none.</item>
+-/// <item><b>Field security.</b> An Activity carries <c>subject</c>, <c>body</c>, <c>recordLabel</c>
+-/// and source evidence, which are free text and a label for a referenced record of <em>any</em>
+-/// module, so an Activity can quote a value that a field policy withholds elsewhere. No authority
+-/// maps those to any field policy, so no Activity-level projection is invented. Instead, the moment
+-/// <em>any</em> restrictive field policy applies to <c>tasks</c>, Activities become unreachable.
+-/// That is a conservative refusal, not enforcement: it does not prove which Activity field the
+-/// policy governs, only that the caller is under some field restriction and Activity content cannot
+-/// be shown to respect it.</item>
+-/// </list>
+-///
+-/// <para>Neither condition attributes ownership to an Activity, gives it a field vocabulary, or
+-/// claims Task field policy governs Activity fields. Freezing real semantics requires a business
+-/// decision that does not exist yet.</para>
++/// Tasks capability and field restriction gate. Activity scope is inherited from every referenced
++/// CRM record through ActivityRecordAccess; the actor is never treated as the record owner.
++/// Free text remains unavailable under restrictive Tasks field policies.
+ /// </summary>
+ internal static class TaskActivitySecurity
+ {
+-    /// <summary>Whether Activities are reachable at all for this caller under the frozen fail-closed rules.</summary>
+     internal static bool IsReachable(TaskAccess access) =>
+-        access.Authorization.ScopeFilter == RecordAccessScopeFilter.Workspace
+-        && !access.Authorization.FieldEnforcement.Any(entry => entry.Value != RecordFieldEnforcement.ReadWrite);
++        !access.Authorization.FieldEnforcement.Any(entry => entry.Value != RecordFieldEnforcement.ReadWrite);
+ }
+ 
+ /// <summary>
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs b/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs
+index 6ed9121..461c9aa 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs
+@@ -1,4 +1,5 @@
+ using UnicoreCRM.Operations.Tasks.Domain;
++using UnicoreCRM.Operations.Tasks.Contracts;
+ 
+ namespace UnicoreCRM.Operations.Tasks.Application.Common;
+ 
+@@ -36,13 +37,15 @@ internal sealed record ActivityListSpecification(
+     string? RecordId,
+     DateTimeOffset? OccurredFrom,
+     DateTimeOffset? OccurredTo,
+-    bool Descending);
++    bool Descending,
++    IReadOnlyList<ActivityReadScope>? ReadScopes = null);
+ 
+ internal sealed record TasksPage<T>(IReadOnlyList<T> Items, bool HasNextPage, int? NextOffset, int TotalCount);
+ 
+ internal interface ITasksPersistence
+ {
+     Task<ITasksTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
++    Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references, IReadOnlyList<ActivityReadScope> scopes, CancellationToken cancellationToken);
+     Task<TaskItem?> LoadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken);
+     Task<TaskItem?> ReadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken);
+     Task<TasksPage<TaskItem>> ListTasksAsync(string workspaceId, TaskListSpecification specification, CancellationToken cancellationToken);
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs b/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs
+index 5fab5d0..b4dbe0e 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs
+@@ -24,6 +24,7 @@ internal sealed record Query(
+ internal sealed class Handler(
+     TaskAuthorization authorization,
+     ITasksPersistence persistence,
++    ActivityRecordAccess recordAccess,
+     TimeProvider timeProvider)
+ {
+     internal async Task<TaskOperationResult<ActivityListResponse>> HandleAsync(Query query, CancellationToken cancellationToken)
+@@ -61,9 +62,8 @@ internal sealed class Handler(
+         if (fields.Count != 0)
+             return TaskOperationResult<ActivityListResponse>.Failure(TaskErrors.Validation(fields));
+ 
+-        // TaskActivity record-access and field-security semantics are both AUTHORITY_GAP, so
+-        // Activities fail closed. See TaskActivitySecurity for why neither can be proven and what
+-        // this gate does and does not claim.
++        // Free-text content cannot bypass restrictive Tasks field security.
++        // Referenced CRM owners govern record scope below.
+         if (!TaskActivitySecurity.IsReachable(access.Value!))
+         {
+             return TaskOperationResult<ActivityListResponse>.Success(
+@@ -71,6 +71,9 @@ internal sealed class Handler(
+         }
+ 
+         var trusted = access.Value!.Trusted;
++        // Resolve each module policy once; owner-owned SQL facts apply that scope to every
++        // reference in the final SQL query, before search/count/paging. No target/Activity scan.
++        var scopes = await recordAccess.ReadScopesAsync(access.Value, metadata, cancellationToken);
+         var page = await persistence.ListActivitiesAsync(
+             trusted.WorkspaceId,
+             new ActivityListSpecification(
+@@ -85,7 +88,8 @@ internal sealed class Handler(
+                 query.RecordId,
+                 occurredFrom,
+                 occurredTo,
+-                descending),
++                descending,
++                scopes),
+             cancellationToken);
+         var now = timeProvider.GetUtcNow();
+         persistence.AddAudit(new TaskAuditRecord(
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs
+index 66d8d89..eb1d233 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs
+@@ -10,7 +10,7 @@ internal sealed record Command(LogActivityRequest Request, TaskCommandMetadata M
+ internal sealed class Handler(
+     TaskAuthorization authorization,
+     ITasksPersistence persistence,
+-    ICustomerActivityReferenceAuthority customerReferences,
++    ActivityRecordAccess recordAccess,
+     TimeProvider timeProvider)
+ {
+     internal async Task<TaskOperationResult<ActivityMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
+@@ -22,29 +22,27 @@ internal sealed class Handler(
+         if (!LogActivityValidation.TryActivity(command.Request, out var input, out var fields))
+             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(fields));
+ 
+-        // TaskActivity record-access and field-security semantics are both AUTHORITY_GAP, so
+-        // Activities fail closed. See TaskActivitySecurity for why neither can be proven and what
+-        // this gate does and does not claim.
++        // Free-text content cannot bypass restrictive Tasks field security.
++        // Referenced CRM owners govern record scope below.
+         if (!TaskActivitySecurity.IsReachable(access.Value!))
+             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.AccessDenied());
+ 
+         var trusted = access.Value!.Trusted;
+-        if (string.Equals(input!.References.RecordModuleKey, "customers", StringComparison.OrdinalIgnoreCase))
+-        {
+-            // Until canonical subject AND its current target authority can be validated
+-            // through admitted contracts, Customer logs support only the direct reference.
+-            if (input.References.RelationshipType is not null)
+-                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(
+-                    new Dictionary<string, string[]> { ["relationshipRef"] = ["Customer Activity logging does not support relationshipRef."] }));
+-            // Current Customer authority and lifecycle also gate protected cached replay.
+-            if (!await customerReferences.CanReferenceAsync(trusted.WorkspaceId, input.References.RecordId!,
+-                metadata.RequestId, metadata.CorrelationId, cancellationToken))
+-                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
+-        }
+         var fingerprint = TaskCommandSupport.Fingerprint(input);
+         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "logActivity", "WORKSPACE", command.Metadata.IdempotencyKey);
+         var existing = await persistence.FindCreateIdempotencyForUpdateAsync(scopeKey, cancellationToken);
++        access = await authorization.AuthorizeAsync(TaskCapabilities.Update, metadata, cancellationToken);
++        if (!access.IsSuccess) return TaskOperationResult<ActivityMutationResponse>.Failure(access.Error!);
++        if (access.Value!.Trusted.WorkspaceId != trusted.WorkspaceId || !TaskActivitySecurity.IsReachable(access.Value))
++            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.AccessDenied());
++        // Receipt acquisition can wait behind another command. Resolve current record
++        // authority after that wait, including on replay, before exposing any content.
++        if (!await recordAccess.CanAccessAsync(access.Value, input!.References, metadata, true, cancellationToken))
++            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
++        var scopes = await recordAccess.ReadScopesAsync(access.Value, metadata, cancellationToken);
++        if (!await persistence.GuardActivityReferencesAsync(trusted.WorkspaceId, input.References, scopes, cancellationToken))
++            return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
+         if (existing is not null)
+         {
+             var replayError = TaskCommandSupport.ReplayError(existing, fingerprint);
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs
+index c1ae558..d325c78 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs
+@@ -22,6 +22,19 @@ internal static class LogActivityValidation
+         var subject = TaskValidation.Text(request.Subject, "subject", 1, 300, true, fields);
+         var body = TaskValidation.Text(request.Body, "body", 0, 10000, false, fields);
+         var references = TaskValidation.References(request.RelationshipRef, request.RecordRef, request.SourceRef, fields);
++        if (references is not null)
++        {
++            var module = references.RecordModuleKey ?? ActivityRecordAccess.RelationshipModule(references.RelationshipType);
++            var id = references.RecordId ?? references.RelationshipId;
++            if (module is not ("leads" or "contacts" or "organizations" or "customers") || id is null)
++                fields["recordRef"] = ["Activity requires a supported CRM record or Contact/Organization relationship."];
++            var relatedModule = ActivityRecordAccess.RelationshipModule(references.RelationshipType);
++            if (relatedModule == module && references.RelationshipId != id)
++                fields["relationshipRef"] = ["References to the same module must identify the same record."];
++            // HTTP sourceRef is only a UI origin marker, never trusted audit evidence.
++            if (!ActivityRecordAccess.ValidSource(references, module, id))
++                fields["sourceRef"] = ["sourceRef must be a matching CRM Activity origin without audit evidence."];
++        }
+         errors = fields;
+         value = fields.Count == 0 ? new NormalizedActivity(type, subject!, body, references!) : null;
+         return value is not null;
+@@ -34,13 +47,12 @@ internal static class LogActivityValidation
+         "MEETING" => ActivityType.Meeting,
+         "NOTE" => ActivityType.Note,
+         "MESSAGE" => ActivityType.Message,
+-        "SYSTEM" => ActivityType.System,
+         _ => InvalidActivity(fields)
+     };
+ 
+     private static ActivityType InvalidActivity(IDictionary<string, string[]> fields)
+     {
+-        fields["type"] = ["type must be CALL, EMAIL, MEETING, NOTE, MESSAGE, or SYSTEM."];
++        fields["type"] = ["type must be CALL, EMAIL, MEETING, NOTE, or MESSAGE. SYSTEM is reserved for trusted system events."];
+         return ActivityType.Note;
+     }
+ }
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs
+index fc638d6..abc899b 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs
+@@ -9,6 +9,14 @@ namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
+ 
+ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersistence
+ {
++    public async Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references,
++        IReadOnlyList<Contracts.ActivityReadScope> scopes, CancellationToken cancellationToken)
++    {
++        RequireTransaction();
++        var guard = ActivityReadSql.CommitGuard(workspaceId, references, scopes);
++        return await dbContext.Database.SqlQueryRaw<int>(guard.Sql, guard.Parameters).SingleAsync(cancellationToken) == 1;
++    }
++
+     public async Task<ITasksTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
+         new TasksTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
+ 
+@@ -90,7 +98,11 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
+         ActivityListSpecification specification,
+         CancellationToken cancellationToken)
+     {
+-        IQueryable<TaskActivity> query = dbContext.Activities.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
++        // No trusted SYSTEM writer exists yet. Legacy client-supplied SYSTEM rows cannot be
++        // exposed as system audit evidence; retain them in storage without publishing them.
++        var secured = ActivityReadSql.Build(workspaceId, specification.ReadScopes ?? []);
++        IQueryable<TaskActivity> query = dbContext.Activities.FromSqlRaw(secured.Sql, secured.Parameters)
++            .AsNoTracking().TagWith("Activity authorized reference query");
+         if (!string.IsNullOrEmpty(specification.Search))
+             query = query.Where(item => item.Subject.Contains(specification.Search) || (item.Body != null && item.Body.Contains(specification.Search)));
+         if (specification.Type is not null)
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs
+index bd21b33..e896bd9 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs
+@@ -93,6 +93,9 @@ namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
+ 
+                     b.HasIndex("WorkspaceId", "OccurredAt", "ActivityId");
+ 
++                    b.HasIndex("WorkspaceId", "RecordModuleKey", "RecordId", "OccurredAt", "ActivityId")
++                        .HasDatabaseName("IX_Activities_RecordHistory");
++
+                     b.ToTable("Activities", "tasks");
+                 });
+ 
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs
+index a25687e..c6fc7ab 100644
+--- a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs
+@@ -66,6 +66,8 @@ internal sealed class TasksDbContext(DbContextOptions<TasksDbContext> options) :
+             entity.Property(item => item.SourceId).HasMaxLength(128);
+             entity.Property(item => item.SourceEvidence).HasMaxLength(1000);
+             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt, item.ActivityId });
++            entity.HasIndex(item => new { item.WorkspaceId, item.RecordModuleKey, item.RecordId, item.OccurredAt, item.ActivityId })
++                .HasDatabaseName("IX_Activities_RecordHistory");
+         });
+ 
+         modelBuilder.Entity<TaskIdempotencyRecord>(entity =>
+diff --git a/src/UnicoreCRM.Operations/Tasks/TasksModule.cs b/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
+index 8512eba..1bb4622 100644
+--- a/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
++++ b/src/UnicoreCRM.Operations/Tasks/TasksModule.cs
+@@ -21,6 +21,7 @@ internal static class TasksModule
+             "tasks",
+             (provider, cancellationToken) => provider.GetRequiredService<TasksDbContext>().Database.MigrateAsync(cancellationToken));
+         services.AddScoped<TaskAuthorization>();
++        services.AddScoped<ActivityRecordAccess>();
+         services.AddScoped<Contracts.IContactFollowUpReadAuthorityResolver,
+             Application.ReadContactFollowUp.ContactFollowUpReadAuthorityResolver>();
+         services.AddScoped<Contracts.ILeadHandoverTaskParticipant, Application.LeadHandover.Participant>();
+diff --git a/docs/architecture/team-scope.md b/docs/architecture/team-scope.md
+new file mode 100644
+index 0000000..782a65f
+--- /dev/null
++++ b/docs/architecture/team-scope.md
+@@ -0,0 +1,33 @@
++# TEAM scope: ownership and migration boundary
++
++Status: architecture decision supplied by the user on 2026-10-21. P0 retains fail-closed TEAM. This document is the prerequisite module matrix for P1; no TEAM migration or management API has been implemented by the Activity security change.
++
++Workspace owns Teams and TeamMemberships in SQL Server. A Team belongs to exactly one Workspace. Membership requires an active Workspace member. Changes go through authorized backend operations with audit. AccessControl evaluates these facts and does not store membership.
++
++A TEAM decision requires the module capability, valid Workspace membership, a record in that Workspace, an explicit valid record TeamId, active membership in that Team, field security and the applicable lifecycle checks. Missing TeamId denies TEAM. Role, ownerId, frontend state and free-form team names cannot supply a Team assignment. TEAM never falls back to OWN or WORKSPACE.
++
++## Module matrix before P1
++
++| Owner | Current authoritative record scope fact | Needs explicit TeamId for the requested CRM journey | Existing-data treatment | Assignment boundary |
++|---|---|---|---|---|
++| Workspace | Active Workspace membership; directory currently returns empty TeamIds | Owns Team and TeamMembership; no CRM record ownership | Create separate tables; do not derive membership from roles or display strings | Authorized Team and membership management, validation, audit and SQL constraints |
++| Leads | `Lead.Profile.OwnerId` / synchronized `ScopeOwnerId` | Yes, when Lead TEAM is enabled | Add nullable module-owned TeamId; leave old rows null. `LeadProfile.AssignedTeam` remains display data and is not automatically migrated | Leads validates Workspace-owned TeamId before assignment; current record/write/field authority still applies |
++| Contacts | `Contact.OwnerId` | Yes, for Sales TEAM Contact and its Activity | Nullable TeamId; old rows remain inaccessible under TEAM until explicitly assigned | Contacts command boundary validates Team and trusted Workspace |
++| Organizations | `Organization.OwnerId` | Yes, for Organization TEAM and multi-reference Activity | Nullable TeamId; no inference from representatives or Contact affiliations | Organizations command boundary validates Team |
++| Customers | `Customer.OwnerId` | Yes, for Customer TEAM and related work | Nullable TeamId; do not infer from Contact/Organization/Lead owner | Customers owns assignment. Conversion must explicitly define target Team handling before propagating TeamId |
++| Tasks / task-based appointments | `TaskItem.AssigneeId` | Yes, if Task TEAM is enabled | Nullable TeamId; do not infer from assignee or linked Customer | Tasks validates Team independently of active assignee validation |
++| Activity | Current capabilities, owner facts, lifecycle and relationships of every referenced CRM record | No independent Activity TeamId | Keep stored references; re-evaluate each owner on every request and replay | Referenced owners and AccessControl; no Activity actor-based ownership |
++| History | Source-owned events and record references | No independent timeline TeamId | Preserve source identities; authorize each source before count/paging/projection | Read aggregation inherits all relevant record and field decisions |
++| Quotes, Orders, Payments, Invoices and other modules | Existing owner facts | Outside this CRM journey change | No automatic schema change | Separate admitted requirements if TEAM is later required |
++
++## P1 admission and compatibility requirements
++
++1. Implement Workspace Team/TeamMembership storage, SQL migration, authorized management API, active-member and Workspace validation, immutable command audit, idempotency/concurrency and negative HTTP/SQL tests.
++2. Publish a small Workspace-owned read/validation contract. Wire actual membership into the directory; stop rejecting nonempty membership lists only after the Workspace command boundary exists.
++3. Extend the one AccessControl evaluator and its record facts/scope filters. Push module-owned TeamId predicates into list SQL before count and paging. Deny null, invalid, inactive and foreign-Workspace TeamIds.
++4. Enable only modules in this matrix that have both validated assignment commands and compatible query predicates. Unconverted modules continue to deny TEAM.
++5. Existing rows start with null TeamId. Reassignment must be an explicit authorized, auditable operation with concurrency checks. No bulk backfill from `assignedTeam`, owner or frontend data.
++6. Define conversion target-Team semantics explicitly before enabling TEAM for the whole Lead-to-Customer workflow. Preserve old request fingerprints and valid retries when extending contracts.
++7. Update OpenAPI and generate clients when adding Team contracts. Add same-Team positive tests and outside-Team, inactive-membership, cross-Workspace, unassigned-record, field-security and revoked-membership replay negative tests.
++
++P0 evidence may prove TEAM denial only. Successful TEAM business operations remain BLOCKED until these requirements are implemented and tested.
+diff --git a/scripts/verify-activity-security.ps1 b/scripts/verify-activity-security.ps1
+new file mode 100644
+index 0000000..1adbd95
+--- /dev/null
++++ b/scripts/verify-activity-security.ps1
+@@ -0,0 +1,518 @@
++[CmdletBinding()]
++param([string]$SqlServer = 'localhost', [int]$Port = 5389, [switch]$Browser, [switch]$ScaleReview, [switch]$ProjectionReview, [switch]$RaceReview, [switch]$UiReview, [switch]$CommitRaceReview)
++$ErrorActionPreference = 'Stop'
++$runId = [Guid]::NewGuid().ToString('N')
++$startedAt = [DateTimeOffset]::UtcNow.ToString('O')
++$database = "UnicoreCRM_ActivityTest_$runId"
++$repo = Split-Path $PSScriptRoot
++$evidence = Join-Path $repo "artifacts/activity-security/$runId"
++[void](New-Item -ItemType Directory -Path $evidence -Force)
++$connection = "Server=$SqlServer;Database=$database;Integrated Security=True;TrustServerCertificate=True"
++function Sql([string]$query, [string]$db = $database) {
++    $c = [System.Data.SqlClient.SqlConnection]::new("Server=$SqlServer;Database=$db;Integrated Security=True;TrustServerCertificate=True")
++    $c.Open()
++    try {
++        $cmd = $c.CreateCommand(); $cmd.CommandText = $query; $cmd.CommandTimeout = 120
++        $table = [System.Data.DataTable]::new(); $table.Load($cmd.ExecuteReader()); return ,$table
++    } finally { $c.Dispose() }
++}
++$results = [Collections.Generic.List[object]]::new()
++$http = [Collections.Generic.List[object]]::new()
++$token = $null; $workspace = $null; $counter = 0
++function Api([string]$method, [string]$path, $body = $null, [string]$key = '') {
++    $script:counter++
++    $correlation = "activity-$runId-$script:counter"
++    $headers = @{ 'X-Request-Id' = $correlation; 'X-Correlation-Id' = $correlation }
++    if ($script:token) { $headers.Authorization = "Bearer $script:token" }
++    if ($script:workspace) { $headers['X-Workspace-Id'] = $script:workspace }
++    if ($key) { $headers['Idempotency-Key'] = $key }
++    $args = @{ Method = $method; Uri = "http://127.0.0.1:$Port$path"; Headers = $headers; SkipHttpErrorCheck = $true }
++    if ($null -ne $body) { $args.Body = $body | ConvertTo-Json -Depth 12 -Compress; $args.ContentType = 'application/json' }
++    $response = Invoke-WebRequest @args
++    $value = if ($response.Content) { $response.Content | ConvertFrom-Json } else { $null }
++    # Authentication payloads and free-form content never enter evidence.
++    $http.Add(@{ method = $method; path = $path; status = [int]$response.StatusCode; correlationId = $correlation;
++        code = $value.code; itemCount = @($value.items).Count; pageInfo = $value.pageInfo })
++    return @{ Status = [int]$response.StatusCode; Body = $value }
++}
++function Check([string]$name, $expected, $actual) {
++    $pass = "$expected" -ceq "$actual"
++    $results.Add(@{ test = $name; expected = $expected; actual = $actual; status = $(if ($pass) {'PASS'} else {'FAIL'}) })
++    Write-Host "$(if ($pass) {'PASS'} else {'FAIL'}) $name expected=$expected actual=$actual"
++}
++function Scope([string]$resource, [string]$scope) {
++    $null = Sql "IF EXISTS (SELECT 1 FROM access.RoleDataScopes WHERE PolicyId = 'activity_$resource') UPDATE access.RoleDataScopes SET Scope='$scope' WHERE PolicyId='activity_$resource'; ELSE INSERT INTO access.RoleDataScopes (PolicyId,WorkspaceId,RoleId,ResourceKey,Scope,AllowedOwnerIdsJson) VALUES ('activity_$resource','$workspace','$role','$resource','$scope','[]');"
++}
++function Draft([string]$id = 'activity_contact_own', [string]$module = 'contacts') {
++    return @{ type='NOTE'; subject='Activity security test'; body='isolated test content'; recordRef=@{moduleKey=$module;recordId=$id} }
++}
++function Invoke-ConnectedBrowser {
++        $browserSettings = @{
++            UNICORECRM_TEST_API_BASE_URL="http://127.0.0.1:$Port";
++            UNICORECRM_TEST_EMAIL=$settings.DevelopmentDemoBootstrap__Email;
++            UNICORECRM_TEST_PASSWORD=$settings.DevelopmentDemoBootstrap__Password;
++            UNICORECRM_TEST_WORKSPACE_ID=$workspace
++            UNICORECRM_TEST_OWN_EMAIL="activity-own-$runId@example.test"
++            UNICORECRM_TEST_OWN_CONTACT_ID='activity_sales_contact'
++        }
++        foreach ($setting in $browserSettings.GetEnumerator()) {
++            $oldEnvironment[$setting.Key] = [Environment]::GetEnvironmentVariable($setting.Key)
++            [Environment]::SetEnvironmentVariable($setting.Key, $setting.Value)
++        }
++        $script:frontend = Join-Path (Split-Path $repo) 'frontend/unicorecrm-web'
++        Push-Location $frontend
++        try {
++            $browserConfig = if ($UiReview) { 'playwright.crm-ui.config.ts' } else { 'playwright.crm-real.config.ts' }
++            & node node_modules/@playwright/test/cli.js test --config $browserConfig
++            Check $(if ($UiReview) { 'UI-only CRM journey (BLOCKED is not PASS)' } else { 'API workflow with real browser projection/history' }) 0 $LASTEXITCODE
++        } finally { Pop-Location }
++}
++$process = $null
++$oldEnvironment = @{}
++try {
++    # Always allocate a fresh name; never drop or reuse an existing database.
++    $null = Sql "IF DB_ID('$database') IS NOT NULL THROW 50000,'Test database already exists',1; CREATE DATABASE [$database];" 'master'
++    if($ScaleReview){$null=Sql "ALTER DATABASE [$database] SET QUERY_STORE = ON (OPERATION_MODE=READ_WRITE,QUERY_CAPTURE_MODE=ALL);"}
++    $settings = @{
++        ASPNETCORE_ENVIRONMENT='Development'; ASPNETCORE_URLS="http://127.0.0.1:$Port";
++        ConnectionStrings__UnicoreCRM=$connection;
++        DevelopmentDemoBootstrap__Email="activity-$runId@example.test";
++        DevelopmentDemoBootstrap__Password="Test!$([Guid]::NewGuid().ToString('N'))aA9";
++        IdentityAuth__EmailVerification__Sender__Kind='DevelopmentLog'
++        AI__DataProtection__KeyRingPath=(Join-Path $evidence 'keys')
++        Frontend__AllowedOrigins__0='http://127.0.0.1:3039'
++    }
++    foreach ($setting in $settings.GetEnumerator()) {
++        $oldEnvironment[$setting.Key] = [Environment]::GetEnvironmentVariable($setting.Key)
++        [Environment]::SetEnvironmentVariable($setting.Key, $setting.Value)
++    }
++    $project = Join-Path $repo 'src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj'
++    & dotnet run --no-launch-profile --project $project -- --migrate *> (Join-Path $evidence 'migration.log')
++    if ($LASTEXITCODE) { throw 'Migration failed; inspect local migration.log' }
++    & dotnet run --no-build --no-launch-profile --project $project -- --seed-demo *> (Join-Path $evidence 'bootstrap.log')
++    if ($LASTEXITCODE) { throw 'Bootstrap failed; inspect local bootstrap.log' }
++    $process = Start-Process dotnet -ArgumentList @('run','--no-build','--no-launch-profile','--project',$project) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $evidence 'host.log') -RedirectStandardError (Join-Path $evidence 'host-error.log')
++    $ready = $false
++    for ($i=0; $i -lt 90; $i++) {
++        try { $null = Api GET '/auth/session'; $ready=$true; break } catch { Start-Sleep -Seconds 1 }
++        if ($process.HasExited) { throw 'ApiHost exited' }
++    }
++    if (!$ready) { throw 'ApiHost readiness timeout' }
++    $login = Api POST '/auth/sessions' @{email=$settings.DevelopmentDemoBootstrap__Email;password=$settings.DevelopmentDemoBootstrap__Password} "login-$runId"
++    if ($login.Status -ne 200) { throw "Login failed: $($login.Status)" }
++    $script:token = $login.Body.accessToken
++    $session = Api GET '/auth/session'
++    $member = $session.Body.principal.memberId
++    $script:workspace = (Sql "SELECT WorkspaceId FROM workspace.Workspaces WHERE [Key]='unicore-demo'").Rows[0].WorkspaceId
++    $foreign = (Sql "SELECT WorkspaceId FROM workspace.Workspaces WHERE [Key]='unicore-demo-isolated'").Rows[0].WorkspaceId
++    $role = (Sql "SELECT TOP 1 RoleId FROM access.Roles WHERE WorkspaceId='$workspace'").Rows[0].RoleId
++    if ($UiReview) {
++        Check 'fresh Workspace has no Lead before UI scenario' 0 (Sql "SELECT COUNT(*) AS Count FROM leads.Leads WHERE WorkspaceId='$workspace'").Rows[0].Count
++        Invoke-ConnectedBrowser
++        $uiRecordFile=Get-ChildItem (Join-Path $frontend 'test-results/crm-ui-real') -Filter ui-records.json -Recurse | Select-Object -First 1
++        if ($uiRecordFile) {
++            $uiRecords=Get-Content $uiRecordFile.FullName -Raw | ConvertFrom-Json
++            if ($uiRecords.leadId -notmatch '^[A-Za-z0-9_-]{1,128}$') { throw 'Unexpected UI Lead identifier' }
++            Check 'UI Lead persisted in fresh SQL Workspace' 1 (Sql "SELECT COUNT(*) AS Count FROM leads.Leads WHERE WorkspaceId='$workspace' AND LeadId='$($uiRecords.leadId)'").Rows[0].Count
++            Check 'UI Lead Source remains empty in SQL' 1 (Sql "SELECT COUNT(*) AS Count FROM leads.Leads WHERE WorkspaceId='$workspace' AND LeadId='$($uiRecords.leadId)' AND COALESCE(JSON_VALUE(Profile,'$.Source'),JSON_VALUE(Profile,'$.source'),'')='' ").Rows[0].Count
++            Copy-Item -LiteralPath $uiRecordFile.FullName -Destination (Join-Path $evidence 'ui-records.json')
++        }
++        if (@($results | Where-Object status -eq FAIL).Count) { exit 1 }
++        exit 0
++    }
++    $null = Sql @"
++INSERT INTO contacts.Contacts (ContactId,WorkspaceId,OwnerId,FullName,Status,Version,CreatedAt,UpdatedAt,Profile) VALUES
++('activity_contact_own','$workspace','$member','Activity own','active',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}'),
++('activity_contact_other','$workspace','activity_other_member','Activity other','active',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}'),
++('activity_contact_foreign','$foreign','$member','Activity foreign','active',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}');
++"@
++    $ownDraft = Draft
++    $own = Api POST '/activities' $ownDraft 'activity-own'
++    Check 'authorized log' 201 $own.Status
++    Check 'authorized replay' 201 (Api POST '/activities' $ownDraft 'activity-own').Status
++    Check 'other record log at workspace scope' 201 (Api POST '/activities' (Draft 'activity_contact_other') 'activity-other').Status
++    Check 'missing record refused' 404 (Api POST '/activities' (Draft 'activity_missing') 'activity-missing').Status
++    Check 'foreign workspace refused' 404 (Api POST '/activities' (Draft 'activity_contact_foreign') 'activity-foreign').Status
++    Check 'unsupported module refused' 422 (Api POST '/activities' (Draft 'activity_unknown' 'arbitrary') 'activity-module').Status
++    $mismatch = Draft; $mismatch.relationshipRef=@{type='CONTACT';id='activity_contact_other'}
++    Check 'conflicting relationship refused' 422 (Api POST '/activities' $mismatch 'activity-conflict').Status
++    $system = Draft; $system.type='SYSTEM'
++    Check 'HTTP cannot forge system audit' 422 (Api POST '/activities' $system 'activity-system').Status
++    Scope contacts Own
++    Check 'OWN log outside scope refused' 404 (Api POST '/activities' (Draft 'activity_contact_other') 'activity-own-denied').Status
++    $list = Api GET '/activities?limit=1'
++    Check 'OWN count includes authorized rows only' 1 $list.Body.pageInfo.totalCount
++    Check 'OWN page includes own record' 'activity_contact_own' $list.Body.items[0].recordRef.recordId
++    Check 'OWN no hidden cursor' False $list.Body.pageInfo.hasNextPage
++    Check 'hidden search count zero' 0 (Api GET '/activities?recordId=activity_contact_other').Body.pageInfo.totalCount
++    Scope contacts Team
++    Check 'TEAM cannot log outside team' 404 (Api POST '/activities' $ownDraft 'activity-team').Status
++    Check 'TEAM list fails closed' 0 (Api GET '/activities').Body.pageInfo.totalCount
++    Scope contacts Workspace
++    $null = Sql "UPDATE contacts.Contacts SET OwnerId='activity_other_member' WHERE ContactId='activity_contact_own'"
++    Scope contacts Own
++    Check 'owner change replay refused' 404 (Api POST '/activities' $ownDraft 'activity-own').Status
++    Scope contacts Workspace
++    $null = Sql "UPDATE contacts.Contacts SET ArchivedAt=SYSUTCDATETIME(),Status='archived' WHERE ContactId='activity_contact_own'"
++    Check 'archived replay refused' 404 (Api POST '/activities' $ownDraft 'activity-own').Status
++    $null = Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$role' AND Capability='contacts.read'"
++    Check 'tasks.read without contacts.read hides activity' 0 (Api GET '/activities').Body.pageInfo.totalCount
++    Check 'revoked capability replay refused' 404 (Api POST '/activities' $ownDraft 'activity-own').Status
++    $count = (Sql "SELECT COUNT(*) AS Count FROM tasks.Activities").Rows[0].Count
++    Check 'negative commands and retries create no duplicates' 2 $count
++    $null = Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$role','contacts.read'); UPDATE contacts.Contacts SET ArchivedAt=NULL,Status='active',OwnerId='$member' WHERE ContactId='activity_contact_own';"
++    $null = Sql "INSERT INTO tasks.Activities (ActivityId,WorkspaceId,Type,Subject,ActorId,OccurredAt,Version,RecordModuleKey,RecordId) VALUES ('activity_legacy_system','$workspace',5,'legacy system test','$member',SYSUTCDATETIME(),0,'contacts','activity_contact_own');"
++    Check 'legacy client SYSTEM row is not published as trusted audit' 0 (Api GET '/activities?type=SYSTEM').Body.pageInfo.totalCount
++    Check 'legacy SYSTEM content is excluded from search metadata' 0 (Api GET '/activities?search=legacy').Body.pageInfo.totalCount
++    Scope tasks Own
++    Scope contacts Own
++    Check 'Sales OWN can log own Contact with Tasks OWN' 201 (Api POST '/activities' $ownDraft 'activity-own').Status
++    Check 'Sales OWN reads own Contact with Tasks OWN' 1 (Api GET '/activities').Body.pageInfo.totalCount
++    Scope tasks Workspace
++    Scope contacts Workspace
++    $null = Sql "INSERT INTO access.RoleFieldSecurity (PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES ('activity_hidden_email','$workspace','$role','contacts','workEmail','Hidden');"
++    Check 'owner field security hides free text and count' 0 (Api GET '/activities?search=isolated').Body.pageInfo.totalCount
++    Check 'owner field security gates cached replay' 404 (Api POST '/activities' $ownDraft 'activity-own').Status
++    $null = Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='activity_hidden_email'"
++    $source = Draft; $source.sourceRef=@{type='CONTACT_ACTIVITY';id='activity_contact_other'}
++    Check 'forged source target refused' 422 (Api POST '/activities' $source 'activity-source-id').Status
++    $source.sourceRef=@{type='SYSTEM';id='activity_contact_own';evidence='forged'}
++    Check 'forged audit source refused' 422 (Api POST '/activities' $source 'activity-source-audit').Status
++    Check 'unanchored activity refused' 422 (Api POST '/activities' @{type='NOTE';subject='unanchored'} 'activity-unanchored').Status
++    $relationshipOnly=@{type='NOTE';subject='relationship only';relationshipRef=@{type='CONTACT';id='activity_contact_own'}}
++    Check 'relationship-only Contact supported' 201 (Api POST '/activities' $relationshipOnly 'activity-relationship').Status
++    Check 'relationship-only retry is idempotent' 201 (Api POST '/activities' $relationshipOnly 'activity-relationship').Status
++    $source = Draft; $source.sourceRef=@{type='CONTACT_ACTIVITY';id='activity_contact_own'}
++    Check 'existing Contact UI source remains supported' 201 (Api POST '/activities' $source 'activity-source-valid').Status
++    Scope tasks Own
++    Scope contacts Own
++    $pageOne=Api GET '/activities?limit=1'
++    $pageTwo=Api GET "/activities?limit=1&cursor=$($pageOne.Body.pageInfo.nextCursor)"
++    $pageThree=Api GET "/activities?limit=1&cursor=$($pageTwo.Body.pageInfo.nextCursor)"
++    Check 'OWN multi-page total excludes hidden records' 3 $pageOne.Body.pageInfo.totalCount
++    Check 'OWN next page retains authorized total' 3 $pageTwo.Body.pageInfo.totalCount
++    Check 'OWN continuation returns three distinct authorized rows' 3 (@($pageOne.Body.items.id,$pageTwo.Body.items.id,$pageThree.Body.items.id) | Select-Object -Unique).Count
++    Check 'OWN last page has no hidden continuation' False $pageThree.Body.pageInfo.hasNextPage
++    Scope tasks Workspace
++    Scope contacts Workspace
++    $lead = Api POST '/leads' @{displayName="Activity lead $runId";email="lead-$runId@example.test";phone='0900000123';source='WEB';ownerId=$member;estimatedValue=@{amount='0';currency='USD'}} 'activity-lead-create'
++    Check 'real Lead fixture created through HTTP' 201 $lead.Status
++    $leadId = $lead.Body.aggregateId
++    if (!$leadId) { throw 'Lead fixture did not return an aggregate ID' }
++    Check 'Lead Activity positive' 201 (Api POST '/activities' (Draft $leadId 'leads') 'activity-lead').Status
++    Check 'Lead missing target refused' 404 (Api POST '/activities' (Draft 'activity_lead_missing' 'leads') 'activity-lead-missing').Status
++    $null = Sql "SELECT * INTO #activity_foreign_lead FROM leads.Leads WHERE LeadId='$leadId'; UPDATE #activity_foreign_lead SET LeadId='activity_lead_foreign',WorkspaceId='$foreign'; INSERT INTO leads.Leads SELECT * FROM #activity_foreign_lead; DROP TABLE #activity_foreign_lead;"
++    Check 'Lead foreign Workspace refused' 404 (Api POST '/activities' (Draft 'activity_lead_foreign' 'leads') 'activity-lead-foreign').Status
++    $null = Sql "UPDATE leads.Leads SET ArchivedAt=SYSUTCDATETIME() WHERE LeadId='$leadId'"
++    Check 'Lead archived replay refused' 404 (Api POST '/activities' (Draft $leadId 'leads') 'activity-lead').Status
++    $null = Sql @"
++INSERT INTO organizations.Organizations (OrganizationId,WorkspaceId,OwnerId,DisplayName,Status,Version,CreatedAt,UpdatedAt,Profile)
++VALUES ('activity_org','$workspace','$member','Activity organization','active',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}');
++INSERT INTO customers.Customers (WorkspaceId,CustomerId,CustomerCode,OwnerId,Type,RelationshipType,RelationshipId,Status,Version,CreatedAt,UpdatedAt,Profile)
++VALUES ('$workspace','activity_customer','CU-ACTIVITY','$member','B2C','CONTACT','activity_contact_own','NEW',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}');
++"@
++    $organization = Draft 'activity_org' 'organizations'; $organization.relationshipRef=@{type='ORGANIZATION_ACCOUNT';id='activity_org'}; $organization.sourceRef=@{type='ORGANIZATION_DETAIL';id='activity_org'}
++    if ($ProjectionReview) {
++        Check 'canonical Contact Customer is present without stakeholder membership' 'activity_customer' ((Api GET '/contacts/activity_contact_own/relationship-summary').Body.customerIds -join ',')
++        Scope customers Team
++        Check 'canonical Customer outside admitted scope is hidden' 0 @((Api GET '/contacts/activity_contact_own/relationship-summary').Body.customerIds).Count
++        Scope customers Workspace
++        $null=Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$role' AND Capability='customers.view'"
++        Check 'canonical Customer without capability is hidden' 0 @((Api GET '/contacts/activity_contact_own/relationship-summary').Body.customerIds).Count
++        $null=Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$role','customers.view')"
++        Check 'foreign Contact relationship summary is refused' 404 (Api GET '/contacts/activity_contact_foreign/relationship-summary').Status
++    }
++    Check 'existing Organization UI shape supported' 201 (Api POST '/activities' $organization 'activity-org').Status
++    Check 'Organization missing target refused' 404 (Api POST '/activities' (Draft 'activity_org_missing' 'organizations') 'activity-org-missing').Status
++    $customer = Draft 'activity_customer' 'customers'; $customer.relationshipRef=@{type='CONTACT';id='activity_contact_own'}; $customer.sourceRef=@{type='CUSTOMER_360';id='activity_customer'}
++    Check 'existing Customer UI shape supported' 201 (Api POST '/activities' $customer 'activity-customer').Status
++    $customer.relationshipRef.id='activity_contact_other'
++    Check 'Customer forged subject relationship refused' 404 (Api POST '/activities' $customer 'activity-customer-forged').Status
++    $customer.relationshipRef.id='activity_contact_own'
++    $null = Sql "UPDATE contacts.Contacts SET OwnerId='activity_other_member' WHERE ContactId='activity_contact_own'"
++    Scope contacts Own
++    Check 'allowed Customer cannot expose denied Contact' 0 (Api GET '/activities?recordModuleKey=customers').Body.pageInfo.totalCount
++    Check 'multi-reference replay requires every target' 404 (Api POST '/activities' $customer 'activity-customer').Status
++    Scope contacts Workspace
++    $null = Sql "UPDATE contacts.Contacts SET OwnerId='$member' WHERE ContactId='activity_contact_own'"
++    $null = Sql "UPDATE customers.Customers SET Status='ARCHIVED' WHERE CustomerId='activity_customer'"
++    Check 'Customer archived replay refused' 404 (Api POST '/activities' $customer 'activity-customer').Status
++    $savedWorkspace = $script:workspace; $script:workspace=$foreign
++    Check 'Workspace switch cannot replay protected receipt' 403 (Api POST '/activities' $ownDraft 'activity-own').Status
++    $script:workspace=$savedWorkspace
++    $sqlEvidence = Sql "SELECT RecordModuleKey,COUNT(*) AS Count FROM tasks.Activities WHERE WorkspaceId='$workspace' GROUP BY RecordModuleKey;"
++    @($sqlEvidence.Rows | ForEach-Object { @{module=$_.RecordModuleKey;count=$_.Count} }) | ConvertTo-Json | Set-Content (Join-Path $evidence 'sql-counts.json')
++    # Test-only account fixtures share the fresh run's password hash. No hash or password is
++    # read into evidence, and each account must authenticate through the actual Identity pipeline.
++    $adminAccount=$session.Body.principal.accountId
++    foreach ($kind in @('own','team','denied')) {
++        $email="activity-$kind-$runId@example.test"
++        $null = Sql @"
++SELECT * INTO #activity_account FROM iam.Accounts WHERE AccountId='$adminAccount';
++UPDATE #activity_account SET AccountId='acc_activity_$kind',MemberId='mem_activity_$kind',Email='$email',NormalizedEmail=UPPER('$email'),DisplayName='Activity $kind test';
++INSERT INTO iam.Accounts SELECT * FROM #activity_account;
++INSERT INTO iam.Credentials (AccountId,PasswordHash,UpdatedAt) SELECT 'acc_activity_$kind',PasswordHash,SYSUTCDATETIME() FROM iam.Credentials WHERE AccountId='$adminAccount';
++INSERT INTO workspace.Memberships (MembershipId,WorkspaceId,AccountId,MemberId,Status,CreatedAt)
++VALUES ('wsm_activity_$kind','$workspace','acc_activity_$kind','mem_activity_$kind','Active',SYSUTCDATETIME());
++DROP TABLE #activity_account;
++"@
++        if ($kind -ne 'denied') {
++            $dataScope=if ($kind -eq 'own') {'Own'} else {'Team'}
++            $null = Sql @"
++INSERT INTO access.Roles (RoleId,WorkspaceId,Name,NormalizedName,IsActive,Version,CreatedAt,UpdatedAt)
++VALUES ('role_activity_$kind','$workspace','Activity $kind',UPPER('Activity $kind'),1,0,SYSUTCDATETIME(),SYSUTCDATETIME());
++INSERT INTO access.MembershipRoleAssignments (AssignmentId,WorkspaceId,MembershipId,RoleId,AssignedAt)
++VALUES ('assignment_activity_$kind','$workspace','wsm_activity_$kind','role_activity_$kind',SYSUTCDATETIME());
++INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES
++('role_activity_$kind','tasks.read'),('role_activity_$kind','tasks.update'),('role_activity_$kind','contacts.read'),
++('role_activity_$kind','workspace.context.resolve'),('role_activity_$kind','access.read');
++INSERT INTO access.RoleDataScopes (PolicyId,WorkspaceId,RoleId,ResourceKey,Scope,AllowedOwnerIdsJson) VALUES
++('scope_activity_contacts_$kind','$workspace','role_activity_$kind','contacts','$dataScope','[]'),
++('scope_activity_tasks_$kind','$workspace','role_activity_$kind','tasks','$dataScope','[]');
++"@
++        }
++    }
++    $null = Sql "INSERT INTO contacts.Contacts (ContactId,WorkspaceId,OwnerId,FullName,Status,Version,CreatedAt,UpdatedAt,Profile) VALUES ('activity_sales_contact','$workspace','mem_activity_own','Sales own test Contact','active',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}');"
++    $adminToken=$script:token
++    foreach ($kind in @('own','team','denied')) {
++        $script:token=$null
++        $salesLogin=Api POST '/auth/sessions' @{email="activity-$kind-$runId@example.test";password=$settings.DevelopmentDemoBootstrap__Password} "sales-$kind-$runId"
++        Check "separate $kind account signs in through real authentication" 200 $salesLogin.Status
++        $script:token=$salesLogin.Body.accessToken
++        if ($kind -eq 'own') {
++            $salesOwnToken=$salesLogin.Body.accessToken
++            Check 'separate Sales OWN logs own Contact' 201 (Api POST '/activities' (Draft 'activity_sales_contact') 'sales-own-activity').Status
++            Check 'separate Sales OWN sees only own Activity' 1 (Api GET '/activities').Body.pageInfo.totalCount
++            Check 'separate Sales OWN cannot log other Contact' 404 (Api POST '/activities' $ownDraft 'sales-own-forbidden').Status
++        } elseif ($kind -eq 'team') {
++            Check 'separate TEAM account cannot read outside admitted scope' 0 (Api GET '/activities').Body.pageInfo.totalCount
++            Check 'separate TEAM account cannot write outside admitted scope' 404 (Api POST '/activities' (Draft 'activity_sales_contact') 'sales-team-forbidden').Status
++        } else {
++            Check 'separate user without capabilities cannot list Activity' 403 (Api GET '/activities').Status
++            Check 'separate user without capabilities cannot log Activity' 403 (Api POST '/activities' $ownDraft 'sales-denied').Status
++        }
++    }
++    $script:token=$adminToken
++    if ($RaceReview) {
++        Scope contacts Own
++        foreach ($raceKey in @("race-$runId", 'activity-own')) {
++        $lockConnection = [System.Data.SqlClient.SqlConnection]::new($connection)
++        $lockConnection.Open()
++        $lockTransaction = $lockConnection.BeginTransaction()
++        $client = [System.Net.Http.HttpClient]::new()
++        try {
++            $lockCommand = $lockConnection.CreateCommand(); $lockCommand.Transaction=$lockTransaction
++            $lockCommand.CommandText='SELECT COUNT(*) FROM tasks.IdempotencyRecords WITH (TABLOCKX,HOLDLOCK)'
++            $null=$lockCommand.ExecuteScalar()
++            $request=[System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post,"http://127.0.0.1:$Port/activities")
++            $request.Headers.Add('Authorization',"Bearer $script:token")
++            $request.Headers.Add('X-Workspace-Id',$workspace)
++            $request.Headers.Add('Idempotency-Key',$raceKey)
++            $request.Headers.Add('X-Request-Id',"race-$runId")
++            $request.Headers.Add('X-Correlation-Id',"race-$runId")
++            $request.Content=[System.Net.Http.StringContent]::new(((Draft)|ConvertTo-Json -Depth 5),[Text.Encoding]::UTF8,'application/json')
++            $pending=$client.SendAsync($request)
++            $blocked=$false
++            for ($attempt=0;$attempt -lt 50;$attempt++) {
++                $waiting=(Sql "SELECT COUNT(*) AS Count FROM sys.dm_exec_requests r CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t WHERE r.database_id=DB_ID() AND r.wait_type LIKE 'LCK%' AND t.text LIKE '%IdempotencyRecords%'").Rows[0].Count
++                if ($waiting -gt 0) { $blocked=$true; break }
++                Start-Sleep -Milliseconds 100
++            }
++            if (!$blocked) {
++                $earlyStatus=if($pending.IsCompleted){[int]$pending.GetAwaiter().GetResult().StatusCode}else{'pending'}
++                throw "Race barrier not reached; result is inconclusive; HTTP=$earlyStatus"
++            }
++            $null=Sql "UPDATE contacts.Contacts SET OwnerId='activity_other_member' WHERE ContactId='activity_contact_own' AND WorkspaceId='$workspace'"
++            $lockTransaction.Commit()
++            $raceResponse=$pending.GetAwaiter().GetResult()
++            Check "owner revoked while command waits cannot write or replay ($raceKey)" 404 ([int]$raceResponse.StatusCode)
++            @{barrier='SQL idempotency table lock';idempotencyKey=$raceKey;ownerChangedBeforeRelease=$true;status=[int]$raceResponse.StatusCode} | ConvertTo-Json | Set-Content (Join-Path $evidence "race-review-$raceKey.json")
++            $null=Sql "UPDATE contacts.Contacts SET OwnerId='$member' WHERE ContactId='activity_contact_own' AND WorkspaceId='$workspace'"
++        } finally { $lockTransaction.Dispose(); $lockConnection.Dispose(); $client.Dispose() }
++        }
++        Scope contacts Workspace
++    }
++    if ($CommitRaceReview) {
++        Scope contacts Own
++        $lockConnection=[System.Data.SqlClient.SqlConnection]::new($connection);$lockConnection.Open()
++        $lockTransaction=$lockConnection.BeginTransaction()
++        $mutationConnection=[System.Data.SqlClient.SqlConnection]::new($connection);$mutationConnection.Open()
++        $client=[System.Net.Http.HttpClient]::new()
++        try {
++            $lockCommand=$lockConnection.CreateCommand();$lockCommand.Transaction=$lockTransaction
++            $lockCommand.CommandText='SELECT COUNT(*) FROM tasks.Activities WITH (TABLOCKX,HOLDLOCK)'
++            $null=$lockCommand.ExecuteScalar()
++            $request=[System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post,"http://127.0.0.1:$Port/activities")
++            foreach($header in @{Authorization="Bearer $script:token";'X-Workspace-Id'=$workspace;'Idempotency-Key'="commit-race-$runId";'X-Request-Id'="commit-race-$runId";'X-Correlation-Id'="commit-race-$runId"}.GetEnumerator()){$request.Headers.Add($header.Key,$header.Value)}
++            $request.Content=[System.Net.Http.StringContent]::new(((Draft)|ConvertTo-Json -Depth 5),[Text.Encoding]::UTF8,'application/json')
++            $pending=$client.SendAsync($request)
++            $blocked=$false
++            for($attempt=0;$attempt -lt 80;$attempt++) {
++                $waiting=(Sql "SELECT COUNT(*) AS Count FROM sys.dm_exec_requests r CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t WHERE r.database_id=DB_ID() AND r.wait_type LIKE 'LCK%' AND t.text LIKE '%Activities%'").Rows[0].Count
++                if($waiting -gt 0){$blocked=$true;break}
++                Start-Sleep -Milliseconds 100
++            }
++            if(!$blocked){throw 'Commit race barrier not reached; inconclusive'}
++            $mutation=$mutationConnection.CreateCommand();$mutation.CommandTimeout=30
++            $mutation.CommandText="UPDATE contacts.Contacts SET OwnerId='activity_other_member',ArchivedAt=SYSUTCDATETIME(),Status='archived' WHERE WorkspaceId='$workspace' AND ContactId='activity_contact_own'"
++            $mutationPending=$mutation.ExecuteNonQueryAsync()
++            # Let the competing transaction reach the target row; do not await it while
++            # holding the Activity barrier, because a correct guard must make it wait.
++            Start-Sleep -Milliseconds 300
++            $mutatedBeforeRelease=$mutationPending.IsCompletedSuccessfully
++            $lockTransaction.Commit()
++            $response=$pending.GetAwaiter().GetResult()
++            $null=$mutationPending.GetAwaiter().GetResult()
++            Check 'owner/archive mutation cannot commit before blocked Activity' $false $mutatedBeforeRelease
++            Check 'Activity commits before the now-unblocked owner/archive change' 201 ([int]$response.StatusCode)
++            @{barrier='Activity INSERT blocked by test table lock';mutationCompletedBeforeActivityRelease=$mutatedBeforeRelease;activityHttp=[int]$response.StatusCode} | ConvertTo-Json | Set-Content (Join-Path $evidence 'commit-race.json')
++        } finally {
++            $lockTransaction.Dispose();$lockConnection.Dispose();$mutationConnection.Dispose();$client.Dispose()
++            $null=Sql "UPDATE contacts.Contacts SET OwnerId='$member',ArchivedAt=NULL,Status='active' WHERE WorkspaceId='$workspace' AND ContactId='activity_contact_own'"
++            Scope contacts Workspace
++        }
++    }
++    if ($ScaleReview) {
++        $metrics=[Collections.Generic.List[object]]::new()
++        $apiChild=Get-CimInstance Win32_Process -Filter "ParentProcessId=$($process.Id)" | Where-Object Name -Like '*ApiHost*' | Select-Object -First 1
++        $memoryProcess=if($apiChild){Get-Process -Id $apiChild.ProcessId}else{$null}
++        function Measure-ActivityRead([string]$shape,[int]$size,[string]$scope,[string]$kind,[string]$path,[int]$expectedCount,[int]$expectedItems) {
++            $commandsBefore=@(Select-String -LiteralPath (Join-Path $evidence 'host.log') -Pattern 'Executed DbCommand').Count
++            $securedBefore=@(Select-String -LiteralPath (Join-Path $evidence 'host.log') -Pattern '^\s*-- Activity authorized reference query').Count
++            if($memoryProcess){$memoryProcess.Refresh();$privateBefore=$memoryProcess.PrivateMemorySize64;$workingBefore=$memoryProcess.WorkingSet64}
++            $watch=[Diagnostics.Stopwatch]::StartNew()
++            $response=Api GET $path
++            $watch.Stop()
++            if($memoryProcess){$memoryProcess.Refresh();$privateAfter=$memoryProcess.PrivateMemorySize64;$workingAfter=$memoryProcess.WorkingSet64}
++            $commandsAfter=@(Select-String -LiteralPath (Join-Path $evidence 'host.log') -Pattern 'Executed DbCommand').Count
++            $securedAfter=@(Select-String -LiteralPath (Join-Path $evidence 'host.log') -Pattern '^\s*-- Activity authorized reference query').Count
++            $metrics.Add(@{shape=$shape;size=$size;scope=$scope;kind=$kind;path=$path;sqlCommands=$commandsAfter-$commandsBefore;securedSqlCommands=$securedAfter-$securedBefore;elapsedMs=$watch.Elapsed.TotalMilliseconds;status=$response.Status;totalCount=$response.Body.pageInfo.totalCount;itemCount=@($response.Body.items).Count;privateBytesBefore=$privateBefore;privateBytesAfter=$privateAfter;workingSetBefore=$workingBefore;workingSetAfter=$workingAfter})
++            Check "$shape/$size/$scope/$kind HTTP" 200 $response.Status
++            Check "$shape/$size/$scope/$kind exactly COUNT and page SQL" 2 ($securedAfter-$securedBefore)
++            Check "$shape/$size/$scope/$kind totalCount" $expectedCount $response.Body.pageInfo.totalCount
++            Check "$shape/$size/$scope/$kind items" $expectedItems @($response.Body.items).Count
++            if($shape -eq 'distinct' -and $scope -eq 'Own') {
++                $deniedItems=@($response.Body.items | Where-Object { $_.recordRef.recordId -match '^perf_contact_(\d+)$' -and [int]$Matches[1] % 2 -eq 0 })
++                Check "$shape/$size/$scope/$kind no denied target" 0 $deniedItems.Count
++            }
++            return $response
++        }
++        $benchWorkspaceBaseCount=(Api GET '/activities?limit=1').Body.pageInfo.totalCount
++        $script:token=$salesOwnToken
++        $benchOwnBaseCount=(Api GET '/activities?limit=1').Body.pageInfo.totalCount
++        $script:token=$adminToken
++        $null=Sql "INSERT INTO contacts.Contacts (ContactId,WorkspaceId,OwnerId,FullName,Status,Version,CreatedAt,UpdatedAt,Profile) VALUES ('perf_same','$workspace','mem_activity_own','Performance same target','active',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}');"
++        foreach($shape in @('same','distinct')) {
++            foreach($size in @(100,1000,5000)) {
++                if($shape -eq 'same') {
++                    $null=Sql @"
++;WITH n AS (SELECT TOP ($size) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS i FROM sys.all_objects a CROSS JOIN sys.all_objects b)
++INSERT INTO tasks.Activities (ActivityId,WorkspaceId,Type,Subject,ActorId,OccurredAt,RecordModuleKey,RecordId,Version)
++SELECT CONCAT('perf_same_',i),'$workspace',3,'bench_same','$member',DATEADD(SECOND,CONVERT(int,i),'2026-01-01'),'contacts','perf_same',0 FROM n
++WHERE NOT EXISTS (SELECT 1 FROM tasks.Activities a WHERE a.ActivityId=CONCAT('perf_same_',n.i));
++"@
++                } else {
++                    $null=Sql @"
++;WITH n AS (SELECT TOP ($size) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS i FROM sys.all_objects a CROSS JOIN sys.all_objects b)
++INSERT INTO contacts.Contacts (ContactId,WorkspaceId,OwnerId,FullName,Status,Version,CreatedAt,UpdatedAt,Profile)
++SELECT CONCAT('perf_contact_',i),'$workspace',CASE WHEN i%2=1 THEN 'mem_activity_own' ELSE 'activity_other_member' END,'Performance target','active',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}' FROM n
++WHERE NOT EXISTS (SELECT 1 FROM contacts.Contacts c WHERE c.ContactId=CONCAT('perf_contact_',n.i));
++INSERT INTO tasks.Activities (ActivityId,WorkspaceId,Type,Subject,ActorId,OccurredAt,RecordModuleKey,RecordId,Version)
++SELECT CONCAT('perf_distinct_',c.ContactId),'$workspace',3,CASE WHEN c.OwnerId='mem_activity_own' THEN 'bench_distinct' ELSE 'bench_distinct bench_hidden' END,'$member',SYSUTCDATETIME(),'contacts',c.ContactId,0 FROM contacts.Contacts c
++WHERE c.WorkspaceId='$workspace' AND c.ContactId LIKE 'perf_contact_%' AND NOT EXISTS (SELECT 1 FROM tasks.Activities a WHERE a.ActivityId=CONCAT('perf_distinct_',c.ContactId));
++"@
++                }
++                foreach($scopeName in @('Workspace','Own')) {
++                    $script:token=if($scopeName -eq 'Own'){$salesOwnToken}else{$adminToken}
++                    $count=if($shape -eq 'same' -or $scopeName -eq 'Workspace'){$size}else{$size/2}
++                    $baseCount=if($scopeName -eq 'Own'){$benchOwnBaseCount}else{$benchWorkspaceBaseCount}
++                    $globalCount=$baseCount+$count+$(if($shape -eq 'distinct'){5000}else{0})
++                    $null=Measure-ActivityRead $shape $size $scopeName 'unfiltered-limit1' '/activities?limit=1' $globalCount 1
++                    $globalPage=Measure-ActivityRead $shape $size $scopeName 'unfiltered-limit50' '/activities?limit=50' $globalCount 50
++                    $null=Measure-ActivityRead $shape $size $scopeName 'unfiltered-next50' "/activities?limit=50&cursor=$($globalPage.Body.pageInfo.nextCursor)" $globalCount ([Math]::Min(50,$globalCount-50))
++                    $base="/activities?search=bench_$shape"
++                    $null=Measure-ActivityRead $shape $size $scopeName 'global-limit1' "$base&limit=1" $count 1
++                    $page=Measure-ActivityRead $shape $size $scopeName 'global-limit50' "$base&limit=50" $count ([Math]::Min(50,$count))
++                    if($page.Body.pageInfo.hasNextPage){$null=Measure-ActivityRead $shape $size $scopeName 'global-next50' "$base&limit=50&cursor=$($page.Body.pageInfo.nextCursor)" $count ([Math]::Min(50,$count-50))}
++                    else{Check "$shape/$size/$scopeName exhausted cursor" $false $page.Body.pageInfo.hasNextPage}
++                    $target=if($shape -eq 'same'){'perf_same'}else{'perf_contact_1'}
++                    $scopedCount=if($shape -eq 'same'){$size}else{1}
++                    $scopedBase="$base&recordModuleKey=contacts&recordId=$target"
++                    $null=Measure-ActivityRead $shape $size $scopeName 'record-limit1' "$scopedBase&limit=1" $scopedCount 1
++                    $scopedPage=Measure-ActivityRead $shape $size $scopeName 'record-limit50' "$scopedBase&limit=50" $scopedCount ([Math]::Min(50,$scopedCount))
++                    if($scopedPage.Body.pageInfo.hasNextPage){$null=Measure-ActivityRead $shape $size $scopeName 'record-next50' "$scopedBase&limit=50&cursor=$($scopedPage.Body.pageInfo.nextCursor)" $scopedCount ([Math]::Min(50,$scopedCount-50))}
++                    if($shape -eq 'distinct') {
++                        $hiddenCount=if($scopeName -eq 'Own'){0}else{$size/2}
++                        $hidden=Measure-ActivityRead $shape $size $scopeName 'hidden-search' '/activities?search=bench_hidden&limit=1' $hiddenCount ([Math]::Min(1,$hiddenCount))
++                        Check "$shape/$size/$scopeName hidden continuation" ($hiddenCount -gt 1) $hidden.Body.pageInfo.hasNextPage
++                    }
++                }
++            }
++        }
++        Scope contacts Workspace
++        $script:token=$adminToken
++        $metrics | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $evidence 'performance-matrix.json')
++        $null=Sql 'EXEC sys.sp_query_store_flush_db;'
++        $plans=Sql "SELECT TOP (4) q.query_id,p.plan_id,t.query_sql_text,p.query_plan FROM sys.query_store_query_text t JOIN sys.query_store_query q ON q.query_text_id=t.query_text_id JOIN sys.query_store_plan p ON p.query_id=q.query_id WHERE t.query_sql_text LIKE '%FROM tasks.Activities a%' AND t.query_sql_text LIKE '%@activityWorkspace%' ORDER BY p.plan_id DESC"
++        $planIndex=0
++        foreach($plan in $plans.Rows){$planIndex++;$plan.query_plan | Set-Content (Join-Path $evidence "activity-plan-$planIndex.sqlplan");$plan.query_sql_text | Set-Content (Join-Path $evidence "activity-query-$planIndex.sql")}
++        $indexes=Sql "SELECT i.name AS IndexName,c.name AS ColumnName,ic.key_ordinal FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id=i.object_id AND ic.index_id=i.index_id JOIN sys.columns c ON c.object_id=ic.object_id AND c.column_id=ic.column_id WHERE i.object_id=OBJECT_ID('tasks.Activities') AND ic.key_ordinal>0 ORDER BY i.name,ic.key_ordinal"
++        @($indexes.Rows|ForEach-Object{@{index=$_.IndexName;column=$_.ColumnName;ordinal=$_.key_ordinal}})|ConvertTo-Json|Set-Content (Join-Path $evidence 'activity-indexes.json')
++    }
++    if ($Browser -and !$UiReview) { Invoke-ConnectedBrowser }
++    $beforeRestart = Api GET '/activities?recordModuleKey=contacts&recordId=activity_contact_own'
++    Stop-Process -Id $process.Id
++    $process.WaitForExit()
++    $process = Start-Process dotnet -ArgumentList @('run','--no-build','--no-launch-profile','--project',$project) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $evidence 'restart.log') -RedirectStandardError (Join-Path $evidence 'restart-error.log')
++    $ready=$false
++    for ($i=0; $i -lt 90; $i++) {
++        try { $null = Api GET '/auth/session'; $ready=$true; break } catch { Start-Sleep -Seconds 1 }
++        if ($process.HasExited) { throw 'Restarted ApiHost exited' }
++    }
++    if (!$ready) { throw 'Restarted ApiHost readiness timeout' }
++    $afterRestart = Api GET '/activities?recordModuleKey=contacts&recordId=activity_contact_own'
++    Check 'SQL Activity survives ApiHost restart' ($beforeRestart.Body.items.id -join ',') ($afterRestart.Body.items.id -join ',')
++    $script:token=$null
++    $login = Api POST '/auth/sessions' @{email=$settings.DevelopmentDemoBootstrap__Email;password=$settings.DevelopmentDemoBootstrap__Password} "relogin-$runId"
++    Check 'real reauthentication after restart' 200 $login.Status
++    $script:token=$login.Body.accessToken
++    Check 'reauthenticated session reads persisted Activity' $beforeRestart.Body.pageInfo.totalCount (Api GET '/activities?recordModuleKey=contacts&recordId=activity_contact_own').Body.pageInfo.totalCount
++    if ($Browser -and !$UiReview) {
++        $recordFile=Get-ChildItem (Join-Path $frontend 'test-results/crm-real') -Filter records.json -Recurse | Select-Object -First 1
++        if ($recordFile) {
++            $records=Get-Content $recordFile.FullName -Raw | ConvertFrom-Json
++            foreach ($field in @('leadId','contactId','organizationId','customerId','taskMeetingId','activityId')) {
++                if ($records.$field -notmatch '^[A-Za-z0-9_-]{1,128}$') { throw 'Unexpected test record identifier' }
++            }
++            foreach ($target in @(@('leads','leadId'),@('contacts','contactId'),@('organizations','organizationId'),@('customers','customerId'),@('tasks','taskMeetingId'))) {
++                Check "SQL-backed $($target[0]) survives ApiHost restart" 200 (Api GET "/$($target[0])/$($records.($target[1]))").Status
++            }
++            $customerCount=(Sql "SELECT COUNT(*) AS Count FROM customers.Customers WHERE WorkspaceId='$workspace' AND RelationshipType='CONTACT' AND RelationshipId='$($records.contactId)'").Rows[0].Count
++            Check 'SQL conversion retry creates exactly one Customer for subject' 1 $customerCount
++            Check 'SQL Lead retains canonical Customer reference' $records.customerId (Sql "SELECT CustomerRef FROM leads.Leads WHERE WorkspaceId='$workspace' AND LeadId='$($records.leadId)'").Rows[0].CustomerRef
++            Check 'SQL Contact retains active Organization relationship' 1 (Sql "SELECT COUNT(*) AS Count FROM contacts.OrganizationRelationships WHERE WorkspaceId='$workspace' AND ContactId='$($records.contactId)' AND OrganizationId='$($records.organizationId)' AND EffectiveTo IS NULL").Rows[0].Count
++            Check 'SQL Meeting retains Customer reference' $records.customerId (Sql "SELECT RecordId FROM tasks.Tasks WHERE WorkspaceId='$workspace' AND TaskId='$($records.taskMeetingId)'").Rows[0].RecordId
++            if ($records.organizationCustomerId) {
++                if ($records.organizationCustomerId -notmatch '^[A-Za-z0-9_-]{1,128}$') { throw 'Unexpected Organization Customer identifier' }
++                Check 'SQL canonical Organization Customer subject is unique' 1 (Sql "SELECT COUNT(*) AS Count FROM customers.Customers WHERE WorkspaceId='$workspace' AND RelationshipType='ORGANIZATION_ACCOUNT' AND RelationshipId='$($records.organizationId)' AND CustomerId='$($records.organizationCustomerId)'").Rows[0].Count
++            }
++            Copy-Item -LiteralPath $recordFile.FullName -Destination (Join-Path $evidence 'browser-records.json')
++            if ($ProjectionReview) {
++                $null=Sql "UPDATE contacts.OrganizationRelationships SET EffectiveTo=SYSUTCDATETIME() WHERE WorkspaceId='$workspace' AND ContactId='$($records.contactId)' AND OrganizationId='$($records.organizationId)' AND EffectiveTo IS NULL"
++                Check 'historical Activity remains after Organization affiliation ends' 1 (Api GET "/activities?recordModuleKey=contacts&recordId=$($records.contactId)").Body.pageInfo.totalCount
++                $endedDraft=Draft $records.contactId; $endedDraft.relationshipRef=@{type='ORGANIZATION_ACCOUNT';id=$records.organizationId}
++                Check 'new Activity cannot claim ended Organization affiliation' 404 (Api POST '/activities' $endedDraft 'ended-affiliation').Status
++            }
++        }
++    }
++} finally {
++    if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id }
++    foreach ($setting in $oldEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($setting.Key, $setting.Value) }
++    $results | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $evidence 'results.json')
++    $http | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $evidence 'http.json')
++    @{runId=$runId;startedAtUtc=$startedAt;finishedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');
++      backendCommit=(& git -C $repo rev-parse HEAD);database=$database;sqlServer=$SqlServer} |
++      ConvertTo-Json | Set-Content (Join-Path $evidence 'run.json')
++    Write-Host "Evidence: $evidence; isolated database retained: $database"
++}
++if (@($results | Where-Object status -eq FAIL).Count) { exit 1 }
+diff --git a/src/UnicoreCRM.Operations/Tasks/Application/Common/ActivityRecordAccess.cs b/src/UnicoreCRM.Operations/Tasks/Application/Common/ActivityRecordAccess.cs
+new file mode 100644
+index 0000000..d3d59fa
+--- /dev/null
++++ b/src/UnicoreCRM.Operations/Tasks/Application/Common/ActivityRecordAccess.cs
+@@ -0,0 +1,89 @@
++using UnicoreCRM.Operations.Tasks.Contracts;
++using UnicoreCRM.Operations.Tasks.Domain;
++using UnicoreCRM.Platform.AccessControl.Contracts;
++
++namespace UnicoreCRM.Operations.Tasks.Application.Common;
++
++internal sealed class ActivityRecordAccess(
++    IRecordAccessEvaluator evaluator,
++    IEnumerable<IActivityReferenceAuthority> authorities)
++{
++    private readonly IReadOnlyDictionary<string, IActivityReferenceAuthority> owners =
++        authorities.ToDictionary(owner => owner.Descriptor.ResourceKey, StringComparer.Ordinal);
++
++    internal async Task<IReadOnlyList<ActivityReadScope>> ReadScopesAsync(TaskAccess access,
++        TaskRequestMetadata metadata, CancellationToken cancellationToken)
++    {
++        var scopes = new List<ActivityReadScope>();
++        foreach (var owner in owners.Values)
++        {
++            var descriptor = owner.Descriptor;
++            var decision = await evaluator.AuthorizeResourceAsync(descriptor.ResourceKey, descriptor.ReadCapability,
++                descriptor.EnforceableFields.Keys.ToArray(), RecordAccessRepresentation.Full,
++                new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId), cancellationToken);
++            if (decision.IsAllowed && decision.HoldsResourceRead
++                && decision.TrustedWorkspace?.WorkspaceId == access.Trusted.WorkspaceId
++                && decision.ScopeFilter is RecordAccessScopeFilter.Workspace or RecordAccessScopeFilter.OwnedByMember
++                && decision.UnenforceableFieldKeys.Count == 0
++                && descriptor.EnforceableFields.Keys.All(decision.CanRead))
++                scopes.Add(new(descriptor.ResourceKey, owner.ReadFactsSql, decision));
++        }
++        return scopes;
++    }
++
++    // A relationship-only Contact/Organization activity is supported by resolving that exact
++    // target. Multiple references must be a relationship proved by the record's owner AND every
++    // target must independently pass current read, scope and field security.
++    internal async Task<bool> CanAccessAsync(TaskAccess access, TaskReferenceData references,
++        TaskRequestMetadata metadata, bool forWrite, CancellationToken cancellationToken)
++    {
++        var module = references.RecordModuleKey ?? RelationshipModule(references.RelationshipType);
++        var id = references.RecordId ?? references.RelationshipId;
++        if (module is null || id is null || !owners.TryGetValue(module, out var owner)
++            || !ValidSource(references, module, id)) return false;
++        var relationship = references.RelationshipType is null ? null
++            : new BuyerReference(references.RelationshipType, references.RelationshipId!);
++        if (!await AuthorizeAsync(owner, id, access, metadata, cancellationToken)
++            || !await owner.IsActivityReferenceValidAsync(access.Trusted, id, relationship, forWrite, cancellationToken))
++            return false;
++        if (relationship is not null)
++        {
++            var relatedModule = RelationshipModule(relationship.Type);
++            if (relatedModule is null || relationship.Id is null || !owners.TryGetValue(relatedModule, out var relatedOwner)
++                || !await AuthorizeAsync(relatedOwner, relationship.Id, access, metadata, cancellationToken)
++                || !await relatedOwner.IsActivityReferenceValidAsync(access.Trusted, relationship.Id, null, forWrite, cancellationToken))
++                return false;
++        }
++        return true;
++    }
++
++    private async Task<bool> AuthorizeAsync(IActivityReferenceAuthority owner, string id, TaskAccess access,
++        TaskRequestMetadata metadata, CancellationToken cancellationToken)
++    {
++        var descriptor = owner.Descriptor;
++        var context = new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId);
++        var decision = await evaluator.AuthorizeResourceAsync(descriptor.ResourceKey, descriptor.ReadCapability,
++            descriptor.EnforceableFields.Keys.ToArray(), RecordAccessRepresentation.Full, context, cancellationToken);
++        if (!decision.IsAllowed || decision.TrustedWorkspace?.WorkspaceId != access.Trusted.WorkspaceId
++            || decision.UnenforceableFieldKeys.Count != 0
++            // Free text can quote any protected owner field. Withhold the entire activity when
++            // any owner field cannot be read, including count/search, rather than guess redactions.
++            || descriptor.EnforceableFields.Keys.Any(field => !decision.CanRead(field))) return false;
++        var facts = await owner.ReadFactsAsync(access.Trusted, id, context, cancellationToken);
++        return (await evaluator.AuthorizeRecordAsync(decision, id, facts, "activity.reference", context, cancellationToken)).IsAllowed;
++    }
++
++    internal static string? RelationshipModule(string? type) => type switch
++    {
++        "CONTACT" => "contacts", "ORGANIZATION_ACCOUNT" => "organizations", _ => null
++    };
++
++    internal static bool ValidSource(TaskReferenceData references, string? module, string? id) =>
++        references.SourceType is null
++            ? references.SourceId is null && references.SourceEvidence is null
++            : references.SourceId == id && references.SourceEvidence is null && (module, references.SourceType) is
++                ("leads", "LEAD_ACTIVITY" or "LEAD_DETAIL") or
++                ("contacts", "CONTACT_ACTIVITY" or "CONTACT_DETAIL") or
++                ("organizations", "ORGANIZATION_ACTIVITY" or "ORGANIZATION_DETAIL") or
++                ("customers", "CUSTOMER_ACTIVITY" or "CUSTOMER_DETAIL" or "CUSTOMER_360");
++}
+diff --git a/src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs b/src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs
+new file mode 100644
+index 0000000..42d18c0
+--- /dev/null
++++ b/src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs
+@@ -0,0 +1,17 @@
++using UnicoreCRM.Platform.AccessControl.Contracts;
++using UnicoreCRM.Platform.Workspace.Contracts;
++
++namespace UnicoreCRM.Operations.Tasks.Contracts;
++
++/// <summary>Module-owned facts only. AccessControl remains the sole scope/capability authority.</summary>
++public interface IActivityReferenceAuthority : IRecordAccessFactProvider
++{
++    // Trusted, static SQL owned by the business persistence implementation. It projects only
++    // WorkspaceId, RecordId, OwnerId, RelationshipType, RelationshipId and CanLog;
++    // CanLog includes owner lifecycle and current relationship validity. Never client SQL.
++    string ReadFactsSql { get; }
++    Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
++        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken);
++}
++
++public sealed record ActivityReadScope(string ModuleKey, string FactsSql, RecordAccessAuthorization Authorization);
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs
+new file mode 100644
+index 0000000..0000998
+--- /dev/null
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs
+@@ -0,0 +1,98 @@
++using System.Data;
++using Microsoft.Data.SqlClient;
++using UnicoreCRM.Operations.Tasks.Contracts;
++using UnicoreCRM.Operations.Tasks.Domain;
++using UnicoreCRM.Platform.AccessControl.Contracts;
++
++namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
++
++internal static class ActivityReadSql
++{
++    internal sealed record Query(string Sql, object[] Parameters);
++
++    internal static Query CommitGuard(string workspaceId, TaskReferenceData references, IReadOnlyList<ActivityReadScope> scopes)
++    {
++        var source = Facts(workspaceId, scopes, true);
++        var parameters = source.Parameters.ToList();
++        void Parameter(string name, string? value) => parameters.Add(new SqlParameter(name, SqlDbType.NVarChar, 128) { Value = (object?)value ?? DBNull.Value });
++        Parameter("@recordModule", references.RecordModuleKey ?? Application.Common.ActivityRecordAccess.RelationshipModule(references.RelationshipType));
++        Parameter("@recordId", references.RecordId ?? references.RelationshipId);
++        Parameter("@relationshipType", references.RelationshipType);
++        Parameter("@relationshipId", references.RelationshipId);
++        Parameter("@relationshipModule", Application.Common.ActivityRecordAccess.RelationshipModule(references.RelationshipType));
++        // Executed on the Tasks SERIALIZABLE connection. The exact owner rows/relationship
++        // ranges read by this proof stay protected until the Activity/receipt commit.
++        var sql = $"""
++            SELECT CAST(CASE WHEN
++                EXISTS (SELECT 1 FROM ({source.Sql}) p
++                        WHERE p.ModuleKey=@recordModule AND p.RecordId=@recordId
++                          AND (@relationshipType IS NULL OR
++                               (p.RelationshipType=@relationshipType AND p.RelationshipId=@relationshipId)))
++                AND (@relationshipType IS NULL OR
++                     EXISTS (SELECT 1 FROM ({source.Sql}) r
++                             WHERE r.ModuleKey=@relationshipModule AND r.RecordId=@relationshipId))
++                THEN 1 ELSE 0 END AS int) AS [Value]
++            """;
++        return new(sql, parameters.ToArray());
++    }
++
++    internal static Query Build(string workspaceId, IReadOnlyList<ActivityReadScope> scopes)
++    {
++        var source = Facts(workspaceId, scopes, false);
++        if (source.Parameters.Length == 0) return new("SELECT a.* FROM tasks.Activities a WHERE 1=0", []);
++        var facts = source.Sql;
++        const string module = "COALESCE(a.RecordModuleKey, CASE a.RelationshipType WHEN N'CONTACT' THEN N'contacts' WHEN N'ORGANIZATION_ACCOUNT' THEN N'organizations' END)";
++        const string id = "COALESCE(a.RecordId,a.RelationshipId)";
++        var sql = $"""
++            SELECT a.* FROM tasks.Activities a
++            WHERE a.WorkspaceId=@activityWorkspace AND a.Type<>5
++              AND a.SourceEvidence IS NULL
++              AND ((a.SourceType IS NULL AND a.SourceId IS NULL) OR
++                   (a.SourceId={id} AND
++                    (({module}=N'leads' AND a.SourceType IN (N'LEAD_ACTIVITY',N'LEAD_DETAIL')) OR
++                     ({module}=N'contacts' AND a.SourceType IN (N'CONTACT_ACTIVITY',N'CONTACT_DETAIL')) OR
++                     ({module}=N'organizations' AND a.SourceType IN (N'ORGANIZATION_ACTIVITY',N'ORGANIZATION_DETAIL')) OR
++                     ({module}=N'customers' AND a.SourceType IN (N'CUSTOMER_ACTIVITY',N'CUSTOMER_DETAIL',N'CUSTOMER_360')))))
++              AND EXISTS (SELECT 1 FROM ({facts}) p
++                          WHERE p.ModuleKey={module} AND p.RecordId={id}
++                            AND (a.RelationshipType IS NULL OR
++                                 (p.RelationshipType=a.RelationshipType AND p.RelationshipId=a.RelationshipId)))
++              AND (a.RelationshipType IS NULL OR
++                   EXISTS (SELECT 1 FROM ({facts}) r
++                           WHERE r.RecordId=a.RelationshipId AND
++                            ((a.RelationshipType=N'CONTACT' AND r.ModuleKey=N'contacts') OR
++                             (a.RelationshipType=N'ORGANIZATION_ACCOUNT' AND r.ModuleKey=N'organizations'))))
++            """;
++        return new(sql, source.Parameters);
++    }
++    private static Query Facts(string workspaceId, IReadOnlyList<ActivityReadScope> scopes, bool forWrite)
++    {
++        if (scopes.Count == 0) return new("SELECT CAST(NULL AS nvarchar(100)) AS ModuleKey, CAST(NULL AS nvarchar(128)) AS RecordId, CAST(NULL AS nvarchar(32)) AS RelationshipType, CAST(NULL AS nvarchar(128)) AS RelationshipId WHERE 1=0", []);
++        var parameters = new List<object> { new SqlParameter("@activityWorkspace", SqlDbType.NVarChar, 128) { Value = workspaceId } };
++        var projections = new List<string>();
++        foreach (var scope in scopes)
++        {
++            var policy = scope.Authorization;
++            if (policy.ScopeFilter is not (RecordAccessScopeFilter.Workspace or RecordAccessScopeFilter.OwnedByMember)) continue;
++            var index = projections.Count;
++            parameters.Add(new SqlParameter($"@module{index}", SqlDbType.NVarChar, 100) { Value = scope.ModuleKey });
++            parameters.Add(new SqlParameter($"@owner{index}", SqlDbType.NVarChar, 128) { Value = (object?)policy.ScopeOwnerMemberId ?? DBNull.Value });
++            parameters.Add(new SqlParameter($"@owned{index}", SqlDbType.Bit) { Value = policy.ScopeFilter == RecordAccessScopeFilter.OwnedByMember });
++            parameters.Add(new SqlParameter($"@queue{index}", SqlDbType.Bit) { Value = policy.CanReadUnassigned });
++            parameters.Add(new SqlParameter($"@restrict{index}", SqlDbType.Bit) { Value = policy.RestrictUnassigned });
++            // FactsSql is static owner persistence code, never HTTP input. All request/policy
++            // values are parameters. Translate the AccessControl collection filter, not roles.
++            projections.Add($"""
++                SELECT @module{index} AS ModuleKey, f.RecordId, f.RelationshipType, f.RelationshipId
++                FROM ({scope.FactsSql}) f
++                WHERE f.WorkspaceId=@activityWorkspace
++                  AND (@owned{index}=0 OR f.OwnerId=@owner{index} OR (@queue{index}=1 AND f.OwnerId IS NULL))
++                  AND (@restrict{index}=0 OR @queue{index}=1 OR f.OwnerId IS NOT NULL)
++                  {(forWrite ? "AND f.CanLog=1" : "")}
++                """);
++        }
++        if (projections.Count == 0) return Facts(workspaceId, [], forWrite);
++        return new(string.Join("\nUNION ALL\n", projections), parameters.ToArray());
++    }
++
++}
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.Designer.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.Designer.cs
+new file mode 100644
+index 0000000..9d65608
+--- /dev/null
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.Designer.cs
+@@ -0,0 +1,404 @@
++﻿// <auto-generated />
++using System;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Metadata;
++using Microsoft.EntityFrameworkCore.Migrations;
++using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
++using UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
++
++#nullable disable
++
++namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
++{
++    [DbContext(typeof(TasksDbContext))]
++    [Migration("20261021075605_IndexActivityRecordHistory")]
++    partial class IndexActivityRecordHistory
++    {
++        /// <inheritdoc />
++        protected override void BuildTargetModel(ModelBuilder modelBuilder)
++        {
++#pragma warning disable 612, 618
++            modelBuilder
++                .HasDefaultSchema("tasks")
++                .HasAnnotation("ProductVersion", "10.0.11")
++                .HasAnnotation("Relational:MaxIdentifierLength", 128);
++
++            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
++
++            modelBuilder.Entity("UnicoreCRM.Operations.Tasks.Domain.TaskActivity", b =>
++                {
++                    b.Property<string>("ActivityId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("ActorId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("Body")
++                        .HasMaxLength(10000)
++                        .HasColumnType("nvarchar(max)");
++
++                    b.Property<DateTimeOffset>("OccurredAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<string>("RecordId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("RecordLabel")
++                        .HasMaxLength(300)
++                        .HasColumnType("nvarchar(300)");
++
++                    b.Property<string>("RecordModuleKey")
++                        .HasMaxLength(100)
++                        .HasColumnType("nvarchar(100)");
++
++                    b.Property<string>("RelationshipId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("RelationshipType")
++                        .HasMaxLength(32)
++                        .HasColumnType("nvarchar(32)");
++
++                    b.Property<string>("SourceEvidence")
++                        .HasMaxLength(1000)
++                        .HasColumnType("nvarchar(1000)");
++
++                    b.Property<string>("SourceId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("SourceType")
++                        .HasMaxLength(100)
++                        .HasColumnType("nvarchar(100)");
++
++                    b.Property<string>("Subject")
++                        .IsRequired()
++                        .HasMaxLength(300)
++                        .HasColumnType("nvarchar(300)");
++
++                    b.Property<int>("Type")
++                        .HasColumnType("int");
++
++                    b.Property<long>("Version")
++                        .HasColumnType("bigint");
++
++                    b.Property<string>("WorkspaceId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.HasKey("ActivityId");
++
++                    b.HasIndex("WorkspaceId", "OccurredAt", "ActivityId");
++
++                    b.HasIndex("WorkspaceId", "RecordModuleKey", "RecordId", "OccurredAt", "ActivityId")
++                        .HasDatabaseName("IX_Activities_RecordHistory");
++
++                    b.ToTable("Activities", "tasks");
++                });
++
++            modelBuilder.Entity("UnicoreCRM.Operations.Tasks.Domain.TaskAuditRecord", b =>
++                {
++                    b.Property<string>("AuditId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("ActorId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("AggregateId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("CorrelationId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<long?>("NewVersion")
++                        .HasColumnType("bigint");
++
++                    b.Property<DateTimeOffset>("OccurredAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<string>("Operation")
++                        .IsRequired()
++                        .HasMaxLength(96)
++                        .HasColumnType("nvarchar(96)");
++
++                    b.Property<string>("Outcome")
++                        .IsRequired()
++                        .HasMaxLength(32)
++                        .HasColumnType("nvarchar(32)");
++
++                    b.Property<long?>("PriorVersion")
++                        .HasColumnType("bigint");
++
++                    b.Property<string>("RequestId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("WorkspaceId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.HasKey("AuditId");
++
++                    b.HasIndex("AggregateId", "OccurredAt");
++
++                    b.HasIndex("WorkspaceId", "OccurredAt");
++
++                    b.ToTable("AuditRecords", "tasks");
++                });
++
++            modelBuilder.Entity("UnicoreCRM.Operations.Tasks.Domain.TaskIdempotencyRecord", b =>
++                {
++                    b.Property<string>("ScopeKey")
++                        .HasMaxLength(64)
++                        .HasColumnType("nvarchar(64)");
++
++                    b.Property<string>("ActorId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<DateTimeOffset>("CreatedAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<string>("Fingerprint")
++                        .IsRequired()
++                        .HasMaxLength(64)
++                        .HasColumnType("nvarchar(64)");
++
++                    b.Property<string>("IdempotencyKey")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("Operation")
++                        .IsRequired()
++                        .HasMaxLength(96)
++                        .HasColumnType("nvarchar(96)");
++
++                    b.Property<string>("ResponseJson")
++                        .IsRequired()
++                        .HasColumnType("nvarchar(max)");
++
++                    b.Property<string>("TargetId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("WorkspaceId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.HasKey("ScopeKey");
++
++                    b.HasIndex("WorkspaceId", "CreatedAt");
++
++                    b.ToTable("IdempotencyRecords", "tasks");
++                });
++
++            modelBuilder.Entity("UnicoreCRM.Operations.Tasks.Domain.TaskItem", b =>
++                {
++                    b.Property<string>("TaskId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("ArchiveReason")
++                        .HasMaxLength(2000)
++                        .HasColumnType("nvarchar(2000)");
++
++                    b.Property<DateTimeOffset?>("ArchivedAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<string>("AssigneeId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("CancellationReason")
++                        .HasMaxLength(2000)
++                        .HasColumnType("nvarchar(2000)");
++
++                    b.Property<DateTimeOffset?>("CancelledAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<DateTimeOffset?>("CompletedAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<DateTimeOffset>("CreatedAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<string>("DedupeKey")
++                        .HasMaxLength(256)
++                        .HasColumnType("nvarchar(256)");
++
++                    b.Property<string>("Description")
++                        .HasMaxLength(4000)
++                        .HasColumnType("nvarchar(4000)");
++
++                    b.Property<DateTimeOffset>("DueAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<string>("Outcome")
++                        .HasMaxLength(4000)
++                        .HasColumnType("nvarchar(4000)");
++
++                    b.Property<int>("Priority")
++                        .HasColumnType("int");
++
++                    b.Property<string>("RecordId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("RecordLabel")
++                        .HasMaxLength(300)
++                        .HasColumnType("nvarchar(300)");
++
++                    b.Property<string>("RecordModuleKey")
++                        .HasMaxLength(100)
++                        .HasColumnType("nvarchar(100)");
++
++                    b.Property<string>("RelationshipId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("RelationshipType")
++                        .HasMaxLength(32)
++                        .HasColumnType("nvarchar(32)");
++
++                    b.Property<string>("SourceEvidence")
++                        .HasMaxLength(1000)
++                        .HasColumnType("nvarchar(1000)");
++
++                    b.Property<string>("SourceId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("SourceType")
++                        .HasMaxLength(100)
++                        .HasColumnType("nvarchar(100)");
++
++                    b.Property<int>("Status")
++                        .HasColumnType("int");
++
++                    b.Property<string>("Title")
++                        .IsRequired()
++                        .HasMaxLength(300)
++                        .HasColumnType("nvarchar(300)");
++
++                    b.Property<DateTimeOffset>("UpdatedAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<long>("Version")
++                        .IsConcurrencyToken()
++                        .HasColumnType("bigint");
++
++                    b.Property<string>("WorkspaceId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.HasKey("TaskId");
++
++                    b.HasIndex("WorkspaceId", "DueAt", "TaskId");
++
++                    b.HasIndex("WorkspaceId", "UpdatedAt", "TaskId");
++
++                    b.HasIndex("WorkspaceId", "AssigneeId", "UpdatedAt", "TaskId");
++
++                    b.HasIndex("WorkspaceId", "RecordModuleKey", "RecordId", "Status", "ArchivedAt", "TaskId")
++                        .HasDatabaseName("IX_Tasks_LeadHandover");
++
++                    b.ToTable("Tasks", "tasks");
++                });
++
++            modelBuilder.Entity("UnicoreCRM.Operations.Tasks.Domain.TaskOutboxMessage", b =>
++                {
++                    b.Property<string>("EventId")
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("AggregateId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("CorrelationId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.Property<string>("EventType")
++                        .IsRequired()
++                        .HasMaxLength(100)
++                        .HasColumnType("nvarchar(100)");
++
++                    b.Property<int>("ExportAttemptCount")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("int")
++                        .HasDefaultValue(0);
++
++                    b.Property<string>("ExportState")
++                        .HasMaxLength(16)
++                        .HasColumnType("nvarchar(16)");
++
++                    b.Property<string>("IntegrationEnvelopeJson")
++                        .HasColumnType("nvarchar(max)");
++
++                    b.Property<string>("LastRelayError")
++                        .HasMaxLength(512)
++                        .HasColumnType("nvarchar(512)");
++
++                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
++                        .HasPrecision(7)
++                        .HasColumnType("datetimeoffset(7)");
++
++                    b.Property<DateTimeOffset?>("NextEligibleAt")
++                        .HasPrecision(7)
++                        .HasColumnType("datetimeoffset(7)");
++
++                    b.Property<DateTimeOffset>("OccurredAt")
++                        .HasColumnType("datetimeoffset");
++
++                    b.Property<string>("PayloadJson")
++                        .IsRequired()
++                        .HasColumnType("nvarchar(max)");
++
++                    b.Property<DateTimeOffset?>("PublishedAt")
++                        .HasPrecision(7)
++                        .HasColumnType("datetimeoffset(7)");
++
++                    b.Property<string>("RelayAttemptId")
++                        .HasMaxLength(64)
++                        .HasColumnType("nvarchar(64)");
++
++                    b.Property<string>("WorkspaceId")
++                        .IsRequired()
++                        .HasMaxLength(128)
++                        .HasColumnType("nvarchar(128)");
++
++                    b.HasKey("EventId");
++
++                    b.HasIndex("WorkspaceId", "OccurredAt");
++
++                    b.HasIndex("ExportState", "NextEligibleAt", "LeaseExpiresAt", "OccurredAt");
++
++                    b.ToTable("OutboxMessages", "tasks");
++                });
++#pragma warning restore 612, 618
++        }
++    }
++}
+diff --git a/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.cs b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.cs
+new file mode 100644
+index 0000000..fa15696
+--- /dev/null
++++ b/src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.cs
+@@ -0,0 +1,29 @@
++﻿using Microsoft.EntityFrameworkCore.Migrations;
++
++#nullable disable
++
++namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
++{
++    /// <inheritdoc />
++    public partial class IndexActivityRecordHistory : Migration
++    {
++        /// <inheritdoc />
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.CreateIndex(
++                name: "IX_Activities_RecordHistory",
++                schema: "tasks",
++                table: "Activities",
++                columns: new[] { "WorkspaceId", "RecordModuleKey", "RecordId", "OccurredAt", "ActivityId" });
++        }
++
++        /// <inheritdoc />
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropIndex(
++                name: "IX_Activities_RecordHistory",
++                schema: "tasks",
++                table: "Activities");
++        }
++    }
++}

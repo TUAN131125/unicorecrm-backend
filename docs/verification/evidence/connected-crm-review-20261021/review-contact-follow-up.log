@@ -1,0 +1,39 @@
+PASS single canonical tasks.read decision
+PASS withheld recordRef refuses derived disclosure
+PASS withheld dueAt refuses derived disclosure
+PASS withheld assigneeId refuses derived disclosure
+PASS withheld status refuses derived disclosure
+PASS withheld archivedAt refuses derived disclosure
+PASS missing required field decision fails closed
+PASS canonical unenforceable representation denied
+PASS missing capability denied
+PASS workspace mismatch denied
+PASS unsupported scope Denied refused
+PASS unsupported scope NotEvaluated refused
+PASS OWN without assignee authority refused
+PASS existing unrestricted WORKSPACE Activity gate remains reachable
+PASS Tasks OwnedByMember does not replace referenced CRM record scope
+PASS Tasks Denied does not replace referenced CRM record scope
+PASS Tasks NotEvaluated does not replace referenced CRM record scope
+PASS existing Activity field restriction gate refuses ReadOnly
+PASS existing Activity field restriction gate refuses Withheld
+PASS current baseline upgrade
+PASS view rollback/reapply
+PASS clean full migration chain
+PASS current migration snapshot matches model
+OWN COMPOSE SQL:
+DECLARE @WorkspaceId nvarchar(128) = N'ws_a';
+DECLARE @memberId nvarchar(128) = N'member_a';
+
+SELECT [c].[WorkspaceId], [c].[ContactId], MIN([c].[MinDueAt]) AS [NextFollowUpAt]
+FROM [tasks].[ContactFollowUpReadProjection] AS [c]
+WHERE [c].[WorkspaceId] = @WorkspaceId AND [c].[AssigneeId] = @memberId
+GROUP BY [c].[WorkspaceId], [c].[ContactId]
+PASS SQL composition uses owner view with workspace/assignee predicates and aggregate
+PASS OWN excludes other assignees before minimum; terminal/archived/foreign/non-Contact tasks excluded
+PASS WORKSPACE minimizes eligible assignees and isolates workspace
+PASS no eligible tasks yields no row for nullable left join
+PASS single SQL left join supports bounded sort with null last and no-task null
+PASS derived filter/count composes in SQL before paging
+PASS view migration and reads preserve tasks
+Isolated verification database retained: UnicoreCRM_ContactFollowUpVerifier_b54b0de75388459ab30f15e63574e8bf

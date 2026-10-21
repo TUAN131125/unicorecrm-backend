@@ -24,6 +24,7 @@ internal sealed record Query(
 internal sealed class Handler(
     TaskAuthorization authorization,
     ITasksPersistence persistence,
+    ActivityRecordAccess recordAccess,
     TimeProvider timeProvider)
 {
     internal async Task<TaskOperationResult<ActivityListResponse>> HandleAsync(Query query, CancellationToken cancellationToken)
@@ -61,9 +62,8 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return TaskOperationResult<ActivityListResponse>.Failure(TaskErrors.Validation(fields));
 
-        // TaskActivity record-access and field-security semantics are both AUTHORITY_GAP, so
-        // Activities fail closed. See TaskActivitySecurity for why neither can be proven and what
-        // this gate does and does not claim.
+        // Free-text content cannot bypass restrictive Tasks field security.
+        // Referenced CRM owners govern record scope below.
         if (!TaskActivitySecurity.IsReachable(access.Value!))
         {
             return TaskOperationResult<ActivityListResponse>.Success(
@@ -71,6 +71,9 @@ internal sealed class Handler(
         }
 
         var trusted = access.Value!.Trusted;
+        // Resolve each module policy once; owner-owned SQL facts apply that scope to every
+        // reference in the final SQL query, before search/count/paging. No target/Activity scan.
+        var scopes = await recordAccess.ReadScopesAsync(access.Value, metadata, cancellationToken);
         var page = await persistence.ListActivitiesAsync(
             trusted.WorkspaceId,
             new ActivityListSpecification(
@@ -85,7 +88,8 @@ internal sealed class Handler(
                 query.RecordId,
                 occurredFrom,
                 occurredTo,
-                descending),
+                descending,
+                scopes),
             cancellationToken);
         var now = timeProvider.GetUtcNow();
         persistence.AddAudit(new TaskAuditRecord(

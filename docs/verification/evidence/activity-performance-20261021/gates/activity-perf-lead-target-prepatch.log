@@ -1,0 +1,8 @@
+You have Reduced Motion enabled on your device. Animations may not appear as expected.. For more information and steps for solving, visit https://motion.dev/troubleshooting/reduced-motion-disabled
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ undefined
+- 'lead-work-x'
+
+    at <anonymous> (D:\Project_All\UnicoreCRM\review-artifacts\connected-crm-20261021\pre-performance-frontend\tests\quality\integration\check-lead-target-identity.mts:147:10)

@@ -1,0 +1,49 @@
+PASS preflight writes no domain evidence or Task state
+PASS record denial fails complete set before mutation
+PASS Handover requires tasks.assign even without visible task targets
+PASS Handover requires tasks.create
+PASS Handover transfers authoritative eligible set
+PASS ineligible tasks untouched
+PASS mandatory takeover frozen semantics and canonical presentation
+PASS OWN admission succeeds and proof replay succeeds after all committed assignees move away
+PASS participant exposes committed proof IDs
+PASS replay survives target deactivation without rediscovery or duplicate evidence
+PASS replay preserves proof IDs
+PASS conflicting durable intent rejected
+PASS service-authorized recovery replays despite revoked human authority
+PASS recovery requires service authorization
+PASS service recovery cannot admit uncommitted side effects
+PASS historical committed proof disclosure does not depend on obsolete wire fingerprint
+PASS execution still enforces fingerprint despite historical disclosure repair
+PASS historical proof disclosure rejects mismatched actor or target identity
+PASS historical proof disclosure rejects mismatched actor or target identity
+PASS invalid frozen command rejected
+PASS invalid frozen command rejected
+PASS invalid frozen command rejected
+PASS inactive target rejected before first commit
+PASS trusted workspace mismatch refused
+PASS human cannot fence participant
+PASS fence requires service grant
+PASS durable fence permits release without Task side effects
+PASS repeated fence preserves evidence without duplication
+PASS late human execute observes fence before null takeover traversal
+PASS fence rejects changed intent
+PASS resolve committed proof bypasses revoked human authority without duplicate evidence
+PASS proof replay does not recheck post-transfer Task ownership
+PASS later proof replay requires current tasks.create
+PASS later proof replay requires current tasks.assign
+PASS later proof replay refuses hidden id
+PASS later proof replay refuses hidden resourceVersion
+PASS later proof replay refuses hidden dueAt
+PASS proof replay does not expose a currently hidden Task title
+PASS human disclosure guard reads existing proof without mutation
+PASS disclosure guard never admits new Tasks
+PASS one inaccessible eligible Task rejects entire snapshot before any mutation
+PASS 1000-character trimmed evidence retains canonical 300-character title
+PASS initial admission requires write authority for title
+PASS initial admission requires write authority for priority
+PASS initial admission requires write authority for assigneeId
+PASS initial admission requires write authority for dueAt
+PASS initial admission requires write authority for recordRef
+PASS initial admission requires write authority for sourceRef
+48 passed, 0 failed. In-memory participant verification; SQL range-lock concurrency requires integration verification.

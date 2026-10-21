@@ -130,49 +130,14 @@ internal static class TaskFieldSecurity
 }
 
 /// <summary>
-/// The <c>TaskActivity</c> reachability gate. It is <b>not</b> Activity field security, and must not
-/// be described as such.
-///
-/// <para><c>listActivities</c> and <c>logActivity</c> are admitted operations that authorize the
-/// <c>tasks.read</c> and <c>tasks.update</c> capabilities, which the operation registry proves. What
-/// no current authority settles is what an Activity <em>is</em> for record access:</para>
-///
-/// <list type="bullet">
-/// <item>A <c>TaskActivity</c> carries no task reference, so no Activity can be attributed to a Task
-/// and Activities cannot be shown to live inside the <c>tasks</c> record scope.</item>
-/// <item>Its <c>actorId</c> is the actor, not one of the admitted ownership attributes
-/// (<c>ownerId</c>, <c>assigneeId</c>, <c>createdBy</c>, <c>assignedTo</c>), so there is no owner an
-/// OWN, TEAM or CUSTOM scope could be evaluated against.</item>
-/// <item>Activities declare no resource descriptor, no capability of their own and no field
-/// vocabulary anywhere in current authority, and no authority defines field security for them.</item>
-/// </list>
-///
-/// <para>Both are therefore <c>AUTHORITY_GAP</c>, and this gate fails closed on both counts rather
-/// than inventing an answer:</para>
-///
-/// <list type="number">
-/// <item><b>Record scope.</b> Activities are reachable only when the caller's effective <c>tasks</c>
-/// scope is WORKSPACE. Under any restricted scope the caller sees none.</item>
-/// <item><b>Field security.</b> An Activity carries <c>subject</c>, <c>body</c>, <c>recordLabel</c>
-/// and source evidence, which are free text and a label for a referenced record of <em>any</em>
-/// module, so an Activity can quote a value that a field policy withholds elsewhere. No authority
-/// maps those to any field policy, so no Activity-level projection is invented. Instead, the moment
-/// <em>any</em> restrictive field policy applies to <c>tasks</c>, Activities become unreachable.
-/// That is a conservative refusal, not enforcement: it does not prove which Activity field the
-/// policy governs, only that the caller is under some field restriction and Activity content cannot
-/// be shown to respect it.</item>
-/// </list>
-///
-/// <para>Neither condition attributes ownership to an Activity, gives it a field vocabulary, or
-/// claims Task field policy governs Activity fields. Freezing real semantics requires a business
-/// decision that does not exist yet.</para>
+/// Tasks capability and field restriction gate. Activity scope is inherited from every referenced
+/// CRM record through ActivityRecordAccess; the actor is never treated as the record owner.
+/// Free text remains unavailable under restrictive Tasks field policies.
 /// </summary>
 internal static class TaskActivitySecurity
 {
-    /// <summary>Whether Activities are reachable at all for this caller under the frozen fail-closed rules.</summary>
     internal static bool IsReachable(TaskAccess access) =>
-        access.Authorization.ScopeFilter == RecordAccessScopeFilter.Workspace
-        && !access.Authorization.FieldEnforcement.Any(entry => entry.Value != RecordFieldEnforcement.ReadWrite);
+        !access.Authorization.FieldEnforcement.Any(entry => entry.Value != RecordFieldEnforcement.ReadWrite);
 }
 
 /// <summary>

@@ -1,0 +1,10 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.frontend-backend-separation
+
+
+[quality 1/1] START architecture/quality.frontend-backend-separation (check:frontend-backend-separation)
+Frontend/backend separation: PASS (0.24.0-contract.0, 24 frontend generated artifacts).
+[quality 1/1] PASS architecture/quality.frontend-backend-separation (7.5s)
+
+[quality] PASS 1/1 passed across 1 groups (7.5s).

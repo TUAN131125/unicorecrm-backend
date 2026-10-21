@@ -1,0 +1,144 @@
+--- a/scripts/verify-activity-security.ps1
++++ b/scripts/verify-activity-security.ps1
+@@ -1,5 +1,5 @@
+ [CmdletBinding()]
+-param([string]$SqlServer = 'localhost', [int]$Port = 5389, [switch]$Browser, [switch]$ScaleReview, [switch]$ProjectionReview, [switch]$RaceReview, [switch]$UiReview, [switch]$CommitRaceReview)
++param([string]$SqlServer = 'localhost', [int]$Port = 5389, [switch]$Browser, [switch]$ScaleReview, [switch]$ProjectionReview, [switch]$RaceReview, [switch]$UiReview, [switch]$CommitRaceReview, [switch]$CustomerTaskReview)
+ $ErrorActionPreference = 'Stop'
+ $runId = [Guid]::NewGuid().ToString('N')
+ $startedAt = [DateTimeOffset]::UtcNow.ToString('O')
+@@ -19,13 +19,14 @@
+ $results = [Collections.Generic.List[object]]::new()
+ $http = [Collections.Generic.List[object]]::new()
+ $token = $null; $workspace = $null; $counter = 0
+-function Api([string]$method, [string]$path, $body = $null, [string]$key = '') {
++function Api([string]$method, [string]$path, $body = $null, [string]$key = '', [Nullable[int]]$version = $null) {
+     $script:counter++
+     $correlation = "activity-$runId-$script:counter"
+     $headers = @{ 'X-Request-Id' = $correlation; 'X-Correlation-Id' = $correlation }
+     if ($script:token) { $headers.Authorization = "Bearer $script:token" }
+     if ($script:workspace) { $headers['X-Workspace-Id'] = $script:workspace }
+     if ($key) { $headers['Idempotency-Key'] = $key }
++    if ($null -ne $version) { $headers['If-Match'] = '"' + $version + '"' }
+     $args = @{ Method = $method; Uri = "http://127.0.0.1:$Port$path"; Headers = $headers; SkipHttpErrorCheck = $true }
+     if ($null -ne $body) { $args.Body = $body | ConvertTo-Json -Depth 12 -Compress; $args.ContentType = 'application/json' }
+     $response = Invoke-WebRequest @args
+@@ -116,6 +117,33 @@
+             Check 'UI Lead persisted in fresh SQL Workspace' 1 (Sql "SELECT COUNT(*) AS Count FROM leads.Leads WHERE WorkspaceId='$workspace' AND LeadId='$($uiRecords.leadId)'").Rows[0].Count
+             Check 'UI Lead Source remains empty in SQL' 1 (Sql "SELECT COUNT(*) AS Count FROM leads.Leads WHERE WorkspaceId='$workspace' AND LeadId='$($uiRecords.leadId)' AND COALESCE(JSON_VALUE(Profile,'$.Source'),JSON_VALUE(Profile,'$.source'),'')='' ").Rows[0].Count
+             Copy-Item -LiteralPath $uiRecordFile.FullName -Destination (Join-Path $evidence 'ui-records.json')
++        }
++        $journeyFile=Get-ChildItem (Join-Path $frontend 'test-results/crm-ui-real') -Filter ui-journey-records.json -Recurse | Select-Object -First 1
++        if ($journeyFile) {
++            $journey=Get-Content $journeyFile.FullName -Raw | ConvertFrom-Json
++            foreach ($field in @('customerId','taskId','marker')) {
++                if ($journey.$field -notmatch '^[A-Za-z0-9_-]{1,128}$') { throw "UI journey did not produce a valid $field" }
++            }
++            Check 'UI Task SQL unique title in trusted Workspace' 1 (Sql "SELECT COUNT(*) AS Count FROM tasks.Tasks WHERE WorkspaceId='$workspace' AND Title='$($journey.marker) Task'").Rows[0].Count
++            Check 'UI Task SQL Customer recordRef' $journey.customerId (Sql "SELECT RecordId FROM tasks.Tasks WHERE WorkspaceId='$workspace' AND TaskId='$($journey.taskId)' AND RecordModuleKey='customers' AND RelationshipType IS NULL").Rows[0].RecordId
++            Check 'UI Task SQL completed lifecycle' 1 (Sql "SELECT COUNT(*) AS Count FROM tasks.Tasks WHERE WorkspaceId='$workspace' AND TaskId='$($journey.taskId)' AND Status=1 AND CompletedAt IS NOT NULL").Rows[0].Count
++            Check 'UI Task SQL assignee active Workspace member' 1 (Sql "SELECT COUNT(*) AS Count FROM tasks.Tasks t JOIN workspace.Memberships m ON m.WorkspaceId=t.WorkspaceId AND m.MemberId=t.AssigneeId AND m.Status='Active' WHERE t.WorkspaceId='$workspace' AND t.TaskId='$($journey.taskId)'").Rows[0].Count
++            Copy-Item -LiteralPath $journeyFile.FullName -Destination (Join-Path $evidence 'ui-journey-records.json')
++            Stop-Process -Id $process.Id
++            $process.WaitForExit()
++            $process = Start-Process dotnet -ArgumentList @('run','--no-build','--no-launch-profile','--project',$project) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $evidence 'restart.log') -RedirectStandardError (Join-Path $evidence 'restart-error.log')
++            $ready=$false
++            for ($i=0; $i -lt 90; $i++) {
++                try { $null=Api GET '/auth/session'; $ready=$true; break } catch { Start-Sleep -Seconds 1 }
++                if ($process.HasExited) { throw 'Restarted UI ApiHost exited' }
++            }
++            if (!$ready) { throw 'Restarted UI ApiHost readiness timeout' }
++            $script:token=$null
++            $restartLogin=Api POST '/auth/sessions' @{email=$settings.DevelopmentDemoBootstrap__Email;password=$settings.DevelopmentDemoBootstrap__Password} "ui-restart-$runId"
++            Check 'UI dataset real reauthentication after ApiHost restart' 200 $restartLogin.Status
++            $script:token=$restartLogin.Body.accessToken
++            Check 'UI Task GET after ApiHost restart' 'COMPLETED' (Api GET "/tasks/$($journey.taskId)").Body.status
++            Check 'UI Task list after ApiHost restart' $journey.taskId ((Api GET "/tasks?recordModuleKey=customers&recordId=$($journey.customerId)").Body.items.id -join ',')
+         }
+         if (@($results | Where-Object status -eq FAIL).Count) { exit 1 }
+         exit 0
+@@ -211,6 +239,53 @@
+ INSERT INTO customers.Customers (WorkspaceId,CustomerId,CustomerCode,OwnerId,Type,RelationshipType,RelationshipId,Status,Version,CreatedAt,UpdatedAt,Profile)
+ VALUES ('$workspace','activity_customer','CU-ACTIVITY','$member','B2C','CONTACT','activity_contact_own','NEW',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}');
+ "@
++    if ($CustomerTaskReview) {
++        $taskDraft=@{title="Customer task $runId";description='Expected outcome';priority='HIGH';assigneeId=$member;dueAt='2026-12-01T00:00:00Z';recordRef=@{moduleKey='customers';recordId='activity_customer'};sourceRef=@{type='CUSTOMER_360';id='activity_customer'}}
++        $createdTask=Api POST '/tasks' $taskDraft 'customer-task-positive'
++        Check 'Customer Task create positive' 201 $createdTask.Status
++        $taskId=$createdTask.Body.aggregateId
++        if ($taskId -notmatch '^[A-Za-z0-9_-]{1,128}$') { throw 'Invalid Task identifier' }
++        Check 'Customer Task exact replay' 201 (Api POST '/tasks' $taskDraft 'customer-task-positive').Status
++        Check 'Customer Task replay SQL duplicate count' 1 (Sql "SELECT COUNT(*) AS Count FROM tasks.Tasks WHERE WorkspaceId='$workspace' AND Title='Customer task $runId'").Rows[0].Count
++        Check 'Customer Task get exact reference' 'activity_customer' (Api GET "/tasks/$taskId").Body.recordRef.recordId
++        Check 'Customer Task scoped list' $taskId ((Api GET '/tasks?recordModuleKey=customers&recordId=activity_customer').Body.items.id -join ',')
++        $otherDraft=$taskDraft.Clone();$otherDraft.assigneeId='nonexistent-member'
++        Check 'Customer Task rejects invalid assignee' 422 (Api POST '/tasks' $otherDraft 'customer-task-invalid-member').Status
++        $otherDraft=$taskDraft.Clone();$otherDraft.relationshipRef=@{type='CONTACT';id='activity_contact_own'}
++        Check 'Customer Task rejects subject relationshipRef' 422 (Api POST '/tasks' $otherDraft 'customer-task-subject').Status
++        $otherDraft=$taskDraft.Clone();$otherDraft.recordRef=@{moduleKey='customers';recordId='missing-customer'}
++        Check 'Customer Task rejects missing Customer' 404 (Api POST '/tasks' $otherDraft 'customer-task-missing').Status
++        $null=Sql "UPDATE customers.Customers SET WorkspaceId='$foreign' WHERE CustomerId='activity_customer'"
++        Check 'Customer Task rejects foreign Workspace' 404 (Api POST '/tasks' $taskDraft 'customer-task-foreign').Status
++        $null=Sql "UPDATE customers.Customers SET WorkspaceId='$workspace',Status='ARCHIVED' WHERE CustomerId='activity_customer'"
++        Check 'Customer Task rejects archived Customer' 404 (Api POST '/tasks' $taskDraft 'customer-task-archived').Status
++        Check 'Customer Task archived receipt replay denied' 404 (Api POST '/tasks' $taskDraft 'customer-task-positive').Status
++        $null=Sql "UPDATE customers.Customers SET Status='NEW',OwnerId='activity_other_member' WHERE CustomerId='activity_customer'"
++        Scope customers Own
++        Check 'Customer Task outside OWN denied' 404 (Api POST '/tasks' $taskDraft 'customer-task-other-owner').Status
++        Check 'Customer Task replay after Customer owner loss denied' 404 (Api POST '/tasks' $taskDraft 'customer-task-positive').Status
++        $null=Sql "UPDATE customers.Customers SET OwnerId='$member' WHERE CustomerId='activity_customer'"
++        Check 'Customer Task OWN positive' 201 (Api POST '/tasks' $taskDraft 'customer-task-positive').Status
++        Scope customers Workspace
++        Scope tasks Own
++        Check 'Customer Task OWN list positive' $taskId ((Api GET '/tasks?recordModuleKey=customers&recordId=activity_customer').Body.items.id -join ',')
++        $null=Sql "UPDATE tasks.Tasks SET AssigneeId='activity_other_member' WHERE TaskId='$taskId'"
++        Check 'Customer Task get outside Task OWN denied' 404 (Api GET "/tasks/$taskId").Status
++        Check 'Customer Task list outside Task OWN empty' 0 (Api GET '/tasks?recordModuleKey=customers&recordId=activity_customer').Body.pageInfo.totalCount
++        $null=Sql "UPDATE tasks.Tasks SET AssigneeId='$member' WHERE TaskId='$taskId'"
++        Scope tasks Workspace
++        $null=Sql "INSERT INTO access.RoleFieldSecurity (PolicyId,WorkspaceId,RoleId,ResourceKey,FieldKey,Access) VALUES ('task_hidden_description','$workspace','$role','tasks','description','Hidden')"
++        Check 'Customer Task hidden description omitted' False ((Api GET "/tasks/$taskId").Body.PSObject.Properties.Name -contains 'description')
++        Check 'Customer Task hidden description cannot be written' 403 (Api POST '/tasks' $taskDraft 'customer-task-hidden-write').Status
++        $null=Sql "DELETE FROM access.RoleFieldSecurity WHERE PolicyId='task_hidden_description'"
++        $null=Sql "DELETE FROM access.RoleCapabilities WHERE RoleId='$role' AND Capability='tasks.create'"
++        Check 'Customer Task missing capability refused' 403 (Api POST '/tasks' $taskDraft 'customer-task-no-create').Status
++        $null=Sql "INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('$role','tasks.create')"
++        $taskRead=Api GET "/tasks/$taskId"
++        $completeTask=Api POST "/tasks/$taskId/complete" @{outcome='Completed by HTTP regression'} 'customer-task-complete' $taskRead.Body.resourceVersion
++        Check 'Customer Task complete' 200 $completeTask.Status
++        Check 'Customer Task completed get' 'COMPLETED' (Api GET "/tasks/$taskId").Body.status
++    }
+     $organization = Draft 'activity_org' 'organizations'; $organization.relationshipRef=@{type='ORGANIZATION_ACCOUNT';id='activity_org'}; $organization.sourceRef=@{type='ORGANIZATION_DETAIL';id='activity_org'}
+     if ($ProjectionReview) {
+         Check 'canonical Contact Customer is present without stakeholder membership' 'activity_customer' ((Api GET '/contacts/activity_contact_own/relationship-summary').Body.customerIds -join ',')
+@@ -293,6 +368,30 @@
+         }
+     }
+     $script:token=$adminToken
++    if ($CustomerTaskReview) {
++        $null=Sql @"
++INSERT INTO access.RoleCapabilities (RoleId,Capability) VALUES ('role_activity_own','tasks.create'),('role_activity_own','tasks.complete'),('role_activity_own','customers.view');
++INSERT INTO access.RoleDataScopes (PolicyId,WorkspaceId,RoleId,ResourceKey,Scope,AllowedOwnerIdsJson) VALUES ('task_customer_sales_scope','$workspace','role_activity_own','customers','Own','[]');
++INSERT INTO customers.Customers (WorkspaceId,CustomerId,CustomerCode,OwnerId,Type,RelationshipType,RelationshipId,Status,Version,CreatedAt,UpdatedAt,Profile)
++VALUES ('$workspace','customer_sales_task','CU-SALES-TASK','mem_activity_own','B2C','CONTACT','activity_sales_contact','NEW',0,SYSUTCDATETIME(),SYSUTCDATETIME(),N'{}');
++"@
++        $script:token=$salesOwnToken
++        $salesTask=@{title="Sales own task $runId";priority='NORMAL';assigneeId='mem_activity_own';dueAt='2026-12-01T00:00:00Z';recordRef=@{moduleKey='customers';recordId='customer_sales_task'};sourceRef=@{type='CUSTOMER_360';id='customer_sales_task'}}
++        $salesCreated=Api POST '/tasks' $salesTask 'sales-customer-task'
++        Check 'separate SALES OWN creates own Customer Task' 201 $salesCreated.Status
++        $salesTaskId=$salesCreated.Body.aggregateId
++        Check 'separate SALES OWN reads own Customer Task' 'customer_sales_task' (Api GET "/tasks/$salesTaskId").Body.recordRef.recordId
++        Check 'separate SALES OWN lists only its own Customer Task' $salesTaskId ((Api GET '/tasks?recordModuleKey=customers&recordId=customer_sales_task').Body.items.id -join ',')
++        $null=Sql "UPDATE customers.Customers SET OwnerId='$member' WHERE CustomerId='customer_sales_task'"
++        Check 'separate SALES OWN cannot create for another owner Customer' 404 (Api POST '/tasks' $salesTask 'sales-customer-forbidden').Status
++        Check 'separate SALES OWN replay after Customer revocation denied' 404 (Api POST '/tasks' $salesTask 'sales-customer-task').Status
++        $script:token=$null
++        $deniedLogin=Api POST '/auth/sessions' @{email="activity-denied-$runId@example.test";password=$settings.DevelopmentDemoBootstrap__Password} 'denied-task-login'
++        $script:token=$deniedLogin.Body.accessToken
++        Check 'separate unprivileged user cannot create Customer Task' 403 (Api POST '/tasks' $salesTask 'denied-customer-task').Status
++        Check 'separate unprivileged user cannot get Task' 403 (Api GET "/tasks/$salesTaskId").Status
++        $script:token=$adminToken
++    }
+     if ($RaceReview) {
+         Scope contacts Own
+         foreach ($raceKey in @("race-$runId", 'activity-own')) {

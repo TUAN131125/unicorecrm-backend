@@ -1,0 +1,52 @@
+{
+  "contractVersion": "0.24.0-contract.0",
+  "writeTypeReference": "ActivityType",
+  "writeEnum": [
+    "CALL",
+    "EMAIL",
+    "MEETING",
+    "NOTE",
+    "MESSAGE",
+    "SYSTEM"
+  ],
+  "readEnum": [
+    "CALL",
+    "EMAIL",
+    "MEETING",
+    "NOTE",
+    "MESSAGE",
+    "SYSTEM"
+  ],
+  "logActivityRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "type",
+      "subject"
+    ],
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/ActivityType"
+      },
+      "subject": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "body": {
+        "type": "string",
+        "minLength": 0,
+        "maxLength": 10000
+      },
+      "relationshipRef": {
+        "$ref": "#/components/schemas/BuyerRef"
+      },
+      "recordRef": {
+        "$ref": "#/components/schemas/RecordReference"
+      },
+      "sourceRef": {
+        "$ref": "#/components/schemas/TaskSourceReference"
+      }
+    }
+  }
+}

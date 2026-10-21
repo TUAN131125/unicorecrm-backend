@@ -1,0 +1,386 @@
+[
+  {
+    "test": "authorized log",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "authorized replay",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "other record log at workspace scope",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "missing record refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "foreign workspace refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "unsupported module refused",
+    "status": "PASS",
+    "expected": 422,
+    "actual": 422
+  },
+  {
+    "test": "conflicting relationship refused",
+    "status": "PASS",
+    "expected": 422,
+    "actual": 422
+  },
+  {
+    "test": "HTTP cannot forge system audit",
+    "status": "PASS",
+    "expected": 422,
+    "actual": 422
+  },
+  {
+    "test": "OWN log outside scope refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "OWN count includes authorized rows only",
+    "status": "PASS",
+    "expected": 1,
+    "actual": 1
+  },
+  {
+    "test": "OWN page includes own record",
+    "status": "PASS",
+    "expected": "activity_contact_own",
+    "actual": "activity_contact_own"
+  },
+  {
+    "test": "OWN no hidden cursor",
+    "status": "PASS",
+    "expected": "False",
+    "actual": false
+  },
+  {
+    "test": "hidden search count zero",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "TEAM cannot log outside team",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "TEAM list fails closed",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "owner change replay refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "archived replay refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "tasks.read without contacts.read hides activity",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "revoked capability replay refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "negative commands and retries create no duplicates",
+    "status": "PASS",
+    "expected": 2,
+    "actual": 2
+  },
+  {
+    "test": "legacy client SYSTEM row is not published as trusted audit",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "legacy SYSTEM content is excluded from search metadata",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "Sales OWN can log own Contact with Tasks OWN",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "Sales OWN reads own Contact with Tasks OWN",
+    "status": "PASS",
+    "expected": 1,
+    "actual": 1
+  },
+  {
+    "test": "owner field security hides free text and count",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "owner field security gates cached replay",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "forged source target refused",
+    "status": "PASS",
+    "expected": 422,
+    "actual": 422
+  },
+  {
+    "test": "forged audit source refused",
+    "status": "PASS",
+    "expected": 422,
+    "actual": 422
+  },
+  {
+    "test": "unanchored activity refused",
+    "status": "PASS",
+    "expected": 422,
+    "actual": 422
+  },
+  {
+    "test": "relationship-only Contact supported",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "relationship-only retry is idempotent",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "existing Contact UI source remains supported",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "OWN multi-page total excludes hidden records",
+    "status": "PASS",
+    "expected": 3,
+    "actual": 3
+  },
+  {
+    "test": "OWN next page retains authorized total",
+    "status": "PASS",
+    "expected": 3,
+    "actual": 3
+  },
+  {
+    "test": "OWN continuation returns three distinct authorized rows",
+    "status": "PASS",
+    "expected": 3,
+    "actual": 3
+  },
+  {
+    "test": "OWN last page has no hidden continuation",
+    "status": "PASS",
+    "expected": "False",
+    "actual": false
+  },
+  {
+    "test": "real Lead fixture created through HTTP",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "Lead Activity positive",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "Lead missing target refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "Lead foreign Workspace refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "Lead archived replay refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "existing Organization UI shape supported",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "Organization missing target refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "existing Customer UI shape supported",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "Customer forged subject relationship refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "allowed Customer cannot expose denied Contact",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "multi-reference replay requires every target",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "Customer archived replay refused",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "Workspace switch cannot replay protected receipt",
+    "status": "PASS",
+    "expected": 403,
+    "actual": 403
+  },
+  {
+    "test": "separate own account signs in through real authentication",
+    "status": "PASS",
+    "expected": 200,
+    "actual": 200
+  },
+  {
+    "test": "separate Sales OWN logs own Contact",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "separate Sales OWN sees only own Activity",
+    "status": "PASS",
+    "expected": 1,
+    "actual": 1
+  },
+  {
+    "test": "separate Sales OWN cannot log other Contact",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "separate team account signs in through real authentication",
+    "status": "PASS",
+    "expected": 200,
+    "actual": 200
+  },
+  {
+    "test": "separate TEAM account cannot read outside admitted scope",
+    "status": "PASS",
+    "expected": 0,
+    "actual": 0
+  },
+  {
+    "test": "separate TEAM account cannot write outside admitted scope",
+    "status": "PASS",
+    "expected": 404,
+    "actual": 404
+  },
+  {
+    "test": "separate denied account signs in through real authentication",
+    "status": "PASS",
+    "expected": 200,
+    "actual": 200
+  },
+  {
+    "test": "separate user without capabilities cannot list Activity",
+    "status": "PASS",
+    "expected": 403,
+    "actual": 403
+  },
+  {
+    "test": "separate user without capabilities cannot log Activity",
+    "status": "PASS",
+    "expected": 403,
+    "actual": 403
+  },
+  {
+    "test": "owner/archive mutation cannot commit before blocked Activity",
+    "status": "FAIL",
+    "expected": false,
+    "actual": true
+  },
+  {
+    "test": "Activity commits before the now-unblocked owner/archive change",
+    "status": "PASS",
+    "expected": 201,
+    "actual": 201
+  },
+  {
+    "test": "SQL Activity survives ApiHost restart",
+    "status": "PASS",
+    "expected": "activity_98fb199131304abab437305aed998864,activity_32103a6187f14b239c7029315cf37352,activity_349db0f696694c10883ab13c70d83a60",
+    "actual": "activity_98fb199131304abab437305aed998864,activity_32103a6187f14b239c7029315cf37352,activity_349db0f696694c10883ab13c70d83a60"
+  },
+  {
+    "test": "real reauthentication after restart",
+    "status": "PASS",
+    "expected": 200,
+    "actual": 200
+  },
+  {
+    "test": "reauthenticated session reads persisted Activity",
+    "status": "PASS",
+    "expected": 3,
+    "actual": 3
+  }
+]

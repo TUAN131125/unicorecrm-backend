@@ -9,6 +9,14 @@ namespace UnicoreCRM.Operations.Tasks.Infrastructure.Persistence;
 
 internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersistence
 {
+    public async Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references,
+        IReadOnlyList<Contracts.ActivityReadScope> scopes, CancellationToken cancellationToken)
+    {
+        RequireTransaction();
+        var guard = ActivityReadSql.CommitGuard(workspaceId, references, scopes);
+        return await dbContext.Database.SqlQueryRaw<int>(guard.Sql, guard.Parameters).SingleAsync(cancellationToken) == 1;
+    }
+
     public async Task<ITasksTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new TasksTransaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
 
@@ -90,7 +98,11 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
         ActivityListSpecification specification,
         CancellationToken cancellationToken)
     {
-        IQueryable<TaskActivity> query = dbContext.Activities.AsNoTracking().Where(item => item.WorkspaceId == workspaceId);
+        // No trusted SYSTEM writer exists yet. Legacy client-supplied SYSTEM rows cannot be
+        // exposed as system audit evidence; retain them in storage without publishing them.
+        var secured = ActivityReadSql.Build(workspaceId, specification.ReadScopes ?? []);
+        IQueryable<TaskActivity> query = dbContext.Activities.FromSqlRaw(secured.Sql, secured.Parameters)
+            .AsNoTracking().TagWith("Activity authorized reference query");
         if (!string.IsNullOrEmpty(specification.Search))
             query = query.Where(item => item.Subject.Contains(specification.Search) || (item.Body != null && item.Body.Contains(specification.Search)));
         if (specification.Type is not null)

@@ -42,6 +42,8 @@ internal static class ContactsModule
         services.AddScoped<Contracts.IContactQualificationParticipant,
             Application.ResolveQualificationContact.Handler>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideContactRecordAccessFacts.ContactRecordAccessFactProvider>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
+            Application.ProvideContactRecordAccessFacts.ContactRecordAccessFactProvider>();
         return services;
     }
 }

@@ -59,7 +59,7 @@ Check(await ActivityReachable(), "existing unrestricted WORKSPACE Activity gate 
 foreach (var scope in new[] { RecordAccessScopeFilter.OwnedByMember, RecordAccessScopeFilter.Denied, RecordAccessScopeFilter.NotEvaluated })
 {
     evaluator.Scope = scope;
-    Check(!await ActivityReachable(), $"existing Activity scope gate refuses {scope}");
+    Check(await ActivityReachable(), $"Tasks {scope} does not replace referenced CRM record scope");
 }
 evaluator.Scope = RecordAccessScopeFilter.Workspace;
 foreach (var mode in new[] { RecordFieldEnforcement.ReadOnly, RecordFieldEnforcement.Withheld })
@@ -128,7 +128,8 @@ try
 }
 finally
 {
-    await tasks.Database.EnsureDeletedAsync();
+    if (!args.Contains("--keep-database")) await tasks.Database.EnsureDeletedAsync();
+    else Console.WriteLine($"Isolated verification database retained: {database}");
 }
 
 sealed class ProjectionContext(DbContextOptions<ProjectionContext> options) : DbContext(options)

@@ -66,6 +66,8 @@ internal sealed class TasksDbContext(DbContextOptions<TasksDbContext> options) :
             entity.Property(item => item.SourceId).HasMaxLength(128);
             entity.Property(item => item.SourceEvidence).HasMaxLength(1000);
             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt, item.ActivityId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.RecordModuleKey, item.RecordId, item.OccurredAt, item.ActivityId })
+                .HasDatabaseName("IX_Activities_RecordHistory");
         });
 
         modelBuilder.Entity<TaskIdempotencyRecord>(entity =>

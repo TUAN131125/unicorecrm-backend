@@ -7,6 +7,7 @@
     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Domain/*.cs" Link="Tasks/Domain/%(Filename)%(Extension)" />
     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/Common/*.cs" Link="Tasks/Common/%(Filename)%(Extension)" />
     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/TaskContracts.cs" Link="Tasks/TaskContracts.cs" />
+    <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs" Link="Tasks/ActivityReferenceAuthority.cs" />
     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Contracts/ContactFollowUpProjection.cs" Link="Tasks/ContactFollowUpProjection.cs" />
     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Application/ReadContactFollowUp/*.cs" Link="Tasks/ReadContactFollowUp/%(Filename)%(Extension)" />
     <Compile Include="../../src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs" Link="Tasks/TasksDbContext.cs" />

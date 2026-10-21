@@ -1,0 +1,3188 @@
+[
+  {
+    "actual": 201,
+    "test": "authorized log",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 201,
+    "test": "authorized replay",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 201,
+    "test": "other record log at workspace scope",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 404,
+    "test": "missing record refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 404,
+    "test": "foreign workspace refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 422,
+    "test": "unsupported module refused",
+    "status": "PASS",
+    "expected": 422
+  },
+  {
+    "actual": 422,
+    "test": "conflicting relationship refused",
+    "status": "PASS",
+    "expected": 422
+  },
+  {
+    "actual": 422,
+    "test": "HTTP cannot forge system audit",
+    "status": "PASS",
+    "expected": 422
+  },
+  {
+    "actual": 404,
+    "test": "OWN log outside scope refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 1,
+    "test": "OWN count includes authorized rows only",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": "activity_contact_own",
+    "test": "OWN page includes own record",
+    "status": "PASS",
+    "expected": "activity_contact_own"
+  },
+  {
+    "actual": false,
+    "test": "OWN no hidden cursor",
+    "status": "PASS",
+    "expected": "False"
+  },
+  {
+    "actual": 0,
+    "test": "hidden search count zero",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 404,
+    "test": "TEAM cannot log outside team",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 0,
+    "test": "TEAM list fails closed",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 404,
+    "test": "owner change replay refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 404,
+    "test": "archived replay refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 0,
+    "test": "tasks.read without contacts.read hides activity",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 404,
+    "test": "revoked capability replay refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 2,
+    "test": "negative commands and retries create no duplicates",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 0,
+    "test": "legacy client SYSTEM row is not published as trusted audit",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "legacy SYSTEM content is excluded from search metadata",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 201,
+    "test": "Sales OWN can log own Contact with Tasks OWN",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 1,
+    "test": "Sales OWN reads own Contact with Tasks OWN",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "owner field security hides free text and count",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 404,
+    "test": "owner field security gates cached replay",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 422,
+    "test": "forged source target refused",
+    "status": "PASS",
+    "expected": 422
+  },
+  {
+    "actual": 422,
+    "test": "forged audit source refused",
+    "status": "PASS",
+    "expected": 422
+  },
+  {
+    "actual": 422,
+    "test": "unanchored activity refused",
+    "status": "PASS",
+    "expected": 422
+  },
+  {
+    "actual": 201,
+    "test": "relationship-only Contact supported",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 201,
+    "test": "relationship-only retry is idempotent",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 201,
+    "test": "existing Contact UI source remains supported",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 3,
+    "test": "OWN multi-page total excludes hidden records",
+    "status": "PASS",
+    "expected": 3
+  },
+  {
+    "actual": 3,
+    "test": "OWN next page retains authorized total",
+    "status": "PASS",
+    "expected": 3
+  },
+  {
+    "actual": 3,
+    "test": "OWN continuation returns three distinct authorized rows",
+    "status": "PASS",
+    "expected": 3
+  },
+  {
+    "actual": false,
+    "test": "OWN last page has no hidden continuation",
+    "status": "PASS",
+    "expected": "False"
+  },
+  {
+    "actual": 201,
+    "test": "real Lead fixture created through HTTP",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 201,
+    "test": "Lead Activity positive",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 404,
+    "test": "Lead missing target refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 404,
+    "test": "Lead foreign Workspace refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 404,
+    "test": "Lead archived replay refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": "activity_customer",
+    "test": "canonical Contact Customer is present without stakeholder membership",
+    "status": "PASS",
+    "expected": "activity_customer"
+  },
+  {
+    "actual": 0,
+    "test": "canonical Customer outside admitted scope is hidden",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "canonical Customer without capability is hidden",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 404,
+    "test": "foreign Contact relationship summary is refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 201,
+    "test": "existing Organization UI shape supported",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 404,
+    "test": "Organization missing target refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 201,
+    "test": "existing Customer UI shape supported",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 404,
+    "test": "Customer forged subject relationship refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 0,
+    "test": "allowed Customer cannot expose denied Contact",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 404,
+    "test": "multi-reference replay requires every target",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 404,
+    "test": "Customer archived replay refused",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 403,
+    "test": "Workspace switch cannot replay protected receipt",
+    "status": "PASS",
+    "expected": 403
+  },
+  {
+    "actual": 200,
+    "test": "separate own account signs in through real authentication",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 201,
+    "test": "separate Sales OWN logs own Contact",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 1,
+    "test": "separate Sales OWN sees only own Activity",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 404,
+    "test": "separate Sales OWN cannot log other Contact",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 200,
+    "test": "separate team account signs in through real authentication",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 0,
+    "test": "separate TEAM account cannot read outside admitted scope",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 404,
+    "test": "separate TEAM account cannot write outside admitted scope",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 200,
+    "test": "separate denied account signs in through real authentication",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 403,
+    "test": "separate user without capabilities cannot list Activity",
+    "status": "PASS",
+    "expected": 403
+  },
+  {
+    "actual": 403,
+    "test": "separate user without capabilities cannot log Activity",
+    "status": "PASS",
+    "expected": 403
+  },
+  {
+    "actual": 404,
+    "test": "owner revoked while command waits cannot write or replay (race-b66784440f094da8ad3e51ed9ead21bb)",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": 404,
+    "test": "owner revoked while command waits cannot write or replay (activity-own)",
+    "status": "PASS",
+    "expected": 404
+  },
+  {
+    "actual": false,
+    "test": "owner/archive mutation cannot commit before blocked Activity",
+    "status": "PASS",
+    "expected": false
+  },
+  {
+    "actual": 201,
+    "test": "Activity commits before the now-unblocked owner/archive change",
+    "status": "PASS",
+    "expected": 201
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 109,
+    "test": "same/100/Workspace/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 109
+  },
+  {
+    "actual": 1,
+    "test": "same/100/Workspace/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 109,
+    "test": "same/100/Workspace/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 109
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Workspace/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 109,
+    "test": "same/100/Workspace/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 109
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Workspace/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Workspace/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 1,
+    "test": "same/100/Workspace/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Workspace/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Workspace/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Workspace/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Workspace/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Workspace/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 1,
+    "test": "same/100/Workspace/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Workspace/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Workspace/record-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Workspace/record-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Workspace/record-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Workspace/record-next50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Workspace/record-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 101,
+    "test": "same/100/Own/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 101
+  },
+  {
+    "actual": 1,
+    "test": "same/100/Own/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 101,
+    "test": "same/100/Own/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 101
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Own/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 101,
+    "test": "same/100/Own/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 101
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Own/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Own/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 1,
+    "test": "same/100/Own/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Own/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Own/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Own/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Own/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Own/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 1,
+    "test": "same/100/Own/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Own/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Own/record-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/100/Own/record-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/100/Own/record-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "same/100/Own/record-next50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "same/100/Own/record-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1009,
+    "test": "same/1000/Workspace/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1009
+  },
+  {
+    "actual": 1,
+    "test": "same/1000/Workspace/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1009,
+    "test": "same/1000/Workspace/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1009
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Workspace/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1009,
+    "test": "same/1000/Workspace/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 1009
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Workspace/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Workspace/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 1,
+    "test": "same/1000/Workspace/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Workspace/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Workspace/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Workspace/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Workspace/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Workspace/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 1,
+    "test": "same/1000/Workspace/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Workspace/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Workspace/record-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Workspace/record-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Workspace/record-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Workspace/record-next50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Workspace/record-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1001,
+    "test": "same/1000/Own/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1001
+  },
+  {
+    "actual": 1,
+    "test": "same/1000/Own/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1001,
+    "test": "same/1000/Own/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1001
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Own/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1001,
+    "test": "same/1000/Own/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 1001
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Own/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Own/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 1,
+    "test": "same/1000/Own/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Own/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Own/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Own/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Own/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Own/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 1,
+    "test": "same/1000/Own/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Own/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Own/record-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/1000/Own/record-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/1000/Own/record-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "same/1000/Own/record-next50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "same/1000/Own/record-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5009,
+    "test": "same/5000/Workspace/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5009
+  },
+  {
+    "actual": 1,
+    "test": "same/5000/Workspace/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5009,
+    "test": "same/5000/Workspace/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5009
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Workspace/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5009,
+    "test": "same/5000/Workspace/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 5009
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Workspace/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Workspace/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 1,
+    "test": "same/5000/Workspace/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Workspace/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Workspace/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Workspace/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Workspace/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Workspace/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 1,
+    "test": "same/5000/Workspace/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Workspace/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Workspace/record-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Workspace/record-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Workspace/record-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Workspace/record-next50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Workspace/record-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5001,
+    "test": "same/5000/Own/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5001
+  },
+  {
+    "actual": 1,
+    "test": "same/5000/Own/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5001,
+    "test": "same/5000/Own/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5001
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Own/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5001,
+    "test": "same/5000/Own/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 5001
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Own/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Own/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 1,
+    "test": "same/5000/Own/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Own/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Own/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Own/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Own/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Own/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 1,
+    "test": "same/5000/Own/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Own/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Own/record-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "same/5000/Own/record-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "same/5000/Own/record-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "same/5000/Own/record-next50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "same/5000/Own/record-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5109,
+    "test": "distinct/100/Workspace/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5109
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Workspace/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5109,
+    "test": "distinct/100/Workspace/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5109
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Workspace/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5109,
+    "test": "distinct/100/Workspace/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 5109
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Workspace/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "distinct/100/Workspace/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Workspace/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "distinct/100/Workspace/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Workspace/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 100,
+    "test": "distinct/100/Workspace/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 100
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Workspace/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Workspace/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Workspace/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Workspace/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Workspace/record-limit50 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Workspace/hidden-search HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Workspace/hidden-search exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Workspace/hidden-search totalCount",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Workspace/hidden-search items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": true,
+    "test": "distinct/100/Workspace hidden continuation",
+    "status": "PASS",
+    "expected": true
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5051,
+    "test": "distinct/100/Own/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5051
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Own/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/unfiltered-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5051,
+    "test": "distinct/100/Own/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5051
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Own/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/unfiltered-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5051,
+    "test": "distinct/100/Own/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 5051
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Own/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/unfiltered-next50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Own/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Own/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/global-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Own/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 50,
+    "test": "distinct/100/Own/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/global-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": false,
+    "test": "distinct/100/Own exhausted cursor",
+    "status": "PASS",
+    "expected": false
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Own/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Own/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/record-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Own/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/100/Own/record-limit50 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/record-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/100/Own/hidden-search HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/100/Own/hidden-search exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/hidden-search totalCount",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/hidden-search items",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "distinct/100/Own/hidden-search no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": false,
+    "test": "distinct/100/Own hidden continuation",
+    "status": "PASS",
+    "expected": false
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 6009,
+    "test": "distinct/1000/Workspace/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 6009
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Workspace/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 6009,
+    "test": "distinct/1000/Workspace/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 6009
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Workspace/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 6009,
+    "test": "distinct/1000/Workspace/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 6009
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Workspace/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "distinct/1000/Workspace/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Workspace/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "distinct/1000/Workspace/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Workspace/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1000,
+    "test": "distinct/1000/Workspace/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 1000
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Workspace/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Workspace/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Workspace/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Workspace/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Workspace/record-limit50 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Workspace/hidden-search HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Workspace/hidden-search exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 500,
+    "test": "distinct/1000/Workspace/hidden-search totalCount",
+    "status": "PASS",
+    "expected": 500
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Workspace/hidden-search items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": true,
+    "test": "distinct/1000/Workspace hidden continuation",
+    "status": "PASS",
+    "expected": true
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5501,
+    "test": "distinct/1000/Own/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5501
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Own/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/unfiltered-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5501,
+    "test": "distinct/1000/Own/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5501
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Own/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/unfiltered-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5501,
+    "test": "distinct/1000/Own/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 5501
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Own/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/unfiltered-next50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 500,
+    "test": "distinct/1000/Own/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 500
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Own/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/global-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 500,
+    "test": "distinct/1000/Own/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 500
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Own/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/global-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 500,
+    "test": "distinct/1000/Own/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 500
+  },
+  {
+    "actual": 50,
+    "test": "distinct/1000/Own/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/global-next50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Own/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Own/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/record-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Own/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/1000/Own/record-limit50 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/record-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/1000/Own/hidden-search HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/1000/Own/hidden-search exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/hidden-search totalCount",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/hidden-search items",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "distinct/1000/Own/hidden-search no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": false,
+    "test": "distinct/1000/Own hidden continuation",
+    "status": "PASS",
+    "expected": false
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 10009,
+    "test": "distinct/5000/Workspace/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 10009
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Workspace/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 10009,
+    "test": "distinct/5000/Workspace/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 10009
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Workspace/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 10009,
+    "test": "distinct/5000/Workspace/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 10009
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Workspace/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "distinct/5000/Workspace/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Workspace/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "distinct/5000/Workspace/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Workspace/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 5000,
+    "test": "distinct/5000/Workspace/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 5000
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Workspace/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Workspace/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Workspace/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Workspace/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Workspace/record-limit50 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Workspace/hidden-search HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Workspace/hidden-search exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 2500,
+    "test": "distinct/5000/Workspace/hidden-search totalCount",
+    "status": "PASS",
+    "expected": 2500
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Workspace/hidden-search items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": true,
+    "test": "distinct/5000/Workspace hidden continuation",
+    "status": "PASS",
+    "expected": true
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/unfiltered-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/unfiltered-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 7501,
+    "test": "distinct/5000/Own/unfiltered-limit1 totalCount",
+    "status": "PASS",
+    "expected": 7501
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Own/unfiltered-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/unfiltered-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/unfiltered-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/unfiltered-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 7501,
+    "test": "distinct/5000/Own/unfiltered-limit50 totalCount",
+    "status": "PASS",
+    "expected": 7501
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Own/unfiltered-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/unfiltered-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/unfiltered-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/unfiltered-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 7501,
+    "test": "distinct/5000/Own/unfiltered-next50 totalCount",
+    "status": "PASS",
+    "expected": 7501
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Own/unfiltered-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/unfiltered-next50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/global-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/global-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 2500,
+    "test": "distinct/5000/Own/global-limit1 totalCount",
+    "status": "PASS",
+    "expected": 2500
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Own/global-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/global-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/global-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/global-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 2500,
+    "test": "distinct/5000/Own/global-limit50 totalCount",
+    "status": "PASS",
+    "expected": 2500
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Own/global-limit50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/global-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/global-next50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/global-next50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 2500,
+    "test": "distinct/5000/Own/global-next50 totalCount",
+    "status": "PASS",
+    "expected": 2500
+  },
+  {
+    "actual": 50,
+    "test": "distinct/5000/Own/global-next50 items",
+    "status": "PASS",
+    "expected": 50
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/global-next50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/record-limit1 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/record-limit1 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Own/record-limit1 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Own/record-limit1 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/record-limit1 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/record-limit50 HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/record-limit50 exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Own/record-limit50 totalCount",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 1,
+    "test": "distinct/5000/Own/record-limit50 items",
+    "status": "PASS",
+    "expected": 1
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/record-limit50 no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 200,
+    "test": "distinct/5000/Own/hidden-search HTTP",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 2,
+    "test": "distinct/5000/Own/hidden-search exactly COUNT and page SQL",
+    "status": "PASS",
+    "expected": 2
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/hidden-search totalCount",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/hidden-search items",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": 0,
+    "test": "distinct/5000/Own/hidden-search no denied target",
+    "status": "PASS",
+    "expected": 0
+  },
+  {
+    "actual": false,
+    "test": "distinct/5000/Own hidden continuation",
+    "status": "PASS",
+    "expected": false
+  },
+  {
+    "actual": "activity_453c922afebd4b37984f75699c0f8a56,activity_a355be2ce062421d90de15704a6adbfa,activity_f5609b666d0e42a1b0f2dade7c479e84",
+    "test": "SQL Activity survives ApiHost restart",
+    "status": "PASS",
+    "expected": "activity_453c922afebd4b37984f75699c0f8a56,activity_a355be2ce062421d90de15704a6adbfa,activity_f5609b666d0e42a1b0f2dade7c479e84"
+  },
+  {
+    "actual": 200,
+    "test": "real reauthentication after restart",
+    "status": "PASS",
+    "expected": 200
+  },
+  {
+    "actual": 3,
+    "test": "reauthenticated session reads persisted Activity",
+    "status": "PASS",
+    "expected": 3
+  }
+]

@@ -1,0 +1,9 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.strict-core
+
+
+[quality 1/1] START typecheck/quality.strict-core (typecheck:strict-core)
+[quality 1/1] PASS typecheck/quality.strict-core (4.0s)
+
+[quality] PASS 1/1 passed across 1 groups (4.0s).

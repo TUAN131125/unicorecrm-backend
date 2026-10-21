@@ -1,0 +1,2260 @@
+[
+  {
+    "method": "GET",
+    "path": "/auth/session",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-2",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 401,
+    "code": "TOKEN_INVALID"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/sessions",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-3",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/auth/session",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-4",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-5",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-6",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-7",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-8",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-9",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-10",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-11",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-12",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-13",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-14",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?recordId=activity_contact_other",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-15",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-16",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-17",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-18",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-19",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-20",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-21",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?type=SYSTEM",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-22",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=legacy",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-23",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-24",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-25",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=isolated",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-26",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-27",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-28",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-29",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-30",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-31",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-32",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-33",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-34",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 3
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1&cursor=AQAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-35",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AgAAAA",
+      "totalCount": 3
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1&cursor=AgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-36",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 3
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/leads",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-37",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-38",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-39",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-40",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-41",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-42",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-43",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks/task_4560a0d4df4d4cd4bc0c2292741f4037",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-44",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks?recordModuleKey=customers&recordId=activity_customer",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-45",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-46",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-47",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 422,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-48",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-49",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-50",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-51",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-52",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-53",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-54",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks?recordModuleKey=customers&recordId=activity_customer",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-55",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks/task_4560a0d4df4d4cd4bc0c2292741f4037",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-56",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks?recordModuleKey=customers&recordId=activity_customer",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-57",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks/task_4560a0d4df4d4cd4bc0c2292741f4037",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-58",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-59",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 403,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-60",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 403,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks/task_4560a0d4df4d4cd4bc0c2292741f4037",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-61",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/tasks/task_4560a0d4df4d4cd4bc0c2292741f4037/complete",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-62",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/tasks/task_4560a0d4df4d4cd4bc0c2292741f4037",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-63",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/contacts/activity_contact_own/relationship-summary",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-64",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/contacts/activity_contact_own/relationship-summary",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-65",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/contacts/activity_contact_own/relationship-summary",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-66",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/contacts/activity_contact_foreign/relationship-summary",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-67",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-68",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-69",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-70",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-71",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?recordModuleKey=customers",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-72",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-73",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-74",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-75",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 403,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/auth/sessions",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-76",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-77",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 201,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-78",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-79",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/auth/sessions",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-80",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-81",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-82",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 404,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/auth/sessions",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-83",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-84",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 403,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-85",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 403,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-86",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 9
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-87",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-88",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 109
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-89",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 109
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-90",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 109
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-91",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-92",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-93",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-94",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-95",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-96",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-97",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 101
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-98",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 101
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-99",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 101
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-100",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-101",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-102",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-103",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-104",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-105",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-106",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-107",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 1009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-108",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 1009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-109",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-110",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-111",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-112",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-113",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-114",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-115",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1001
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-116",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 1001
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-117",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 1001
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-118",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-119",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-120",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-121",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-122",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-123",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-124",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-125",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-126",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-127",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-128",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-129",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-130",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-131",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-132",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-133",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5001
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-134",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5001
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-135",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5001
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-136",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-137",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-138",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-139",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-140",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_same&recordModuleKey=contacts&recordId=perf_same&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-141",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-142",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5109
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-143",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5109
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-144",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5109
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-145",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-146",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-147",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 100
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-148",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-149",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_hidden&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-150",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 50
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-151",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5051
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-152",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5051
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-153",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5051
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-154",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 50
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-155",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 50
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-156",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-157",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_hidden&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-158",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-159",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 6009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-160",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 6009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-161",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 6009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-162",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-163",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-164",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 1000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-165",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-166",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_hidden&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-167",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-168",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5501
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-169",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5501
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-170",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5501
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-171",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-172",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-173",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-174",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-175",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_hidden&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-176",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-177",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 10009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-178",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 10009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-179",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 10009
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-180",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-181",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-182",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 5000
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-183",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-184",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_hidden&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-185",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 2500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-186",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 7501
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-187",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 7501
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-188",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 7501
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-189",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 2500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-190",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "MgAAAA",
+      "totalCount": 2500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&limit=50&cursor=MgAAAA",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-191",
+    "itemCount": 50,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "ZAAAAA",
+      "totalCount": 2500
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-192",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_distinct&recordModuleKey=contacts&recordId=perf_contact_1&limit=50",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-193",
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?search=bench_hidden&limit=1",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-194",
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-195",
+    "itemCount": 3,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 3
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/auth/session",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-197",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-198",
+    "itemCount": 3,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 3
+    },
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "POST",
+    "path": "/auth/sessions",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-199",
+    "itemCount": 1,
+    "pageInfo": null,
+    "status": 200,
+    "code": null
+  },
+  {
+    "method": "GET",
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own",
+    "correlationId": "activity-81619fa3ec4f4acdaf98c201ddc8ef68-200",
+    "itemCount": 3,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 3
+    },
+    "status": 200,
+    "code": null
+  }
+]

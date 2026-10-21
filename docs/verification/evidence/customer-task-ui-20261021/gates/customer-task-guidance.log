@@ -1,0 +1,10 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.guidance-contracts
+
+
+[quality 1/1] START contract/quality.guidance-contracts (check:guidance-contracts)
+Guidance contracts: OK (83 total routes: 12 access/system + 71 contextual entries, 69 guided screens: 53 CRM + 13 Studio + 3 People, 2 aliases, 8 workflows, 22 fields, 4 checklists, 45 walkthrough targets)
+[quality 1/1] PASS contract/quality.guidance-contracts (17.4s)
+
+[quality] PASS 1/1 passed across 1 groups (17.4s).

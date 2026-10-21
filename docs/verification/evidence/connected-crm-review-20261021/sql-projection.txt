@@ -1,0 +1,18 @@
+Changed database context to 'UnicoreCRM_ActivityTest_87a69f3116574b61ab762886beffcab3'.
+CustomerId RelationshipType RelationshipId
+---------- ---------------- --------------
+customer_048778ba18b2488793fd9b29e3604988 CONTACT contact_afa83a94cf0e465fb8a5fbc61dcb3b2d
+customer_29117ab819ff45108d2e2df43c202365 ORGANIZATION_ACCOUNT organization_640e0bcee659433dae8daca8434a712e
+RelationshipType RelationshipId SubjectCount
+---------------- -------------- ------------
+CONTACT contact_afa83a94cf0e465fb8a5fbc61dcb3b2d 1
+ORGANIZATION_ACCOUNT organization_640e0bcee659433dae8daca8434a712e 1
+StakeholderMembershipCount
+--------------------------
+0
+EndedOrganizationAffiliationCount
+---------------------------------
+1
+PersistedManualActivityCount
+----------------------------
+1

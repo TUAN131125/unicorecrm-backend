@@ -245,6 +245,7 @@ sealed class Evaluator(TrustedWorkspaceContext trusted) : IRecordAccessEvaluator
 }
 sealed class MemoryPersistence : ITasksPersistence
 {
+    public Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references, IReadOnlyList<ActivityReadScope> scopes, CancellationToken cancellationToken) => throw new NotSupportedException();
     internal readonly List<TaskItem> Items = [];
     internal readonly List<TaskAuditRecord> Audits = [];
     internal readonly List<TaskOutboxMessage> Events = [];

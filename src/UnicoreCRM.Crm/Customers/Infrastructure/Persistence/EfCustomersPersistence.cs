@@ -9,6 +9,11 @@ namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
 
 internal sealed class EfCustomersPersistence(CustomersDbContext dbContext) : ICustomersPersistence
 {
+    // Module-owned read-side reference projection, containing no Activity content.
+    public string ActivityReadFactsSql => """
+SELECT WorkspaceId, CustomerId AS RecordId, OwnerId, CASE WHEN Status IN (N'NEW',N'ACTIVE',N'INACTIVE') THEN 1 ELSE 0 END AS CanLog, RelationshipType, RelationshipId FROM customers.Customers
+""";
+
     public async Task<ICustomersTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new Transaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
     public void AddCustomer(Customer customer) => dbContext.Customers.Add(customer);
