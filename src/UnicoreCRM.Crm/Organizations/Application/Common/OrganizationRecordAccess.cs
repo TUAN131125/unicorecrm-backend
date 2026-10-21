@@ -67,6 +67,84 @@ internal static class OrganizationFieldSecurity
             ExternalRef = Keep(access, "externalRef", model.ExternalRef)
         };
 
+    internal static IReadOnlyList<string> UpdateFieldKeys { get; } = ["displayName", "status", "legalName", "taxCode", "domain", "website", "industry", "sizeBand", "employeeCount", "annualRevenue", "email", "phone", "address", "addressDetails", "source", "relationshipLevel", "notes"];
+
+    internal static OrganizationOperationError? GuardCreateWrite(RecordAccessAuthorization access, CreateOrganizationRequest request)
+    {
+        var fields = new List<string> { "displayName", "status" };
+        if (request.LegalName is not null) fields.Add("legalName");
+        if (request.TaxCode is not null) fields.Add("taxCode");
+        if (request.Domain is not null) fields.Add("domain");
+        if (request.Website is not null) fields.Add("website");
+        if (request.Industry is not null) fields.Add("industry");
+        if (request.SizeBand is not null) fields.Add("sizeBand");
+        if (request.EmployeeCount is not null) fields.Add("employeeCount");
+        if (request.AnnualRevenue is not null) fields.Add("annualRevenue");
+        if (request.Email is not null) fields.Add("email");
+        if (request.Phone is not null) fields.Add("phone");
+        if (request.Address is not null) fields.Add("address");
+        if (request.AddressDetails is not null) fields.Add("addressDetails");
+        if (request.Source is not null) fields.Add("source");
+        if (request.RelationshipLevel is not null) fields.Add("relationshipLevel");
+        if (request.Notes is not null) fields.Add("notes");
+        return GuardWrite(access, fields);
+    }
+
+    internal static OrganizationOperationError? GuardUpdateWrite(RecordAccessAuthorization access,
+        Organization current, UpdateOrganizationRequest request)
+    {
+        // PATCH null/omission preserves the stored value. Compare the same normalized
+        // candidate the domain will persist, rather than treating every DTO member as a write.
+        var candidate = OrganizationMutationSupport.Merge(current.Profile, request);
+        var fields = new List<string>();
+        void Changed<T>(string key, T previous, T next)
+        {
+            if (!EqualityComparer<T>.Default.Equals(previous, next)) fields.Add(key);
+        }
+        Changed("displayName", current.DisplayName, request.DisplayName?.Trim() ?? current.DisplayName);
+        Changed("status", current.Status, request.Status ?? current.Status);
+        Changed("legalName", current.Profile.LegalName, candidate.LegalName);
+        Changed("taxCode", current.Profile.TaxCode, candidate.TaxCode);
+        Changed("domain", current.Profile.Domain, candidate.Domain);
+        Changed("website", current.Profile.Website, candidate.Website);
+        Changed("industry", current.Profile.Industry, candidate.Industry);
+        Changed("sizeBand", current.Profile.SizeBand, candidate.SizeBand);
+        Changed("employeeCount", current.Profile.EmployeeCount, candidate.EmployeeCount);
+        Changed("annualRevenue", current.Profile.AnnualRevenue, candidate.AnnualRevenue);
+        Changed("email", current.Profile.Email, candidate.Email);
+        Changed("phone", current.Profile.Phone, candidate.Phone);
+        Changed("address", current.Profile.Address, candidate.Address);
+        Changed("addressDetails", current.Profile.AddressDetails, candidate.AddressDetails);
+        Changed("source", current.Profile.Source, candidate.Source);
+        Changed("relationshipLevel", current.Profile.RelationshipLevel, candidate.RelationshipLevel);
+        Changed("notes", current.Profile.Notes, candidate.Notes);
+        // A supplied withheld value is refused even if guessed correctly; otherwise
+        // equality vs denial would itself reveal the hidden value.
+        if (request.DisplayName is not null && !access.CanRead("displayName")) fields.Add("displayName");
+        if (request.Status is not null && !access.CanRead("status")) fields.Add("status");
+        if (request.LegalName is not null && !access.CanRead("legalName")) fields.Add("legalName");
+        if (request.TaxCode is not null && !access.CanRead("taxCode")) fields.Add("taxCode");
+        if (request.Domain is not null && !access.CanRead("domain")) fields.Add("domain");
+        if (request.Website is not null && !access.CanRead("website")) fields.Add("website");
+        if (request.Industry is not null && !access.CanRead("industry")) fields.Add("industry");
+        if (request.SizeBand is not null && !access.CanRead("sizeBand")) fields.Add("sizeBand");
+        if (request.EmployeeCount is not null && !access.CanRead("employeeCount")) fields.Add("employeeCount");
+        if (request.AnnualRevenue is not null && !access.CanRead("annualRevenue")) fields.Add("annualRevenue");
+        if (request.Email is not null && !access.CanRead("email")) fields.Add("email");
+        if (request.Phone is not null && !access.CanRead("phone")) fields.Add("phone");
+        if (request.Address is not null && !access.CanRead("address")) fields.Add("address");
+        if (request.AddressDetails is not null && !access.CanRead("addressDetails")) fields.Add("addressDetails");
+        if (request.Source is not null && !access.CanRead("source")) fields.Add("source");
+        if (request.RelationshipLevel is not null && !access.CanRead("relationshipLevel")) fields.Add("relationshipLevel");
+        if (request.Notes is not null && !access.CanRead("notes")) fields.Add("notes");
+        return GuardWrite(access, fields);
+    }
+
+    internal static OrganizationOperationError? GuardWrite(RecordAccessAuthorization access, IEnumerable<string> fields)
+    {
+        return fields.Any(field => !access.CanWrite(field)) ? OrganizationErrors.AccessDenied() : null;
+    }
+
     internal static OrganizationOperationError? UnenforceablePolicy(RecordAccessAuthorization access) =>
         access.UnenforceableFieldKeys.Count == 0
             ? null

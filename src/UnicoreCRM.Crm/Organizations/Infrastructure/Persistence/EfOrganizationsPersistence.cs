@@ -24,8 +24,15 @@ internal sealed class EfOrganizationsPersistence(OrganizationsDbContext dbContex
         catch (DbUpdateException) { throw new OrganizationsPersistenceConcurrencyException(); }
     }
 
-    public Task<Organization?> LoadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken) =>
-        dbContext.Organizations.SingleOrDefaultAsync(x => x.WorkspaceId == workspaceId && x.OrganizationId == organizationId, cancellationToken);
+    public Task<Organization?> LoadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.Serializable)
+            throw new InvalidOperationException("Organization mutation loading requires its Serializable transaction.");
+        // Serialize writers before reading the expected version. Shared read locks followed
+        // by concurrent upgrades otherwise deadlock before the conflict can be reported.
+        return dbContext.Organizations.FromSqlInterpolated($"SELECT * FROM [organizations].[Organizations] WITH (UPDLOCK, HOLDLOCK) WHERE [WorkspaceId] = {workspaceId} AND [OrganizationId] = {organizationId}")
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 
     public Task<Organization?> ReadOrganizationAsync(
         string workspaceId,

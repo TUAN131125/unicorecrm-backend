@@ -38,3 +38,27 @@ Copy `src/UnicoreCRM.ApiHost/appsettings.Development.Local.example.json` to the 
 Development uses the local logging email sender by default, so starting the host does not require
 Gmail or any other external mail transport. Configure `GmailSmtp` locally only when real delivery
 is intentionally being exercised.
+
+
+## Required local secrets
+
+The Development ApiHost uses the built-in .NET User Secrets provider with ID
+`unicorecrm-apihost-development`. Configure these keys outside Git before starting:
+
+- `ConnectionStrings:UnicoreCRM`
+- `IdentityAuth:Jwt:SigningKey` (at least 32 characters)
+- `IdentityAuth:RefreshTokenPepper` (at least 32 characters)
+
+Use `dotnet user-secrets` from the ApiHost project, preferably feeding a JSON object
+through stdin to avoid command-line secret exposure. Never paste values into source,
+committed examples, logs or shell history. User Secrets is a local plaintext store;
+protect access to the operating-system account. It is not a production secret vault.
+
+Precedence in Development is tracked defaults, ignored local JSON, User Secrets,
+environment variables, then command-line settings. The optional ignored local JSON
+continues to support non-secret overrides. Do not enable real mail or Telegram merely
+to verify configuration. Normal startup does not migrate or seed the database.
+
+Published development signing keys or peppers must be treated as compromised.
+Removing them from the current tree does not revoke historical copies or active tokens.
+Rotation requires an explicit, coordinated cutover and session/email workflow review.

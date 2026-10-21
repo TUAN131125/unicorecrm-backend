@@ -41,7 +41,7 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
     private void RequireTransaction()
     {
         if (dbContext.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.Serializable)
-            throw new InvalidOperationException("Lead Handover requires a Tasks-owned Serializable transaction.");
+            throw new InvalidOperationException("The locking read requires a Tasks-owned Serializable transaction.");
     }
 
     public Task<TaskItem?> ReadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken) =>
@@ -58,7 +58,7 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
         if (specification.ScopeAssigneeMemberId is not null)
             query = query.Where(item => item.AssigneeId == specification.ScopeAssigneeMemberId);
         if (!string.IsNullOrEmpty(specification.Search))
-            query = query.Where(item => item.Title.Contains(specification.Search) || (item.Description != null && item.Description.Contains(specification.Search)) || (item.RecordLabel != null && item.RecordLabel.Contains(specification.Search)) || item.AssigneeId.Contains(specification.Search));
+            query = query.Where(item => item.Title.Contains(specification.Search) || (specification.SearchDescription && item.Description != null && item.Description.Contains(specification.Search)) || (specification.SearchRecordLabel && item.RecordLabel != null && item.RecordLabel.Contains(specification.Search)) || item.AssigneeId.Contains(specification.Search));
         if (specification.Status is not null)
             query = query.Where(item => item.Status == specification.Status);
         if (specification.Priority is not null)
@@ -123,6 +123,15 @@ internal sealed class EfTasksPersistence(TasksDbContext dbContext) : ITasksPersi
 
     public Task<TaskIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) =>
         dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
+
+    public Task<TaskIdempotencyRecord?> FindCreateIdempotencyForUpdateAsync(string scopeKey, CancellationToken cancellationToken)
+    {
+        RequireTransaction();
+        // Reserve the existing key or its missing-key range before any creation writes.
+        // Shared serializable gap reads let two creators deadlock when both insert receipts.
+        return dbContext.IdempotencyRecords.FromSqlInterpolated($"SELECT * FROM [tasks].[IdempotencyRecords] WITH (UPDLOCK, HOLDLOCK) WHERE [ScopeKey] = {scopeKey}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+    }
 
     public void AddTask(TaskItem task) => dbContext.Tasks.Add(task);
     public void AddActivity(TaskActivity activity) => dbContext.Activities.Add(activity);

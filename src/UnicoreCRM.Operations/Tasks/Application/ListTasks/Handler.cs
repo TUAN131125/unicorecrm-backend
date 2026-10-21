@@ -62,6 +62,10 @@ internal sealed class Handler(
         if (fields.Count != 0)
             return TaskOperationResult<TaskListResponse>.Failure(TaskErrors.Validation(fields));
 
+        var policy = access.Value!.Authorization;
+        if (((query.RecordModuleKey is not null || query.RecordId is not null) && !policy.CanRead("recordRef"))
+            || ((query.RelationshipType is not null || query.RelationshipId is not null) && !policy.CanRead("relationshipRef")))
+            return TaskOperationResult<TaskListResponse>.Failure(TaskErrors.AccessDenied());
         var trusted = access.Value!.Trusted;
         if (string.Equals(query.RecordModuleKey?.Trim(), "deals", StringComparison.OrdinalIgnoreCase) && query.RecordId is not null)
         {
@@ -98,7 +102,9 @@ internal sealed class Handler(
                 overdueAt,
                 sortBy,
                 descending,
-                scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null),
+                scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null,
+                policy.CanRead("description"),
+                policy.CanRead("recordRef")),
             cancellationToken);
         var now = timeProvider.GetUtcNow();
         persistence.AddAudit(new TaskAuditRecord(

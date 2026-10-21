@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="tests/UnicoreCRM.ArchitectureTests/UnicoreCRM.ArchitectureTests.csproj" />
+  <Project Path="src/UnicoreCRM.Communications/UnicoreCRM.Communications.csproj" />
   <Project Path="src/UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
   <Project Path="src/UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
   <Project Path="src/UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />

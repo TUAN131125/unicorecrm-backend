@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
+    <InternalsVisibleTo Include="UnicoreCRM.Communications.Verifier" />
+  </ItemGroup>
+</Project>

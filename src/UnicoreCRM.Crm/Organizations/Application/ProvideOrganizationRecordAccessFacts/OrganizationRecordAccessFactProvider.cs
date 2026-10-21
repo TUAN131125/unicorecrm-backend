@@ -11,6 +11,13 @@ internal sealed partial class OrganizationRecordAccessFactProvider(IOrganization
     private static readonly RecordAccessResourceDescriptor OrganizationsDescriptor = RecordAccessResourceDescriptor.Create(
         resourceKey: OrganizationAuthorization.ResourceKey,
         readCapability: OrganizationCapabilities.Read.Capability,
+        updateCapability: OrganizationCapabilities.Update.Capability,
+        deleteCapability: OrganizationCapabilities.Delete.Capability,
+        commandCapabilities: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["organization.update"] = OrganizationCapabilities.Update.Capability,
+            ["organization.archive"] = OrganizationCapabilities.Delete.Capability
+        },
         enforceableFields: OrganizationFieldSecurity.EnforceableFields);
 
     public RecordAccessResourceDescriptor Descriptor => OrganizationsDescriptor;

@@ -1,10 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <UserSecretsId>unicorecrm-apihost-development</UserSecretsId>
     <RootNamespace>UnicoreCRM.ApiHost</RootNamespace>
     <AssemblyName>UnicoreCRM.ApiHost</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="UnicoreCRM.Communications.Verifier" />
+    <ProjectReference Include="../UnicoreCRM.Communications/UnicoreCRM.Communications.csproj" />
     <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
     <ProjectReference Include="../UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
     <ProjectReference Include="../UnicoreCRM.Sales/UnicoreCRM.Sales.csproj" />
@@ -17,4 +20,11 @@
     <ProjectReference Include="../UnicoreCRM.AI/UnicoreCRM.AI.csproj" />
     <ProjectReference Include="../UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
   </ItemGroup>
+  <!-- The SDK prunes Xml against every 10.0 patch, but the installed shared framework may
+       precede its security fix. Keep the explicitly patched runtime asset in this host. -->
+  <Target Name="KeepPatchedCryptographyXml" AfterTargets="AddPrunePackageReferences">
+    <ItemGroup>
+      <PrunePackageReference Remove="System.Security.Cryptography.Xml" />
+    </ItemGroup>
+  </Target>
 </Project>

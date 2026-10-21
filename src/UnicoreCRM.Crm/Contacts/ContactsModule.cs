@@ -25,6 +25,9 @@ internal static class ContactsModule
         services.AddScoped<Application.ListContacts.Handler>();
         services.AddScoped<Application.GetContact.Handler>();
         services.AddScoped<Contracts.IContactSummaryReader, Application.ReadContactSummary.ContactSummaryReader>();
+        services.AddScoped<Contracts.IContactLinkReader, ContactLinkReader>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IContactTaskReferenceAuthority,
+            Application.ValidateTaskReference.ContactTaskReferenceAuthority>();
         services.AddScoped<Application.CreateContact.Handler>();
         services.AddScoped<Application.UpdateContact.Handler>();
         services.AddScoped<Application.ArchiveContact.Handler>();

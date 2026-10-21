@@ -257,6 +257,7 @@ sealed class MemoryPersistence : ITasksPersistence
     public Task<TaskItem?> ReadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken) => Task.FromResult(Items.SingleOrDefault(task => task.WorkspaceId == workspaceId && task.TaskId == taskId));
     public Task<TaskIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken) => Task.FromResult(records.GetValueOrDefault(scopeKey));
     public Task<TaskIdempotencyRecord?> FindLeadHandoverIdempotencyForUpdateAsync(string scopeKey, CancellationToken cancellationToken) => FindIdempotencyAsync(scopeKey, cancellationToken);
+    public Task<TaskIdempotencyRecord?> FindCreateIdempotencyForUpdateAsync(string scopeKey, CancellationToken cancellationToken) => FindIdempotencyAsync(scopeKey, cancellationToken);
     public Task<IReadOnlyList<TaskItem>> LoadEligibleLeadHandoverTasksForUpdateAsync(string workspaceId, string leadId, CancellationToken cancellationToken)
     {
         Loads++;

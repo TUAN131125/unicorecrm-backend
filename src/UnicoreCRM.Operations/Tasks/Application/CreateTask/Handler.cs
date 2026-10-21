@@ -12,6 +12,9 @@ internal sealed class Handler(
     ITasksPersistence persistence,
     IWorkspaceMemberReferenceValidator memberValidator,
     IDealTaskReferenceAuthority dealReferences,
+    IContactTaskReferenceAuthority contactReferences,
+    IOrganizationTaskReferenceAuthority organizationReferences,
+    ICustomerTaskReferenceAuthority customerReferences,
     TimeProvider timeProvider)
 {
     internal async Task<TaskOperationResult<TaskMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
@@ -32,11 +35,52 @@ internal sealed class Handler(
                 return TaskOperationResult<TaskMutationResponse>.Failure(reference == DealTaskReferenceStatus.AccessDenied
                     ? TaskErrors.AccessDenied() : TaskErrors.NotFound());
         }
+        ContactTaskReferenceStatus? contactReference = null;
+        if (string.Equals(input!.References.RecordModuleKey, "contacts", StringComparison.OrdinalIgnoreCase))
+        {
+            // Recheck current Contact authority before returning any cached protected response.
+            // Archived remains eligible only for an exact replay, never a new association.
+            contactReference = await contactReferences.ValidateAsync(trusted.WorkspaceId, input.References.RecordId!,
+                metadata.RequestId, metadata.CorrelationId, cancellationToken);
+            if (contactReference is not (ContactTaskReferenceStatus.Available or ContactTaskReferenceStatus.Archived))
+                return TaskOperationResult<TaskMutationResponse>.Failure(contactReference == ContactTaskReferenceStatus.AccessDenied
+                    ? TaskErrors.AccessDenied() : TaskErrors.NotFound());
+        }
+        // Both wire representations of an Organization association must identify the same
+        // target. An alternate relationshipRef must not bypass target authorization.
+        var organizationRecord = string.Equals(input!.References.RecordModuleKey, "organizations", StringComparison.OrdinalIgnoreCase);
+        var organizationRelationship = input.References.RelationshipType == "ORGANIZATION_ACCOUNT";
+        if (organizationRecord || organizationRelationship)
+        {
+            if ((input.References.RecordModuleKey is not null && !organizationRecord)
+                || (input.References.RelationshipType is not null && !organizationRelationship)
+                || (input.References.RecordId is not null && input.References.RelationshipId is not null
+                    && input.References.RecordId != input.References.RelationshipId))
+                return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.Validation(
+                    new Dictionary<string, string[]> { ["recordRef"] = ["Organization references must identify the same Organization."] }));
+            var reference = await organizationReferences.CanReferenceAsync(trusted.WorkspaceId,
+                input.References.RecordId ?? input.References.RelationshipId!, metadata.RequestId, metadata.CorrelationId, cancellationToken);
+            // Recheck before the receipt branch: archive/revoked read denies even exact replay.
+            if (!reference)
+                return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.NotFound());
+        }
+        if (string.Equals(input!.References.RecordModuleKey, "customers", StringComparison.OrdinalIgnoreCase))
+        {
+            // Customer association has one supported wire shape. Do not conflate a
+            // Customer ID with its Contact/Organization subject relationship.
+            if (input.References.RelationshipType is not null)
+                return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.Validation(
+                    new Dictionary<string, string[]> { ["relationshipRef"] = ["Customer references cannot include relationshipRef."] }));
+            // Current Customer read/scope and lifecycle must gate cached responses too.
+            if (!await customerReferences.CanReferenceAsync(trusted.WorkspaceId, input.References.RecordId!,
+                metadata.RequestId, metadata.CorrelationId, cancellationToken))
+                return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.NotFound());
+        }
         var fingerprint = TaskCommandSupport.Fingerprint(input!);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "createTask", "WORKSPACE", command.Metadata.IdempotencyKey,
             command.Metadata.IdempotencyScopeActorId);
-        var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
+        var existing = await persistence.FindCreateIdempotencyForUpdateAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
             // Answered from stored evidence alone, so an assignee deactivated after the original
@@ -46,6 +90,9 @@ internal sealed class Handler(
                 ? TaskOperationResult<TaskMutationResponse>.Success(Project(TaskCommandSupport.ReplayTask(existing), access.Value!))
                 : TaskOperationResult<TaskMutationResponse>.Failure(replayError);
         }
+
+        if (contactReference == ContactTaskReferenceStatus.Archived)
+            return TaskOperationResult<TaskMutationResponse>.Failure(TaskErrors.NotFound());
 
         // Creation is a resource-level question, so no record scope applies, but field security
         // still does: a field the caller may not write must not be written on the way in either. It

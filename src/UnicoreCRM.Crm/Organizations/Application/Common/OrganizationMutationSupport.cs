@@ -4,6 +4,7 @@ using System.Text.Json;
 using UnicoreCRM.Crm.Organizations.Contracts;
 using UnicoreCRM.Crm.Organizations.Domain;
 using UnicoreCRM.Platform.Workspace.Contracts;
+using UnicoreCRM.Platform.AccessControl.Contracts;
 
 namespace UnicoreCRM.Crm.Organizations.Application.Common;
 
@@ -12,19 +13,24 @@ internal static class OrganizationMutationSupport
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     internal static string Fingerprint<T>(T value) => Hash(JsonSerializer.Serialize(value, Json));
     internal static string ScopeKey(TrustedWorkspaceContext trusted, string operation, string target, string key) => Hash($"{trusted.WorkspaceId}\n{operation}\n{trusted.MemberId}\n{target}\n{key}");
-    internal static OrganizationMutationResponse Replay(OrganizationIdempotencyRecord record) =>
-        (JsonSerializer.Deserialize<OrganizationMutationResponse>(record.ResponseJson, Json) ?? throw new InvalidOperationException("Invalid Organization replay record.")) with { Outcome = "REPLAYED" };
+    internal static OrganizationMutationResponse Replay(OrganizationIdempotencyRecord record, RecordAccessAuthorization access)
+    {
+        var response = JsonSerializer.Deserialize<OrganizationMutationResponse>(record.ResponseJson, Json)
+            ?? throw new InvalidOperationException("Invalid Organization replay record.");
+        return response with { Outcome = "REPLAYED", Result = OrganizationFieldSecurity.Project(response.Result, access) };
+    }
     internal static OrganizationMutationResponse Commit(IOrganizationsPersistence persistence, Organization organization,
-        TrustedWorkspaceContext trusted, OrganizationCommandMetadata metadata, string operation, string eventType,
+        OrganizationAccess access, OrganizationCommandMetadata metadata, string operation, string eventType,
         string target, string fingerprint, DateTimeOffset now)
     {
+        var trusted = access.Trusted;
         var audit = new OrganizationAuditRecord(operation, trusted.WorkspaceId, trusted.MemberId, organization.OrganizationId, metadata.RequestId, metadata.CorrelationId, organization.Version, now);
         var changeType = eventType switch { "ORGANIZATION_CREATED" => "CREATED", "ORGANIZATION_UPDATED" => "UPDATED", "ORGANIZATION_ARCHIVED" => "ARCHIVED", _ => eventType };
         var message = new OrganizationOutboxMessage(eventType, organization.OrganizationId, trusted.WorkspaceId, metadata.CorrelationId,
             JsonSerializer.Serialize(new { organizationId = organization.OrganizationId, changeType, resourceVersion = organization.Version }, Json), now);
         var response = new OrganizationMutationResponse($"command_{Guid.NewGuid():N}", metadata.CorrelationId,
             organization.OrganizationId, "ORGANIZATION", organization.Version, OrganizationProjection.TimestampValue(now),
-            "COMMITTED", OrganizationProjection.Document(organization), [], [message.EventId], [audit.AuditId]);
+            "COMMITTED", OrganizationFieldSecurity.Project(OrganizationProjection.Document(organization), access.Authorization), [], [message.EventId], [audit.AuditId]);
         persistence.AddAudit(audit); persistence.AddOutbox(message);
         persistence.AddIdempotency(new OrganizationIdempotencyRecord(ScopeKey(trusted, operation, target, metadata.IdempotencyKey), trusted.WorkspaceId, operation, trusted.MemberId, target, metadata.IdempotencyKey, fingerprint, JsonSerializer.Serialize(response, Json), now));
         return response;

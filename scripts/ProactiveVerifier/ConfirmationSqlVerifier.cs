@@ -41,7 +41,7 @@ internal static class ConfirmationSqlVerifier
             await using var taskDb = new TasksDbContext(taskOptions);
             await using var aiDb = new AiExecutionDbContext(options);
             var handler = new UnicoreCRM.Operations.Tasks.Application.CreateTask.Handler(new TaskAuthorization(access),
-                new EfTasksPersistence(taskDb), new ActiveMembers(), new UnexpectedDealReferences(), new FixedClock(now));
+                new EfTasksPersistence(taskDb), new ActiveMembers(), new UnexpectedDealReferences(), new UnexpectedContactReferences(), new UnexpectedOrganizationReferences(), new UnexpectedCustomerReferences(), new FixedClock(now));
             IProactiveTaskCreationParticipant tasks = new Participant(handler);
             if (loseAck) tasks = new LostAcknowledgement(tasks);
             var app = new ProactiveTaskConfirmationApplication(new FakeCurrentWorkspace(item.WorkspaceId, "member"),
@@ -127,6 +127,27 @@ internal static class ConfirmationSqlVerifier
         public Task<DealTaskReferenceStatus> ValidateAsync(string workspaceId, string dealId, bool allowArchived,
             string requestId, string correlationId, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Proactive confirmation must not validate an invented Deal reference.");
+    }
+
+    private sealed class UnexpectedContactReferences : IContactTaskReferenceAuthority
+    {
+        public Task<ContactTaskReferenceStatus> ValidateAsync(string workspaceId, string contactId,
+            string requestId, string correlationId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Proactive confirmation must not validate an invented Contact reference.");
+    }
+
+    private sealed class UnexpectedOrganizationReferences : IOrganizationTaskReferenceAuthority
+    {
+        public Task<bool> CanReferenceAsync(string workspaceId, string organizationId,
+            string requestId, string correlationId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Proactive confirmation must not validate an invented Organization reference.");
+    }
+
+    private sealed class UnexpectedCustomerReferences : ICustomerTaskReferenceAuthority
+    {
+        public Task<bool> CanReferenceAsync(string workspaceId, string customerId,
+            string requestId, string correlationId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Proactive confirmation must not validate an invented Customer reference.");
     }
 
     private sealed class ActiveMembers : IWorkspaceMemberReferenceValidator

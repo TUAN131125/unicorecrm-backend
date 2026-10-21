@@ -22,6 +22,8 @@ internal static class OrganizationsModule
             "organizations",
             (provider, cancellationToken) => provider.GetRequiredService<OrganizationsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<OrganizationAuthorization>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IOrganizationTaskReferenceAuthority,
+            Application.ValidateTaskReference.OrganizationTaskReferenceAuthority>();
         services.AddScoped<Application.ListOrganizations.Handler>();
         services.AddScoped<Application.GetOrganization.Handler>();
         services.AddScoped<IOrganizationSummaryReader, Application.ReadOrganizationSummary.OrganizationSummaryReader>();

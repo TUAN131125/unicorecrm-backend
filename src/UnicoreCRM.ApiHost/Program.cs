@@ -9,6 +9,8 @@ using UnicoreCRM.Workflows;
 using UnicoreCRM.Integrations;
 using UnicoreCRM.AI;
 using UnicoreCRM.PlatformOperations;
+using UnicoreCRM.Communications;
+using UnicoreCRM.Communications.Contracts;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Platform.AccessControl.Contracts;
@@ -92,6 +94,7 @@ builder.Services.AddWorkflowsModule(builder.Configuration);
 builder.Services.AddIntegrationsModule(builder.Configuration);
 builder.Services.AddAIModule(builder.Configuration, builder.Environment);
 builder.Services.AddPlatformOperationsModule(builder.Configuration);
+builder.Services.AddCommunicationsModule(builder.Configuration);
 
 var app = builder.Build();
 
@@ -141,6 +144,7 @@ app.MapSupportEndpoints();
 app.MapLeadsEndpoints();
 app.MapDealsEndpoints();
 app.MapContactsEndpoints();
+app.MapCommunicationsEndpoints();
 app.MapCustomersEndpoints();
 app.MapOrganizationsEndpoints();
 app.MapProductsEndpoints();

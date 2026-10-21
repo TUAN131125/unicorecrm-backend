@@ -10,6 +10,7 @@ internal sealed record Command(LogActivityRequest Request, TaskCommandMetadata M
 internal sealed class Handler(
     TaskAuthorization authorization,
     ITasksPersistence persistence,
+    ICustomerActivityReferenceAuthority customerReferences,
     TimeProvider timeProvider)
 {
     internal async Task<TaskOperationResult<ActivityMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
@@ -28,10 +29,22 @@ internal sealed class Handler(
             return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.AccessDenied());
 
         var trusted = access.Value!.Trusted;
+        if (string.Equals(input!.References.RecordModuleKey, "customers", StringComparison.OrdinalIgnoreCase))
+        {
+            // Until canonical subject AND its current target authority can be validated
+            // through admitted contracts, Customer logs support only the direct reference.
+            if (input.References.RelationshipType is not null)
+                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.Validation(
+                    new Dictionary<string, string[]> { ["relationshipRef"] = ["Customer Activity logging does not support relationshipRef."] }));
+            // Current Customer authority and lifecycle also gate protected cached replay.
+            if (!await customerReferences.CanReferenceAsync(trusted.WorkspaceId, input.References.RecordId!,
+                metadata.RequestId, metadata.CorrelationId, cancellationToken))
+                return TaskOperationResult<ActivityMutationResponse>.Failure(TaskErrors.NotFound());
+        }
         var fingerprint = TaskCommandSupport.Fingerprint(input);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = TaskCommandSupport.ScopeKey(trusted, "logActivity", "WORKSPACE", command.Metadata.IdempotencyKey);
-        var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
+        var existing = await persistence.FindCreateIdempotencyForUpdateAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
             var replayError = TaskCommandSupport.ReplayError(existing, fingerprint);

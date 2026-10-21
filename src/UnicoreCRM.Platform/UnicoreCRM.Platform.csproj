@@ -21,7 +21,10 @@
          the transport stays an implementation detail of one owner. Runtime assets still flow, because
          the host that loads this assembly has to be able to run that sender. -->
     <PackageReference Include="MailKit" PrivateAssets="compile" />
-    <PackageReference Include="System.Security.Cryptography.Xml" PrivateAssets="all" />
+    <!-- Patched runtime assets must reach ApiHost, including certificate-backed Data Protection. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" PrivateAssets="compile" />
+    <!-- Patched shared runtime dependency of SqlClient and MimeKit. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" PrivateAssets="compile" />
     <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
   </ItemGroup>
 </Project>

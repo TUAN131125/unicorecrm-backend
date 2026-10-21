@@ -77,6 +77,7 @@ internal static class EffectiveAuthorizationPolicy
                 && !capability.StartsWith("audit.", StringComparison.Ordinal)))
             result.Add("crm");
         if (capabilities.Contains("studio.read", StringComparer.Ordinal)
+            || capabilities.Contains("communications.channels.manage", StringComparer.Ordinal)
             || capabilities.Contains("studio.configure", StringComparer.Ordinal)
             || capabilities.Contains("ai.configuration.read", StringComparer.Ordinal)
             || capabilities.Contains("ai.configuration.manage", StringComparer.Ordinal)

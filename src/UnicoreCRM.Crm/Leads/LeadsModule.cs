@@ -28,6 +28,7 @@ internal static class LeadsModule
             Application.CreateLead.DelegatedLeadIngressAuthorization.Authorizer>();
         services.AddScoped<Contracts.IInboundLeadIngress, Application.CreateLead.InboundLeadIngress>();
         services.AddScoped<Contracts.ILeadSummaryReader, Application.ReadLeadSummary.LeadSummaryReader>();
+        services.AddScoped<Contracts.ILeadLinkReader, LeadLinkReader>();
         services.AddScoped<LeadMutationExecution>();
         services.AddScoped<LeadInterestedProductResolution>();
         services.AddScoped<Application.ListLeads.Handler>();

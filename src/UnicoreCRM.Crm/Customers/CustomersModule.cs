@@ -22,6 +22,10 @@ internal static class CustomersModule
             "customers",
             (provider, cancellationToken) => provider.GetRequiredService<CustomersDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<CustomerAuthorization>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.ICustomerActivityReferenceAuthority,
+            Application.ValidateActivityReference.CustomerActivityReferenceAuthority>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.ICustomerTaskReferenceAuthority,
+            Application.ValidateTaskReference.CustomerTaskReferenceAuthority>();
         services.AddScoped<Application.Health.CustomerHealthAssessmentService>();
         services.AddScoped<IProactiveCustomerHealthReader, Application.Health.ProactiveCustomerHealthReader>();
         services.AddScoped<ICustomerAttentionReader, Application.Health.CustomerAttentionReader>();

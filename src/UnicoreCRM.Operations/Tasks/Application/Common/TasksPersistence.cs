@@ -20,7 +20,9 @@ internal sealed record TaskListSpecification(
     /// The AccessControl-resolved record-scope assignee. When set, only tasks assigned to that
     /// member are in scope, and the predicate is applied before the count, the ordering and the page.
     /// </summary>
-    string? ScopeAssigneeMemberId = null);
+    string? ScopeAssigneeMemberId = null,
+    bool SearchDescription = false,
+    bool SearchRecordLabel = false);
 
 internal sealed record ActivityListSpecification(
     int Offset,
@@ -46,6 +48,7 @@ internal interface ITasksPersistence
     Task<TasksPage<TaskItem>> ListTasksAsync(string workspaceId, TaskListSpecification specification, CancellationToken cancellationToken);
     Task<TasksPage<TaskActivity>> ListActivitiesAsync(string workspaceId, ActivityListSpecification specification, CancellationToken cancellationToken);
     Task<TaskIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
+    Task<TaskIdempotencyRecord?> FindCreateIdempotencyForUpdateAsync(string scopeKey, CancellationToken cancellationToken);
     Task<TaskIdempotencyRecord?> FindLeadHandoverIdempotencyForUpdateAsync(string scopeKey, CancellationToken cancellationToken);
     Task<IReadOnlyList<TaskItem>> LoadEligibleLeadHandoverTasksForUpdateAsync(string workspaceId, string leadId, CancellationToken cancellationToken);
     void AddTask(TaskItem task);

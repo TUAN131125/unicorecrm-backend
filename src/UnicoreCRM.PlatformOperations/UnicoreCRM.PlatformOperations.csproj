@@ -12,6 +12,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" PrivateAssets="compile" />
     <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
   </ItemGroup>
 </Project>
