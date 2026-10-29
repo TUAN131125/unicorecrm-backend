@@ -1,0 +1,50 @@
+[
+  {
+    "repository": "backend",
+    "file": "scripts/verify-activity-security.ps1",
+    "sha256": "dd7a7eaa6a0b837aa726cd79a0845ba1e833769f8d9bbccb97d1a33d77d82c6e",
+    "beforeSha256": "ee7c67bae62e3cbe7eaf5206cd588705ee610f126a3427edd60ecb7e2ebee87c"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/customers/presentation/detail/CustomerConnectedWorkspace.tsx",
+    "sha256": "0ca074932749cbba40eb1cac805372ab1513cf9343ff480060fcb31f6fe0f752",
+    "beforeSha256": "607e0f20e074c2071a8709ff21d3f6676cb8880cb36ce7107cb3127395e1a347"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/customers/presentation/detail/CustomerRelationshipPanel.tsx",
+    "sha256": "e7ae37facfebbcc8a60fa12d2769efdb647757d44cf0f328d02c3ffcc5731f90",
+    "beforeSha256": "0c6a005a9e2f212945a2fda015e01918d8751a62fe704d3117190a58f3dd79f2"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/tasks/presentation/pages/TaskDetailPage.tsx",
+    "sha256": "d77ae0494439cd1653a741c98291a6d386a90c57018dd516f3b8f77a730ab83f",
+    "beforeSha256": "d7fbc66e93ab033d899a93781217859ec44ae9386dfa313dde6c506b427bebbc"
+  },
+  {
+    "repository": "frontend",
+    "file": "src/guidance/content/crm/extendedScreens.ts",
+    "sha256": "ed8046c4f89e7c52b69687f5e3a0a275b72218a0b0565e47cad8ddc7a634cb0a",
+    "beforeSha256": "ac213339770ce7212aba8f71d029b92e7fabe52d00f0a937a1787efed45b1444"
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/e2e/crm-ui-real.spec.ts",
+    "sha256": "5f28d60d24ee791e3e10c604d146f131d465bd382d9d7b418a2c1dc1147081f1",
+    "beforeSha256": "65adae399580359be2eda04d8e79a05624a73230da2da6e6bce75f4ef3c2b262"
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/contract/customer-relationship-panel.test.mts",
+    "sha256": "df1acfbe65debbdef01d3e6e1bd95884b9edf0ad5f8f468a65a85f9b7d722ff1",
+    "beforeSha256": "3321ffea11d94fe55db00990bfca389231ba2696f678623c1e403be5a46705eb"
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/contract/customer-task-create-session.test.mts",
+    "sha256": "7d0b42db2c60417301a2b8cb3ecffbe1288d824178d45a73dce64e21cdec5993",
+    "beforeSha256": null
+  }
+]

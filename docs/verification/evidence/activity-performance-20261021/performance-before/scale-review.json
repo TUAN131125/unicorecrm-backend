@@ -1,0 +1,26 @@
+[
+  {
+    "elapsedMs": 219.4366,
+    "rows": 100,
+    "status": 200,
+    "totalCount": 108
+  },
+  {
+    "elapsedMs": 2069.2332,
+    "rows": 1000,
+    "status": 200,
+    "totalCount": 1008
+  },
+  {
+    "elapsedMs": 393.3566,
+    "rows": 2200,
+    "status": 200,
+    "totalCount": 2208
+  },
+  {
+    "elapsedMs": 377.8569,
+    "rows": 5000,
+    "status": 200,
+    "totalCount": 5008
+  }
+]

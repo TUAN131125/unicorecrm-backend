@@ -1,0 +1,55 @@
+ M .gitignore
+ M scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj
+ M scripts/ContactFollowUpVerifier/Program.cs
+ M scripts/TasksHandoverVerifier/Program.cs
+ M scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj
+ M src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs
+ M src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs
+ M src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs
+ M src/UnicoreCRM.Crm/Contacts/ContactsModule.cs
+ M src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs
+ M src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs
+ M src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs
+ M src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs
+ M src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs
+ M src/UnicoreCRM.Crm/Customers/CustomersModule.cs
+ M src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs
+ M src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs
+ M src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs
+ M src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs
+ M src/UnicoreCRM.Crm/Leads/LeadsModule.cs
+ M src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs
+ M src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs
+ M src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs
+ M src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs
+ M src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs
+ M src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs
+ M src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs
+ M src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs
+ M src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs
+ M src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs
+ M src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs
+ M src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs
+ M src/UnicoreCRM.Operations/Tasks/TasksModule.cs
+?? backend-work/evidence/
+?? backend-work/handoffs/
+?? backend-work/runtime-context/
+?? backend-work/state/
+?? backend-work/tasks/PRIMARY-SOURCE-INTEGRATION-20261015-BE.json
+?? backend-work/tasks/UCRM-ARCHITECTURE-CHECKER-CORRECTIONS-V2-20261020-BACKEND.json
+?? backend-work/tasks/UCRM-CONTACT-CONNECTED-ACCEPTANCE-V2.json
+?? backend-work/tasks/UCRM-CUSTOMER-ACTIVITY-REFERENCE-HISTORY-BACKEND.json
+?? backend-work/tasks/UCRM-CUSTOMER-TASK-REFERENCE-CONNECTED-BACKEND.json
+?? backend-work/tasks/UCRM-ORGANIZATION-EDIT-DESCRIPTOR-REMEDIATION.json
+?? backend-work/tasks/UCRM-ORGANIZATION-OVERVIEW-FLS-PROJECTION-REMEDIATION.json
+?? backend-work/tasks/UCRM-ORGANIZATION-TASK-REFERENCE-INTEGRITY-AND-MEETING-BACKEND.json
+?? docs/architecture/team-scope.md
+?? docs/verification/
+?? scripts/ContactFollowUpVerifier/evidence/
+?? scripts/LeadTableCursorVerifier/__pycache__/
+?? scripts/verify-activity-security.ps1
+?? src/UnicoreCRM.Operations/Tasks/Application/Common/ActivityRecordAccess.cs
+?? src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs
+?? src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs
+?? src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.Designer.cs
+?? src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.cs

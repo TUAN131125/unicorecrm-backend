@@ -1,0 +1,10 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.task-activity-api-boundary
+
+
+[quality 1/1] START architecture/quality.task-activity-api-boundary (check:task-activity-api-boundary)
+Tasks & Activities API boundary: PASS (10 authoritative operations).
+[quality 1/1] PASS architecture/quality.task-activity-api-boundary (0.3s)
+
+[quality] PASS 1/1 passed across 1 groups (0.3s).

@@ -1,0 +1,808 @@
+  UnicoreCRM.BuildingBlocks -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.BuildingBlocks\bin\Debug\net10.0\UnicoreCRM.BuildingBlocks.dll
+  UnicoreCRM.Fulfillment -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Fulfillment\bin\Debug\net10.0\UnicoreCRM.Fulfillment.dll
+  UnicoreCRM.PlatformOperations -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.PlatformOperations\bin\Debug\net10.0\UnicoreCRM.PlatformOperations.dll
+  UnicoreCRM.Platform -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Platform\bin\Debug\net10.0\UnicoreCRM.Platform.dll
+  UnicoreCRM.CommercialEvidence -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.CommercialEvidence\bin\Debug\net10.0\UnicoreCRM.CommercialEvidence.dll
+  UnicoreCRM.Sales -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Sales\bin\Debug\net10.0\UnicoreCRM.Sales.dll
+  UnicoreCRM.Operations -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Operations\bin\Debug\net10.0\UnicoreCRM.Operations.dll
+  UnicoreCRM.Billing -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Billing\bin\Debug\net10.0\UnicoreCRM.Billing.dll
+  UnicoreCRM.Crm -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Crm\bin\Debug\net10.0\UnicoreCRM.Crm.dll
+  UnicoreCRM.Workflows -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Workflows\bin\Debug\net10.0\UnicoreCRM.Workflows.dll
+  UnicoreCRM.AI -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.AI\bin\Debug\net10.0\UnicoreCRM.AI.dll
+  UnicoreCRM.Integrations -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Integrations\bin\Debug\net10.0\UnicoreCRM.Integrations.dll
+  UnicoreCRM.Communications -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.Communications\bin\Debug\net10.0\UnicoreCRM.Communications.dll
+  UnicoreCRM.ApiHost -> D:\Project_All\UnicoreCRM\backend\src\UnicoreCRM.ApiHost\bin\Debug\net10.0\UnicoreCRM.ApiHost.dll
+  UnicoreCRM.ArchitectureTests -> D:\Project_All\UnicoreCRM\backend\tests\UnicoreCRM.ArchitectureTests\bin\Debug\net10.0\UnicoreCRM.ArchitectureTests.dll
+Test run for D:\Project_All\UnicoreCRM\backend\tests\UnicoreCRM.ArchitectureTests\bin\Debug\net10.0\UnicoreCRM.ArchitectureTests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:02.30]     UnicoreCRM.ArchitectureTests.EndpointMetadataTests.Actual_ApiHost_endpoints_obey_route_operation_and_authorization_admission [FAIL]
+  Failed UnicoreCRM.ArchitectureTests.EndpointMetadataTests.Actual_ApiHost_endpoints_obey_route_operation_and_authorization_admission [988 ms]
+  Error Message:
+   Unadmitted actual endpoint: /leads/kanban/{column} (listLeadKanbanColumn)
+Unadmitted actual endpoint: /contacts/summary (getContactListSummary)
+Unadmitted actual endpoint: /communications/conversations/{id}/crm-link (getConversationCrmContext)
+Unadmitted actual endpoint: /communications/conversations/{id}/crm-candidates (searchConversationCrmCandidates)
+Unadmitted actual endpoint: /communications/conversations/{id}/crm-link (linkConversationCrmRecord)
+Unadmitted actual endpoint: /communications/conversations/{id}/crm-link/unlink (unlinkConversationCrmRecord)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/connection (getTelegramConnection)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/credentials (replaceTelegramCredential)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/credentials (removeTelegramCredential)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/verify (verifyTelegramConnection)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/activate (activateTelegramConnection)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/deactivate (deactivateTelegramConnection)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/reconnect (reconnectTelegramConnection)
+Unadmitted actual endpoint: /communications/channel-providers (listCommunicationChannelProviders)
+Unadmitted actual endpoint: /communications/channel-accounts (listCommunicationChannelAccounts)
+Unadmitted actual endpoint: /communications/channel-accounts (createCommunicationChannelAccount)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid} (getCommunicationChannelAccount)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid} (updateCommunicationChannelAccount)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/disable (disableCommunicationChannelAccount)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/enable (enableCommunicationChannelAccount)
+Unadmitted actual endpoint: /communications/channel-accounts/{id:guid}/disconnect (disconnectCommunicationChannelAccount)
+Unadmitted actual endpoint: /communications/conversations/{id}/claim (claimConversation)
+Unadmitted actual endpoint: /communications/conversations/{id}/transition (transitionConversation)
+Unadmitted actual endpoint: /communications/conversations (listConversations)
+Unadmitted actual endpoint: /communications/conversations/{id} (getConversation)
+Unadmitted actual endpoint: /communications/conversations/{id}/messages (listConversationMessages)
+Unadmitted actual endpoint: /integration-event-catalog (getIntegrationEventCatalog)
+Unadmitted actual endpoint: /outbound-webhooks (listOutboundWebhookSubscriptions)
+Unadmitted actual endpoint: /outbound-webhooks/{id} (getOutboundWebhookSubscription)
+Unadmitted actual endpoint: /outbound-webhooks (createOutboundWebhookSubscription)
+Unadmitted actual endpoint: /outbound-webhooks/{id} (updateOutboundWebhookSubscription)
+Unadmitted actual endpoint: /outbound-webhooks/{id}/activate (activateOutboundWebhookSubscription)
+Unadmitted actual endpoint: /outbound-webhooks/{id}/pause (pauseOutboundWebhookSubscription)
+Unadmitted actual endpoint: /outbound-webhooks/{id}/resume (resumeOutboundWebhookSubscription)
+Unadmitted actual endpoint: /outbound-webhooks/{id}/archive (archiveOutboundWebhookSubscription)
+Unadmitted actual endpoint: /outbound-webhooks/{id}/rotate-secret (rotateOutboundWebhookSecret)
+Unadmitted actual endpoint: /outbound-webhook-deliveries (listOutboundWebhookDeliveries)
+Unadmitted actual endpoint: /outbound-webhook-deliveries/{id}/replay (replayOutboundWebhookDelivery)
+Unadmitted actual endpoint: /ai/configuration/catalog (getAiProviderCatalog)
+Unadmitted actual endpoint: /ai/configuration (getAiConfiguration)
+Unadmitted actual endpoint: /ai/configuration/usage (getAiUsageSummary)
+Unadmitted actual endpoint: /ai/configuration (saveAiConfiguration)
+Unadmitted actual endpoint: /ai/configuration/credential (setAiCredential)
+Unadmitted actual endpoint: /ai/configuration/test (testAiConfiguration)
+Unadmitted actual endpoint: /ai/configuration/activate (activateAiConfiguration)
+Unadmitted actual endpoint: /ai/configuration/disable (disableAiConfiguration)
+Unadmitted actual endpoint: /ai/proactive/items (listProactiveItems)
+Unadmitted actual endpoint: /ai/proactive/items/{itemId} (getProactiveItem)
+Unadmitted actual endpoint: /ai/proactive/items/{itemId}/seen (seeProactiveItem)
+Unadmitted actual endpoint: /ai/proactive/items/{itemId}/snooze (snoozeProactiveItem)
+Unadmitted actual endpoint: /ai/proactive/items/{itemId}/dismiss (dismissProactiveItem)
+Unadmitted actual endpoint: /ai/proactive/items/{itemId}/suggestion (requestProactiveSuggestion)
+Unadmitted actual endpoint: /ai/proactive/items/{itemId}/confirm-task (confirmProactiveTask)
+Unadmitted actual endpoint: /ai/proactive/configuration (getProactiveConfiguration)
+Unadmitted actual endpoint: /ai/proactive/configuration (saveProactiveConfiguration)
+  Stack Trace:
+     at UnicoreCRM.ArchitectureTests.EndpointMetadataTests.Actual_ApiHost_endpoints_obey_route_operation_and_authorization_admission() in D:\Project_All\UnicoreCRM\backend\tests\UnicoreCRM.ArchitectureTests\EndpointMetadataTests.cs:line 80
+   at UnicoreCRM.ArchitectureTests.EndpointMetadataTests.Actual_ApiHost_endpoints_obey_route_operation_and_authorization_admission() in D:\Project_All\UnicoreCRM\backend\tests\UnicoreCRM.ArchitectureTests\EndpointMetadataTests.cs:line 92
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:36.04]     UnicoreCRM.ArchitectureTests.ArchitectureTests.Owner_mapping_is_complete_and_cross_owner_edges_are_explicit [FAIL]
+  Failed UnicoreCRM.ArchitectureTests.ArchitectureTests.Owner_mapping_is_complete_and_cross_owner_edges_are_explicit [33 s]
+  Error Message:
+   Unmapped source owner: UnicoreCRM.AI.Proactive.Application
+Unmapped source owner: UnicoreCRM.AI.Proactive.Infrastructure
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Application.Common
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Application.GetInvoice
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Application.ListInvoices
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Application.ProvideInvoiceRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Contracts
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Domain
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Billing.Invoices.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.Common
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.GetPaymentIntent
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.GetPaymentIntentStatus
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.GetPaymentRecordDetail
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.ListPaymentIntents
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.ListPaymentPlans
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.ListPaymentRecords
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.ListPaymentScheduleLines
+Unmapped source owner: UnicoreCRM.Billing.Payments.Application.ProvidePaymentRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Billing.Payments.Contracts
+Unmapped source owner: UnicoreCRM.Billing.Payments.Domain
+Unmapped source owner: UnicoreCRM.Billing.Payments.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Billing.Payments.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Application
+Unmapped source owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Contracts
+Unmapped source owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Domain
+Unmapped source owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Communications.Application
+Unmapped source owner: UnicoreCRM.Communications.Contracts
+Unmapped source owner: UnicoreCRM.Communications.Domain
+Unmapped source owner: UnicoreCRM.Communications.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Communications.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Communications.Infrastructure.Telegram
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.ArchiveContact
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.Common
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.CreateContact
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.CustomerParticipants
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.GetContact
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.GetRelationshipSummary
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.ListContacts
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.ProvideContactRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.ReadContactSummary
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.ReadOrganizationContacts
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.Relationships
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.ResolveQualificationContact
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.UpdateContact
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Application.ValidateTaskReference
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Contracts
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Domain
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Crm.Contacts.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ArchiveCustomer
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.Common
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.CreateCustomer
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.GetCustomer
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.GetCustomer360
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.Health
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ListCustomers
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ProvideCustomerRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ReadCustomerSummary
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ResolveForLeadConversion
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ResolveRelationshipTargets
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.UpdateCustomer
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ValidateActivityReference
+Unmapped source owner: UnicoreCRM.Crm.Customers.Application.ValidateTaskReference
+Unmapped source owner: UnicoreCRM.Crm.Customers.Contracts
+Unmapped source owner: UnicoreCRM.Crm.Customers.Domain
+Unmapped source owner: UnicoreCRM.Crm.Customers.Domain.Health
+Unmapped source owner: UnicoreCRM.Crm.Customers.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ArchiveDeal
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ArchiveDealsBatch
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.AssignDealOwner
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ChangeDealStage
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.Common
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.CreateDeal
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.CreateLeadOpportunity
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.GetDeal
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.GetDealForecastSummary
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ListDeals
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.MarkDealLost
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.MarkDealWon
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ProvideDealRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ReadDealSummary
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ReplaceDealProfile
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.UpdateDealForecast
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.UpdateDealNextAction
+Unmapped source owner: UnicoreCRM.Crm.Deals.Application.ValidateTaskReference
+Unmapped source owner: UnicoreCRM.Crm.Deals.Contracts
+Unmapped source owner: UnicoreCRM.Crm.Deals.Domain
+Unmapped source owner: UnicoreCRM.Crm.Deals.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.AdvanceLeadWorkState
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ArchiveLead
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ArchiveLeadBatch
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.AssignLeadOwner
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ClaimLeadFromQueue
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.Common
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.CreateLead
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.DisqualifyLead
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.GetLead
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.HandoverLead
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ListLeadKanbanColumn
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ListLeads
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ProvideLeadRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.QualifyLeadForNurture
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ReadLeadSummary
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.RecordCustomerConversion
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ReopenDisqualifiedLead
+Unmapped source owner: UnicoreCRM.Crm.Leads.Application.ReplaceLeadProfile
+Unmapped source owner: UnicoreCRM.Crm.Leads.Contracts
+Unmapped source owner: UnicoreCRM.Crm.Leads.Domain
+Unmapped source owner: UnicoreCRM.Crm.Leads.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.ArchiveOrganization
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.Common
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.CreateOrganization
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.GetOrganization
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.GetOrganizationOverview
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.ListOrganizations
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.ProvideOrganizationRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.ReadOrganizationSummary
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.ResolveCustomerSubject
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.ResolveRelationshipTargets
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.UpdateOrganization
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Application.ValidateTaskReference
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Contracts
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Domain
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Crm.Organizations.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Integrations.Application
+Unmapped source owner: UnicoreCRM.Integrations.Domain
+Unmapped source owner: UnicoreCRM.Integrations.Infrastructure
+Unmapped source owner: UnicoreCRM.Integrations.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Integrations.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Integrations.Webhooks.Inbound.Application
+Unmapped source owner: UnicoreCRM.Integrations.Webhooks.Inbound.Contracts
+Unmapped source owner: UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure
+Unmapped source owner: UnicoreCRM.Integrations.Webhooks.Outbound.Application
+Unmapped source owner: UnicoreCRM.Integrations.Webhooks.Outbound.Contracts
+Unmapped source owner: UnicoreCRM.Integrations.Webhooks.Outbound.Domain
+Unmapped source owner: UnicoreCRM.Integrations.Webhooks.Outbound.Infrastructure
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.AddSupportCaseInternalNote
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.AddSupportCaseReply
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.AssignSupportCase
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.Common
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.CreateSupportCase
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.GetSupportCase
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.ListSupportCases
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.ProvideSupportRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.ReplaceSupportCaseProfile
+Unmapped source owner: UnicoreCRM.Operations.Support.Application.TransitionSupportCase
+Unmapped source owner: UnicoreCRM.Operations.Support.Contracts
+Unmapped source owner: UnicoreCRM.Operations.Support.Domain
+Unmapped source owner: UnicoreCRM.Operations.Support.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Operations.Support.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.ArchiveTask
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.AssignTask
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.CancelTask
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.Common
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.CompleteTask
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.CreateLeadNurtureFollowUp
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.CreateProactiveFollowUp
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.CreateTask
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.GetTask
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.LeadHandover
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.ListActivities
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.ListTasks
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.LogActivity
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.ProvideTaskRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.ReadContactFollowUp
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.ReadTaskSummary
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Application.RescheduleTask
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Contracts
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Domain
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.AccessDirectory
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.ArchiveAccessRole
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.Common
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.CreateAccessRole
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.EvaluateEffectiveRecordAccess
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.GetCurrentAuthorizationContext
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.GetWorkspaceAccessDirectory
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.ProvisionInitialWorkspaceAccess
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.ReplaceAccessRole
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Application.ReplaceWorkspaceMemberAccess
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Contracts
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Domain
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Infrastructure
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.Common
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.GetCurrentSession
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.RefreshSession
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.RegisterAccount
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.RequestEmailVerification
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.SignIn
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.SignOut
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Application.VerifyEmail
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Contracts
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Domain
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Email
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Security
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Application
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Application.Common
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Application.GetWorkspaceBootstrap
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Application.ListMyWorkspaces
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Application.ProvisionInitialWorkspace
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Contracts
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Domain
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Infrastructure
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.PlatformOperations.AiExecution.Contracts
+Unmapped source owner: UnicoreCRM.PlatformOperations.AiExecution.Infrastructure
+Unmapped source owner: UnicoreCRM.PlatformOperations.AiExecution.Infrastructure.Migrations
+Unmapped source owner: UnicoreCRM.PlatformOperations.Inbox.Contracts
+Unmapped source owner: UnicoreCRM.PlatformOperations.Inbox.Domain
+Unmapped source owner: UnicoreCRM.PlatformOperations.Inbox.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.PlatformOperations.Inbox.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.PlatformOperations.Outbox.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Sales.Orders.Application.Common
+Unmapped source owner: UnicoreCRM.Sales.Orders.Application.GetOrder
+Unmapped source owner: UnicoreCRM.Sales.Orders.Application.ListOrders
+Unmapped source owner: UnicoreCRM.Sales.Orders.Application.ProvideOrderRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Sales.Orders.Contracts
+Unmapped source owner: UnicoreCRM.Sales.Orders.Domain
+Unmapped source owner: UnicoreCRM.Sales.Orders.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.ArchiveProduct
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.ArchiveProductsBatch
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.Common
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.CreateProduct
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.GetProduct
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.GetProductAvailability
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.GetProductPriceProjection
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.ListProductConfigurationTypes
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.ListProducts
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.ProvideProductRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.ReadProductSnapshots
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.ReplaceProduct
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.RestoreProduct
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.RestoreProductsBatch
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.SearchProductSelections
+Unmapped source owner: UnicoreCRM.Sales.Products.Application.UpdateProductConfigurationType
+Unmapped source owner: UnicoreCRM.Sales.Products.Contracts
+Unmapped source owner: UnicoreCRM.Sales.Products.Domain
+Unmapped source owner: UnicoreCRM.Sales.Products.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Sales.Products.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Application.Common
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Application.GetQuote
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Application.ListQuotes
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Application.ProvideQuoteRecordAccessFacts
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Contracts
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Domain
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Application.ConvertLeadToCustomer
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Application.HandoverLead
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForNurture
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Contracts
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Domain
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence
+Unmapped source owner: UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.Migrations
+Unmapped source owner: UnicoreCRM.Workflows.Durable.Application.Common
+Unmapped source owner: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace
+Unmapped source owner: UnicoreCRM.Workflows.Durable.Contracts
+Unmapped source owner: UnicoreCRM.Workflows.Durable.Infrastructure
+Unmapped target owner: UnicoreCRM.AI.Proactive.Application
+Unmapped target owner: UnicoreCRM.AI.Proactive.Infrastructure
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Application.Common
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Application.GetInvoice
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Application.ListInvoices
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Application.ProvideInvoiceRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Contracts
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Domain
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Billing.Invoices.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.Common
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.GetPaymentIntent
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.GetPaymentIntentStatus
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.GetPaymentRecordDetail
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.ListPaymentIntents
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.ListPaymentPlans
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.ListPaymentRecords
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.ListPaymentScheduleLines
+Unmapped target owner: UnicoreCRM.Billing.Payments.Application.ProvidePaymentRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Billing.Payments.Contracts
+Unmapped target owner: UnicoreCRM.Billing.Payments.Domain
+Unmapped target owner: UnicoreCRM.Billing.Payments.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Billing.Payments.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Application
+Unmapped target owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Contracts
+Unmapped target owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Domain
+Unmapped target owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Communications.Application
+Unmapped target owner: UnicoreCRM.Communications.Contracts
+Unmapped target owner: UnicoreCRM.Communications.Domain
+Unmapped target owner: UnicoreCRM.Communications.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Communications.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Communications.Infrastructure.Telegram
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.ArchiveContact
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.Common
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.CreateContact
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.CustomerParticipants
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.GetContact
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.GetRelationshipSummary
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.ListContacts
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.ProvideContactRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.ReadContactSummary
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.ReadOrganizationContacts
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.Relationships
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.ResolveQualificationContact
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.UpdateContact
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Application.ValidateTaskReference
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Contracts
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Domain
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Crm.Contacts.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ArchiveCustomer
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.Common
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.CreateCustomer
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.GetCustomer
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.GetCustomer360
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.Health
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ListCustomers
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ProvideCustomerRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ReadCustomerSummary
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ResolveForLeadConversion
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ResolveRelationshipTargets
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.UpdateCustomer
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ValidateActivityReference
+Unmapped target owner: UnicoreCRM.Crm.Customers.Application.ValidateTaskReference
+Unmapped target owner: UnicoreCRM.Crm.Customers.Contracts
+Unmapped target owner: UnicoreCRM.Crm.Customers.Domain
+Unmapped target owner: UnicoreCRM.Crm.Customers.Domain.Health
+Unmapped target owner: UnicoreCRM.Crm.Customers.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Crm.Customers.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ArchiveDeal
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ArchiveDealsBatch
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.AssignDealOwner
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ChangeDealStage
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.Common
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.CreateDeal
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.CreateLeadOpportunity
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.GetDeal
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.GetDealForecastSummary
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ListDeals
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.MarkDealLost
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.MarkDealWon
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ProvideDealRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ReadDealSummary
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ReplaceDealProfile
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.UpdateDealForecast
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.UpdateDealNextAction
+Unmapped target owner: UnicoreCRM.Crm.Deals.Application.ValidateTaskReference
+Unmapped target owner: UnicoreCRM.Crm.Deals.Contracts
+Unmapped target owner: UnicoreCRM.Crm.Deals.Domain
+Unmapped target owner: UnicoreCRM.Crm.Deals.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.AdvanceLeadWorkState
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ArchiveLead
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ArchiveLeadBatch
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.AssignLeadOwner
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ClaimLeadFromQueue
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.Common
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.CreateLead
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.DisqualifyLead
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.GetLead
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.HandoverLead
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ListLeadKanbanColumn
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ListLeads
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ProvideLeadRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.QualifyLeadForNurture
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ReadLeadSummary
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.RecordCustomerConversion
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ReopenDisqualifiedLead
+Unmapped target owner: UnicoreCRM.Crm.Leads.Application.ReplaceLeadProfile
+Unmapped target owner: UnicoreCRM.Crm.Leads.Contracts
+Unmapped target owner: UnicoreCRM.Crm.Leads.Domain
+Unmapped target owner: UnicoreCRM.Crm.Leads.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Crm.Leads.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.ArchiveOrganization
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.Common
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.CreateOrganization
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.GetOrganization
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.GetOrganizationOverview
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.ListOrganizations
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.ProvideOrganizationRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.ReadOrganizationSummary
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.ResolveCustomerSubject
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.ResolveRelationshipTargets
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.UpdateOrganization
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Application.ValidateTaskReference
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Contracts
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Domain
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Crm.Organizations.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Integrations.Application
+Unmapped target owner: UnicoreCRM.Integrations.Domain
+Unmapped target owner: UnicoreCRM.Integrations.Infrastructure
+Unmapped target owner: UnicoreCRM.Integrations.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Integrations.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Integrations.Webhooks.Inbound.Application
+Unmapped target owner: UnicoreCRM.Integrations.Webhooks.Inbound.Contracts
+Unmapped target owner: UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure
+Unmapped target owner: UnicoreCRM.Integrations.Webhooks.Outbound.Application
+Unmapped target owner: UnicoreCRM.Integrations.Webhooks.Outbound.Contracts
+Unmapped target owner: UnicoreCRM.Integrations.Webhooks.Outbound.Domain
+Unmapped target owner: UnicoreCRM.Integrations.Webhooks.Outbound.Infrastructure
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.AddSupportCaseInternalNote
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.AddSupportCaseReply
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.AssignSupportCase
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.Common
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.CreateSupportCase
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.GetSupportCase
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.ListSupportCases
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.ProvideSupportRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.ReplaceSupportCaseProfile
+Unmapped target owner: UnicoreCRM.Operations.Support.Application.TransitionSupportCase
+Unmapped target owner: UnicoreCRM.Operations.Support.Contracts
+Unmapped target owner: UnicoreCRM.Operations.Support.Domain
+Unmapped target owner: UnicoreCRM.Operations.Support.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Operations.Support.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.ArchiveTask
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.AssignTask
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.CancelTask
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.Common
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.CompleteTask
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.CreateLeadNurtureFollowUp
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.CreateProactiveFollowUp
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.CreateTask
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.GetTask
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.LeadHandover
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.ListActivities
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.ListTasks
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.LogActivity
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.ProvideTaskRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.ReadContactFollowUp
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.ReadTaskSummary
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Application.RescheduleTask
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Contracts
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Domain
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.AccessDirectory
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.ArchiveAccessRole
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.Common
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.CreateAccessRole
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.EvaluateEffectiveRecordAccess
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.GetCurrentAuthorizationContext
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.GetWorkspaceAccessDirectory
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.ProvisionInitialWorkspaceAccess
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.ReplaceAccessRole
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Application.ReplaceWorkspaceMemberAccess
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Contracts
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Domain
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Infrastructure
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.Common
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.GetCurrentSession
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.RefreshSession
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.RegisterAccount
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.RequestEmailVerification
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.SignIn
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.SignOut
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Application.VerifyEmail
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Contracts
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Domain
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Email
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Security
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Application
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Application.Common
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Application.GetWorkspaceBootstrap
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Application.ListMyWorkspaces
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Application.ProvisionInitialWorkspace
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Contracts
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Domain
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Infrastructure
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.PlatformOperations.AiExecution.Contracts
+Unmapped target owner: UnicoreCRM.PlatformOperations.AiExecution.Infrastructure
+Unmapped target owner: UnicoreCRM.PlatformOperations.AiExecution.Infrastructure.Migrations
+Unmapped target owner: UnicoreCRM.PlatformOperations.Inbox.Contracts
+Unmapped target owner: UnicoreCRM.PlatformOperations.Inbox.Domain
+Unmapped target owner: UnicoreCRM.PlatformOperations.Inbox.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.PlatformOperations.Inbox.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.PlatformOperations.Outbox
+Unmapped target owner: UnicoreCRM.PlatformOperations.Outbox.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Sales.Orders.Application.Common
+Unmapped target owner: UnicoreCRM.Sales.Orders.Application.GetOrder
+Unmapped target owner: UnicoreCRM.Sales.Orders.Application.ListOrders
+Unmapped target owner: UnicoreCRM.Sales.Orders.Application.ProvideOrderRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Sales.Orders.Contracts
+Unmapped target owner: UnicoreCRM.Sales.Orders.Domain
+Unmapped target owner: UnicoreCRM.Sales.Orders.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.ArchiveProduct
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.ArchiveProductsBatch
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.Common
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.CreateProduct
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.GetProduct
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.GetProductAvailability
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.GetProductPriceProjection
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.ListProductConfigurationTypes
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.ListProducts
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.ProvideProductRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.ReadProductSnapshots
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.ReplaceProduct
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.RestoreProduct
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.RestoreProductsBatch
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.SearchProductSelections
+Unmapped target owner: UnicoreCRM.Sales.Products.Application.UpdateProductConfigurationType
+Unmapped target owner: UnicoreCRM.Sales.Products.Contracts
+Unmapped target owner: UnicoreCRM.Sales.Products.Domain
+Unmapped target owner: UnicoreCRM.Sales.Products.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Sales.Products.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Application.Common
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Application.GetQuote
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Application.ListQuotes
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Application.ProvideQuoteRecordAccessFacts
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Contracts
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Domain
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Application.ConvertLeadToCustomer
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Application.HandoverLead
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForNurture
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Contracts
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Domain
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence
+Unmapped target owner: UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.Migrations
+Unmapped target owner: UnicoreCRM.Workflows.Durable.Application.Common
+Unmapped target owner: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace
+Unmapped target owner: UnicoreCRM.Workflows.Durable.Contracts
+Unmapped target owner: UnicoreCRM.Workflows.Durable.Infrastructure
+  Stack Trace:
+     at UnicoreCRM.ArchitectureTests.ArchitectureTests.Owner_mapping_is_complete_and_cross_owner_edges_are_explicit() in D:\Project_All\UnicoreCRM\backend\tests\UnicoreCRM.ArchitectureTests\ArchitectureTests.cs:line 62
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:36.11]     UnicoreCRM.ArchitectureTests.ArchitectureTests.Durable_contexts_and_migrations_have_explicit_owner_metadata [FAIL]
+  Failed UnicoreCRM.ArchitectureTests.ArchitectureTests.Durable_contexts_and_migrations_have_explicit_owner_metadata [52 ms]
+  Error Message:
+   Unassigned DbContext: UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Unassigned DbContext: UnicoreCRM.Platform.Workspace.Infrastructure.Persistence.WorkspaceDbContext
+Unassigned DbContext: UnicoreCRM.Platform.IdentityAuth.Infrastructure.Persistence.IdentityAuthDbContext
+Unassigned DbContext: UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.AccessControlDbContext
+Unassigned DbContext: UnicoreCRM.Crm.Organizations.Infrastructure.Persistence.OrganizationsDbContext
+Unassigned DbContext: UnicoreCRM.Crm.Customers.Infrastructure.Persistence.CustomersDbContext
+Unassigned DbContext: UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.QuotesDbContext
+Unassigned DbContext: UnicoreCRM.Sales.Orders.Infrastructure.Persistence.OrdersDbContext
+Unassigned DbContext: UnicoreCRM.Billing.Payments.Infrastructure.Persistence.PaymentsDbContext
+Unassigned DbContext: UnicoreCRM.Billing.Invoices.Infrastructure.Persistence.InvoicesDbContext
+Unassigned DbContext: UnicoreCRM.Operations.Support.Infrastructure.Persistence.SupportDbContext
+Unassigned DbContext: UnicoreCRM.CommercialEvidence.CommercialEvidence.Infrastructure.Persistence.CommercialEvidenceDbContext
+Unassigned DbContext: UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Unassigned DbContext: UnicoreCRM.PlatformOperations.Outbox.IntegrationEventJournalDbContext
+Unassigned DbContext: UnicoreCRM.PlatformOperations.Inbox.Infrastructure.Persistence.InboxDbContext
+Unassigned DbContext: UnicoreCRM.PlatformOperations.AiExecution.Infrastructure.AiExecutionDbContext
+  Stack Trace:
+     at UnicoreCRM.ArchitectureTests.ArchitectureTests.Durable_contexts_and_migrations_have_explicit_owner_metadata() in D:\Project_All\UnicoreCRM\backend\tests\UnicoreCRM.ArchitectureTests\ArchitectureTests.cs:line 82
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+[xUnit.net 00:00:38.54]     UnicoreCRM.ArchitectureTests.ArchitectureTests.Layer_and_workflow_dependencies_obey_the_canonical_boundaries [FAIL]
+  Failed UnicoreCRM.ArchitectureTests.ArchitectureTests.Layer_and_workflow_dependencies_obey_the_canonical_boundaries [2 s]
+  Error Message:
+   Layer: UnicoreCRM.Communications.Application.ChannelAccessFacts -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ChannelAccessFacts/<ReadFactsAsync>d__6 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ChannelManagement -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ChannelManagement/<Get>d__12 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ChannelManagement/<List>d__13 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ChannelManagement/<Mutate>d__14 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.ChannelManagement/<Mutate>d__14 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.CommunicationsReader -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.CommunicationsReader/<ListAsync>d__13 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.CommunicationsReader/<MessagesAsync>d__16 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationAccessFacts -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationAccessFacts/<ReadFactsAsync>d__6 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.QueueAccessFacts -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.QueueAccessFacts/<ReadFactsAsync>d__5 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationClaimer -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationClaimer/<ClaimAsync>d__7 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.ConversationClaimer/<ClaimAsync>d__7 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationLinker -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationLinker/<ChangeAsync>d__12 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.ConversationLinker/<ChangeAsync>d__12 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationLinker/<ReadAsync>d__10 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationLinker/<Record>d__8 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationTransitioner -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.ConversationTransitioner/<TransitionAsync>d__5 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.ConversationTransitioner/<TransitionAsync>d__5 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore/<AdmitInTransactionAsync>d__6 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore/<AdmitInTransactionAsync>d__6 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore/<AppendAsync>d__5 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore/<AppendAsync>d__5 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore/<GetAsync>d__8 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore/<ListAsync>d__9 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.LocalCommunicationsStore/<MessagesAsync>d__10 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramApiClient
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramProviderAdmission
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingOptions
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredential
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingState
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<>c__DisplayClass0_2 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<>c__DisplayClass0_2 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingState
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<>c__DisplayClass0_2/<<CommandAsync>g__Record|1>d -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<>c__DisplayClass0_2/<<CommandAsync>g__Record|1>d -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingState
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<>c__DisplayClass0_2/<<CommandAsync>g__Record|1>d -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<>c__DisplayClass13_1 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<>c__DisplayClass13_1 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingState
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredential
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramFailure
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramProviderAdmission
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingOptions
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramApiClient
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommandAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramUpdateNormalizer
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredential
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingState
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramProviderAdmission
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramFailure
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CommitVerificationAsync>d__18 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CompleteSyntheticVerificationAsync>d__17 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredential
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<CompleteSyntheticVerificationAsync>d__17 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramFailure
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<MutateAsync>d__13 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<MutateAsync>d__13 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<MutateAsync>d__13 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramProviderAdmission
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<MutateAsync>d__13 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<MutateAsync>d__13 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<Project>d__12 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<Project>d__12 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingState
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<Project>d__12 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<Project>d__12 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<Project>d__12 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramProviderAdmission
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<Project>d__12 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingOptions
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<RecordFailureAsync>d__16 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredential
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<RecordFailureAsync>d__16 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<RecordFailureAsync>d__16 -> Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<RecordFailureAsync>d__16 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySnapshotAsync>d__15 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredential
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySnapshotAsync>d__15 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramApiClient
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySnapshotAsync>d__15 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramUpdateNormalizer
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySnapshotAsync>d__15 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramFailure
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySnapshotAsync>d__15 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySyntheticAsync>d__14 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredential
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySyntheticAsync>d__14 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramFailure
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionManagement/<VerifySyntheticAsync>d__14 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramCredentialVault
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionLifecycle -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionLifecycle/<InvalidateAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Persistence.CommunicationsDbContext
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionLifecycle/<InvalidateAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramConnection
+Layer: UnicoreCRM.Communications.Application.TelegramConnectionLifecycle/<InvalidateAsync>d__0 -> UnicoreCRM.Communications.Infrastructure.Telegram.TelegramPollingState
+Layer: UnicoreCRM.Platform.AccessControl.Application.Common.ServiceAccessAuthorizer -> UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.AccessControlDbContext
+Layer: UnicoreCRM.Platform.AccessControl.Application.Common.ServiceAccessAuthorizer/<AuthorizeAsync>d__3 -> UnicoreCRM.Platform.AccessControl.Infrastructure.Persistence.AccessControlDbContext
+Layer: UnicoreCRM.Crm.Customers.Application.Health.CustomerAttentionReader -> UnicoreCRM.Crm.Customers.Infrastructure.Persistence.CustomersDbContext
+Layer: UnicoreCRM.Crm.Customers.Application.Health.CustomerAttentionReader/<ReadAuthorizedAsync>d__6 -> UnicoreCRM.Crm.Customers.Infrastructure.Persistence.CustomersDbContext
+Layer: UnicoreCRM.Crm.Customers.Application.Health.ProactiveCustomerHealthReader -> UnicoreCRM.Crm.Customers.Infrastructure.Persistence.CustomersDbContext
+Layer: UnicoreCRM.Crm.Customers.Application.Health.ProactiveCustomerHealthReader/<ReadPageAsync>d__3 -> UnicoreCRM.Crm.Customers.Infrastructure.Persistence.CustomersDbContext
+Layer: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace.InitialWorkspaceAccessCompletion -> UnicoreCRM.Workflows.Durable.Infrastructure.DurableWorkflowOptions
+Layer: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace.InitialWorkspaceAccessCompletion/<CompleteAsync>d__5 -> UnicoreCRM.Workflows.Durable.Infrastructure.DurableWorkflowFaultInjectionOptions
+Layer: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace.InitialWorkspaceAccessCompletion/<CompleteAsync>d__5 -> UnicoreCRM.Workflows.Durable.Infrastructure.DurableWorkflowOptions
+Layer: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace.InitialWorkspaceAccessCompletion/<CompleteAsync>d__5 -> UnicoreCRM.Workflows.Durable.Infrastructure.InitialWorkspaceProvisioningOptions
+Layer: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace.InitialWorkspaceProvisioningResumeService -> UnicoreCRM.Workflows.Durable.Infrastructure.DurableWorkflowOptions
+Layer: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace.InitialWorkspaceProvisioningResumeService/<ExecuteAsync>d__4 -> UnicoreCRM.Workflows.Durable.Infrastructure.InitialWorkspaceProvisioningOptions
+Layer: UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace.InitialWorkspaceProvisioningResumeService/<ExecuteAsync>d__4 -> UnicoreCRM.Workflows.Durable.Infrastructure.DurableWorkflowOptions
+Layer: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity.Handler -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity.Handler/<ExecuteOnceAsync>d__11 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity.Handler/<StartAsync>d__14 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForNurture.Handler -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForNurture.Handler/<ExecuteOnceAsync>d__10 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForNurture.Handler/<StartAsync>d__13 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.HandoverLead.Handler -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.HandoverLead.Handler/<AuthorizeReceiptAsync>d__15 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.HandoverLead.Handler/<DeferDeniedRecoveryAsync>d__17 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.HandoverLead.Handler/<ExecuteAsync>d__14 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.HandoverLead.Handler/<ResumeAsync>d__18 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.HandoverLead.Handler/<ResumeDueAsync>d__16 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.ConvertLeadToCustomer.Handler -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.ConvertLeadToCustomer.Handler/<ExecuteAsync>d__15 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.ConvertLeadToCustomer.Handler/<ResumeAsync>d__17 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Workflows.Atomic.Application.ConvertLeadToCustomer.Handler/<ResumeDueAsync>d__16 -> UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.WorkflowsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService -> UnicoreCRM.Integrations.Webhooks.Outbound.Infrastructure.IWebhookHostResolver
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<Create>d__13 -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<Deliveries>d__20 -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<Get>d__12 -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<List>d__11 -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<Mutate>d__22`1 -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<Replay>d__29`1 -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<ReplayDelivery>d__21 -> UnicoreCRM.Integrations.Infrastructure.Persistence.IntegrationsDbContext
+Layer: UnicoreCRM.Integrations.Webhooks.Outbound.Application.OutboundWebhookService/<Validate>d__23 -> UnicoreCRM.Integrations.Webhooks.Outbound.Infrastructure.WebhookDestinationPolicy
+Layer: UnicoreCRM.Integrations.Webhooks.Inbound.Application.InboundLeadWebhookCoordinator -> UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure.GenericSignedJsonVerifier
+Layer: UnicoreCRM.Integrations.Webhooks.Inbound.Application.InboundLeadWebhookCoordinator/<ExecuteAsync>d__11 -> UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure.SignatureVerificationResult
+Layer: UnicoreCRM.Integrations.Webhooks.Inbound.Application.InboundLeadWebhookCoordinator/<ExecuteAsync>d__11 -> UnicoreCRM.Integrations.Webhooks.Inbound.Infrastructure.GenericSignedJsonVerifier
+  Stack Trace:
+     at UnicoreCRM.ArchitectureTests.ArchitectureTests.Layer_and_workflow_dependencies_obey_the_canonical_boundaries() in D:\Project_All\UnicoreCRM\backend\tests\UnicoreCRM.ArchitectureTests\ArchitectureTests.cs:line 33
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+Results File: D:\Project_All\UnicoreCRM\review-artifacts\connected-crm-20261021\customer-task-results\customer-task.trx
+
+Failed!  - Failed:     4, Passed:    33, Skipped:     0, Total:    37, Duration: 38 s - UnicoreCRM.ArchitectureTests.dll (net10.0)

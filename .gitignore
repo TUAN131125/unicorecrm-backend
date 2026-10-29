@@ -21,3 +21,28 @@
 # Transient output
 *.log
 *.tmp
+
+# Isolated acceptance runtime: local logs and generated data-protection keys are not source.
+/artifacts/activity-security/
+/artifacts/realistic-demo/
+/artifacts/dashboard-hydration/
+/artifacts/customer-ui-tests/
+/artifacts/multicurrency/
+/artifacts/studio-first-visit/
+/artifacts/ui-cleanup/
+
+# Disposable test/build caches and editor state.
+**/TestResults/
+**/__pycache__/
+*.pyc
+*.sln.DotSettings.user
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# Local database storage and backups are never source.
+*.mdf
+*.ndf
+*.ldf
+*.bak

@@ -1,0 +1,72 @@
+
+> unicorecrm-web@0.24.0-contract.0 repo:check
+> node scripts/quality/run-quality-pipeline.mjs --gate quality.repository-inventory
+
+
+[quality 1/1] START architecture/quality.repository-inventory (check:repository-inventory)
+AssertionError [ERR_ASSERTION]: Repository inventory JSON drifted. Run npm run repo:inventory and review the change.
++ actual - expected
+... Skipped lines
+
+  '{\n' +
+    '  "schemaVersion": 1,\n' +
+    '  "authority": {\n' +
+    '    "generator": "scripts/generate-repository-inventory.mjs",\n' +
+    '    "checker": "tests/quality/architecture/check-repository-inventory.mjs",\n' +
+...
+    '  "summary": {\n' +
++   '    "repositoryFiles": 2255,\n' +
++   '    "sourceFiles": 1492,\n' +
++   '    "sourceLines": 223849,\n' +
+-   '    "repositoryFiles": 2290,\n' +
+-   '    "sourceFiles": 1504,\n' +
+-   '    "sourceLines": 224472,\n' +
+    '    "modules": 16,\n' +
+    '    "routes": 83,\n' +
+    '    "loadableRouteModules": 67,\n' +
+    '    "capabilities": 137,\n' +
+    '    "workspaceFlags": 13,\n' +
+    '    "workflows": 23,\n' +
+    '    "publicBoundaryFiles": 110,\n' +
++   '    "publicExportStatements": 978,\n' +
++   '    "persistenceEntries": 3140,\n' +
+-   '    "publicExportStatements": 980,\n' +
+-   '    "persistenceEntries": 3142,\n' +
+    '    "repositoryImplementations": 147,\n' +
+    '    "browserEventEntries": 37,\n' +
+    '    "mockAndDefaultDataSources": 27,\n' +
++   '    "compatibilityCandidates": 55,\n' +
+-   '    "compatibilityCandidates": 56,\n' +
+    '    "deprecatedComponents": 9,\n' +
+    '    "duplicateGroups": 0,\n' +
+    '    "largeFiles": 44,\n' +
+    '    "circularDependencyGroups": 2,\n' +
+    '    "packageScripts": 23,\n' +
+...
+    '    "fileClassifications": {\n' +
++   '      "active-runtime": 1401,\n' +
++   '      "active-script": 86,\n' +
++   '      "active-test": 512,\n' +
++   '      "compatibility": 60,\n' +
+-   '      "active-runtime": 1412,\n' +
+-   '      "active-script": 101,\n' +
+-   '      "active-test": 520,\n' +
+-   '      "compatibility": 61,\n' +
+    '      "documentation": 191,\n' +
+    '      "fixture": 3,\n' +
+    '      "generated": 2\n' +
+    '    }\n' +
+    '  },\n' +
+...
+    '        {\n' +
++   '          "id": "suppo'... 1887282 more characters
+-   '          "id": "supp'... 1901057 more characters
+
+    at file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/tests/quality/architecture/check-repository-inventory.mjs:24:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/quality/run-node-entry.mjs:18:3
+[quality 1/1] FAIL architecture/quality.repository-inventory: Node step failed with 1.
+
+[quality] FAIL 0/1 passed across 1 groups (24.7s).

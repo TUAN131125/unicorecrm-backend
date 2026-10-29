@@ -34,6 +34,8 @@ internal static class OrganizationsModule
         services.AddScoped<IOrganizationRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
         services.AddScoped<IOrganizationCustomerSubjectParticipant, Application.ResolveCustomerSubject.Participant>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
+            Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
         return services;
     }
 }

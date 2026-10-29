@@ -1,0 +1,22 @@
+PASS first page scoped and bounded, no automatic drain
+PASS server continuation retains items and deduplicates identity
+PASS same-text distinct event identities and exact timestamps
+PASS manual communication label and native disclosure detail
+PASS filter sent to server with fresh cursor
+PASS authoritative successful empty distinguished
+PASS 403 denied not empty and no diagnostics
+PASS OWN delegates record scope to the backend and displays authorized history
+PASS restrictive FLS unavailable without content
+PASS query error distinct from empty
+PASS retry obtains authoritative content
+PASS same-authority network failure labelled stale with retained content
+PASS pending query exposes loading
+PASS A B A authority generation differs
+PASS late first-A response cannot restore content
+PASS record A B A retires first record response
+PASS actual Workspace A B A retires late old content
+PASS signed-out session cannot display protected history
+PASS new session cannot receive the retired session result
+PASS Lead record query A B A does not restore old Work context
+PASS revoked read retires all history
+Lead History: 21 checks PASS (isolated runtime port and authority fixtures; not Backend authorization proof).

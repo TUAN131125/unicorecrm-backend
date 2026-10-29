@@ -1,0 +1,14 @@
+
+> unicorecrm-web@0.24.0-contract.0 api:check
+> node scripts/quality/run-quality-pipeline.mjs --gate quality.api-contract
+
+
+[quality 1/1] START architecture/quality.api-contract (check:api-contract)
+(node:22980) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/quality/core/typescript-path-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22980) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+OpenAPI/API contract: PASS (328 operations; 300 ready; 28 explicitly blocked; d894e313d9dad7ae78c0c9bb8fd865f06d2d04546bfbaca3683465780e7e1659).
+[quality 1/1] PASS architecture/quality.api-contract (5.6s)
+
+[quality] PASS 1/1 passed across 1 groups (5.6s).

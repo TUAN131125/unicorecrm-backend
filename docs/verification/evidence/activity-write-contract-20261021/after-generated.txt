@@ -1,0 +1,12 @@
+export type ActivityType = "CALL" | "EMAIL" | "MEETING" | "NOTE" | "MESSAGE" | "SYSTEM";
+
+export type ManualActivityType = "CALL" | "EMAIL" | "MEETING" | "NOTE" | "MESSAGE";
+
+export interface LogActivityRequest {
+  type: ManualActivityType;
+  subject: string;
+  body?: string;
+  relationshipRef?: BuyerRef;
+  recordRef?: RecordReference;
+  sourceRef?: TaskSourceReference;
+}

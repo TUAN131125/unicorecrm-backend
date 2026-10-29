@@ -1,4 +1,5 @@
 using UnicoreCRM.Operations.Tasks.Domain;
+using UnicoreCRM.Operations.Tasks.Contracts;
 
 namespace UnicoreCRM.Operations.Tasks.Application.Common;
 
@@ -36,13 +37,15 @@ internal sealed record ActivityListSpecification(
     string? RecordId,
     DateTimeOffset? OccurredFrom,
     DateTimeOffset? OccurredTo,
-    bool Descending);
+    bool Descending,
+    IReadOnlyList<ActivityReadScope>? ReadScopes = null);
 
 internal sealed record TasksPage<T>(IReadOnlyList<T> Items, bool HasNextPage, int? NextOffset, int TotalCount);
 
 internal interface ITasksPersistence
 {
     Task<ITasksTransaction> BeginSerializableAsync(CancellationToken cancellationToken);
+    Task<bool> GuardActivityReferencesAsync(string workspaceId, TaskReferenceData references, IReadOnlyList<ActivityReadScope> scopes, CancellationToken cancellationToken);
     Task<TaskItem?> LoadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken);
     Task<TaskItem?> ReadTaskAsync(string workspaceId, string taskId, CancellationToken cancellationToken);
     Task<TasksPage<TaskItem>> ListTasksAsync(string workspaceId, TaskListSpecification specification, CancellationToken cancellationToken);

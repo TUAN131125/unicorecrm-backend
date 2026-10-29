@@ -1,0 +1,60 @@
+[
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "status": 201,
+    "version": 0,
+    "outcome": "COMMITTED",
+    "request": {
+      "recordRef": {
+        "moduleKey": "customers",
+        "recordId": "customer_5ef537a105ad429db0acb2eeac0acd08"
+      },
+      "sourceRef": {
+        "type": "CUSTOMER_360",
+        "id": "customer_5ef537a105ad429db0acb2eeac0acd08"
+      },
+      "priority": "HIGH",
+      "dueAt": "2026-10-22T10:00:00.000Z",
+      "assigneeId": "mem_64ec6c9dc8b24f05839e125439c366ee"
+    },
+    "response": {
+      "id": "task_800b700b25b34aeea5f9382885cec4bf",
+      "status": "OPEN",
+      "priority": "HIGH",
+      "dueAt": "2026-10-22T10:00:00.0000000Z",
+      "assigneeId": "mem_64ec6c9dc8b24f05839e125439c366ee",
+      "recordRef": {
+        "moduleKey": "customers",
+        "recordId": "customer_5ef537a105ad429db0acb2eeac0acd08"
+      },
+      "sourceRef": {
+        "type": "CUSTOMER_360",
+        "id": "customer_5ef537a105ad429db0acb2eeac0acd08"
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/tasks/task_800b700b25b34aeea5f9382885cec4bf/complete",
+    "status": 200,
+    "version": 1,
+    "outcome": "COMMITTED",
+    "request": {},
+    "response": {
+      "id": "task_800b700b25b34aeea5f9382885cec4bf",
+      "status": "COMPLETED",
+      "priority": "HIGH",
+      "dueAt": "2026-10-22T10:00:00.0000000Z",
+      "assigneeId": "mem_64ec6c9dc8b24f05839e125439c366ee",
+      "recordRef": {
+        "moduleKey": "customers",
+        "recordId": "customer_5ef537a105ad429db0acb2eeac0acd08"
+      },
+      "sourceRef": {
+        "type": "CUSTOMER_360",
+        "id": "customer_5ef537a105ad429db0acb2eeac0acd08"
+      }
+    }
+  }
+]

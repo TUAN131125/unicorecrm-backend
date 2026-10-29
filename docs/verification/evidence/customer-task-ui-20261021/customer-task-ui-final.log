@@ -1,0 +1,22 @@
+PASS fresh Workspace has no Lead before UI scenario expected=0 actual=0
+[WebServer] (node:17748) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:4852) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\e2e\crm-ui-real.spec.ts:4:1 › CRM journey through UI controls only (37.7s)
+
+  1 passed (42.0s)
+PASS UI-only CRM journey (BLOCKED is not PASS) expected=0 actual=0
+PASS UI Lead persisted in fresh SQL Workspace expected=1 actual=1
+PASS UI Lead Source remains empty in SQL expected=1 actual=1
+PASS UI Task SQL unique title in trusted Workspace expected=1 actual=1
+PASS UI Task SQL Customer recordRef expected=customer_5ef537a105ad429db0acb2eeac0acd08 actual=customer_5ef537a105ad429db0acb2eeac0acd08
+PASS UI Task SQL completed lifecycle expected=1 actual=1
+PASS UI Task SQL assignee active Workspace member expected=1 actual=1
+PASS UI dataset real reauthentication after ApiHost restart expected=200 actual=200
+PASS UI Task GET after ApiHost restart expected=COMPLETED actual=COMPLETED
+PASS UI Task list after ApiHost restart expected=task_800b700b25b34aeea5f9382885cec4bf actual=task_800b700b25b34aeea5f9382885cec4bf
+Evidence: D:\Project_All\UnicoreCRM\backend\artifacts\activity-security\f812bf23acdc4e628a6171db82bc67f6; isolated database retained: UnicoreCRM_ActivityTest_f812bf23acdc4e628a6171db82bc67f6

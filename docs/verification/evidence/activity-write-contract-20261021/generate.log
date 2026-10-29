@@ -1,0 +1,6 @@
+
+> unicorecrm-web@0.24.0-contract.0 api:generate
+> node scripts/api/generate-openapi-client.mjs
+
+[openapi-generator] wrote 27 deterministic artifacts
+[openapi-generator] contract 0.24.0-contract.0 (d894e313d9dad7ae78c0c9bb8fd865f06d2d04546bfbaca3683465780e7e1659)

@@ -1,0 +1,22 @@
+[
+  {
+    "module": null,
+    "count": 1
+  },
+  {
+    "module": "contacts",
+    "count": 4
+  },
+  {
+    "module": "customers",
+    "count": 1
+  },
+  {
+    "module": "leads",
+    "count": 1
+  },
+  {
+    "module": "organizations",
+    "count": 1
+  }
+]

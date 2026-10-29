@@ -1,0 +1,122 @@
+[
+  {
+    "method": "GET",
+    "path": "/auth/session",
+    "status": 200,
+    "correlationId": "crm-1792579737493-0"
+  },
+  {
+    "method": "POST",
+    "path": "/leads",
+    "status": 201,
+    "correlationId": "crm-1792579737493-1"
+  },
+  {
+    "method": "GET",
+    "path": "/leads/lead_e3d37449cce1413dafe3e9307b01fea7",
+    "status": 200,
+    "correlationId": "crm-1792579737493-2"
+  },
+  {
+    "method": "POST",
+    "path": "/contacts",
+    "status": 201,
+    "correlationId": "crm-1792579737493-3"
+  },
+  {
+    "method": "POST",
+    "path": "/organizations",
+    "status": 200,
+    "correlationId": "crm-1792579737493-4"
+  },
+  {
+    "method": "POST",
+    "path": "/contacts/contact_88516aa5b21f408c969d7cfa4e918414/organization-relationships",
+    "status": 200,
+    "correlationId": "crm-1792579737493-5"
+  },
+  {
+    "method": "POST",
+    "path": "/workflows/lead-customer-conversion/lead_e3d37449cce1413dafe3e9307b01fea7",
+    "status": 200,
+    "correlationId": "crm-1792579737493-6"
+  },
+  {
+    "method": "POST",
+    "path": "/workflows/lead-customer-conversion/lead_e3d37449cce1413dafe3e9307b01fea7",
+    "status": 200,
+    "correlationId": "crm-1792579737493-7"
+  },
+  {
+    "method": "GET",
+    "path": "/contacts/contact_88516aa5b21f408c969d7cfa4e918414/relationship-summary",
+    "status": 200,
+    "correlationId": "crm-1792579737493-8"
+  },
+  {
+    "method": "POST",
+    "path": "/leads",
+    "status": 201,
+    "correlationId": "crm-1792579737493-9"
+  },
+  {
+    "method": "POST",
+    "path": "/workflows/lead-customer-conversion/lead_b160aadf78d4450abbc6af2092088d4e",
+    "status": 200,
+    "correlationId": "crm-1792579737493-10"
+  },
+  {
+    "method": "GET",
+    "path": "/customers/customer_b2e30fa520ba48e58d06eb1d2d6d5dd9",
+    "status": 200,
+    "correlationId": "crm-1792579737493-11"
+  },
+  {
+    "method": "GET",
+    "path": "/contacts/contact_88516aa5b21f408c969d7cfa4e918414/relationship-summary",
+    "status": 200,
+    "correlationId": "crm-1792579737493-12"
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "status": 201,
+    "correlationId": "crm-1792579737493-13"
+  },
+  {
+    "method": "POST",
+    "path": "/tasks",
+    "status": 201,
+    "correlationId": "crm-1792579737493-14"
+  },
+  {
+    "method": "POST",
+    "path": "/tasks/task_b1d14ae78f064de3b3a70ada122c351d/complete",
+    "status": 200,
+    "correlationId": "crm-1792579737493-15"
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "status": 201,
+    "correlationId": "crm-1792579737493-16"
+  },
+  {
+    "method": "POST",
+    "path": "/activities",
+    "status": 201,
+    "correlationId": "crm-1792579737493-17"
+  },
+  {
+    "method": "GET",
+    "path": "/activities?recordModuleKey=contacts&recordId=contact_88516aa5b21f408c969d7cfa4e918414",
+    "status": 200,
+    "correlationId": "crm-1792579737493-18"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/session/logout",
+    "status": 200,
+    "correlationId": "crm-1792579737493-19"
+  }
+]

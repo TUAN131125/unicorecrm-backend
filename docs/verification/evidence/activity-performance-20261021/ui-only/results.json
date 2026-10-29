@@ -1,0 +1,26 @@
+[
+  {
+    "expected": 0,
+    "actual": 0,
+    "test": "fresh Workspace has no Lead before UI scenario",
+    "status": "PASS"
+  },
+  {
+    "expected": 0,
+    "actual": 1,
+    "test": "UI-only CRM journey (BLOCKED is not PASS)",
+    "status": "FAIL"
+  },
+  {
+    "expected": 1,
+    "actual": 1,
+    "test": "UI Lead persisted in fresh SQL Workspace",
+    "status": "PASS"
+  },
+  {
+    "expected": 1,
+    "actual": 1,
+    "test": "UI Lead Source remains empty in SQL",
+    "status": "PASS"
+  }
+]

@@ -1,0 +1,1666 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "0.24.0-contract.0",
+  "keyScope": "WORKSPACE_OPERATION_IDEMPOTENCY_KEY",
+  "sameKeySamePayload": "REPLAY_OR_RETURN_ORIGINAL_OUTCOME",
+  "sameKeyDifferentPayload": "409_IDEMPOTENCY_KEY_REUSED",
+  "concurrentDuplicate": "409_IDEMPOTENCY_REQUEST_IN_PROGRESS",
+  "retentionExpectation": "AT_LEAST_AGGREGATE_LIFECYCLE_AND_PROVIDER_SETTLEMENT_WINDOW; PROVIDER_ADAPTER_LONGER_RETENTION_PREVAILS",
+  "operations": [
+    {
+      "operationId": "acceptQuote",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "acceptQuoteAndCloseDeal",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "acceptWorkspaceInvitation",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "activateAiConfiguration",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "activateOutboundWebhookSubscription",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "activatePaymentPlan",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "activateTelegramConnection",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY",
+      "replayPolicy": "CURRENT_VERSION_ONLY_NO_PROVIDER_REPLAY"
+    },
+    {
+      "operationId": "addSupportCaseInternalNote",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "addSupportCaseReply",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "advanceLeadWorkState",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "advanceLeadWorkStateBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "allocateCustomerCredit",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "allocatePayment",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "allocatePaymentSource",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "anonymizeLead",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "applyLeadTagBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "approveOrderCreditApproval",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "approveQuoteCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "approveReturnCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveAccessRole",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveContact",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveCustomer",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveDealCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveDealsBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveLead",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveLeadBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveOrderCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveOrdersBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveOrganization",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveOutboundWebhookSubscription",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveProduct",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveProductsBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveQuoteCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveQuotesBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "archiveTask",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "assignDealOwner",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "assignLeadOwner",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "assignLeadOwnerBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "assignSupportCase",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "assignTask",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "awaitReturnItemCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "beginReturnCarrierPickup",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "beginReturnReplacementResolution",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "cancelOrder",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "cancelPaymentIntent",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "cancelPaymentPlan",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "cancelShippingBookingCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "cancelTask",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "changeDealStageCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "changeQuoteStatusCommand",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "changeShippingProviderCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "changeWorkspaceMemberStatus",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "claimConversation",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "claimLeadFromQueue",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "closeReturnCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "completeCustomerOnboarding",
+      "policy": "UNRESOLVED_BLOCKED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "completeOrderFromFulfillmentEvidence",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "completeReturnRepairResolution",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "completeReturnReplacementFromDelivery",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "completeReturnResolutionCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "completeStudioQuickSetupStep",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "completeTask",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "configureReturnMethodCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "confirmLeadDuplicatesDistinct",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "confirmOrderWithPaymentPlan",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "convertAcceptedQuoteToOrderDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "convertLeadToCustomer",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createAccessRole",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createCommunicationChannelAccount",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY"
+    },
+    {
+      "operationId": "createContact",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createContactCustomerRelationship",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createContactOrganizationRelationship",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createCrmObjectField",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "createCrmPipeline",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "createCrmPipelineStage",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "createCustomer",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createDealCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createIntegrationConnection",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "createInvoiceCreditNote",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createInvoiceDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createLead",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createOrderDraftCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createOrderOutboundShippingBooking",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createOrganization",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createOutboundWebhookSubscription",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createPaymentIntent",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createProduct",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createProductConfigurationType",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "createQuoteCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createQuoteForDeal",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createRefundIntent",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createReturnRequestCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createShippingBookingCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createSupportCase",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "createTask",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "deactivateTelegramConnection",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY",
+      "replayPolicy": "CURRENT_VERSION_ONLY_NO_PROVIDER_REPLAY"
+    },
+    {
+      "operationId": "deleteCrmObjectField",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "deleteCrmPipeline",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "deleteCrmPipelineStage",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "deleteProductConfigurationType",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "disableAiConfiguration",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "disableCommunicationChannelAccount",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY"
+    },
+    {
+      "operationId": "discardInvoiceDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "disconnectCommunicationChannelAccount",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY"
+    },
+    {
+      "operationId": "disconnectIntegrationConnection",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "dismissStudioQuickSetupAutoOpen",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "disqualifyLead",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "disqualifyLeadBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "duplicateOrderDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "enableCommunicationChannelAccount",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY"
+    },
+    {
+      "operationId": "endContactCustomerRelationship",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "endContactOrganizationRelationship",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "evaluateEffectiveRecordAccess",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "expireQuoteCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "expireQuotesBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getAiConfiguration",
+      "policy": "NOT_APPLICABLE_READ_ONLY",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getAiProviderCatalog",
+      "policy": "NOT_APPLICABLE_READ_ONLY",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getAiUsageSummary",
+      "policy": "NOT_APPLICABLE_READ_ONLY",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getBuyerAccountStatement",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getCommunicationChannelAccount",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getContact",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getContactListSummary",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getContactRelationshipSummary",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getConversation",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getConversationCrmContext",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getCrmObjectSchema",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getCurrentAuthorizationContext",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getCurrentSession",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getCustomer",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getCustomer360",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getDeal",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getDealForecastSummary",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getIntegrationEventCatalog",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getInvoice",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getInvoiceIssueReadiness",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getInvoiceSellerInformationConfiguration",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getLead",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOrder",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOrderCreditApproval",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOrderFulfillmentEligibility",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOrderInvoiceEligibility",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOrderPaymentProjection",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOrganization",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOrganizationOverview",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getOutboundWebhookSubscription",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getPaymentIntent",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getPaymentIntentStatus",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getPaymentMethodCatalog",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getPaymentRecordDetail",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getProduct",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getProductAvailability",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getProductPriceProjection",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getQuote",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getReceivablesAging",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getReceivablesSummary",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getRefund",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getReturn",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getReturnCreditRefundResolution",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getShippingBooking",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getStudioQuickSetup",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getSupportCase",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getTask",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getTelegramConnection",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getWorkspaceAccessDirectory",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getWorkspaceBootstrap",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getWorkspaceConfiguration",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "getWorkspaceCurrencies",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "handoverLeadWithTasks",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "importLeadBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "inviteWorkspaceMember",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "issueInvoice",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "linkConversationCrmRecord",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listActivities",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listCommunicationChannelAccounts",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listCommunicationChannelProviders",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listContacts",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listConversationMessages",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listConversations",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listCreditNotes",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listCrmObjectSchemas",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listCrmPipelines",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listCustomerCredits",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listCustomers",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listDeals",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listIntegrationConnections",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listIntegrationProviders",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listInvoiceDeliveries",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listInvoices",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listLeadKanbanColumn",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listLeads",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listMyWorkspaces",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listOrders",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listOrganizations",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listOutboundWebhookDeliveries",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listOutboundWebhookSubscriptions",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listPaymentAllocations",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listPaymentIntents",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listPaymentPlans",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listPaymentReceivingAccounts",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listPaymentRecords",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listPaymentScheduleLines",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listProductConfigurationTypes",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listProducts",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listQuotes",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listReceivables",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listRefundProviderAttempts",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listRefunds",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listReturns",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listShippingBookings",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listShippingPickupLocations",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listShippingProviders",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listShippingReturnLocations",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listSupportCases",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listTasks",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listWorkspaceConfigurationAudit",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "listWorkspaceExchangeRates",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "logActivity",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "markDealLostAndPlanRecycle",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "markDealLostCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "markDealWonCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "mergeLeadDuplicates",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "onboardExistingCustomer",
+      "policy": "UNRESOLVED_BLOCKED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "openStudioQuickSetup",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "pauseOutboundWebhookSubscription",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "previewPaymentPlan",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "provisionWorkspaceMember",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "publishWorkspaceConfiguration",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "putWorkspaceExchangeRate",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "qualifyLead",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "qualifyLeadForDirectSale",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "qualifyLeadForNurture",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "qualifyLeadForOpportunity",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "receiveReturnItemsCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "reconcilePaymentRecord",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "reconnectTelegramConnection",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY",
+      "replayPolicy": "CURRENT_VERSION_ONLY_NO_PROVIDER_REPLAY"
+    },
+    {
+      "operationId": "recordCodCustomerCollection",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "recordCodMerchantRemittance",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "recordLeadConsent",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "recordManualPayment",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "recordOrderSendEvidenceCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "recordPaymentRequestDelivery",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "recordQuoteSendEvidenceCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "refreshSession",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "registerAccount",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "rejectOrderCreditApproval",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "rejectQuoteCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "rejectReturnCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "removeTelegramCredential",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY"
+    },
+    {
+      "operationId": "reopenDisqualifiedLead",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "replaceAccessRole",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "replaceInvoiceSellerInformationConfiguration",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "replaceLeadProfile",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "replacePaymentReceivingAccounts",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "replaceProduct",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "replaceSupportCaseProfile",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "replaceTelegramCredential",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY"
+    },
+    {
+      "operationId": "replaceWorkspaceCurrencies",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "replaceWorkspaceMemberAccess",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "replayOutboundWebhookDelivery",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "repriceOrderDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "repriceQuoteDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestAiAdvisory",
+      "policy": "NOT_APPLICABLE_READ_ONLY",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestLeadExport",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestOrderCreditApproval",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestPasswordReset",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestQuoteApprovalBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestQuoteApprovalChangesCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestQuoteApprovalCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "requestRefundCancellation",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "rescheduleTask",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "resendWorkspaceInvitation",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "resetPassword",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "resolveReturnCreditRefund",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "restoreProduct",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "restoreProductsBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "resumeOutboundWebhookSubscription",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "retryInvoiceIssue",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "retryPaymentIntent",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "retryRefundIntent",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "retryShippingBookingCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "reversePaymentAllocation",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "reviseQuoteCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "revokeOrderCreditApproval",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "revokeWorkspaceInvitation",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "rotateManagedMemberPassword",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "rotateOutboundWebhookSecret",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "saveAiConfiguration",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "saveInvoiceDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "savePaymentPlanDraft",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "scheduleLeadFollowUpBatch",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "searchConversationCrmCandidates",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "searchProductSelections",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "sendInvoice",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "setAiCredential",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "signIn",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "signOut",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "skipStudioQuickSetupStep",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "syncShippingBookingCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "testAiConfiguration",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "transitionConversation",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "transitionSupportCase",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "unlinkConversationCrmRecord",
+      "policy": "NOT_APPLICABLE",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateCommunicationChannelAccount",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY"
+    },
+    {
+      "operationId": "updateContact",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateContactCustomerRelationship",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateContactOrganizationRelationship",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateCrmObjectField",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "updateCrmPipeline",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "updateCrmPipelineStage",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "updateCustomer",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateDealCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateDealForecast",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateDealNextAction",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateIntegrationConnection",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "updateOrderDraftCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateOrganization",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateOutboundWebhookSubscription",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateProductConfigurationType",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "updateQuoteDraftCommand",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateWorkspaceBlueprint",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateWorkspaceBusinessInformation",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateWorkspaceFeatures",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "updateWorkspaceLocaleRegion",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "verifyEmail",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "verifyIntegrationConnection",
+      "policy": "REQUIRED",
+      "status": "BLOCKED"
+    },
+    {
+      "operationId": "verifyMfa",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    },
+    {
+      "operationId": "verifyTelegramConnection",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "keyScope": "WORKSPACE_ACTOR_KEY",
+      "replayPolicy": "CURRENT_VERSION_ONLY_NO_PROVIDER_REPLAY"
+    },
+    {
+      "operationId": "voidInvoice",
+      "policy": "REQUIRED",
+      "status": "PRODUCTION_CONTRACT_READY"
+    }
+  ]
+}

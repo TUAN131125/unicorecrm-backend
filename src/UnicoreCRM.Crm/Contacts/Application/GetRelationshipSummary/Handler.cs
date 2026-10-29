@@ -32,6 +32,8 @@ internal sealed partial class Handler(
             organizations.Select(item => item.OrganizationId).Distinct(StringComparer.Ordinal).ToArray(), query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
         var customerResolution = await customerTargets.ResolveVisibleAsync(access.Value.Trusted,
             customers.Select(item => item.CustomerId).Distinct(StringComparer.Ordinal).ToArray(), query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+        var subjectResolution = await customerTargets.ResolveSubjectAsync(access.Value.Trusted,
+            "CONTACT", contact.ContactId, query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
 
         var canReadOrganizations = access.Value.Authorization.CanRead("organizationRelationships");
         var visibleOrganizations = canReadOrganizations && organizationResolution.CanReadResource
@@ -43,9 +45,11 @@ internal sealed partial class Handler(
         var organizationDocuments = visibleOrganizations.Select(item => ContactProjection.OrganizationRelationship(item, organizationResolution.VisibleTargets[item.OrganizationId])).ToArray();
         var customerDocuments = visibleCustomers.Select(item => ContactProjection.CustomerRelationship(item, customerResolution.VisibleTargets[item.CustomerId])).ToArray();
         var activeOrganizationIds = visibleOrganizations.Where(item => item.EffectiveTo is null).Select(item => item.OrganizationId).Distinct(StringComparer.Ordinal).ToArray();
-        var activeCustomerIds = visibleCustomers.Where(item => item.EffectiveTo is null).Select(item => item.CustomerId).Distinct(StringComparer.Ordinal).ToArray();
+        var activeCustomerIds = visibleCustomers.Where(item => item.EffectiveTo is null).Select(item => item.CustomerId)
+            .Concat(subjectResolution.VisibleTargets.Keys).Distinct(StringComparer.Ordinal).ToArray();
         var linked = activeOrganizationIds.Select(id => new ContactRelationshipTargetDocument("organizations", id) { Label = organizationResolution.VisibleTargets[id] })
-            .Concat(activeCustomerIds.Select(id => new ContactRelationshipTargetDocument("customers", id) { Label = customerResolution.VisibleTargets[id] })).ToArray();
+            .Concat(activeCustomerIds.Select(id => new ContactRelationshipTargetDocument("customers", id)
+            { Label = subjectResolution.VisibleTargets.TryGetValue(id, out var label) ? label : customerResolution.VisibleTargets[id] })).ToArray();
 
         var allowed = new List<string>();
         if (contact.ArchivedAt is null)

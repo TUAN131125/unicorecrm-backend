@@ -1,0 +1,27 @@
+--- a/scripts/verify-activity-security.ps1
++++ b/scripts/verify-activity-security.ps1
+@@ -1,5 +1,5 @@
+ [CmdletBinding()]
+-param([string]$SqlServer = 'localhost', [int]$Port = 5389, [switch]$Browser, [switch]$ScaleReview, [switch]$ProjectionReview, [switch]$RaceReview, [switch]$UiReview, [switch]$CommitRaceReview, [switch]$CustomerTaskReview, [switch]$ActivityContractReview)
++param([string]$SqlServer = 'localhost', [int]$Port = 5389, [switch]$Browser, [switch]$ScaleReview, [switch]$ProjectionReview, [switch]$RaceReview, [switch]$UiReview, [switch]$CommitRaceReview, [switch]$CustomerTaskReview, [switch]$ActivityContractReview, [switch]$QuoteRouteReview)
+ $ErrorActionPreference = 'Stop'
+ $runId = [Guid]::NewGuid().ToString('N')
+ $startedAt = [DateTimeOffset]::UtcNow.ToString('O')
+@@ -626,6 +626,17 @@
+         Check 'F01 canonical Customer Contact multi-reference' 201 (Api POST '/activities' $valid 'f01-canonical').Status
+         Check 'F01 relationship-only Contact Note' 201 (Api POST '/activities' @{type='NOTE';subject='Relationship only contract';relationshipRef=@{type='CONTACT';id='activity_contact_own'}} 'f01-relationship').Status
+     }
++    if ($QuoteRouteReview) {
++        $beforeQuotes=(Sql 'SELECT COUNT(*) AS Count FROM quotes.Quotes').Rows[0].Count
++        Check 'Quote runtime GET list admitted' 200 (Api GET '/quotes').Status
++        Check 'Quote runtime POST collection has no admitted handler' 405 (Api POST '/quotes' @{title='Isolated route probe'} 'quote-route-create').Status
++        Check 'Quote runtime reject route absent' 404 (Api POST '/quotes/quote_route_probe/reject' @{reason='CUSTOMER_REJECTED'} 'quote-route-reject' 1).Status
++        Check 'Quote runtime accept route absent' 404 (Api POST '/quotes/quote_route_probe/accept' @{} 'quote-route-accept' 1).Status
++        Check 'Quote route probes cannot commit a Quote' $beforeQuotes (Sql 'SELECT COUNT(*) AS Count FROM quotes.Quotes').Rows[0].Count
++        $tables=Sql "SELECT name AS TableName FROM sys.tables WHERE schema_id=SCHEMA_ID('quotes') ORDER BY name"
++        $audits=Sql "SELECT Operation,Outcome,COUNT(*) AS Count FROM quotes.ReadAuditRecords GROUP BY Operation,Outcome"
++        @{tables=@($tables.Rows | ForEach-Object {$_.TableName});audits=@($audits.Rows | ForEach-Object {@{operation=$_.Operation;outcome=$_.Outcome;count=$_.Count}});quoteMutationCommit='BLOCKED: no admitted Quote mutation routes'} | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $evidence 'quote-route-review.json')
++    }
+ } finally {
+     if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id }
+     foreach ($setting in $oldEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($setting.Key, $setting.Value) }

@@ -1,0 +1,17 @@
+
+> unicorecrm-web@0.24.0-contract.0 typecheck
+> node scripts/quality/run-quality-pipeline.mjs --group typecheck
+
+
+[quality 1/3] START typecheck/quality.strict-core (typecheck:strict-core)
+[quality 1/3] PASS typecheck/quality.strict-core (2.5s)
+
+[quality 2/3] START typecheck/quality.strict-type-regions (check:strict-type-regions)
+Strict type regions PASS: 109 files, strict global source, exact optional/indexed access boundaries, zero any/as-any/non-null/suppressions.
+[quality 2/3] PASS typecheck/quality.strict-type-regions (1.5s)
+
+[quality 3/3] START typecheck/quality.type-safety-budget (check:type-safety-budget)
+Type-safety budget PASS: any=180, as-any=15, non-null=56.
+[quality 3/3] PASS typecheck/quality.type-safety-budget (8.9s)
+
+[quality] PASS 3/3 passed across 1 groups (12.8s).

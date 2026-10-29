@@ -1,0 +1,18 @@
+TaskId|WorkspaceId|RecordModuleKey|RecordId|RelationshipType|SourceType|SourceId|Status|Priority|AssigneeId|DueAt|CompletedAt|Version
+------|-----------|---------------|--------|----------------|----------|--------|------|--------|----------|-----|-----------|-------
+task_800b700b25b34aeea5f9382885cec4bf|ws_786ef2ef21804a029e879b24842a292a|customers|customer_5ef537a105ad429db0acb2eeac0acd08|NULL|CUSTOMER_360|customer_5ef537a105ad429db0acb2eeac0acd08|1|2|mem_64ec6c9dc8b24f05839e125439c366ee|2026-10-22 10:00:00.0000000 +00:00|2026-10-21 10:51:32.9153817 +00:00|1
+UniqueCustomerTask
+------------------
+1
+ActiveAssignee
+--------------
+1
+CustomerRef|Source
+-----------|------
+customer_5ef537a105ad429db0acb2eeac0acd08|
+UniqueContactCustomer
+---------------------
+1
+UiActivity
+----------
+1

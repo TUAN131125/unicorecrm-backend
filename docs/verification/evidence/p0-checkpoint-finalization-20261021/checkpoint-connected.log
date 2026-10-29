@@ -1,0 +1,139 @@
+PASS authorized log expected=201 actual=201
+PASS authorized replay expected=201 actual=201
+PASS other record log at workspace scope expected=201 actual=201
+PASS missing record refused expected=404 actual=404
+PASS foreign workspace refused expected=404 actual=404
+PASS unsupported module refused expected=422 actual=422
+PASS conflicting relationship refused expected=422 actual=422
+PASS HTTP cannot forge system audit expected=422 actual=422
+PASS OWN log outside scope refused expected=404 actual=404
+PASS OWN count includes authorized rows only expected=1 actual=1
+PASS OWN page includes own record expected=activity_contact_own actual=activity_contact_own
+PASS OWN no hidden cursor expected=False actual=False
+PASS hidden search count zero expected=0 actual=0
+PASS TEAM cannot log outside team expected=404 actual=404
+PASS TEAM list fails closed expected=0 actual=0
+PASS owner change replay refused expected=404 actual=404
+PASS archived replay refused expected=404 actual=404
+PASS tasks.read without contacts.read hides activity expected=0 actual=0
+PASS revoked capability replay refused expected=404 actual=404
+PASS negative commands and retries create no duplicates expected=2 actual=2
+PASS legacy client SYSTEM row is not published as trusted audit expected=0 actual=0
+PASS legacy SYSTEM content is excluded from search metadata expected=0 actual=0
+PASS Sales OWN can log own Contact with Tasks OWN expected=201 actual=201
+PASS Sales OWN reads own Contact with Tasks OWN expected=1 actual=1
+PASS owner field security hides free text and count expected=0 actual=0
+PASS owner field security gates cached replay expected=404 actual=404
+PASS forged source target refused expected=422 actual=422
+PASS forged audit source refused expected=422 actual=422
+PASS unanchored activity refused expected=422 actual=422
+PASS relationship-only Contact supported expected=201 actual=201
+PASS relationship-only retry is idempotent expected=201 actual=201
+PASS existing Contact UI source remains supported expected=201 actual=201
+PASS OWN multi-page total excludes hidden records expected=3 actual=3
+PASS OWN next page retains authorized total expected=3 actual=3
+PASS OWN continuation returns three distinct authorized rows expected=3 actual=3
+PASS OWN last page has no hidden continuation expected=False actual=False
+PASS real Lead fixture created through HTTP expected=201 actual=201
+PASS Lead Activity positive expected=201 actual=201
+PASS Lead missing target refused expected=404 actual=404
+PASS Lead foreign Workspace refused expected=404 actual=404
+PASS Lead archived replay refused expected=404 actual=404
+PASS Customer Task create positive expected=201 actual=201
+PASS Customer Task exact replay expected=201 actual=201
+PASS Customer Task replay SQL duplicate count expected=1 actual=1
+PASS Customer Task get exact reference expected=activity_customer actual=activity_customer
+PASS Customer Task scoped list expected=task_7023e861e6a5485891bc5aebb7983c39 actual=task_7023e861e6a5485891bc5aebb7983c39
+PASS Customer Task rejects invalid assignee expected=422 actual=422
+PASS Customer Task rejects subject relationshipRef expected=422 actual=422
+PASS Customer Task rejects missing Customer expected=404 actual=404
+PASS Customer Task rejects foreign Workspace expected=404 actual=404
+PASS Customer Task rejects archived Customer expected=404 actual=404
+PASS Customer Task archived receipt replay denied expected=404 actual=404
+PASS Customer Task outside OWN denied expected=404 actual=404
+PASS Customer Task replay after Customer owner loss denied expected=404 actual=404
+PASS Customer Task OWN positive expected=201 actual=201
+PASS Customer Task OWN list positive expected=task_7023e861e6a5485891bc5aebb7983c39 actual=task_7023e861e6a5485891bc5aebb7983c39
+PASS Customer Task get outside Task OWN denied expected=404 actual=404
+PASS Customer Task list outside Task OWN empty expected=0 actual=0
+PASS Customer Task hidden description omitted expected=False actual=False
+PASS Customer Task hidden description cannot be written expected=403 actual=403
+PASS Customer Task missing capability refused expected=403 actual=403
+PASS Customer Task complete expected=200 actual=200
+PASS Customer Task completed get expected=COMPLETED actual=COMPLETED
+PASS canonical Contact Customer is present without stakeholder membership expected=activity_customer actual=activity_customer
+PASS canonical Customer outside admitted scope is hidden expected=0 actual=0
+PASS canonical Customer without capability is hidden expected=0 actual=0
+PASS foreign Contact relationship summary is refused expected=404 actual=404
+PASS existing Organization UI shape supported expected=201 actual=201
+PASS Organization missing target refused expected=404 actual=404
+PASS existing Customer UI shape supported expected=201 actual=201
+PASS Customer forged subject relationship refused expected=404 actual=404
+PASS allowed Customer cannot expose denied Contact expected=0 actual=0
+PASS multi-reference replay requires every target expected=404 actual=404
+PASS Customer archived replay refused expected=404 actual=404
+PASS Workspace switch cannot replay protected receipt expected=403 actual=403
+PASS separate own account signs in through real authentication expected=200 actual=200
+PASS separate Sales OWN logs own Contact expected=201 actual=201
+PASS separate Sales OWN sees only own Activity expected=1 actual=1
+PASS separate Sales OWN cannot log other Contact expected=404 actual=404
+PASS separate team account signs in through real authentication expected=200 actual=200
+PASS separate TEAM account cannot read outside admitted scope expected=0 actual=0
+PASS separate TEAM account cannot write outside admitted scope expected=404 actual=404
+PASS separate denied account signs in through real authentication expected=200 actual=200
+PASS separate user without capabilities cannot list Activity expected=403 actual=403
+PASS separate user without capabilities cannot log Activity expected=403 actual=403
+PASS separate SALES OWN creates own Customer Task expected=201 actual=201
+PASS separate SALES OWN reads own Customer Task expected=customer_sales_task actual=customer_sales_task
+PASS separate SALES OWN lists only its own Customer Task expected=task_0c36883b305244e08a86958810fe2b43 actual=task_0c36883b305244e08a86958810fe2b43
+PASS separate SALES OWN cannot create for another owner Customer expected=404 actual=404
+PASS separate SALES OWN replay after Customer revocation denied expected=404 actual=404
+PASS separate unprivileged user cannot create Customer Task expected=403 actual=403
+PASS separate unprivileged user cannot get Task expected=403 actual=403
+[WebServer] (node:13904) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:28284) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\e2e\crm-real.spec.ts:8:1 › API CRM workflow with real UI sign-in, projection and durable Activity (16.1s)
+
+  1 passed (19.3s)
+PASS API workflow with real browser projection/history expected=0 actual=0
+PASS SQL Activity survives ApiHost restart expected=activity_d0c1ac6b123648d6a10e9ae845d32e81,activity_42938ee60ecc4b01b86f75e04e09c133 actual=activity_d0c1ac6b123648d6a10e9ae845d32e81,activity_42938ee60ecc4b01b86f75e04e09c133
+PASS real reauthentication after restart expected=200 actual=200
+PASS reauthenticated session reads persisted Activity expected=2 actual=2
+PASS SQL-backed leads survives ApiHost restart expected=200 actual=200
+PASS SQL-backed contacts survives ApiHost restart expected=200 actual=200
+PASS SQL-backed organizations survives ApiHost restart expected=200 actual=200
+PASS SQL-backed customers survives ApiHost restart expected=200 actual=200
+PASS SQL-backed tasks survives ApiHost restart expected=200 actual=200
+PASS SQL conversion retry creates exactly one Customer for subject expected=1 actual=1
+PASS SQL Lead retains canonical Customer reference expected=customer_42a39a6b4eae4065b3a451df2c17f95c actual=customer_42a39a6b4eae4065b3a451df2c17f95c
+PASS SQL Contact retains active Organization relationship expected=1 actual=1
+PASS SQL Meeting retains Customer reference expected=customer_42a39a6b4eae4065b3a451df2c17f95c actual=customer_42a39a6b4eae4065b3a451df2c17f95c
+PASS SQL canonical Organization Customer subject is unique expected=1 actual=1
+PASS historical Activity remains after Organization affiliation ends expected=1 actual=1
+PASS new Activity cannot claim ended Organization affiliation expected=404 actual=404
+PASS F01 manual CALL HTTP write expected=201 actual=201
+PASS F01 manual EMAIL HTTP write expected=201 actual=201
+PASS F01 manual MEETING HTTP write expected=201 actual=201
+PASS F01 manual NOTE HTTP write expected=201 actual=201
+PASS F01 manual MESSAGE HTTP write expected=201 actual=201
+PASS F01 invalid SYSTEM HTTP write expected=422 actual=422
+PASS F01 invalid UNKNOWN HTTP write expected=422 actual=422
+PASS F01 invalid note HTTP write expected=422 actual=422
+PASS F01 unanchored manual request expected=422 actual=422
+PASS F01 missing record target expected=404 actual=404
+PASS F01 foreign Workspace record expected=404 actual=404
+PASS F01 contradictory references expected=422 actual=422
+PASS F01 forged source expected=422 actual=422
+PASS F01 canonical Customer Contact multi-reference expected=201 actual=201
+PASS F01 relationship-only Contact Note expected=201 actual=201
+PASS Quote runtime GET list admitted expected=200 actual=200
+PASS Quote runtime POST collection has no admitted handler expected=405 actual=405
+PASS Quote runtime reject route absent expected=404 actual=404
+PASS Quote runtime accept route absent expected=404 actual=404
+PASS Quote route probes cannot commit a Quote expected=0 actual=0
+Evidence: D:\Project_All\UnicoreCRM\backend\artifacts\activity-security\b06d50ebf40e46779ba8402eccbc0d14; isolated database retained: UnicoreCRM_ActivityTest_b06d50ebf40e46779ba8402eccbc0d14

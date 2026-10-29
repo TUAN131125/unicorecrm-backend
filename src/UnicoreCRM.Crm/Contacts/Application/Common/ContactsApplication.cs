@@ -38,6 +38,7 @@ internal sealed class ContactsRelationshipConflictException : Exception { }
 
 internal interface IContactsPersistence
 {
+    string ActivityReadFactsSql { get; }
     Task<ListContacts.ContactListSlice> ReadContactPageAsync(ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, long>> ReadContactStatusCountsAsync(ListContacts.ContactListSpecification specification, CancellationToken cancellationToken);
     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);

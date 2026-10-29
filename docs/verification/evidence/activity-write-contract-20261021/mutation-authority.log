@@ -1,0 +1,10 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.mutation-command-authority
+
+
+[quality 1/1] START architecture/quality.mutation-command-authority (check:mutation-command-authority)
+Mutation command authority OK: idempotency, backend metadata, lifecycle coverage, transaction workflows, and presentation boundaries are protected.
+[quality 1/1] PASS architecture/quality.mutation-command-authority (7.8s)
+
+[quality] PASS 1/1 passed across 1 groups (7.8s).

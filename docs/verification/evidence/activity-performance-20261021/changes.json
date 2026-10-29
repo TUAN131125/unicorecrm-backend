@@ -1,0 +1,344 @@
+[
+  {
+    "repository": "backend",
+    "file": ".gitignore",
+    "sha256": "844e25929c2f1b8ae0ba5c67cc07a403f8411bf287b833b69d19581debf58b2d",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "docs/architecture/team-scope.md",
+    "sha256": "a3d4c181618946a8aab372a65b4d9c3364b0812e11847ea981f99454f9e0897a",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj",
+    "sha256": "d5f22c27318d1e7e94bc2cb7f1a2dce13327aec63c1c26c54b3cf9b6a520730d",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "scripts/ContactFollowUpVerifier/Program.cs",
+    "sha256": "c368ca6d64bb7129825e7a02251efdbd9196b183553f443ca7dcd63fdc33ae03",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "scripts/TasksHandoverVerifier/Program.cs",
+    "sha256": "014a808512175f083daa1cc97faf08aa6d6b09eecd09cb59a6543044ca5af0be",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj",
+    "sha256": "d128059765d4f18318ac8c21c8980eaf1b7de3dfa78b9921c57a489d19f15b52",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "scripts/verify-activity-security.ps1",
+    "sha256": "ee7c67bae62e3cbe7eaf5206cd588705ee610f126a3427edd60ecb7e2ebee87c",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs",
+    "sha256": "485f3bac811835cc3d72ffec52f0acf497d35703b4f57fe60dc9601b216ec1fe",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs",
+    "sha256": "5da1235bd87b4aaa35d6f2ae91de5024001e66c8ebbd7b90af3d9a8d3dcdc8da",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs",
+    "sha256": "be975cc516e67912fe52eb94f66cc4fa8ff65020f3dc565d9fe1f56bc5fbf888",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Contacts/ContactsModule.cs",
+    "sha256": "4119231157762e8bfcaadc303aded8da12318281b684642cd5cbcb4b4bc5f197",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs",
+    "sha256": "5ed49ff7d21fa457cf9c19c8cfe80197553a74dc81be660176d164e34030f508",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs",
+    "sha256": "6ca86b0c54ab237096f91b8b22d5dc9963fa0f65d2a74770420411f3e0b7e787",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs",
+    "sha256": "c6c0c80d9ee578bc6fd7af0cdd13eaa002264280f1b52e1ca6341063796dca31",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs",
+    "sha256": "28f05964080f57fbc027faac13a644fa82168e158463aa9889a5b523c53d6838",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs",
+    "sha256": "351622180d7116e87d940602361b3ea3b38843ec6e971be3d8bba11cf1568c38",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Customers/CustomersModule.cs",
+    "sha256": "07883487ae938db0109377fe90cdf0971fa5f7989ead4f7c2cce4d95fb4e1789",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs",
+    "sha256": "374ab4b704a90f2c7bbd01a7a478cdc8a13a231641e246719e857b37b22decb5",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs",
+    "sha256": "92be080b255d729578287b9d24f923ae40e24a9019d5e5fdd15da1d4a250dd20",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs",
+    "sha256": "ac0191bd52ddd4e31ab0d61bba50ebb4b63041e9985fec561d45daff526079bd",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs",
+    "sha256": "d7b5e4f39cb90735ce92912e96b3d75e733745ada0a358dc0bb6771e93da5fc6",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Leads/LeadsModule.cs",
+    "sha256": "7915252f6bbd9d6624595aaab14d3c8c44f3b2d02a3c5caec78d89856f3373c4",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs",
+    "sha256": "0e3946755c624601439e9f68e4c163e072c460a922a17cb4e4e2106b039d9ce7",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs",
+    "sha256": "8beb7ce1617e24e87e7866cb4b330c63e0f3a7d11316cb25032d931d15b70092",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs",
+    "sha256": "952b68fbd4cbcd4d144077215f2038399c7094ce2286e882f4de2c5c97ada951",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs",
+    "sha256": "6df3fae1d19ee6af201283643ad3573a87906e27f609085e4c198b23f7dae200",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Application/Common/ActivityRecordAccess.cs",
+    "sha256": "6e58beaa69e1bedd8a77a4a5d844b223b599128ec32c4902149f5b1bec1ecc4e",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs",
+    "sha256": "78b27f836860ec7018f7666c379bcaa449d55425e510297376461d4263f5c2fc",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs",
+    "sha256": "10851ee690b25f8e00c65fe2d5b1c21a1a08d450a1a63b35c6ed3dde1e9c05e6",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs",
+    "sha256": "11c09c44c3a2cb41b713f466c22cfb67b6072baa7f72811da4311054001b49b8",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs",
+    "sha256": "e261f58c476ffeb4b950bd85fc2aeac927a2e0b8e3765a40bddc372104bbba9c",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs",
+    "sha256": "024810e69147271f08e23f896dfd010939b4d8f667004568ccaa9d40c5d1b7f2",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs",
+    "sha256": "05c37cbca6e6502d657bce89c2f349d0bf35ccd2386f156650ff6f2e9fad89e5",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs",
+    "sha256": "099420507e9a724348d628b8e5443681db69f5e616915a8ff1921b2d2f74de9b",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs",
+    "sha256": "b1473eeee965e4301b635999e6277beaa24f9777a0e2e413e72721e8ced57c86",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.Designer.cs",
+    "sha256": "1a898986f153421d602b523d6566b96041b5ce8a72fdeb152d5708d4aaf44a66",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.cs",
+    "sha256": "2d35d28e0780858a8cc55feadc6368baa9915fecd620d82a043e72908cc25a1f",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs",
+    "sha256": "15a91795c5ea8f69e0bac3cda8201c383b563b823fbae47e87861588024ae1c7",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs",
+    "sha256": "a8c47444329f5cc94e8c3a0ccd111714a61ca080032c8da9425186d121d02907",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "backend",
+    "file": "src/UnicoreCRM.Operations/Tasks/TasksModule.cs",
+    "sha256": "ffdfcf11d73e7a6ad2d95cb153ddfab4cbe8541e882a439a1bb8b201e2f9b367",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "playwright.crm-real.config.ts",
+    "sha256": "957a21569b32441ab955ba9b5f5e305e74534e2812d854e6d444ca2265c3c4be",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "playwright.crm-ui.config.ts",
+    "sha256": "0096edaa61968fea804ac80039cfb344be6206ec4c797ebd25bcdc1ec430d6fb",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "scripts/quality/quality-pipeline.json",
+    "sha256": "d5ccce03e0c8ce06b70d3369ff296e62c4eab3311df5bba344055912dbe56a49",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "src/guidance/content/crm/extendedScreens.ts",
+    "sha256": "ac213339770ce7212aba8f71d029b92e7fabe52d00f0a937a1787efed45b1444",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "frontend",
+    "file": "src/guidance/content/crm/screens.ts",
+    "sha256": "1bee4869fedeaa05b4ee0a86b1fc059ff9004a09392dab88588d73760a1e551a",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/contacts/presentation/hooks/useContactOverview.ts",
+    "sha256": "1fe13a898095364c5b2dfcb355f212790df004ab190c9016fe7196ba886920b4",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/contacts/presentation/model/contactCustomerLookup.ts",
+    "sha256": "3d020c8ffff8ad7cdc5e15b6ecff460f9e0c7ec2b65341ab3e9a8d0d9c4291c2",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/contacts/presentation/model/contactHistory.ts",
+    "sha256": "6379b13e9d01bfa58cbd72aa099d4bd8338d3f80eb39e6cea856c0cd528d178d",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/leads/presentation/hooks/useLeadFormController.tsx",
+    "sha256": "ed9aba57de79f3ce041e57dd0d426ded61b1ef501c89fc3d33cb574fd4631bbc",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/leads/presentation/hooks/useLeadHistory.ts",
+    "sha256": "82842dfa8258fdd0c6fde30f1b9c04db08925fd7f37250fb47fd63283cf89523",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "src/modules/leads/presentation/model/leadHistory.ts",
+    "sha256": "e761fa64f94f7d322bb61fa2ae7883e515c426ac55a3c35d5f3a21cb1c8e1e33",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "src/workflows/lead-customer-conversion/presentation/LeadCustomerConversionPage.tsx",
+    "sha256": "d7d72204f2b2696e312cbcc95e5b03856920b2770a7fe9f848d9b4e2ad802632",
+    "changedSincePriorReview": true
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/contract/contact-history.test.mts",
+    "sha256": "9ac8eb41acf7493b49337da86434eb59d6e73c2d640d8833b97f6bdeecc5823c",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/contract/contact-overview.test.mts",
+    "sha256": "56210e6fbebd2ebaa2a93356201d67432416bf8bc2430413091e1664dd6e2dda",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/contract/lead-history.test.mts",
+    "sha256": "9bc3596f74b3c58b51b04e978d4580f3a793993d5ce5a30d43809600fc0c4e0f",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/e2e/crm-real.spec.ts",
+    "sha256": "6e68efff15b05c917f88883104c5b429b22a91c9c9ea07c558abb7fd4f20a896",
+    "changedSincePriorReview": false
+  },
+  {
+    "repository": "frontend",
+    "file": "tests/e2e/crm-ui-real.spec.ts",
+    "sha256": "65adae399580359be2eda04d8e79a05624a73230da2da6e6bce75f4ef3c2b262",
+    "changedSincePriorReview": true
+  }
+]

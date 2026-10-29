@@ -1,0 +1,8 @@
+{
+  "sqlServer": "localhost",
+  "runId": "4e250039bf384f40bb03d9dddab6a392",
+  "backendCommit": "7b734f98a7173af2e24e094392826a20b6e11359",
+  "finishedAtUtc": "2026-10-21T11:31:21.8369586+00:00",
+  "database": "UnicoreCRM_ActivityTest_4e250039bf384f40bb03d9dddab6a392",
+  "startedAtUtc": "2026-10-21T11:29:53.1285163+00:00"
+}

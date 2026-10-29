@@ -1,0 +1,2302 @@
+{
+  "schemaVersion": 2,
+  "contractVersion": "0.24.0-contract.0",
+  "operations": [
+    {
+      "operationId": "acceptQuote",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/accept",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-P15-TYPED-QUOTE-LIFECYCLE"
+    },
+    {
+      "operationId": "acceptQuoteAndCloseDeal",
+      "method": "POST",
+      "path": "/workflows/quote-acceptance/{quoteId}/accept-and-close-deal",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "acceptWorkspaceInvitation",
+      "method": "POST",
+      "path": "/auth/invitations/accept",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "activateAiConfiguration",
+      "method": "POST",
+      "path": "/ai/configuration/activate",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "activateOutboundWebhookSubscription",
+      "method": "POST",
+      "path": "/outbound-webhooks/{subscriptionId}/activate",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "activatePaymentPlan",
+      "method": "POST",
+      "path": "/payment-plans/{planId}/activate",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "activateTelegramConnection",
+      "method": "POST",
+      "path": "/communications/channel-accounts/{id}/activate",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "addSupportCaseInternalNote",
+      "method": "POST",
+      "path": "/support/cases/{caseId}/internal-notes",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "addSupportCaseReply",
+      "method": "POST",
+      "path": "/support/cases/{caseId}/replies",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "advanceLeadWorkState",
+      "method": "POST",
+      "path": "/leads/{leadId}/advance-work-state",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "advanceLeadWorkStateBatch",
+      "method": "POST",
+      "path": "/leads/advance-work-state-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "allocateCustomerCredit",
+      "method": "POST",
+      "path": "/customer-credits/{customerCreditId}/allocations",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-ALLOCATECUSTOMERCREDIT"
+    },
+    {
+      "operationId": "allocatePayment",
+      "method": "POST",
+      "path": "/payments/{paymentRecordId}/allocations",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-ALLOCATEPAYMENT"
+    },
+    {
+      "operationId": "allocatePaymentSource",
+      "method": "POST",
+      "path": "/payment-allocations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "anonymizeLead",
+      "method": "POST",
+      "path": "/leads/{leadId}/anonymize",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "applyLeadTagBatch",
+      "method": "POST",
+      "path": "/leads/apply-tag-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "approveOrderCreditApproval",
+      "method": "POST",
+      "path": "/order-credit-approvals/{approvalId}/approve",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "approveQuoteCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/approve",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "approveReturnCommand",
+      "method": "POST",
+      "path": "/returns/{returnId}/approve",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveAccessRole",
+      "method": "POST",
+      "path": "/access/roles/{roleId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveContact",
+      "method": "POST",
+      "path": "/contacts/{contactId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveCustomer",
+      "method": "POST",
+      "path": "/customers/{customerId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveDealCommand",
+      "method": "POST",
+      "path": "/deals/{dealId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveDealsBatch",
+      "method": "POST",
+      "path": "/deals/archive-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveLead",
+      "method": "POST",
+      "path": "/leads/{leadId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveLeadBatch",
+      "method": "POST",
+      "path": "/leads/archive-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveOrderCommand",
+      "method": "POST",
+      "path": "/orders/{orderId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveOrdersBatch",
+      "method": "POST",
+      "path": "/orders/archive-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveOrganization",
+      "method": "POST",
+      "path": "/organizations/{organizationId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveOutboundWebhookSubscription",
+      "method": "POST",
+      "path": "/outbound-webhooks/{subscriptionId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveProduct",
+      "method": "POST",
+      "path": "/products/{productId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveProductsBatch",
+      "method": "POST",
+      "path": "/products/archive-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveQuoteCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveQuotesBatch",
+      "method": "POST",
+      "path": "/quotes/archive-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "archiveTask",
+      "method": "POST",
+      "path": "/tasks/{taskId}/archive",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "assignDealOwner",
+      "method": "POST",
+      "path": "/deals/{dealId}/assign",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "assignLeadOwner",
+      "method": "POST",
+      "path": "/leads/{leadId}/assign",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "assignLeadOwnerBatch",
+      "method": "POST",
+      "path": "/leads/assign-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "assignSupportCase",
+      "method": "POST",
+      "path": "/support/cases/{caseId}/assign",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "assignTask",
+      "method": "POST",
+      "path": "/tasks/{taskId}/assign",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "awaitReturnItemCommand",
+      "method": "POST",
+      "path": "/returns/{returnId}/await-item",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "beginReturnCarrierPickup",
+      "method": "POST",
+      "path": "/workflows/return-resolution/{returnId}/begin-carrier-pickup",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "beginReturnReplacementResolution",
+      "method": "POST",
+      "path": "/workflows/return-resolution/{returnId}/begin-replacement-resolution",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "cancelOrder",
+      "method": "POST",
+      "path": "/orders/{orderId}/cancel",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "cancelPaymentIntent",
+      "method": "POST",
+      "path": "/payment-intents/{intentId}/cancel",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "cancelPaymentPlan",
+      "method": "POST",
+      "path": "/payment-plans/{planId}/cancel",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "cancelShippingBookingCommand",
+      "method": "POST",
+      "path": "/shipping/{bookingId}/cancel-booking",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "cancelTask",
+      "method": "POST",
+      "path": "/tasks/{taskId}/cancel",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "changeDealStageCommand",
+      "method": "POST",
+      "path": "/deals/{dealId}/change-stage",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "changeQuoteStatusCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/change-status",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-P15-TYPED-QUOTE-LIFECYCLE"
+    },
+    {
+      "operationId": "changeShippingProviderCommand",
+      "method": "POST",
+      "path": "/shipping/{bookingId}/change-provider",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "changeWorkspaceMemberStatus",
+      "method": "POST",
+      "path": "/access/members/{membershipId}/status",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "claimConversation",
+      "method": "POST",
+      "path": "/communications/conversations/{id}/claim",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "claimLeadFromQueue",
+      "method": "POST",
+      "path": "/workflows/lead-queue/{leadId}/claim",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "closeReturnCommand",
+      "method": "POST",
+      "path": "/returns/{returnId}/close",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "completeCustomerOnboarding",
+      "method": "POST",
+      "path": "/customers/{customerId}/complete-onboarding",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-MUTATION-RESULT-PROJECTION"
+    },
+    {
+      "operationId": "completeOrderFromFulfillmentEvidence",
+      "method": "POST",
+      "path": "/workflows/order-closing/{orderId}/complete-from-fulfillment-evidence",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "completeReturnRepairResolution",
+      "method": "POST",
+      "path": "/workflows/return-resolution/{returnId}/complete-repair-resolution",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "completeReturnReplacementFromDelivery",
+      "method": "POST",
+      "path": "/workflows/return-resolution/{returnId}/complete-replacement-from-delivery",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "completeReturnResolutionCommand",
+      "method": "POST",
+      "path": "/returns/{returnId}/complete-resolution",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "completeStudioQuickSetupStep",
+      "method": "POST",
+      "path": "/studio/quick-setup/steps/{stepId}/complete",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "completeTask",
+      "method": "POST",
+      "path": "/tasks/{taskId}/complete",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "configureReturnMethodCommand",
+      "method": "POST",
+      "path": "/returns/{returnId}/configure-method",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "confirmLeadDuplicatesDistinct",
+      "method": "POST",
+      "path": "/workflows/lead-identity-resolution/confirm-distinct",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "confirmOrderWithPaymentPlan",
+      "method": "POST",
+      "path": "/workflows/order-confirmation/{orderId}/confirm-with-payment-plan",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "convertAcceptedQuoteToOrderDraft",
+      "method": "POST",
+      "path": "/order-drafts/from-accepted-quote",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "convertLeadToCustomer",
+      "method": "POST",
+      "path": "/workflows/lead-customer-conversion/{leadId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createAccessRole",
+      "method": "POST",
+      "path": "/access/roles",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createCommunicationChannelAccount",
+      "method": "POST",
+      "path": "/communications/channel-accounts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createContact",
+      "method": "POST",
+      "path": "/contacts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createContactCustomerRelationship",
+      "method": "POST",
+      "path": "/contacts/{contactId}/customer-relationships",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createContactOrganizationRelationship",
+      "method": "POST",
+      "path": "/contacts/{contactId}/organization-relationships",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createCrmObjectField",
+      "method": "POST",
+      "path": "/crm-configuration/object-schemas/{objectKey}/fields",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-CREATECRMOBJECTFIELD"
+    },
+    {
+      "operationId": "createCrmPipeline",
+      "method": "POST",
+      "path": "/crm-configuration/pipelines",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-CREATECRMPIPELINE"
+    },
+    {
+      "operationId": "createCrmPipelineStage",
+      "method": "POST",
+      "path": "/crm-configuration/pipelines/{pipelineId}/stages",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-CREATECRMPIPELINESTAGE"
+    },
+    {
+      "operationId": "createCustomer",
+      "method": "POST",
+      "path": "/customers",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createDealCommand",
+      "method": "POST",
+      "path": "/deals",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createIntegrationConnection",
+      "method": "POST",
+      "path": "/integrations/connections",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-CREATEINTEGRATIONCONNECTION"
+    },
+    {
+      "operationId": "createInvoiceCreditNote",
+      "method": "POST",
+      "path": "/invoices/{invoiceId}/credit-notes",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createInvoiceDraft",
+      "method": "POST",
+      "path": "/invoices/drafts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createLead",
+      "method": "POST",
+      "path": "/leads",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createOrderDraftCommand",
+      "method": "POST",
+      "path": "/orders",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createOrderOutboundShippingBooking",
+      "method": "POST",
+      "path": "/workflows/order-shipping-booking/{orderId}/create-outbound",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createOrganization",
+      "method": "POST",
+      "path": "/organizations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createOutboundWebhookSubscription",
+      "method": "POST",
+      "path": "/outbound-webhooks",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createPaymentIntent",
+      "method": "POST",
+      "path": "/payment-intents",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createProduct",
+      "method": "POST",
+      "path": "/products",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createProductConfigurationType",
+      "method": "POST",
+      "path": "/products/configuration/types",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-CREATEPRODUCTCONFIGURATIONTYPE"
+    },
+    {
+      "operationId": "createQuoteCommand",
+      "method": "POST",
+      "path": "/quotes",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createQuoteForDeal",
+      "method": "POST",
+      "path": "/deals/{dealId}/quotes",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createRefundIntent",
+      "method": "POST",
+      "path": "/refund-intents",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createReturnRequestCommand",
+      "method": "POST",
+      "path": "/returns",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createShippingBookingCommand",
+      "method": "POST",
+      "path": "/shipping",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createSupportCase",
+      "method": "POST",
+      "path": "/support/cases",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "createTask",
+      "method": "POST",
+      "path": "/tasks",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "deactivateTelegramConnection",
+      "method": "POST",
+      "path": "/communications/channel-accounts/{id}/deactivate",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "deleteCrmObjectField",
+      "method": "DELETE",
+      "path": "/crm-configuration/object-schemas/{objectKey}/fields/{fieldId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-DELETECRMOBJECTFIELD"
+    },
+    {
+      "operationId": "deleteCrmPipeline",
+      "method": "DELETE",
+      "path": "/crm-configuration/pipelines/{pipelineId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-DELETECRMPIPELINE"
+    },
+    {
+      "operationId": "deleteCrmPipelineStage",
+      "method": "DELETE",
+      "path": "/crm-configuration/pipelines/{pipelineId}/stages/{stageId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-DELETECRMPIPELINESTAGE"
+    },
+    {
+      "operationId": "deleteProductConfigurationType",
+      "method": "DELETE",
+      "path": "/products/configuration/types/{typeId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-DELETEPRODUCTCONFIGURATIONTYPE"
+    },
+    {
+      "operationId": "disableAiConfiguration",
+      "method": "POST",
+      "path": "/ai/configuration/disable",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "disableCommunicationChannelAccount",
+      "method": "POST",
+      "path": "/communications/channel-accounts/{id}/disable",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "discardInvoiceDraft",
+      "method": "POST",
+      "path": "/invoices/{invoiceId}/discard",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "disconnectCommunicationChannelAccount",
+      "method": "POST",
+      "path": "/communications/channel-accounts/{id}/disconnect",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "disconnectIntegrationConnection",
+      "method": "POST",
+      "path": "/integrations/connections/{connectionId}/disconnect",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-DISCONNECTINTEGRATIONCONNECTION"
+    },
+    {
+      "operationId": "dismissStudioQuickSetupAutoOpen",
+      "method": "POST",
+      "path": "/studio/quick-setup/dismiss-auto-open",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "disqualifyLead",
+      "method": "POST",
+      "path": "/leads/{leadId}/disqualify",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "disqualifyLeadBatch",
+      "method": "POST",
+      "path": "/leads/disqualify-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "duplicateOrderDraft",
+      "method": "POST",
+      "path": "/orders/{orderId}/duplicate-draft",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "enableCommunicationChannelAccount",
+      "method": "POST",
+      "path": "/communications/channel-accounts/{id}/enable",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "endContactCustomerRelationship",
+      "method": "POST",
+      "path": "/contacts/{contactId}/customer-relationships/{relationshipId}/end",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "endContactOrganizationRelationship",
+      "method": "POST",
+      "path": "/contacts/{contactId}/organization-relationships/{relationshipId}/end",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "evaluateEffectiveRecordAccess",
+      "method": "POST",
+      "path": "/access/records/evaluate",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "expireQuoteCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/expire",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "expireQuotesBatch",
+      "method": "POST",
+      "path": "/quotes/expire-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getAiConfiguration",
+      "method": "GET",
+      "path": "/ai/configuration",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getAiProviderCatalog",
+      "method": "GET",
+      "path": "/ai/configuration/catalog",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getAiUsageSummary",
+      "method": "GET",
+      "path": "/ai/configuration/usage",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getBuyerAccountStatement",
+      "method": "GET",
+      "path": "/buyers/{buyerType}/{buyerId}/account-statement",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getCommunicationChannelAccount",
+      "method": "GET",
+      "path": "/communications/channel-accounts/{id}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getContact",
+      "method": "GET",
+      "path": "/contacts/{contactId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getContactListSummary",
+      "method": "GET",
+      "path": "/contacts/summary",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getContactRelationshipSummary",
+      "method": "GET",
+      "path": "/contacts/{contactId}/relationship-summary",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getConversation",
+      "method": "GET",
+      "path": "/communications/conversations/{id}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getConversationCrmContext",
+      "method": "GET",
+      "path": "/communications/conversations/{id}/crm-link",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getCrmObjectSchema",
+      "method": "GET",
+      "path": "/crm-configuration/object-schemas/{objectKey}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getCurrentAuthorizationContext",
+      "method": "GET",
+      "path": "/access/context",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getCurrentSession",
+      "method": "GET",
+      "path": "/auth/session",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getCustomer",
+      "method": "GET",
+      "path": "/customers/{customerId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getCustomer360",
+      "method": "GET",
+      "path": "/customers/{customerId}/360",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getDeal",
+      "method": "GET",
+      "path": "/deals/{dealId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getDealForecastSummary",
+      "method": "GET",
+      "path": "/deals/forecast-summary",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getIntegrationEventCatalog",
+      "method": "GET",
+      "path": "/integration-event-catalog",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getInvoice",
+      "method": "GET",
+      "path": "/invoices/{invoiceId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getInvoiceIssueReadiness",
+      "method": "GET",
+      "path": "/invoices/{invoiceId}/issue-readiness",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getInvoiceSellerInformationConfiguration",
+      "method": "GET",
+      "path": "/invoices/configuration/seller-information",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getLead",
+      "method": "GET",
+      "path": "/leads/{leadId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOrder",
+      "method": "GET",
+      "path": "/orders/{orderId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOrderCreditApproval",
+      "method": "GET",
+      "path": "/order-credit-approvals/{approvalId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOrderFulfillmentEligibility",
+      "method": "GET",
+      "path": "/orders/{orderId}/fulfillment-eligibility",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOrderInvoiceEligibility",
+      "method": "GET",
+      "path": "/orders/{orderId}/invoice-eligibility",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOrderPaymentProjection",
+      "method": "GET",
+      "path": "/orders/{orderId}/payment-projection",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOrganization",
+      "method": "GET",
+      "path": "/organizations/{organizationId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOrganizationOverview",
+      "method": "GET",
+      "path": "/organizations/{organizationId}/overview",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getOutboundWebhookSubscription",
+      "method": "GET",
+      "path": "/outbound-webhooks/{subscriptionId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getPaymentIntent",
+      "method": "GET",
+      "path": "/payment-intents/{intentId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getPaymentIntentStatus",
+      "method": "GET",
+      "path": "/payment-intents/{intentId}/status",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getPaymentMethodCatalog",
+      "method": "GET",
+      "path": "/payment-methods",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getPaymentRecordDetail",
+      "method": "GET",
+      "path": "/payments/{paymentRecordId}/detail",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getProduct",
+      "method": "GET",
+      "path": "/products/{productId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getProductAvailability",
+      "method": "GET",
+      "path": "/products/{productId}/availability",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getProductPriceProjection",
+      "method": "GET",
+      "path": "/products/{productId}/price-projection",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getQuote",
+      "method": "GET",
+      "path": "/quotes/{quoteId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getReceivablesAging",
+      "method": "GET",
+      "path": "/receivables/aging",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getReceivablesSummary",
+      "method": "GET",
+      "path": "/receivables/summary",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getRefund",
+      "method": "GET",
+      "path": "/refunds/{refundIntentId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getReturn",
+      "method": "GET",
+      "path": "/returns/{returnId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getReturnCreditRefundResolution",
+      "method": "GET",
+      "path": "/workflows/return-credit-refund/{returnId}/resolutions/{resolutionId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getShippingBooking",
+      "method": "GET",
+      "path": "/shipping/{bookingId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getStudioQuickSetup",
+      "method": "GET",
+      "path": "/studio/quick-setup",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getSupportCase",
+      "method": "GET",
+      "path": "/support/cases/{caseId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getTask",
+      "method": "GET",
+      "path": "/tasks/{taskId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getTelegramConnection",
+      "method": "GET",
+      "path": "/communications/channel-accounts/{id}/connection",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getWorkspaceAccessDirectory",
+      "method": "GET",
+      "path": "/access/directory",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getWorkspaceBootstrap",
+      "method": "GET",
+      "path": "/workspaces/{workspaceId}/bootstrap",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getWorkspaceConfiguration",
+      "method": "GET",
+      "path": "/workspace-configuration",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "getWorkspaceCurrencies",
+      "method": "GET",
+      "path": "/workspace-configuration/currencies",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "handoverLeadWithTasks",
+      "method": "POST",
+      "path": "/workflows/lead-handover/{leadId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "importLeadBatch",
+      "method": "POST",
+      "path": "/leads/import-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "inviteWorkspaceMember",
+      "method": "POST",
+      "path": "/access/invitations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "issueInvoice",
+      "method": "POST",
+      "path": "/invoices/{invoiceId}/issue",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "linkConversationCrmRecord",
+      "method": "POST",
+      "path": "/communications/conversations/{id}/crm-link",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listActivities",
+      "method": "GET",
+      "path": "/activities",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listCommunicationChannelAccounts",
+      "method": "GET",
+      "path": "/communications/channel-accounts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listCommunicationChannelProviders",
+      "method": "GET",
+      "path": "/communications/channel-providers",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listContacts",
+      "method": "GET",
+      "path": "/contacts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listConversationMessages",
+      "method": "GET",
+      "path": "/communications/conversations/{id}/messages",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listConversations",
+      "method": "GET",
+      "path": "/communications/conversations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listCreditNotes",
+      "method": "GET",
+      "path": "/credit-notes",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listCrmObjectSchemas",
+      "method": "GET",
+      "path": "/crm-configuration/object-schemas",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listCrmPipelines",
+      "method": "GET",
+      "path": "/crm-configuration/pipelines",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listCustomerCredits",
+      "method": "GET",
+      "path": "/customer-credits",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listCustomers",
+      "method": "GET",
+      "path": "/customers",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listDeals",
+      "method": "GET",
+      "path": "/deals",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listIntegrationConnections",
+      "method": "GET",
+      "path": "/integrations/connections",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listIntegrationProviders",
+      "method": "GET",
+      "path": "/integrations/providers",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listInvoiceDeliveries",
+      "method": "GET",
+      "path": "/invoice-deliveries",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listInvoices",
+      "method": "GET",
+      "path": "/invoices",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listLeadKanbanColumn",
+      "method": "GET",
+      "path": "/leads/kanban/{column}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listLeads",
+      "method": "GET",
+      "path": "/leads",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listMyWorkspaces",
+      "method": "GET",
+      "path": "/workspaces",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listOrders",
+      "method": "GET",
+      "path": "/orders",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listOrganizations",
+      "method": "GET",
+      "path": "/organizations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listOutboundWebhookDeliveries",
+      "method": "GET",
+      "path": "/outbound-webhook-deliveries",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listOutboundWebhookSubscriptions",
+      "method": "GET",
+      "path": "/outbound-webhooks",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listPaymentAllocations",
+      "method": "GET",
+      "path": "/payment-allocations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listPaymentIntents",
+      "method": "GET",
+      "path": "/payment-intents",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listPaymentPlans",
+      "method": "GET",
+      "path": "/payment-plans",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listPaymentReceivingAccounts",
+      "method": "GET",
+      "path": "/payments/configuration/receiving-accounts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listPaymentRecords",
+      "method": "GET",
+      "path": "/payments",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listPaymentScheduleLines",
+      "method": "GET",
+      "path": "/payment-schedule-lines",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listProductConfigurationTypes",
+      "method": "GET",
+      "path": "/products/configuration/types",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listProducts",
+      "method": "GET",
+      "path": "/products",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listQuotes",
+      "method": "GET",
+      "path": "/quotes",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listReceivables",
+      "method": "GET",
+      "path": "/receivables",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listRefundProviderAttempts",
+      "method": "GET",
+      "path": "/refunds/{refundIntentId}/provider-attempts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listRefunds",
+      "method": "GET",
+      "path": "/refunds",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listReturns",
+      "method": "GET",
+      "path": "/returns",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listShippingBookings",
+      "method": "GET",
+      "path": "/shipping",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listShippingPickupLocations",
+      "method": "GET",
+      "path": "/shipping/configuration/pickup-locations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listShippingProviders",
+      "method": "GET",
+      "path": "/shipping/providers",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listShippingReturnLocations",
+      "method": "GET",
+      "path": "/shipping/configuration/return-locations",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listSupportCases",
+      "method": "GET",
+      "path": "/support/cases",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listTasks",
+      "method": "GET",
+      "path": "/tasks",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listWorkspaceConfigurationAudit",
+      "method": "GET",
+      "path": "/workspace-configuration/audit",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "listWorkspaceExchangeRates",
+      "method": "GET",
+      "path": "/workspace-configuration/exchange-rates",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "logActivity",
+      "method": "POST",
+      "path": "/activities",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "markDealLostAndPlanRecycle",
+      "method": "POST",
+      "path": "/workflows/deal-recycle/{dealId}/mark-lost-and-plan-recycle",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-MARKDEALLOSTANDPLANRECYCLE"
+    },
+    {
+      "operationId": "markDealLostCommand",
+      "method": "POST",
+      "path": "/deals/{dealId}/mark-lost",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "markDealWonCommand",
+      "method": "POST",
+      "path": "/deals/{dealId}/mark-won",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "mergeLeadDuplicates",
+      "method": "POST",
+      "path": "/workflows/lead-identity-resolution/merge",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "onboardExistingCustomer",
+      "method": "POST",
+      "path": "/customer-onboarding",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-MUTATION-RESULT-PROJECTION"
+    },
+    {
+      "operationId": "openStudioQuickSetup",
+      "method": "POST",
+      "path": "/studio/quick-setup/open",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "pauseOutboundWebhookSubscription",
+      "method": "POST",
+      "path": "/outbound-webhooks/{subscriptionId}/pause",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "previewPaymentPlan",
+      "method": "POST",
+      "path": "/payment-plans/{planId}/preview",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "provisionWorkspaceMember",
+      "method": "POST",
+      "path": "/access/members",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "publishWorkspaceConfiguration",
+      "method": "POST",
+      "path": "/workspace-configuration/publish",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "putWorkspaceExchangeRate",
+      "method": "PUT",
+      "path": "/workspace-configuration/exchange-rates/{rateId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-PUTWORKSPACEEXCHANGERATE"
+    },
+    {
+      "operationId": "qualifyLead",
+      "method": "POST",
+      "path": "/leads/{leadId}/qualify",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-PHASE5-GENERIC-LEAD-QUALIFICATION-RETIRED"
+    },
+    {
+      "operationId": "qualifyLeadForDirectSale",
+      "method": "POST",
+      "path": "/workflows/lead-qualification/{leadId}/direct-sale",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "qualifyLeadForNurture",
+      "method": "POST",
+      "path": "/workflows/lead-qualification/{leadId}/nurture",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "qualifyLeadForOpportunity",
+      "method": "POST",
+      "path": "/workflows/lead-qualification/{leadId}/opportunity",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "receiveReturnItemsCommand",
+      "method": "POST",
+      "path": "/returns/{returnId}/receive-items",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "reconcilePaymentRecord",
+      "method": "POST",
+      "path": "/payments/{paymentRecordId}/reconcile",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "reconnectTelegramConnection",
+      "method": "POST",
+      "path": "/communications/channel-accounts/{id}/reconnect",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "recordCodCustomerCollection",
+      "method": "POST",
+      "path": "/payments/{paymentRecordId}/cod/customer-collection",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "recordCodMerchantRemittance",
+      "method": "POST",
+      "path": "/payments/{paymentRecordId}/cod/merchant-remittance",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "recordLeadConsent",
+      "method": "POST",
+      "path": "/leads/{leadId}/consent",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "recordManualPayment",
+      "method": "POST",
+      "path": "/payments/manual-records",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "recordOrderSendEvidenceCommand",
+      "method": "POST",
+      "path": "/orders/{orderId}/send",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "recordPaymentRequestDelivery",
+      "method": "POST",
+      "path": "/payment-intents/{intentId}/deliveries",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "recordQuoteSendEvidenceCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/send",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "refreshSession",
+      "method": "POST",
+      "path": "/auth/session/refresh",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "registerAccount",
+      "method": "POST",
+      "path": "/auth/accounts",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "rejectOrderCreditApproval",
+      "method": "POST",
+      "path": "/order-credit-approvals/{approvalId}/reject",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "rejectQuoteCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/reject",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "rejectReturnCommand",
+      "method": "POST",
+      "path": "/returns/{returnId}/reject",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "removeTelegramCredential",
+      "method": "DELETE",
+      "path": "/communications/channel-accounts/{id}/credentials",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "reopenDisqualifiedLead",
+      "method": "POST",
+      "path": "/leads/{leadId}/reopen",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "replaceAccessRole",
+      "method": "PUT",
+      "path": "/access/roles/{roleId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "replaceInvoiceSellerInformationConfiguration",
+      "method": "PUT",
+      "path": "/invoices/configuration/seller-information",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-REPLACEINVOICESELLERINFORMATIONCONFIGURATION"
+    },
+    {
+      "operationId": "replaceLeadProfile",
+      "method": "PUT",
+      "path": "/leads/{leadId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "replacePaymentReceivingAccounts",
+      "method": "PUT",
+      "path": "/payments/configuration/receiving-accounts",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-REPLACEPAYMENTRECEIVINGACCOUNTS"
+    },
+    {
+      "operationId": "replaceProduct",
+      "method": "PUT",
+      "path": "/products/{productId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "replaceSupportCaseProfile",
+      "method": "PUT",
+      "path": "/support/cases/{caseId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "replaceTelegramCredential",
+      "method": "PUT",
+      "path": "/communications/channel-accounts/{id}/credentials",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "replaceWorkspaceCurrencies",
+      "method": "PUT",
+      "path": "/workspace-configuration/currencies",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-REPLACEWORKSPACECURRENCIES"
+    },
+    {
+      "operationId": "replaceWorkspaceMemberAccess",
+      "method": "POST",
+      "path": "/access/members/{membershipId}/access",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "replayOutboundWebhookDelivery",
+      "method": "POST",
+      "path": "/outbound-webhook-deliveries/{deliveryId}/replay",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "repriceOrderDraft",
+      "method": "POST",
+      "path": "/orders/{orderId}/reprice",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "repriceQuoteDraft",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/reprice",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestAiAdvisory",
+      "method": "POST",
+      "path": "/ai/advisories",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestLeadExport",
+      "method": "POST",
+      "path": "/leads/export",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestOrderCreditApproval",
+      "method": "POST",
+      "path": "/order-credit-approvals",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestPasswordReset",
+      "method": "POST",
+      "path": "/auth/password-reset-requests",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestQuoteApprovalBatch",
+      "method": "POST",
+      "path": "/quotes/request-approval-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestQuoteApprovalChangesCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/request-approval-changes",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestQuoteApprovalCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/request-approval",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "requestRefundCancellation",
+      "method": "POST",
+      "path": "/refunds/{refundIntentId}/cancellation-requests",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "rescheduleTask",
+      "method": "POST",
+      "path": "/tasks/{taskId}/reschedule",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "resendWorkspaceInvitation",
+      "method": "POST",
+      "path": "/access/invitations/{invitationId}/resend",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "resetPassword",
+      "method": "POST",
+      "path": "/auth/password-resets",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "resolveReturnCreditRefund",
+      "method": "POST",
+      "path": "/workflows/return-credit-refund/{returnId}/resolve-credit-refund",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "restoreProduct",
+      "method": "POST",
+      "path": "/products/{productId}/restore",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "restoreProductsBatch",
+      "method": "POST",
+      "path": "/products/restore-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "resumeOutboundWebhookSubscription",
+      "method": "POST",
+      "path": "/outbound-webhooks/{subscriptionId}/resume",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "retryInvoiceIssue",
+      "method": "POST",
+      "path": "/invoices/{invoiceId}/retry-issue",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "retryPaymentIntent",
+      "method": "POST",
+      "path": "/payment-intents/{intentId}/retry",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "retryRefundIntent",
+      "method": "POST",
+      "path": "/refunds/{refundIntentId}/retry-requests",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "retryShippingBookingCommand",
+      "method": "POST",
+      "path": "/shipping/{bookingId}/retry-booking",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "reversePaymentAllocation",
+      "method": "POST",
+      "path": "/payment-allocations/{allocationId}/reverse",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "reviseQuoteCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/revise",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "revokeOrderCreditApproval",
+      "method": "POST",
+      "path": "/order-credit-approvals/{approvalId}/revoke",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "revokeWorkspaceInvitation",
+      "method": "POST",
+      "path": "/access/invitations/{invitationId}/revoke",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "rotateManagedMemberPassword",
+      "method": "POST",
+      "path": "/access/members/{membershipId}/rotate-password",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "rotateOutboundWebhookSecret",
+      "method": "POST",
+      "path": "/outbound-webhooks/{subscriptionId}/rotate-secret",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "saveAiConfiguration",
+      "method": "PUT",
+      "path": "/ai/configuration",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "saveInvoiceDraft",
+      "method": "PATCH",
+      "path": "/invoices/{invoiceId}/draft",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "savePaymentPlanDraft",
+      "method": "PATCH",
+      "path": "/payment-plans/{planId}/draft",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "scheduleLeadFollowUpBatch",
+      "method": "POST",
+      "path": "/workflows/lead-follow-up/schedule-batch",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "searchConversationCrmCandidates",
+      "method": "GET",
+      "path": "/communications/conversations/{id}/crm-candidates",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "searchProductSelections",
+      "method": "GET",
+      "path": "/products/selection",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "sendInvoice",
+      "method": "POST",
+      "path": "/invoices/{invoiceId}/send",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "setAiCredential",
+      "method": "PUT",
+      "path": "/ai/configuration/credential",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "signIn",
+      "method": "POST",
+      "path": "/auth/sessions",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "signOut",
+      "method": "POST",
+      "path": "/auth/session/logout",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "skipStudioQuickSetupStep",
+      "method": "POST",
+      "path": "/studio/quick-setup/steps/{stepId}/skip",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "syncShippingBookingCommand",
+      "method": "POST",
+      "path": "/shipping/{bookingId}/sync-booking",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "testAiConfiguration",
+      "method": "POST",
+      "path": "/ai/configuration/test",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "transitionConversation",
+      "method": "POST",
+      "path": "/communications/conversations/{id}/transition",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "transitionSupportCase",
+      "method": "POST",
+      "path": "/support/cases/{caseId}/transition",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "unlinkConversationCrmRecord",
+      "method": "POST",
+      "path": "/communications/conversations/{id}/crm-link/unlink",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateCommunicationChannelAccount",
+      "method": "PATCH",
+      "path": "/communications/channel-accounts/{id}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateContact",
+      "method": "PATCH",
+      "path": "/contacts/{contactId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateContactCustomerRelationship",
+      "method": "PATCH",
+      "path": "/contacts/{contactId}/customer-relationships/{relationshipId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateContactOrganizationRelationship",
+      "method": "PATCH",
+      "path": "/contacts/{contactId}/organization-relationships/{relationshipId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateCrmObjectField",
+      "method": "PATCH",
+      "path": "/crm-configuration/object-schemas/{objectKey}/fields/{fieldId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-UPDATECRMOBJECTFIELD"
+    },
+    {
+      "operationId": "updateCrmPipeline",
+      "method": "PATCH",
+      "path": "/crm-configuration/pipelines/{pipelineId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-UPDATECRMPIPELINE"
+    },
+    {
+      "operationId": "updateCrmPipelineStage",
+      "method": "PATCH",
+      "path": "/crm-configuration/pipelines/{pipelineId}/stages/{stageId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-UPDATECRMPIPELINESTAGE"
+    },
+    {
+      "operationId": "updateCustomer",
+      "method": "PATCH",
+      "path": "/customers/{customerId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateDealCommand",
+      "method": "POST",
+      "path": "/deals/{dealId}/update",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateDealForecast",
+      "method": "POST",
+      "path": "/deals/{dealId}/forecast",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateDealNextAction",
+      "method": "POST",
+      "path": "/deals/{dealId}/next-action",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateIntegrationConnection",
+      "method": "PATCH",
+      "path": "/integrations/connections/{connectionId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-UPDATEINTEGRATIONCONNECTION"
+    },
+    {
+      "operationId": "updateOrderDraftCommand",
+      "method": "POST",
+      "path": "/orders/{orderId}/update-draft",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateOrganization",
+      "method": "PATCH",
+      "path": "/organizations/{organizationId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateOutboundWebhookSubscription",
+      "method": "PUT",
+      "path": "/outbound-webhooks/{subscriptionId}",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateProductConfigurationType",
+      "method": "PATCH",
+      "path": "/products/configuration/types/{typeId}",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-UPDATEPRODUCTCONFIGURATIONTYPE"
+    },
+    {
+      "operationId": "updateQuoteDraftCommand",
+      "method": "POST",
+      "path": "/quotes/{quoteId}/update-draft",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateWorkspaceBlueprint",
+      "method": "PATCH",
+      "path": "/workspace-configuration/blueprint",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateWorkspaceBusinessInformation",
+      "method": "PATCH",
+      "path": "/workspace-configuration/business-information",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateWorkspaceFeatures",
+      "method": "PATCH",
+      "path": "/workspace-configuration/features",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "updateWorkspaceLocaleRegion",
+      "method": "PATCH",
+      "path": "/workspace-configuration/locale-region",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "verifyEmail",
+      "method": "POST",
+      "path": "/auth/email-verifications",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "verifyIntegrationConnection",
+      "method": "POST",
+      "path": "/integrations/connections/{connectionId}/verify",
+      "status": "BLOCKED",
+      "blockingDecisionId": "DEC-VERIFYINTEGRATIONCONNECTION"
+    },
+    {
+      "operationId": "verifyMfa",
+      "method": "POST",
+      "path": "/auth/challenges/{challengeId}/verify",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "verifyTelegramConnection",
+      "method": "POST",
+      "path": "/communications/channel-accounts/{id}/verify",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    },
+    {
+      "operationId": "voidInvoice",
+      "method": "POST",
+      "path": "/invoices/{invoiceId}/void",
+      "status": "PRODUCTION_CONTRACT_READY",
+      "blockingDecisionId": null
+    }
+  ]
+}

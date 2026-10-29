@@ -1,0 +1,68 @@
+[
+  {
+    "actual": 0,
+    "status": "PASS",
+    "expected": 0,
+    "test": "fresh Workspace has no Lead before UI scenario"
+  },
+  {
+    "actual": 0,
+    "status": "PASS",
+    "expected": 0,
+    "test": "UI-only CRM journey (BLOCKED is not PASS)"
+  },
+  {
+    "actual": 1,
+    "status": "PASS",
+    "expected": 1,
+    "test": "UI Lead persisted in fresh SQL Workspace"
+  },
+  {
+    "actual": 1,
+    "status": "PASS",
+    "expected": 1,
+    "test": "UI Lead Source remains empty in SQL"
+  },
+  {
+    "actual": 1,
+    "status": "PASS",
+    "expected": 1,
+    "test": "UI Task SQL unique title in trusted Workspace"
+  },
+  {
+    "actual": "customer_de0128eaa22b487fb40415133bb06120",
+    "status": "PASS",
+    "expected": "customer_de0128eaa22b487fb40415133bb06120",
+    "test": "UI Task SQL Customer recordRef"
+  },
+  {
+    "actual": 1,
+    "status": "PASS",
+    "expected": 1,
+    "test": "UI Task SQL completed lifecycle"
+  },
+  {
+    "actual": 1,
+    "status": "PASS",
+    "expected": 1,
+    "test": "UI Task SQL assignee active Workspace member"
+  },
+  {
+    "actual": 200,
+    "status": "PASS",
+    "expected": 200,
+    "test": "UI dataset real reauthentication after ApiHost restart"
+  },
+  {
+    "actual": "COMPLETED",
+    "status": "PASS",
+    "expected": "COMPLETED",
+    "test": "UI Task GET after ApiHost restart"
+  },
+  {
+    "actual": "task_bde86703b75c47e89e8512f0eff6a395",
+    "status": "PASS",
+    "expected": "task_bde86703b75c47e89e8512f0eff6a395",
+    "test": "UI Task list after ApiHost restart"
+  }
+]

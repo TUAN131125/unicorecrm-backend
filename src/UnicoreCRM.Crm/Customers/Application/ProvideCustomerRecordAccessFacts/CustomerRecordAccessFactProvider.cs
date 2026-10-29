@@ -1,13 +1,24 @@
 using System.Text.RegularExpressions;
 using UnicoreCRM.Crm.Customers.Application.Common;
 using UnicoreCRM.Crm.Customers.Contracts;
+using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 
 namespace UnicoreCRM.Crm.Customers.Application.ProvideCustomerRecordAccessFacts;
 
-internal sealed partial class CustomerRecordAccessFactProvider(ICustomersPersistence persistence) : IRecordAccessFactProvider
+internal sealed partial class CustomerRecordAccessFactProvider(ICustomersPersistence persistence) : IActivityReferenceAuthority
 {
+    public string ReadFactsSql => persistence.ActivityReadFactsSql;
+
+    public async Task<bool> IsActivityReferenceValidAsync(TrustedWorkspaceContext workspace, string recordId,
+        BuyerReference? relationship, bool forWrite, CancellationToken cancellationToken)
+    {
+        var customer = await persistence.ReadCustomerAsync(workspace.WorkspaceId, recordId, cancellationToken);
+        return customer is not null && (!forWrite || customer.Status is "NEW" or "ACTIVE" or "INACTIVE")
+            && (relationship is null || (relationship.Type == customer.RelationshipType && relationship.Id == customer.RelationshipId));
+    }
+
     private static readonly RecordAccessResourceDescriptor CustomersDescriptor = RecordAccessResourceDescriptor.Create(
         resourceKey: CustomerAuthorization.ResourceKey,
         readCapability: CustomerCapabilities.View.Capability,

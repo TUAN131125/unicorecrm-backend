@@ -1,0 +1,217 @@
+{
+  "status": "BLOCKED_APPROVAL",
+  "functionalRegression": "PASS",
+  "backendCommit": "7b734f98a7173af2e24e094392826a20b6e11359",
+  "frontendCommit": "99db1773c03ce4a4b820db7e793da6eca872f862",
+  "specSha256": "d894e313d9dad7ae78c0c9bb8fd865f06d2d04546bfbaca3683465780e7e1659",
+  "unchangedBreakingBaselineSha256": "c8e77d670453860796e3c32bcf17bc9ffbefe06bc0a8915d9509338bcabf66ef",
+  "compatibility": {
+    "preExisting": 42,
+    "addedByF01": 1,
+    "total": 43,
+    "accepted": false
+  },
+  "proposedNextContractVersion": "0.24.1-contract.0 (proposal only; not applied)",
+  "officialBaselineAcceptanceCommandExecuted": false,
+  "qualityGateWaiversApproved": false,
+  "allowlist": [
+    {
+      "repository": "frontend",
+      "file": "docs/api/openapi.json",
+      "kind": "source",
+      "sha256": "d894e313d9dad7ae78c0c9bb8fd865f06d2d04546bfbaca3683465780e7e1659"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/application/ports/TaskApiRuntime.ts",
+      "kind": "source",
+      "sha256": "c1a8a3879d1806544b42b2247290a2617952d14d58d10594d1b9e92804997440"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/domain/model/task.types.ts",
+      "kind": "source",
+      "sha256": "e6323e3773355f6caf137f45b3fb8a0f6686cb09b71b9858329fff821492cebb"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/infrastructure/http/TaskApiMapper.ts",
+      "kind": "source",
+      "sha256": "5450e376ef3b74b74f6dfda5a834b73780392ecab66d48b9aeff3c0417b4c668"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/public/api.ts",
+      "kind": "source",
+      "sha256": "b60a2b9f6aeae3491794866299f57fa0538ea02b092a4c85e594c524bd6e431b"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/leads/application/commands/leadActivityCommands.ts",
+      "kind": "source",
+      "sha256": "fe419faedb0987b992e384217d6090d2c40872e289f1c339175d357750943ef5"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/presentation/components/RelationshipActivityCreateModal.tsx",
+      "kind": "source",
+      "sha256": "eea63a98364500aba759e75c39426ffb875286dae68e71d224318e7b5dc297ac"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/deals/presentation/hooks/useDealDetailController.tsx",
+      "kind": "source",
+      "sha256": "6ced84eff9af6a7b33b5e4f40d7453b60b179142d0dfdefe4c5f19c35abfc2b0"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/domain/rules/manualActivityType.ts",
+      "kind": "source",
+      "sha256": "1c87fb721137611203b2bfcb6122b1a49a9ca659607b2e695391f1f4fb935ed3"
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/activity-manual-write.test.mts",
+      "kind": "source",
+      "sha256": "687401cc8ce75a34b71b60fc8d0ceaf1188c7e0297c30fb99747d4056dd07b92"
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/lead-manual-activity.test.mts",
+      "kind": "source",
+      "sha256": "8767df2950339321d68a9115a6342c7c3abd46a93c9595b06547d8e6cf3e9f25"
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/fixtures/typechecks/activity-manual-write.ts",
+      "kind": "source",
+      "sha256": "e6a3d18d95dbc0e5644263304103507c29b22e52b31f6c93c8d7c55c80d606b3"
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/fixtures/typechecks/activity-manual-write.tsconfig.json",
+      "kind": "source",
+      "sha256": "792326e3de5bf238c8c9fe6b8c26c303943a25abbcc64651190d672b882cc47c"
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/openapi.sha256",
+      "kind": "generated",
+      "sha256": "c1295e07c2b714773cd58d5620723d273707351b51e60ea1a166ca07fead352a"
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/generated-client-manifest.json",
+      "kind": "generated",
+      "sha256": "486d22f40ad54d4fca8fb0e03ce7d1442f0dadf04d5f3dd4664510d23fafd44f"
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/operation-coverage-ledger.json",
+      "kind": "generated",
+      "sha256": "16f35280d154adb96c2d36e183a4f54c716adeb047e692c4976b332e30ef2b61"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/identityApi.ts",
+      "kind": "generated",
+      "sha256": "1912f0a59653bad13bbd6259f1c2acfbfed1caf83fd5280cc67754f82ddcd7e4"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/workspaceBootstrapApi.ts",
+      "kind": "generated",
+      "sha256": "6ba0ebdf944fd20280a2fab7932b872a66f059ccbf63e14bbe45c2432dee6cf7"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/accessGovernanceApi.ts",
+      "kind": "generated",
+      "sha256": "5eb4ec0a20e78266a8d3082b5517b5fc6cd2c8a3b8442dad7ba3821f9a734852"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/receivablesApi.ts",
+      "kind": "generated",
+      "sha256": "3fd6719b7e36568a172f338fb36aaaf5922313080ab82bab7dfdbdaf198629a3"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/financialApi.ts",
+      "kind": "generated",
+      "sha256": "437e6bbda4c32575133499ffbd6d8f30839581753e9652bf1a82b59f2f0f0dad"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/commercialApi.ts",
+      "kind": "generated",
+      "sha256": "2cf2edc09d033369c7b370658bb0bd4d207a59653455432de2e1b5be6e76cb1f"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/workspaceConfigurationApi.ts",
+      "kind": "generated",
+      "sha256": "d93bc47de8b1fed2f6e34b3f22e86c7216c412397fb40898cd4d17efdb1310ba"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/studioQuickSetupApi.ts",
+      "kind": "generated",
+      "sha256": "cf58205387265bf57a2a99c69e356d02bb46f63b87fc76f30a5e8447ff17f2b1"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/crmConfigurationApi.ts",
+      "kind": "generated",
+      "sha256": "6391834a3c0549de8350d3ee8b99b272df19effa412ad8b4176f1044ece9ef6d"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/productConfigurationApi.ts",
+      "kind": "generated",
+      "sha256": "36dcbeb794aa83e40de2a6de2d124fd9f605a237bd5fd262b0ea59ef154716a9"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/financialConfigurationApi.ts",
+      "kind": "generated",
+      "sha256": "c09ea8a72b4d0af7d22bd17a7a3de46bbde94a756b13ad9ec44738b48b743c08"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/integrationConfigurationApi.ts",
+      "kind": "generated",
+      "sha256": "57f7f2c6d552800179bd37ce174bf55e23da19ae06fddd6b54cf0a1190274131"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/aiApi.ts",
+      "kind": "generated",
+      "sha256": "8905e7bff7a541ccd40a771f97bc7034946e1ba8cb3d9ae4b0cdf6bd2c33757e"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/communicationsApi.ts",
+      "kind": "generated",
+      "sha256": "7a22fac9d9033e3bd255774a74aee4276033c770aa3ea8bcaeab4dcaaac8613a"
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/contracts/generatedOpenApiRuntimeContract.ts",
+      "kind": "generated",
+      "sha256": "818e2ea3616bab9954ea77c597cbd4ba5539aea61c8f47ce7cc3e4d09e6763a2"
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/api-operation-catalog.json",
+      "kind": "generated",
+      "sha256": "0b19e952d29543c59916c865759c3aebcf357e398c623e858e53dac7f169e2fb"
+    },
+    {
+      "repository": "backend",
+      "file": "scripts/verify-activity-security.ps1",
+      "kind": "source",
+      "sha256": "bb746212280e85f1c5378fa2ae427df8abef24822a5b6a5d466d10fd62c78e57"
+    }
+  ]
+}

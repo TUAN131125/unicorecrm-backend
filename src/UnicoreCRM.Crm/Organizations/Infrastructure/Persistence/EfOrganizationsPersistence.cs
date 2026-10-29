@@ -8,6 +8,11 @@ namespace UnicoreCRM.Crm.Organizations.Infrastructure.Persistence;
 
 internal sealed class EfOrganizationsPersistence(OrganizationsDbContext dbContext) : IOrganizationsPersistence
 {
+    // Module-owned read-side reference projection, containing no Activity content.
+    public string ActivityReadFactsSql => """
+SELECT WorkspaceId, OrganizationId AS RecordId, OwnerId, CASE WHEN Status<>N'archived' THEN 1 ELSE 0 END AS CanLog, N'ORGANIZATION_ACCOUNT' AS RelationshipType, OrganizationId AS RelationshipId FROM organizations.Organizations
+""";
+
     public async Task<IOrganizationsTransaction> BeginSerializableAsync(CancellationToken cancellationToken) =>
         new Transaction(await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken), dbContext);
     public void AddOrganization(Organization organization) => dbContext.Organizations.Add(organization);

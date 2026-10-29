@@ -1,0 +1,16 @@
+{
+  "recordedAtUtc": "2026-10-21T07:27:59.232013+00:00",
+  "verdict": "NEEDS_FIX",
+  "backendHead": "7b734f98a7173af2e24e094392826a20b6e11359",
+  "frontendHead": "99db1773c03ce4a4b820db7e793da6eca872f862",
+  "runs": {
+    "projection-before": "cc0421278fe84838a37746d40f5260f2",
+    "scale-race-before": "7181c51bad644ec9bb95d938e8cdd091",
+    "history-before": "229a2b8eee0f403b85212bcd9b24591c",
+    "connected-after": "87a69f3116574b61ab762886beffcab3",
+    "ui-only": "6d25a0e51fe74e03a00090f2fb2375be"
+  },
+  "checkpointCreated": false,
+  "independentPrincipalAttestation": false,
+  "performanceVerdict": "FAIL: N+1/unbounded reference enumeration; not production qualification"
+}

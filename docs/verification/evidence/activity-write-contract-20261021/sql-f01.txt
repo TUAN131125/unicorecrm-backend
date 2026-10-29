@@ -1,0 +1,12 @@
+IdempotencyKey|Type|RecordModuleKey|RecordId|RelationshipType|RelationshipId|SourceType
+--------------|----|---------------|--------|----------------|--------------|----------
+f01-CALL|0|contacts|activity_contact_own|NULL|NULL|NULL
+f01-canonical|3|customers|activity_customer|CONTACT|activity_contact_own|CUSTOMER_360
+f01-EMAIL|1|contacts|activity_contact_own|NULL|NULL|NULL
+f01-MEETING|2|contacts|activity_contact_own|NULL|NULL|NULL
+f01-MESSAGE|4|contacts|activity_contact_own|NULL|NULL|NULL
+f01-NOTE|3|contacts|activity_contact_own|NULL|NULL|NULL
+f01-relationship|3|NULL|NULL|CONTACT|activity_contact_own|NULL
+RejectedRequestReceipts
+-----------------------
+0

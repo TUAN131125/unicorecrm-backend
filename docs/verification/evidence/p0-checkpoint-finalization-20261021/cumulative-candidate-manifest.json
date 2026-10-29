@@ -1,0 +1,1658 @@
+{
+  "status": "READY_FOR_CONDITIONAL_FUNCTIONAL_CHECKPOINT",
+  "proposalOnly": true,
+  "userApprovalGranted": false,
+  "productionReady": false,
+  "scope": "Paired current repos; Login/Workspace/Lead/Contact/Organization/Customer/Task/Activity/History. Quote mutations, TEAM positive support and production compatibility are not accepted.",
+  "baseCommits": {
+    "backend": "7b734f98a7173af2e24e094392826a20b6e11359",
+    "frontend": "99db1773c03ce4a4b820db7e793da6eca872f862"
+  },
+  "functionalVerification": {
+    "securityPerformanceAssertions": 580,
+    "connectedAssertions": 128,
+    "uiOnlySteps": 12,
+    "dealQuoteController": "PASS in-process controlled owner port",
+    "quoteMutationSqlAcceptance": "BLOCKED: runtime routes missing"
+  },
+  "compatibility": {
+    "gate": "FAIL",
+    "intentionalF01": "APPROVAL_REQUESTED",
+    "preExistingFindings": 42,
+    "preExistingAccepted": 0,
+    "baselineChanged": false
+  },
+  "waiversApproved": false,
+  "commitsOrTagsCreated": false,
+  "sourceFiles": [
+    {
+      "repository": "backend",
+      "file": ".gitignore",
+      "sha256": "844e25929c2f1b8ae0ba5c67cc07a403f8411bf287b833b69d19581debf58b2d",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "docs/architecture/team-scope.md",
+      "sha256": "a3d4c181618946a8aab372a65b4d9c3364b0812e11847ea981f99454f9e0897a",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "scripts/ContactFollowUpVerifier/ContactFollowUpVerifier.csproj",
+      "sha256": "d5f22c27318d1e7e94bc2cb7f1a2dce13327aec63c1c26c54b3cf9b6a520730d",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "scripts/ContactFollowUpVerifier/Program.cs",
+      "sha256": "c368ca6d64bb7129825e7a02251efdbd9196b183553f443ca7dcd63fdc33ae03",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "scripts/TasksHandoverVerifier/Program.cs",
+      "sha256": "014a808512175f083daa1cc97faf08aa6d6b09eecd09cb59a6543044ca5af0be",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "scripts/TasksHandoverVerifier/TasksHandoverVerifier.csproj",
+      "sha256": "d128059765d4f18318ac8c21c8980eaf1b7de3dfa78b9921c57a489d19f15b52",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "scripts/verify-activity-security.ps1",
+      "sha256": "4890f2b50b1ae74e80c1e48d548b46ce55949ffdb0432da06f88b4500e2a824c",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021",
+        "customer-task-ui-20261021",
+        "activity-write-contract-20261021",
+        "p0-checkpoint-finalization-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Contacts/Application/Common/ContactsApplication.cs",
+      "sha256": "485f3bac811835cc3d72ffec52f0acf497d35703b4f57fe60dc9601b216ec1fe",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs",
+      "sha256": "5da1235bd87b4aaa35d6f2ae91de5024001e66c8ebbd7b90af3d9a8d3dcdc8da",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Contacts/Application/ProvideContactRecordAccessFacts/ContactRecordAccessFactProvider.cs",
+      "sha256": "be975cc516e67912fe52eb94f66cc4fa8ff65020f3dc565d9fe1f56bc5fbf888",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Contacts/ContactsModule.cs",
+      "sha256": "4119231157762e8bfcaadc303aded8da12318281b684642cd5cbcb4b4bc5f197",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Contacts/Infrastructure/Persistence/EfContactsPersistence.cs",
+      "sha256": "5ed49ff7d21fa457cf9c19c8cfe80197553a74dc81be660176d164e34030f508",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Customers/Application/Common/CustomersApplication.cs",
+      "sha256": "6ca86b0c54ab237096f91b8b22d5dc9963fa0f65d2a74770420411f3e0b7e787",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Customers/Application/ProvideCustomerRecordAccessFacts/CustomerRecordAccessFactProvider.cs",
+      "sha256": "c6c0c80d9ee578bc6fd7af0cdd13eaa002264280f1b52e1ca6341063796dca31",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Customers/Application/ResolveRelationshipTargets/Participant.cs",
+      "sha256": "28f05964080f57fbc027faac13a644fa82168e158463aa9889a5b523c53d6838",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Customers/Contracts/CustomerRelationshipTargetParticipant.cs",
+      "sha256": "351622180d7116e87d940602361b3ea3b38843ec6e971be3d8bba11cf1568c38",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Customers/CustomersModule.cs",
+      "sha256": "07883487ae938db0109377fe90cdf0971fa5f7989ead4f7c2cce4d95fb4e1789",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Customers/Infrastructure/Persistence/EfCustomersPersistence.cs",
+      "sha256": "374ab4b704a90f2c7bbd01a7a478cdc8a13a231641e246719e857b37b22decb5",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Leads/Application/Common/LeadsPersistence.cs",
+      "sha256": "92be080b255d729578287b9d24f923ae40e24a9019d5e5fdd15da1d4a250dd20",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Leads/Application/ProvideLeadRecordAccessFacts/LeadRecordAccessFactProvider.cs",
+      "sha256": "ac0191bd52ddd4e31ab0d61bba50ebb4b63041e9985fec561d45daff526079bd",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Leads/Infrastructure/Persistence/EfLeadsPersistence.cs",
+      "sha256": "d7b5e4f39cb90735ce92912e96b3d75e733745ada0a358dc0bb6771e93da5fc6",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Leads/LeadsModule.cs",
+      "sha256": "7915252f6bbd9d6624595aaab14d3c8c44f3b2d02a3c5caec78d89856f3373c4",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Organizations/Application/Common/OrganizationsApplication.cs",
+      "sha256": "0e3946755c624601439e9f68e4c163e072c460a922a17cb4e4e2106b039d9ce7",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Organizations/Application/ProvideOrganizationRecordAccessFacts/OrganizationRecordAccessFactProvider.cs",
+      "sha256": "8beb7ce1617e24e87e7866cb4b330c63e0f3a7d11316cb25032d931d15b70092",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Organizations/Infrastructure/Persistence/EfOrganizationsPersistence.cs",
+      "sha256": "952b68fbd4cbcd4d144077215f2038399c7094ce2286e882f4de2c5c97ada951",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Crm/Organizations/OrganizationsModule.cs",
+      "sha256": "6df3fae1d19ee6af201283643ad3573a87906e27f609085e4c198b23f7dae200",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Application/Common/ActivityRecordAccess.cs",
+      "sha256": "6e58beaa69e1bedd8a77a4a5d844b223b599128ec32c4902149f5b1bec1ecc4e",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Application/Common/TaskRecordAccess.cs",
+      "sha256": "78b27f836860ec7018f7666c379bcaa449d55425e510297376461d4263f5c2fc",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Application/Common/TasksPersistence.cs",
+      "sha256": "10851ee690b25f8e00c65fe2d5b1c21a1a08d450a1a63b35c6ed3dde1e9c05e6",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Application/ListActivities/Handler.cs",
+      "sha256": "11c09c44c3a2cb41b713f466c22cfb67b6072baa7f72811da4311054001b49b8",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Application/LogActivity/Handler.cs",
+      "sha256": "e261f58c476ffeb4b950bd85fc2aeac927a2e0b8e3765a40bddc372104bbba9c",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Application/LogActivity/LogActivityValidation.cs",
+      "sha256": "024810e69147271f08e23f896dfd010939b4d8f667004568ccaa9d40c5d1b7f2",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Contracts/ActivityReferenceAuthority.cs",
+      "sha256": "05c37cbca6e6502d657bce89c2f349d0bf35ccd2386f156650ff6f2e9fad89e5",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/ActivityReadSql.cs",
+      "sha256": "099420507e9a724348d628b8e5443681db69f5e616915a8ff1921b2d2f74de9b",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/EfTasksPersistence.cs",
+      "sha256": "b1473eeee965e4301b635999e6277beaa24f9777a0e2e413e72721e8ced57c86",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.Designer.cs",
+      "sha256": "1a898986f153421d602b523d6566b96041b5ce8a72fdeb152d5708d4aaf44a66",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.cs",
+      "sha256": "2d35d28e0780858a8cc55feadc6368baa9915fecd620d82a043e72908cc25a1f",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs",
+      "sha256": "15a91795c5ea8f69e0bac3cda8201c383b563b823fbae47e87861588024ae1c7",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/TasksDbContext.cs",
+      "sha256": "a8c47444329f5cc94e8c3a0ccd111714a61ca080032c8da9425186d121d02907",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/TasksModule.cs",
+      "sha256": "ffdfcf11d73e7a6ad2d95cb153ddfab4cbe8541e882a439a1bb8b201e2f9b367",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/api-operation-catalog.json",
+      "sha256": "0b19e952d29543c59916c865759c3aebcf357e398c623e858e53dac7f169e2fb",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/generated-client-manifest.json",
+      "sha256": "486d22f40ad54d4fca8fb0e03ce7d1442f0dadf04d5f3dd4664510d23fafd44f",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/openapi.json",
+      "sha256": "d894e313d9dad7ae78c0c9bb8fd865f06d2d04546bfbaca3683465780e7e1659",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/openapi.sha256",
+      "sha256": "c1295e07c2b714773cd58d5620723d273707351b51e60ea1a166ca07fead352a",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/api/operation-coverage-ledger.json",
+      "sha256": "16f35280d154adb96c2d36e183a4f54c716adeb047e692c4976b332e30ef2b61",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/backend-readiness/concurrency-policy.json",
+      "sha256": "3c55caba41fcbbf7c7867bc6e5cea045668f8606097b0ebd4ed21d9b63f8dc62",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/backend-readiness/idempotency-policy.json",
+      "sha256": "14cbb9e3bfd9a678c3232fd28bf46597bb94dadba9ef95f955056a336fd17f59",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/backend-readiness/operation-authorization-matrix.json",
+      "sha256": "4e94ca3d686e2f2aa9184b1c60ab314bd5da4c225a3013c73b78165ac523a05b",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "docs/backend-readiness/operation-contract-status.json",
+      "sha256": "1943406a1a2568fcacabf84e9aff60a3a50757bf5517516be5ced524002ced94",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "playwright.crm-real.config.ts",
+      "sha256": "957a21569b32441ab955ba9b5f5e305e74534e2812d854e6d444ca2265c3c4be",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "playwright.crm-ui.config.ts",
+      "sha256": "0096edaa61968fea804ac80039cfb344be6206ec4c797ebd25bcdc1ec430d6fb",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "scripts/quality/quality-pipeline.json",
+      "sha256": "d5ccce03e0c8ce06b70d3369ff296e62c4eab3311df5bba344055912dbe56a49",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/guidance/content/crm/extendedScreens.ts",
+      "sha256": "16a2a6bc6d7056a8f170319df2ce625d59f51ad34984e9722801e6767074a3cf",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021",
+        "customer-task-ui-20261021",
+        "p0-checkpoint-finalization-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/guidance/content/crm/screens.ts",
+      "sha256": "1bee4869fedeaa05b4ee0a86b1fc059ff9004a09392dab88588d73760a1e551a",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/contacts/presentation/hooks/useContactOverview.ts",
+      "sha256": "1fe13a898095364c5b2dfcb355f212790df004ab190c9016fe7196ba886920b4",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/contacts/presentation/model/contactCustomerLookup.ts",
+      "sha256": "3d020c8ffff8ad7cdc5e15b6ecff460f9e0c7ec2b65341ab3e9a8d0d9c4291c2",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/contacts/presentation/model/contactHistory.ts",
+      "sha256": "6379b13e9d01bfa58cbd72aa099d4bd8338d3f80eb39e6cea856c0cd528d178d",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/customers/presentation/detail/CustomerConnectedWorkspace.tsx",
+      "sha256": "0ca074932749cbba40eb1cac805372ab1513cf9343ff480060fcb31f6fe0f752",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "customer-task-ui-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/customers/presentation/detail/CustomerRelationshipPanel.tsx",
+      "sha256": "e7ae37facfebbcc8a60fa12d2769efdb647757d44cf0f328d02c3ffcc5731f90",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "customer-task-ui-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/deals/presentation/hooks/useDealDetailController.tsx",
+      "sha256": "ddf4d61875c22c8119e469de8042e1bd364a9b23cb4954b8805f6cd516ea8dfe",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021",
+        "p0-checkpoint-finalization-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/leads/application/commands/leadActivityCommands.ts",
+      "sha256": "fe419faedb0987b992e384217d6090d2c40872e289f1c339175d357750943ef5",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/leads/presentation/hooks/useLeadFormController.tsx",
+      "sha256": "ed9aba57de79f3ce041e57dd0d426ded61b1ef501c89fc3d33cb574fd4631bbc",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/leads/presentation/hooks/useLeadHistory.ts",
+      "sha256": "82842dfa8258fdd0c6fde30f1b9c04db08925fd7f37250fb47fd63283cf89523",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/leads/presentation/model/leadHistory.ts",
+      "sha256": "e761fa64f94f7d322bb61fa2ae7883e515c426ac55a3c35d5f3a21cb1c8e1e33",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/application/ports/TaskApiRuntime.ts",
+      "sha256": "c1a8a3879d1806544b42b2247290a2617952d14d58d10594d1b9e92804997440",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/domain/model/task.types.ts",
+      "sha256": "e6323e3773355f6caf137f45b3fb8a0f6686cb09b71b9858329fff821492cebb",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/domain/rules/manualActivityType.ts",
+      "sha256": "1c87fb721137611203b2bfcb6122b1a49a9ca659607b2e695391f1f4fb935ed3",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/infrastructure/http/TaskApiMapper.ts",
+      "sha256": "5450e376ef3b74b74f6dfda5a834b73780392ecab66d48b9aeff3c0417b4c668",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/presentation/components/RelationshipActivityCreateModal.tsx",
+      "sha256": "eea63a98364500aba759e75c39426ffb875286dae68e71d224318e7b5dc297ac",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/presentation/pages/TaskDetailPage.tsx",
+      "sha256": "d77ae0494439cd1653a741c98291a6d386a90c57018dd516f3b8f77a730ab83f",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "customer-task-ui-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/modules/tasks/public/api.ts",
+      "sha256": "b60a2b9f6aeae3491794866299f57fa0538ea02b092a4c85e594c524bd6e431b",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/catalog/generatedApiOperationCatalog.ts",
+      "sha256": "da5d50588c4640a156df99e067b6590c50ab83a970da3ab058e69edefcf39608",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/contracts/generatedOpenApiRuntimeContract.ts",
+      "sha256": "818e2ea3616bab9954ea77c597cbd4ba5539aea61c8f47ce7cc3e4d09e6763a2",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/contracts/generatedProductionCommandRegistry.ts",
+      "sha256": "f369d871a8921cbb7de746bde8714e1e0d92ad1e2b9b47dc31d83610919797c6",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/contracts/generatedProductionQueryRegistry.ts",
+      "sha256": "a3b3910af6c284eef21a781d8a1dc4d3257527b0a55702af33cbb9c95d7ab000",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/accessGovernanceApi.ts",
+      "sha256": "5eb4ec0a20e78266a8d3082b5517b5fc6cd2c8a3b8442dad7ba3821f9a734852",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/aiApi.ts",
+      "sha256": "8905e7bff7a541ccd40a771f97bc7034946e1ba8cb3d9ae4b0cdf6bd2c33757e",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/commercialApi.ts",
+      "sha256": "2cf2edc09d033369c7b370658bb0bd4d207a59653455432de2e1b5be6e76cb1f",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/communicationsApi.ts",
+      "sha256": "7a22fac9d9033e3bd255774a74aee4276033c770aa3ea8bcaeab4dcaaac8613a",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/crmConfigurationApi.ts",
+      "sha256": "6391834a3c0549de8350d3ee8b99b272df19effa412ad8b4176f1044ece9ef6d",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/financialApi.ts",
+      "sha256": "437e6bbda4c32575133499ffbd6d8f30839581753e9652bf1a82b59f2f0f0dad",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/financialConfigurationApi.ts",
+      "sha256": "c09ea8a72b4d0af7d22bd17a7a3de46bbde94a756b13ad9ec44738b48b743c08",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/identityApi.ts",
+      "sha256": "1912f0a59653bad13bbd6259f1c2acfbfed1caf83fd5280cc67754f82ddcd7e4",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/index.ts",
+      "sha256": "2114b940a60b5df48db4aa1f7e6bf2d0576cc8db84d1a2ffacd99bfc0a628cd8",
+      "kind": "generated",
+      "gitState": "unchanged",
+      "phases": []
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/integrationConfigurationApi.ts",
+      "sha256": "57f7f2c6d552800179bd37ce174bf55e23da19ae06fddd6b54cf0a1190274131",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/productConfigurationApi.ts",
+      "sha256": "36dcbeb794aa83e40de2a6de2d124fd9f605a237bd5fd262b0ea59ef154716a9",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/receivablesApi.ts",
+      "sha256": "3fd6719b7e36568a172f338fb36aaaf5922313080ab82bab7dfdbdaf198629a3",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/studioQuickSetupApi.ts",
+      "sha256": "cf58205387265bf57a2a99c69e356d02bb46f63b87fc76f30a5e8447ff17f2b1",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/workspaceBootstrapApi.ts",
+      "sha256": "6ba0ebdf944fd20280a2fab7932b872a66f059ccbf63e14bbe45c2432dee6cf7",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/platform/api/generated/workspaceConfigurationApi.ts",
+      "sha256": "d93bc47de8b1fed2f6e34b3f22e86c7216c412397fb40898cd4d17efdb1310ba",
+      "kind": "generated",
+      "gitState": "modified",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "src/workflows/lead-customer-conversion/presentation/LeadCustomerConversionPage.tsx",
+      "sha256": "d7d72204f2b2696e312cbcc95e5b03856920b2770a7fe9f848d9b4e2ad802632",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/activity-manual-write.test.mts",
+      "sha256": "687401cc8ce75a34b71b60fc8d0ceaf1188c7e0297c30fb99747d4056dd07b92",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/contact-history.test.mts",
+      "sha256": "9ac8eb41acf7493b49337da86434eb59d6e73c2d640d8833b97f6bdeecc5823c",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/contact-overview.test.mts",
+      "sha256": "56210e6fbebd2ebaa2a93356201d67432416bf8bc2430413091e1664dd6e2dda",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/customer-relationship-panel.test.mts",
+      "sha256": "df1acfbe65debbdef01d3e6e1bd95884b9edf0ad5f8f468a65a85f9b7d722ff1",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "customer-task-ui-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/customer-task-create-session.test.mts",
+      "sha256": "7d0b42db2c60417301a2b8cb3ecffbe1288d824178d45a73dce64e21cdec5993",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "customer-task-ui-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/deal-quote-transition-outcome.test.mts",
+      "sha256": "c96a5c05a7c560f15cbd68a847b15d60a62003521a0144d2a7c7928285e5423c",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "p0-checkpoint-finalization-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/lead-history.test.mts",
+      "sha256": "9bc3596f74b3c58b51b04e978d4580f3a793993d5ce5a30d43809600fc0c4e0f",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/contract/lead-manual-activity.test.mts",
+      "sha256": "8767df2950339321d68a9115a6342c7c3abd46a93c9595b06547d8e6cf3e9f25",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/e2e/crm-real.spec.ts",
+      "sha256": "6e68efff15b05c917f88883104c5b429b22a91c9c9ea07c558abb7fd4f20a896",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-20261021",
+        "connected-crm-review-20261021",
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/e2e/crm-ui-real.spec.ts",
+      "sha256": "5f28d60d24ee791e3e10c604d146f131d465bd382d9d7b418a2c1dc1147081f1",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "connected-crm-review-20261021",
+        "activity-performance-20261021",
+        "customer-task-ui-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/fixtures/typechecks/activity-manual-write.ts",
+      "sha256": "e6a3d18d95dbc0e5644263304103507c29b22e52b31f6c93c8d7c55c80d606b3",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    },
+    {
+      "repository": "frontend",
+      "file": "tests/fixtures/typechecks/activity-manual-write.tsconfig.json",
+      "sha256": "792326e3de5bf238c8c9fe6b8c26c303943a25abbcc64651190d672b882cc47c",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-write-contract-20261021"
+      ]
+    }
+  ],
+  "immutableReferences": [
+    {
+      "repository": "frontend",
+      "file": "docs/api/openapi-breaking-baseline.json",
+      "sha256": "c8e77d670453860796e3c32bcf17bc9ffbefe06bc0a8915d9509338bcabf66ef"
+    },
+    {
+      "repository": "frontend",
+      "file": "scripts/api/generate-openapi-client.mjs",
+      "sha256": "86ebcd27e957982f891934a069c7642e44ea481a10cb77c463cad7a28c0a591c"
+    },
+    {
+      "repository": "frontend",
+      "file": "scripts/api/openapi/breaking-changes.mjs",
+      "sha256": "d1fb1fae135c469bcfe2b56849bd1ab16e417d1f14b3fa6768eeb17c461ee174"
+    },
+    {
+      "repository": "frontend",
+      "file": "scripts/api/openapi/write-or-check.mjs",
+      "sha256": "6d30177b3328bbba9f26f0cc5116f4479642a1bbe418af7ec78e8fc26b66614b"
+    }
+  ],
+  "migrationFiles": [
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.Designer.cs",
+      "sha256": "1a898986f153421d602b523d6566b96041b5ce8a72fdeb152d5708d4aaf44a66",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/20261021075605_IndexActivityRecordHistory.cs",
+      "sha256": "2d35d28e0780858a8cc55feadc6368baa9915fecd620d82a043e72908cc25a1f",
+      "kind": "source_or_test",
+      "gitState": "added",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    },
+    {
+      "repository": "backend",
+      "file": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations/TasksDbContextModelSnapshot.cs",
+      "sha256": "15a91795c5ea8f69e0bac3cda8201c383b563b823fbae47e87861588024ae1c7",
+      "kind": "source_or_test",
+      "gitState": "modified",
+      "phases": [
+        "activity-performance-20261021"
+      ]
+    }
+  ],
+  "evidenceReferences": [
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/connected-crm-review-20261021/artifact-hashes.json",
+      "sha256": "53fd1467087a3fb33f4e90bebf8808a4a9e6fdb25b0b4e144159f764b5763c89",
+      "role": "historical evidence index; child hashes verified"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/activity-performance-20261021/artifact-hashes.json",
+      "sha256": "bd4371a2a6f6a84339ef9f7e20406252929c363786ed020b3d89297d635a0b21",
+      "role": "historical evidence index; child hashes verified"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/customer-task-ui-20261021/artifact-hashes.json",
+      "sha256": "fc41f169edb4692e1f3b51e2bcc53d86870ed3e4ded27d328da2b891ce33d5be",
+      "role": "historical evidence index; child hashes verified"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/activity-write-contract-20261021/artifact-hashes.json",
+      "sha256": "c83b9a79e666f664139faf9ecd38c0a7736be564f1041db3f1629035e6d3ee8f",
+      "role": "historical evidence index; child hashes verified"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/backend-cumulative.patch",
+      "sha256": "58b4caf4221905dc748b63e32771ece909c20d3f47a3a07955517e3620cdff82",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/backend-status-after.txt",
+      "sha256": "418a32aa80bb0dc1b9f60246ee09ef818d9437f337fded4ad02b228047193d28",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/backend-status-before.txt",
+      "sha256": "418a32aa80bb0dc1b9f60246ee09ef818d9437f337fded4ad02b228047193d28",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/backend-this-task.patch",
+      "sha256": "ad6bd29edc3a0335cb96b88b4cc5870559aadd9cb0df76b594cbbb7ed38234fc",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/before/backend/scripts/verify-activity-security.ps1",
+      "sha256": "bb746212280e85f1c5378fa2ae427df8abef24822a5b6a5d466d10fd62c78e57",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/before/frontend/src/guidance/content/crm/extendedScreens.ts",
+      "sha256": "ed8046c4f89e7c52b69687f5e3a0a275b72218a0b0565e47cad8ddc7a634cb0a",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/before/frontend/src/modules/deals/presentation/hooks/useDealDetailController.tsx",
+      "sha256": "6ced84eff9af6a7b33b5e4f40d7453b60b179142d0dfdefe4c5f19c35abfc2b0",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-api/contact-after-refresh.png",
+      "sha256": "44e7d5f6b283c10d8468c864003fe2bc8d3ff426994c93beaefdf3c7e2672f5d",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-api/http.json",
+      "sha256": "644e18eacea054eef706890ff5c9db2808fe0c13cd4f1cd6b5d4cdcb87694ffc",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-api/records.json",
+      "sha256": "9f6bc1c94572e2b8bf6b797fac717b5616aae8578b07cfed279c399db94ab493",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-api/sales-own-history-after-refresh.png",
+      "sha256": "6e06704977fc4dd07146d0b2eb099584cc3e80469d345d3397a1c201fe597906",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/contact-ui-history-refresh.png",
+      "sha256": "8bced51898ad23fd7a80b2fb51833ed1659c3a9fd22382248cb61db47ba5799a",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/customer-task-after-relogin.png",
+      "sha256": "4c0476aebb2de56a6486b0cc6e3595d73aa443e7b94b0343277dd6d42a799113",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/lead-create-evidence.json",
+      "sha256": "e02db3302c8da2e63ca7a192eb5fd9db2e5635109b5148fb17102ea31ca94452",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/lead-empty-source-created.png",
+      "sha256": "db036d7f8692f88507731ef9a26a44be8fd988fedc9d028b2e381a5293df6047",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/ui-http.json",
+      "sha256": "06728366de3a396f1dc98d1f7b609f7ce8bd7192b0eb6021a5ca84fb3f9acc57",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/ui-journey-records.json",
+      "sha256": "d19536715d754d9fe6533afab87263b376352e475cc7f0ffa0cbc47200225fda",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/ui-observations.json",
+      "sha256": "799b628071e7a7c046f94e6335a271b44036f28e7296b5be9b99d9e30848071e",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/ui-records.json",
+      "sha256": "770f6060e2ca5312117943e3c70cfe7d81391f3ec055c4ca342def1050d17c76",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/ui-steps.json",
+      "sha256": "e67e0219d361eb77163f35f6cb65c8e8f97b6b0cd0c99066cb56e92c9ee65425",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/ui-task-mutations.json",
+      "sha256": "f6d0b10ebf54f6cd9ca35358671663fcd2e3f642ecf32a50ab060ff83db594f0",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/browser-ui/ui-task-reads.json",
+      "sha256": "945752cf618800d48740fa4c9b0068c198442d8af7f07d152717b410cf40ddbb",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/build.log",
+      "sha256": "62ef5c00b326989530def7add0e9933573d9afdeedb1d98c736e6b2abfce7e9e",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/checkpoint-connected.log",
+      "sha256": "4530743405ee5854f9a3a4d1729ccfa8d78a00c3f64706677b3fb114d3bbc73e",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/checkpoint-security-quote.log",
+      "sha256": "c67381a01a8e1502ed16d4a1ac88ed45b631ef7ed6c8b19f87e158bde45cbdb3",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/checkpoint-ui.log",
+      "sha256": "63e10907adbe71881a3fe25714ff27bfb4264a7dd5b29f18c7a51e55051e86d8",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/compatibility-42-ledger.json",
+      "sha256": "38777a986328489851af275697c9eeede4a2bda2ea458d677e5f2862aff4790c",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/compatibility-42-ledger.md",
+      "sha256": "7bb53f4bbd77391f751b3a2b882bc9b0d8666972c627aa828be445b4b8050acc",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/connected-regression/browser-records.json",
+      "sha256": "9f6bc1c94572e2b8bf6b797fac717b5616aae8578b07cfed279c399db94ab493",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/connected-regression/http.json",
+      "sha256": "9f6280f2170c8004a2fd05df23854b552e95368e34b7cef402a87fa6c0de59b3",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/connected-regression/quote-route-review.json",
+      "sha256": "56045271ad1d0dcdda5e94454a0a992c890552ccbe05f99789f8a2fdf69ca15f",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/connected-regression/results.json",
+      "sha256": "19874d45181271f43c7c80fd0a1fb0d9f3e6ec10f484d817f27109899e96ad7a",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/connected-regression/run.json",
+      "sha256": "49c362cf308ed6f63e87a66ad578ee6d84962ff4e0f2b48b7d4198755da36b63",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/connected-regression/sql-counts.json",
+      "sha256": "07832fc1cb328850dcbd5224611765c43fa068b5bc758b19ee13ae2a87314a11",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/deal-quote-after.log",
+      "sha256": "96248b68e61f040b95192903940c4c39b735959691a42edd51cdce7f8295d63b",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/deal-quote-before.log",
+      "sha256": "bc2e91fd02c1e06ea276d2bd2e277c12c33ec719fa9240c76f8b704a419ee1bb",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/evidence-tools/build-compatibility-ledger.py",
+      "sha256": "73cd2c490907c26fcc98135bd415e91c6d331ce4a66236f49407b93d004b29d4",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/evidence-tools/package-p0-cumulative-candidate.py",
+      "sha256": "bde2445eecf0b65c0a233c5306356db9f684de51f64ed6ddb2d65e06de158a71",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/frontend-cumulative.patch",
+      "sha256": "84b5b0a488a56964b1d7619cce16707d1f703cabc8a98b63fe1c385c90768440",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/frontend-status-after.txt",
+      "sha256": "4625bf87d1d626f1e5111e2ce772f837a2b40e1bc7fdc51cace5b951de79bff8",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/frontend-status-before.txt",
+      "sha256": "4e5b8dd0dbe8b7df06b63b0b3577e4fb61ccb66b26fc297f41ac6578c807d1f7",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/frontend-this-task.patch",
+      "sha256": "7d08c76d4a3bcbc6c30c3602f2798ae5145e27591c5c7fc522f07e90c03797e8",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/generator-check.log",
+      "sha256": "c00ef561b1bbc1260c7645268b3b2df14fe388f906748e1a129f76d0bdb0293e",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/guidance.log",
+      "sha256": "89229dda9c27bf62a7c459fea8c139df911bf4c9f45c65832e38d8c258ecf7a6",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/mutation-authority.log",
+      "sha256": "327f6872c42fcbc2b722765b0bc3be58464fc90b6cd0a03534baab75815906a1",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-indexes.json",
+      "sha256": "d613c01065b81c61f5f10220ea51d00db6143161e66295e1fc53214a7fcf4bbb",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-plan-1.sqlplan",
+      "sha256": "5c30619e4e6a06127b9197ebf0e42bbe01128e5dcade3a53b0194cd3fc724802",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-plan-2.sqlplan",
+      "sha256": "7a3972589783a69eda8ff9f59e6d803ac06468df2d05a32389b945c68956bf40",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-plan-3.sqlplan",
+      "sha256": "1d9605ca7288db66fbedebab3da5e45e46a136c807b24bf5498a3725979b1600",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-plan-4.sqlplan",
+      "sha256": "51af9a2ced50d2484d02c6c733b0450683949c295418ee4cfa092e615f75e90d",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-query-1.sql",
+      "sha256": "917f7205c867f14360f6b017c04c0c283354ab62126444d35ac376cc341a00b3",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-query-2.sql",
+      "sha256": "16f01bd0b6c5134bb997d49a10c0975f9e0fc4b6fce9499b5c616979d40bf499",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-query-3.sql",
+      "sha256": "a83fa8a688b9b59362d1b0a318075b08baff2fbf497cc82b7efeb2ccdc488251",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/activity-query-4.sql",
+      "sha256": "6d44dd9b9c24cffda02454b3037d55da42e7945ea97aa21d1caaf7f6f02b8c44",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/commit-race.json",
+      "sha256": "e03c6a1b0772009f72d7b13835314ce4c55cfe91b712dce1d7ec37a74b0dca23",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/http.json",
+      "sha256": "a8ad3d578f245adce41d0f8a45a87aa8b3ec0eee47903cc5238a11b45777de1a",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/performance-matrix.json",
+      "sha256": "89d1b2c4a8032900c9990559e80075884c8c2b45e8d16bef77d67d9ae556eed9",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/quote-route-review.json",
+      "sha256": "748a15f33264db063c2cf3e40a6dd44582afc0f4df60c104fd33b5a70c024ad6",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/race-review-activity-own.json",
+      "sha256": "2253489d8acc9c23adf4ee562e4da042a0692f66605b15e77e4939869077935f",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/race-review-race-6de52df30c624eb2a5fda1c1faa2efe2.json",
+      "sha256": "89827188d5cd06fbd9e7fd6134370840145c7eaac9c49c2439fea92d26e7bcdb",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/results.json",
+      "sha256": "2bb3df3e3e8dca7912fdc404e945d3a0b98b1f857775b256edd9621d4ab29188",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/run.json",
+      "sha256": "659b46b150173e1f4d598775adf60232ca8d5a8df0408240687568282158a72a",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/security-performance/sql-counts.json",
+      "sha256": "07832fc1cb328850dcbd5224611765c43fa068b5bc758b19ee13ae2a87314a11",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/typecheck.log",
+      "sha256": "9855df7f80fb67d9bda8e7814b58a11ac372664c0e51f6e1ac927baf92caa597",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/ui-only/http.json",
+      "sha256": "1656c12a7b6031e6474f5d208f9572c88eb356f3c7f45d8025cfcf0f5239b2b4",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/ui-only/results.json",
+      "sha256": "707d15776541ca2054abc2209d2a852f4f3e7f63ebb8f15b348020804196a263",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/ui-only/run.json",
+      "sha256": "63838b35e4fdc23649c4cb13b72d3888a5ef4fb806b1c981789f54376e6eb295",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/ui-only/ui-journey-records.json",
+      "sha256": "d19536715d754d9fe6533afab87263b376352e475cc7f0ffa0cbc47200225fda",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/evidence/p0-checkpoint-finalization-20261021/ui-only/ui-records.json",
+      "sha256": "770f6060e2ca5312117943e3c70cfe7d81391f3ec055c4ca342def1050d17c76",
+      "role": "current evidence"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/p0-conditional-checkpoint.md",
+      "sha256": "8f188f606ebb94d48d83bfc0bfc4fd79c56967efaefc4716d76715d90bfb2e91",
+      "role": "report; historical reports retain their original verdict"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/f01-security-approval-proposal.md",
+      "sha256": "e3fa8c1ac123c3724f3c66977dd3e733a17bb6c81b64a32824137559c556d4d5",
+      "role": "report; historical reports retain their original verdict"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/activity-write-contract.md",
+      "sha256": "bd060d0b34ddec95d845ad31dcffc659efa2fc6211ed7ef91ce73e9de47d4f44",
+      "role": "report; historical reports retain their original verdict"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/customer-task-ui.md",
+      "sha256": "59401b1f8d1d710bac813418676fe8ed43a3c9e4b5fca7446560daa428c3a8c2",
+      "role": "report; historical reports retain their original verdict"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/activity-performance-and-lead-ui.md",
+      "sha256": "6031e96cd62eca5dcf5869a342894d22c79ba006b96432127a993dfbe7b32d7e",
+      "role": "report; historical reports retain their original verdict"
+    },
+    {
+      "repository": "backend",
+      "file": "docs/verification/connected-crm-p0-review.md",
+      "sha256": "34d2e2e3e7fe680139fdb413615a0e44b7f51b484d8fec5a8a979a4f574d14e2",
+      "role": "report; historical reports retain their original verdict"
+    }
+  ],
+  "proposedCheckpointNames": {
+    "backend": "connected-crm-p0-conditional-be",
+    "frontend": "connected-crm-p0-conditional-fe"
+  },
+  "rollback": "Review SHA first, reverse only this-task patches to retain earlier secure P0/F01; never reset user work or roll back to vulnerable baseline HEAD. Keep additive SQL index and data."
+}

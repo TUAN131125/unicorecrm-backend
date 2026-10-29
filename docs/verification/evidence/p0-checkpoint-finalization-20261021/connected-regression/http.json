@@ -1,0 +1,1180 @@
+[
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-1",
+    "status": 401,
+    "method": "GET",
+    "code": "TOKEN_INVALID",
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/session"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-2",
+    "status": 200,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/sessions"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-3",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/session"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-4",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-5",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-6",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-7",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-8",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-9",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-10",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-11",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-12",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-13",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "path": "/activities?limit=1"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-14",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities?recordId=activity_contact_other"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-15",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-16",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-17",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-18",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-19",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-20",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-21",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities?type=SYSTEM"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-22",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities?search=legacy"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-23",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-24",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-25",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities?search=isolated"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-26",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-27",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-28",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-29",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-30",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-31",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-32",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-33",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AQAAAA",
+      "totalCount": 3
+    },
+    "path": "/activities?limit=1"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-34",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": true,
+      "nextCursor": "AgAAAA",
+      "totalCount": 3
+    },
+    "path": "/activities?limit=1&cursor=AQAAAA"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-35",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 3
+    },
+    "path": "/activities?limit=1&cursor=AgAAAA"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-36",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/leads"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-37",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-38",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-39",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-40",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-41",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-42",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-43",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_7023e861e6a5485891bc5aebb7983c39"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-44",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "path": "/tasks?recordModuleKey=customers&recordId=activity_customer"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-45",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-46",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-47",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-48",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-49",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-50",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-51",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-52",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-53",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-54",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "path": "/tasks?recordModuleKey=customers&recordId=activity_customer"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-55",
+    "status": 404,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_7023e861e6a5485891bc5aebb7983c39"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-56",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/tasks?recordModuleKey=customers&recordId=activity_customer"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-57",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_7023e861e6a5485891bc5aebb7983c39"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-58",
+    "status": 403,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-59",
+    "status": 403,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-60",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_7023e861e6a5485891bc5aebb7983c39"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-61",
+    "status": 200,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_7023e861e6a5485891bc5aebb7983c39/complete"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-62",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_7023e861e6a5485891bc5aebb7983c39"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-63",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/contacts/activity_contact_own/relationship-summary"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-64",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/contacts/activity_contact_own/relationship-summary"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-65",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/contacts/activity_contact_own/relationship-summary"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-66",
+    "status": 404,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/contacts/activity_contact_foreign/relationship-summary"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-67",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-68",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-69",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-70",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-71",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities?recordModuleKey=customers"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-72",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-73",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-74",
+    "status": 403,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-75",
+    "status": 200,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/sessions"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-76",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-77",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-78",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-79",
+    "status": 200,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/sessions"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-80",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-81",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-82",
+    "status": 200,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/sessions"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-83",
+    "status": 403,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-84",
+    "status": 403,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-85",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-86",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_0c36883b305244e08a86958810fe2b43"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-87",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "path": "/tasks?recordModuleKey=customers&recordId=customer_sales_task"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-88",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-89",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-90",
+    "status": 200,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/sessions"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-91",
+    "status": 403,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-92",
+    "status": 403,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_0c36883b305244e08a86958810fe2b43"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-93",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 2,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 2
+    },
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-94",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/session"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-95",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 2,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 2
+    },
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-96",
+    "status": 200,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/auth/sessions"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-97",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 2,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 2
+    },
+    "path": "/activities?recordModuleKey=contacts&recordId=activity_contact_own"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-98",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/leads/lead_5fd1b183e80f44f09240c6d3ed5a1689"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-99",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/contacts/contact_d1f47c03cd2f40f88ea5367b3659d128"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-100",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/organizations/organization_53174ba2575044b6ad3cf8798c50d949"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-101",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/customers/customer_42a39a6b4eae4065b3a451df2c17f95c"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-102",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/tasks/task_02943c05097d4f2fb54dd4f434ab5a62"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-103",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 1
+    },
+    "path": "/activities?recordModuleKey=contacts&recordId=contact_d1f47c03cd2f40f88ea5367b3659d128"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-104",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-105",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-106",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-107",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-108",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-109",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-110",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-111",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-112",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-113",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-114",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-115",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-116",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-117",
+    "status": 422,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-118",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-119",
+    "status": 201,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/activities"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-120",
+    "status": 200,
+    "method": "GET",
+    "code": null,
+    "itemCount": 0,
+    "pageInfo": {
+      "hasNextPage": false,
+      "totalCount": 0
+    },
+    "path": "/quotes"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-121",
+    "status": 405,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/quotes"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-122",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/quotes/quote_route_probe/reject"
+  },
+  {
+    "correlationId": "activity-b06d50ebf40e46779ba8402eccbc0d14-123",
+    "status": 404,
+    "method": "POST",
+    "code": null,
+    "itemCount": 1,
+    "pageInfo": null,
+    "path": "/quotes/quote_route_probe/accept"
+  }
+]

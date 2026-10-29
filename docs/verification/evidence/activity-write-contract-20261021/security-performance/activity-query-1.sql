@@ -1,0 +1,1 @@
+SELECT TOP (4) q.query_id,p.plan_id,t.query_sql_text,p.query_plan FROM sys.query_store_query_text t JOIN sys.query_store_query q ON q.query_text_id=t.query_text_id JOIN sys.query_store_plan p ON p.query_id=q.query_id WHERE t.query_sql_text LIKE '%FROM tasks.Activities a%' AND t.query_sql_text LIKE '%@activityWorkspace%' ORDER BY p.plan_id DESC

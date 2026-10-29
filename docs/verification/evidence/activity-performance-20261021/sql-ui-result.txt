@@ -1,0 +1,15 @@
+LeadId|ScopeOwnerId|CustomerRef|Source
+------|------------|-----------|------
+lead_4c5ffe3b774644be8acc93aa94e2e602|mem_71b374bc6a4c42f7ad8c9142b0e174ec|customer_10a4bb9a68364f018e1ae76943981753|
+UniqueContactSubjectCustomer
+----------------------------
+1
+CustomerId|RelationshipType|RelationshipId
+----------|----------------|--------------
+customer_10a4bb9a68364f018e1ae76943981753|CONTACT|contact_57ba85b4b55648829d0a71a4b384bfdb
+ActiveAffiliation
+-----------------
+1
+PersistedActivity
+-----------------
+1

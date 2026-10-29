@@ -12,6 +12,10 @@ internal sealed record CustomerRelationshipTargetResolution(
 
 internal interface ICustomerRelationshipTargetParticipant
 {
+    Task<CustomerRelationshipTargetResolution> ResolveSubjectAsync(
+        TrustedWorkspaceContext trusted, string subjectType, string subjectId,
+        string requestId, string correlationId, CancellationToken cancellationToken);
+
     Task<CustomerRelationshipTargetResolution> ResolveVisibleAsync(
         TrustedWorkspaceContext trusted,
         IReadOnlyCollection<string> customerIds,

@@ -1,0 +1,613 @@
+diff --git a/scripts/quality/quality-pipeline.json b/scripts/quality/quality-pipeline.json
+index 0757604..63d4013 100644
+--- a/scripts/quality/quality-pipeline.json
++++ b/scripts/quality/quality-pipeline.json
+@@ -6213,7 +6213,8 @@
+       "openHandleGraceMs": 250,
+       "requires": [
+         "node",
+-        "tsx"
++        "tsx",
++        "typescript"
+       ],
+       "shardKey": "quality.commercial-flow-regressions",
+       "steps": [
+diff --git a/src/guidance/content/crm/extendedScreens.ts b/src/guidance/content/crm/extendedScreens.ts
+index 31ecfb9..1fa21e1 100644
+--- a/src/guidance/content/crm/extendedScreens.ts
++++ b/src/guidance/content/crm/extendedScreens.ts
+@@ -113,10 +113,11 @@ export const CRM_EXTENDED_SCREEN_GUIDANCE: ScreenGuidance[] = [
+     id: "crm.leads.detail",
+     routeKey: "LEAD_DETAIL",
+     productSpace: "crm",
+-    version: 15,
++    version: 16,
+     title: text("Chi tiết khách hàng tiềm năng", "Lead detail"),
+     purpose: text("Tập hợp thông tin nhận diện, nhu cầu, tương tác và tiến trình xử lý của một khách hàng tiềm năng.", "Bring together identity, need, interactions, and work progress for a lead."),
+     primaryTasks: [
++      task("history-access", "Lịch sử yêu cầu quyền đọc mô-đun và Công việc. Máy chủ kiểm tra từng bản ghi theo OWN hoặc WORKSPACE; TEAM hiện chưa khả dụng. Khi quyền thay đổi, tải lại lịch sử để dùng quyền hiện tại.", "History requires module read and Tasks read capabilities. The server checks each record under OWN or WORKSPACE; TEAM is currently unavailable. Refresh history after access changes to use current permissions."),
+       task("relationship-panel", "Bảng bên phải mở ở Công việc. Dùng nút cạnh Khác để ẩn/hiện bảng. Chọn Lịch sử để xem hoạt động đã ghi nhận, lọc theo loại và Tải thêm từ máy chủ. Email/tin nhắn là ghi nhận thủ công, không xác nhận gửi. Nguồn bị hạn chế hiển thị chưa khả dụng, không phải lịch sử trống.", "The right panel opens in Work. Use the toggle beside Others to hide/show it. Choose History for recorded activities, filter by type and Load more from the server. Email/messages are manual logs, not delivery confirmation. Restricted sources show unavailable, not empty history."),
+       task("forms", "Chỉnh sửa hồ sơ trong bảng rộng bên phải. Bàn giao Lead đã có người phụ trách yêu cầu người nhận và lý do; máy chủ chuyển công việc đang mở đủ điều kiện, tạo công việc tiếp nhận và xác định hạn tiếp nhận. Quản lý nhãn mở bảng nhỏ tại nút thao tác. Thêm và gỡ nhãn chờ máy chủ xác nhận; trong khi lưu không gửi thao tác nhãn khác. Nếu có xung đột hoặc chưa rõ kết quả, tải lại và đối chiếu hồ sơ trước khi mở lại quản lý nhãn. Khi đóng bản sửa chưa lưu, chọn tiếp tục chỉnh sửa hoặc bỏ thay đổi.", "Edit the record in a wide right-side drawer. Handover for owned Leads requires a next owner and reason; the server transfers eligible open Tasks, creates an acceptance Task, and determines its deadline. Manage tags in an anchored popover. Add and remove await server confirmation; do not submit another tag action while saving. After a conflict or unknown outcome, refresh and reconcile the record before reopening tags. Keep editing or discard changes when closing an unsaved edit."),
+       task("work", "Dùng Công việc Lead để xem việc quá hạn, công việc tiếp theo và người phụ trách. Mở Ngữ cảnh nhanh khi cần; dùng Thao tác khác để đặt lịch hẹn hoặc ghi nhận SMS ngoài CRM.", "Use Lead work to check overdue work, the next task, and the owner. Expand Quick context when needed; use More actions to schedule a meeting or log external SMS."),
+@@ -134,13 +135,14 @@ export const CRM_EXTENDED_SCREEN_GUIDANCE: ScreenGuidance[] = [
+     id: "crm.leads.qualify",
+     routeKey: "LEAD_QUALIFY",
+     productSpace: "crm",
+-    version: 2,
++    version: 3,
+     title: text("Xác minh khách hàng tiềm năng", "Qualify lead"),
+     purpose: text("Đánh giá dữ liệu và chọn kết quả khả dụng: chăm sóc thêm với Contact, tạo Contact và cơ hội, hoặc không tiếp tục.", "Assess the evidence and choose an available outcome: nurture with a Contact, create a Contact and opportunity, or stop."),
+     primaryTasks: [
+       task("review", "Rà soát dữ liệu bắt buộc và các dấu hiệu nhu cầu thực tế.", "Review required data and evidence of real need."),
+       task("choose", "Chọn kết quả phù hợp với quy trình bán hàng đã cấu hình.", "Choose the outcome supported by the configured sales process.", [CAPABILITIES.LEADS_QUALIFY]),
+       task("confirm", "Xác nhận rồi mở Lead, Contact, công việc hoặc cơ hội từ kết quả authoritative.", "Confirm, then open the Lead, Contact, task, or Deal from the authoritative result.", [CAPABILITIES.LEADS_QUALIFY]),
++      task("customer-result", "Khi chuyển thành Customer thành công, mở liên kết khách hàng đã lưu. Không gửi lại một chuyển đổi mới chỉ vì dữ liệu liên quan đang tải lại.", "After conversion to Customer succeeds, open the persisted Customer link. Do not submit a new conversion merely because related data is refreshing."),
+     ],
+     relatedWorkflowIds: ["workflow.lead-to-order"],
+     requiredCapabilities: [CAPABILITIES.LEADS_QUALIFY],
+@@ -535,12 +537,14 @@ export const CRM_EXTENDED_SCREEN_GUIDANCE: ScreenGuidance[] = [
+     id: "crm.contacts.detail",
+     routeKey: "CONTACT_DETAIL",
+     productSpace: "crm",
+-    version: 4,
++    version: 6,
+     title: text("Chi tiết liên hệ", "Contact detail"),
+     purpose: text("Xem hồ sơ cá nhân, quan hệ, hoạt động và các bản ghi thương mại hoặc hỗ trợ liên quan.", "Review the person's profile, relationships, activities, and related commercial or support records."),
+     primaryTasks: [
++      task("history-access", "Lịch sử yêu cầu quyền đọc mô-đun và Công việc. Máy chủ kiểm tra từng bản ghi theo OWN hoặc WORKSPACE; TEAM hiện chưa khả dụng. Khi quyền thay đổi, tải lại lịch sử để dùng quyền hiện tại.", "History requires module read and Tasks read capabilities. The server checks each record under OWN or WORKSPACE; TEAM is currently unavailable. Refresh history after access changes to use current permissions."),
+       task("panel", "Bảng quan hệ mở ở Công việc. Chọn Lịch sử để lọc hoạt động gắn trực tiếp Contact, tải thêm và mở chi tiết. Nút cạnh Khác ẩn/hiện bảng; Email/SMS chỉ ghi nhận thủ công, không gửi.", "The relationship panel opens in Work. Choose History to filter direct Contact activities, load more and open details. The toggle beside Other hides/shows the panel; Email/SMS are manual logs, not sends."),
+       task("overview", "Tổng quan tóm tắt quan hệ đã xác minh, các thông tin nghề nghiệp đã có và liên kết được phép. Một công việc có thể vừa quá hạn vừa là việc tiếp theo; nhãn trên dòng thể hiện cùng một công việc. — nghĩa là tổng số chưa khả dụng; không suy toàn bộ giao dịch từ liên kết Customer.", "Overview summarizes verified relationships, available professional details and authorized links. A task may be both overdue and next work; its row identifies the same task. — means a total is unavailable; Customer links do not imply all transactions."),
++      task("customer-subject", "Hồ sơ khách hàng bao gồm Customer lấy chính Contact này làm chủ thể và quan hệ stakeholder được phép. Customer của tổ chức liên kết không tự động là Customer trực tiếp của Contact. Tải lại để đọc quan hệ từ máy chủ.", "Customer profiles include the Customer whose subject is this Contact and authorized stakeholder relationships. An affiliated organization's Customer is not automatically a direct Customer of this Contact. Refresh to read relationships from the server."),
+       task("identity", "Kiểm tra thông tin nhận diện và kênh liên lạc ưu tiên.", "Verify identity and preferred communication channels."),
+       task("relationship", "Xem hoặc cập nhật quan hệ với tổ chức khi phù hợp.", "Review or update the organization relationship when appropriate.", [CAPABILITIES.CONTACTS_UPDATE]),
+       task("history", "Dùng lịch sử để hiểu ngữ cảnh trước khi liên hệ hoặc cập nhật.", "Use history to understand context before contacting or updating.")
+diff --git a/src/guidance/content/crm/screens.ts b/src/guidance/content/crm/screens.ts
+index 7b507e4..cca6779 100644
+--- a/src/guidance/content/crm/screens.ts
++++ b/src/guidance/content/crm/screens.ts
+@@ -39,12 +39,12 @@ export const CRM_SCREEN_GUIDANCE: ScreenGuidance[] = [
+     id: "crm.leads.list",
+     routeKey: "LEADS",
+     productSpace: "crm",
+-    version: 11,
++    version: 12,
+     title: { vi: "Khách hàng tiềm năng", en: "Leads" },
+     purpose: { vi: "Tiếp nhận, phân công, xác minh nhu cầu và quyết định bước bán hàng tiếp theo cho khách hàng tiềm năng.", en: "Capture, assign, verify, and determine the next selling outcome for leads." },
+     prerequisites: [{ vi: "Có quyền xem khách hàng tiềm năng; quyền tạo, sửa, giao hoặc chốt kết quả được kiểm tra riêng.", en: "Lead read permission is required; create, update, assign, and qualification permissions are checked separately." }],
+     primaryTasks: [
+-      { id: "create", text: { vi: "Dùng Tạo nhanh để lưu tên và ít nhất một kênh liên hệ; bổ sung nguồn, giá trị dự kiến và lịch chăm sóc khi đã biết.", en: "Use Quick Create to save a name and at least one contact channel; add source, estimated value, and follow-up when known." }, requiredCapabilities: [CAPABILITIES.LEADS_CREATE] },
++      { id: "create", text: { vi: "Lưu tên và ít nhất một kênh liên hệ. Nguồn có thể để trống, kể cả khi mở phần nâng cao trong Workspace mới. Lưu thành công đóng biểu mẫu; mở bản ghi để kiểm tra dữ liệu đã lưu.", en: "Save a name and at least one contact channel. Source may be empty, including in advanced details in a new Workspace. A successful save closes the form; open the record to verify persisted data." }, requiredCapabilities: [CAPABILITIES.LEADS_CREATE] },
+       { id: "qualify", text: { vi: "Đưa Lead tới Đang xác minh. Tạo cơ hội với Contact đã có theo ID hoặc Contact mới; tìm sản phẩm theo tên/SKU, nhập giá trị và xem lại trước khi xác nhận. Khi mất phản hồi, tiếp tục cùng thao tác đã gửi.", en: "Advance the Lead to Verifying. Create an opportunity with an existing Contact ID or a new Contact; search products by name/SKU, enter the amount and review before confirming. Resume the same submitted intent after a lost response." }, requiredCapabilities: [CAPABILITIES.LEADS_QUALIFY] },
+       { id: "assign", text: { vi: "Dùng Phân công hoặc Đổi phụ trách trên một hàng; chọn thành viên, nhập lý do và xác nhận. Công việc giữ nguyên người thực hiện.", en: "Use Assign owner or Change owner on a single row; select a member, enter a reason and confirm. Tasks keep their assignee." }, requiredCapabilities: [CAPABILITIES.LEADS_ASSIGN] },
+     ],
+diff --git a/src/modules/contacts/presentation/hooks/useContactOverview.ts b/src/modules/contacts/presentation/hooks/useContactOverview.ts
+index bdf6acf..50fa20d 100644
+--- a/src/modules/contacts/presentation/hooks/useContactOverview.ts
++++ b/src/modules/contacts/presentation/hooks/useContactOverview.ts
+@@ -22,7 +22,16 @@ export function useContactOverview(contact: Contact) {
+   const ready = access.can(CAPABILITIES.CONTACTS_READ) && query.state === "READY" && !query.error;
+   const summary = ready ? query.data : undefined;
+   const organizations = summary?.organizationRelationships.filter(item => !item.effectiveTo) ?? [];
+-  const customers = summary?.customerRelationships.filter(item => !item.effectiveTo) ?? [];
++  const memberships = summary?.customerRelationships.filter(item => !item.effectiveTo) ?? [];
++  // Linked records also include the canonical Customer account whose subject is this
++  // Contact. It is an account link, not a fabricated stakeholder membership/role.
++  const customers = [
++    ...memberships,
++    ...(summary?.linkedRecords.filter(item => item.moduleKey === "customers"
++      && summary.customerIds.includes(item.recordId)
++      && !memberships.some(membership => membership.customerId === item.recordId)) ?? [])
++      .map(item => ({ id: item.recordId, customerId: item.recordId, customerLabel: item.label, role: "" })),
++  ];
+   const tasks = useContactTasksQuery(contact.id);
+   // This is a total only after the scoped collection is exhausted, never first-page length.
+   const taskCount = tasks.enabled && tasks.state === "READY" && !tasks.error && !tasks.loading && !tasks.stale && !tasks.hasNextPage
+diff --git a/src/modules/contacts/presentation/model/contactCustomerLookup.ts b/src/modules/contacts/presentation/model/contactCustomerLookup.ts
+index f84ea65..2780b03 100644
+--- a/src/modules/contacts/presentation/model/contactCustomerLookup.ts
++++ b/src/modules/contacts/presentation/model/contactCustomerLookup.ts
+@@ -5,13 +5,6 @@ import type { Contact } from "../../domain/model/contact.types";
+ export function findCustomerForContact(
+   contact: Pick<Contact, "id" | "organizationAccountId">,
+ ): Customer | undefined {
+-  if (contact.organizationAccountId) {
+-    const organizationCustomer = findCustomerByRelationshipRefSnapshot({
+-      type: "ORGANIZATION_ACCOUNT",
+-      id: contact.organizationAccountId,
+-    });
+-    if (organizationCustomer) return organizationCustomer;
+-  }
+   return findCustomerByRelationshipRefSnapshot({ type: "CONTACT", id: contact.id });
+ }
+ 
+diff --git a/src/modules/contacts/presentation/model/contactHistory.ts b/src/modules/contacts/presentation/model/contactHistory.ts
+index f8fec72..d9266cb 100644
+--- a/src/modules/contacts/presentation/model/contactHistory.ts
++++ b/src/modules/contacts/presentation/model/contactHistory.ts
+@@ -1,10 +1,10 @@
+ import type { EffectiveAccess } from "@/platform/access-control";
+ import type { Activity } from "@/modules/tasks";
+ 
+-// Mirrors the existing Tasks Activity fail-closed boundary; this never grants access.
++// The server authorizes referenced CRM records. This only avoids unsupported requests.
+ const taskFields = ["id", "title", "status", "priority", "assigneeId", "dueAt", "createdAt", "updatedAt", "resourceVersion", "description", "completedAt", "cancelledAt", "cancellationReason", "outcome", "relationshipRef", "recordRef", "sourceRef", "archivedAt", "archiveReason"];
+ export function isContactActivitySourceReachable(access: EffectiveAccess): boolean {
+-  return access.getDataScope("tasks") === "WORKSPACE" && taskFields.every(field => access.getFieldAccess("tasks", field) === "READ_WRITE");
++  return ["OWN", "WORKSPACE"].includes(access.getDataScope("contacts")) && taskFields.every(field => access.getFieldAccess("tasks", field) === "READ_WRITE");
+ }
+ 
+ export const contactHistoryTypes = ["CALL", "EMAIL", "MESSAGE", "MEETING", "NOTE", "SYSTEM"] as const;
+diff --git a/src/modules/leads/presentation/hooks/useLeadFormController.tsx b/src/modules/leads/presentation/hooks/useLeadFormController.tsx
+index a0f967c..d71e7c7 100644
+--- a/src/modules/leads/presentation/hooks/useLeadFormController.tsx
++++ b/src/modules/leads/presentation/hooks/useLeadFormController.tsx
+@@ -316,7 +316,9 @@ export function useLeadFormController(props: LeadFormProps) {
+   };
+ 
+   const save = async (globalSave = false): Promise<boolean> => {
+-    globalSave = globalSave || Boolean(props.onSave);
++    // A normal create submit closes its own modal via onSubmit. The explicit
++    // unsaved-work binding and existing edit-target protocol retain onSave semantics.
++    globalSave = globalSave || Boolean(isEdit && props.onSave);
+     if (submitInFlightRef.current || !mounted.current || openingWorkspace.current !== getWorkspaceContextSnapshot().workspaceId
+       || openingTarget.current !== initialLead?.id || (globalSave && !props.onSave)) return false;
+     const newErrors: Record<string, string> = {};
+diff --git a/src/modules/leads/presentation/hooks/useLeadHistory.ts b/src/modules/leads/presentation/hooks/useLeadHistory.ts
+index 23b691c..6503543 100644
+--- a/src/modules/leads/presentation/hooks/useLeadHistory.ts
++++ b/src/modules/leads/presentation/hooks/useLeadHistory.ts
+@@ -62,7 +62,7 @@ export function useLeadHistory(recordId: string, type?: ActivityType) {
+   const access = useEffectiveAccess();
+   const connected = getTaskApiRuntime().mode === "connected";
+   const session = getAuthSessionSnapshot();
+-  const readable = access.can(CAPABILITIES.TASKS_READ) && (!connected || (session?.status === "ACTIVE" && session.principal.accountId === access.accountId));
++  const readable = access.can(CAPABILITIES.LEADS_READ) && access.can(CAPABILITIES.TASKS_READ) && (!connected || (session?.status === "ACTIVE" && session.principal.accountId === access.accountId));
+   const reachable = !connected || isLeadActivitySourceReachable(access);
+   const enabled = Boolean(recordId) && readable && reachable;
+   const entry = getLeadHistoryQuery(recordId, type);
+diff --git a/src/modules/leads/presentation/model/leadHistory.ts b/src/modules/leads/presentation/model/leadHistory.ts
+index f57d40f..a65c113 100644
+--- a/src/modules/leads/presentation/model/leadHistory.ts
++++ b/src/modules/leads/presentation/model/leadHistory.ts
+@@ -1,10 +1,10 @@
+ import type { EffectiveAccess } from "@/platform/access-control";
+ import type { Activity } from "@/modules/tasks";
+ 
+-// Mirrors the existing Tasks Activity fail-closed boundary; this never grants access.
++// The server authorizes referenced CRM records. This only avoids unsupported requests.
+ const taskFields = ["id", "title", "status", "priority", "assigneeId", "dueAt", "createdAt", "updatedAt", "resourceVersion", "description", "completedAt", "cancelledAt", "cancellationReason", "outcome", "relationshipRef", "recordRef", "sourceRef", "archivedAt", "archiveReason"];
+ export function isLeadActivitySourceReachable(access: EffectiveAccess): boolean {
+-  return access.getDataScope("tasks") === "WORKSPACE" && taskFields.every(field => access.getFieldAccess("tasks", field) === "READ_WRITE");
++  return ["OWN", "WORKSPACE"].includes(access.getDataScope("leads")) && taskFields.every(field => access.getFieldAccess("tasks", field) === "READ_WRITE");
+ }
+ 
+ export const leadHistoryTypes = ["CALL", "EMAIL", "MESSAGE", "MEETING", "NOTE", "SYSTEM"] as const;
+diff --git a/src/workflows/lead-customer-conversion/presentation/LeadCustomerConversionPage.tsx b/src/workflows/lead-customer-conversion/presentation/LeadCustomerConversionPage.tsx
+index a7d621c..33c7a4c 100644
+--- a/src/workflows/lead-customer-conversion/presentation/LeadCustomerConversionPage.tsx
++++ b/src/workflows/lead-customer-conversion/presentation/LeadCustomerConversionPage.tsx
+@@ -31,7 +31,7 @@ export const LeadCustomerConversionPage: React.FC = () => {
+     if (initialized.current !== lifecycle.cycle) { initialized.current = lifecycle.cycle; reset(); }
+   });
+   const saveRef = useRef<() => Promise<boolean>>(async () => false);
+-  lifecycle.register(Boolean(!result && (subjectType !== "CONTACT" || subjectId !== "" || intent.current)), reset, () => saveRef.current());
++  lifecycle.register(Boolean(!result && !authoritativeCustomerRef && (subjectType !== "CONTACT" || subjectId !== "" || intent.current)), reset, () => saveRef.current());
+ 
+   const convert = async (): Promise<boolean> => {
+     if (!lifecycle.begin()) return false;
+@@ -43,8 +43,11 @@ export const LeadCustomerConversionPage: React.FC = () => {
+       const response = await convertLeadToCustomer(targetId, current.expectedVersion, current.idempotencyKey, {
+         accountSubject: { type: current.subjectType, mode: "EXISTING", id: current.subjectId },
+       });
+-      await invalidateModuleQueries({ moduleKeys: ["leads", "customers"], commandType: "lead.convert-to-customer", aggregateId: targetId, occurredAt: response.occurredAt });
++      // The mutation has committed. Background read-model refresh must not keep a
++      // hidden conversion draft/pending guard on the persisted Customer link.
+       if (lifecycle.isCurrent()) setResult(response);
++      lifecycle.finish();
++      await invalidateModuleQueries({ moduleKeys: ["leads", "customers"], commandType: "lead.convert-to-customer", aggregateId: targetId, occurredAt: response.occurredAt });
+       return true;
+     } catch (caught) {
+       if (!lifecycle.isCurrent()) return false;
+diff --git a/tests/contract/contact-history.test.mts b/tests/contract/contact-history.test.mts
+index 365a5e4..3dbedf1 100644
+--- a/tests/contract/contact-history.test.mts
++++ b/tests/contract/contact-history.test.mts
+@@ -104,8 +104,8 @@ try {
+   await update(() => { mode = "deny"; revision++; });
+   check("403 denied not empty and no diagnostics", () => { assert.match(container.textContent ?? "", /không có quyền/); assert.doesNotMatch(container.textContent ?? "", /Không có hoạt động|secret diagnostic/); });
+   const beforeUnavailable = requests.length;
+-  await update(() => { scope = "OWN"; revision++; });
+-  check("unsupported Activity scope unavailable without querying", () => { assert.match(container.textContent ?? "", /chưa hỗ trợ/); assert.equal(requests.length, beforeUnavailable); });
++  await update(() => { scope = "OWN"; mode = "data"; revision++; });
++  check("OWN delegates record scope to the backend and displays authorized history", () => { assert.ok(requests.length > beforeUnavailable); assert.ok(container.querySelector('[data-history-id]')); });
+   await update(() => { scope = "WORKSPACE"; restrictive = true; revision++; });
+   check("restrictive FLS unavailable without content", () => { assert.match(container.textContent ?? "", /chưa hỗ trợ/); assert.equal(container.querySelectorAll('[data-history-id]').length, 0); });
+   await update(() => { restrictive = false; mode = "error"; revision++; });
+diff --git a/tests/contract/contact-overview.test.mts b/tests/contract/contact-overview.test.mts
+index 44d54ee..a2bd811 100644
+--- a/tests/contract/contact-overview.test.mts
++++ b/tests/contract/contact-overview.test.mts
+@@ -33,6 +33,18 @@ await ac.loadAccessGovernance(ws.getWorkspaceContextSnapshot().workspaceId);
+ const binding = ac.getAccessGovernanceRuntimeBinding();
+ const baselineAccess = ac.resolveEffectiveAccess();
+ const initialWorkspaceId = ws.getWorkspaceContextSnapshot().workspaceId;
++const { saveCustomerSnapshot } = await import("@/modules/customers");
++const { findCustomerForContact } = await import("@/modules/contacts/presentation/model/contactCustomerLookup");
++const customerFixture: import("@/modules/customers").Customer = {
++  id:"lookup-organization-customer", workspaceId:initialWorkspaceId, customerCode:"CU-ORG-LOOKUP", type:"B2B",
++  relationshipRef:{type:"ORGANIZATION_ACCOUNT",id:"lookup-organization"}, status:"NEW", health:null,
++  firstPurchaseAt:null,lastPurchaseAt:null,tags:[],createdAt:"2026-10-21T00:00:00Z",updatedAt:"2026-10-21T00:00:00Z",
++};
++saveCustomerSnapshot(customerFixture);
++const lookupContact={id:"lookup-contact",organizationAccountId:"lookup-organization"};
++assert.equal(findCustomerForContact(lookupContact),undefined,"An Organization Customer is not a direct Contact Customer");
++saveCustomerSnapshot({...customerFixture,id:"lookup-contact-customer",customerCode:"CU-CONTACT-LOOKUP",type:"B2C",relationshipRef:{type:"CONTACT",id:lookupContact.id}});
++assert.equal(findCustomerForContact(lookupContact)?.id,"lookup-contact-customer","Direct Contact subject wins even with an affiliated Organization Customer");
+ const listeners = new Set<() => void>();
+ const initialAccount = baselineAccess.accountId;
+ let canRelated = true, hiddenProfile = false;
+@@ -55,7 +67,7 @@ const at="2026-10-19T10:20:30Z";
+ const contact: import("@/modules/contacts").Contact={id:"overview-contact",name:"HEADER-ONLY-NAME",fullName:"HEADER-ONLY-NAME",email:"header-only@example.invalid",phone:"000",department:"HIDDEN-DEPARTMENT",title:"Finance manager",createdAt:at,status:"active"};
+ let mode="empty", hasMore=false;
+ let release: ((value: import("@/modules/contacts/application/ports/ContactApiRuntime").ContactRelationshipSummary)=>void) | undefined;
+-const summary=():import("@/modules/contacts/application/ports/ContactApiRuntime").ContactRelationshipSummary=>({contact,organizationIds:[],customerIds:[],linkedRecords:[],linkedRecordCounts:{tasks:999,activities:999,deals:999,quotes:999,orders:999,invoices:999,payments:999,shipping:999,returns:999,supportCases:999},allowedActions:[],projectionVersion:1,generatedAt:at,
++const summary=():import("@/modules/contacts/application/ports/ContactApiRuntime").ContactRelationshipSummary=>({contact,organizationIds:[],customerIds:mode==="subject"?["canonical-customer"]:[],linkedRecords:mode==="subject"?[{moduleKey:"customers",recordId:"canonical-customer",label:"CANONICAL SUBJECT CUSTOMER"}]:[],linkedRecordCounts:{tasks:999,activities:999,deals:999,quotes:999,orders:999,invoices:999,payments:999,shipping:999,returns:999,supportCases:999},allowedActions:[],projectionVersion:1,generatedAt:at,
+  organizationRelationships:mode==="linked" ? [{id:"org-rel",organizationAccountId:"org-exact",organizationLabel:"AUTHORIZED ORG",role:"employee",isPrimaryRepresentative:false,isPrimaryAffiliation:true,effectiveFrom:at,createdAt:at}] : [],
+  customerRelationships:mode==="linked" ? [{id:"customer-rel",customerId:"customer-exact",customerLabel:"AUTHORIZED CUSTOMER",role:"primary_contact",effectiveFrom:at,createdAt:at}] : []});
+ contactServices.configureContactApplication({...originalContact,api:{...originalContact.api,mode:"connected",queries:{...originalContact.api.queries,async getRelationshipSummary(){if(mode==="delay")return new Promise(resolve=>{release=resolve;});if(mode==="error")throw new ApplicationError({code:"NETWORK_ERROR",category:"NETWORK",message:"SECRET-DIAGNOSTIC"});return summary();}}}});
+@@ -72,6 +84,7 @@ try {
+  await update(()=>{mode="linked";});assert.match(container.textContent??"",/AUTHORIZED ORG/);assert.match(container.textContent??"",/AUTHORIZED CUSTOMER/);assert.match(container.textContent??"",/Quan hệ chính/);
+  const orgButton=Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(b=>b.textContent === "AUTHORIZED ORG");assert.ok(orgButton);await act(async()=>orgButton.click());assert.equal(currentPath,"/organizations/org-exact");
+  const customerButton=Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(b=>b.textContent === "AUTHORIZED CUSTOMER");assert.ok(customerButton);await act(async()=>customerButton.click());assert.equal(currentPath,"/customers/customer-exact");
++ await update(()=>{mode="subject";});assert.match(container.textContent??"",/CANONICAL SUBJECT CUSTOMER/);assert.match(container.textContent??"",/1 hồ sơ khách hàng/);assert.doesNotMatch(container.textContent??"",/Liên hệ chính/);
+  await update(()=>{canRelated=false;});assert.doesNotMatch(container.textContent??"",/AUTHORIZED ORG|AUTHORIZED CUSTOMER/);assert.match(container.textContent??"",/chưa khả dụng với quyền/);
+  await update(()=>{hiddenProfile=true;hasMore=true;});assert.doesNotMatch(container.textContent??"",/HIDDEN-DEPARTMENT/);assert.match(container.textContent??"",/Chưa có tổng số đáng tin cậy/);
+  await update(()=>{mode="error";});assert.match(container.textContent??"",/Không thể tải quan hệ/);assert.doesNotMatch(container.textContent??"",/SECRET-DIAGNOSTIC/);
+diff --git a/tests/contract/lead-history.test.mts b/tests/contract/lead-history.test.mts
+index 0240c3f..fbb5f66 100644
+--- a/tests/contract/lead-history.test.mts
++++ b/tests/contract/lead-history.test.mts
+@@ -92,8 +92,8 @@ try {
+   await update(() => { mode = "deny"; revision++; });
+   check("403 denied not empty and no diagnostics", () => { assert.match(container.textContent ?? "", /không có quyền/); assert.doesNotMatch(container.textContent ?? "", /Không có hoạt động|secret diagnostic/); });
+   const beforeUnavailable = requests.length;
+-  await update(() => { scope = "OWN"; revision++; });
+-  check("unsupported Activity scope unavailable without querying", () => { assert.match(container.textContent ?? "", /chưa hỗ trợ/); assert.equal(requests.length, beforeUnavailable); });
++  await update(() => { scope = "OWN"; mode = "data"; revision++; });
++  check("OWN delegates record scope to the backend and displays authorized history", () => { assert.ok(requests.length > beforeUnavailable); assert.ok(container.querySelector('[data-history-id]')); });
+   await update(() => { scope = "WORKSPACE"; restrictive = true; revision++; });
+   check("restrictive FLS unavailable without content", () => { assert.match(container.textContent ?? "", /chưa hỗ trợ/); assert.equal(container.querySelectorAll('[data-history-id]').length, 0); });
+   await update(() => { restrictive = false; mode = "error"; revision++; });
+diff --git a/playwright.crm-real.config.ts b/playwright.crm-real.config.ts
+new file mode 100644
+index 0000000..2d1ad84
+--- /dev/null
++++ b/playwright.crm-real.config.ts
+@@ -0,0 +1,34 @@
++import { defineConfig, devices } from "@playwright/test";
++
++const api = process.env.UNICORECRM_TEST_API_BASE_URL?.trim();
++if (!api || !process.env.UNICORECRM_TEST_EMAIL || !process.env.UNICORECRM_TEST_PASSWORD) {
++  throw new Error("Real CRM acceptance requires an isolated ApiHost and test credentials in environment variables.");
++}
++
++export default defineConfig({
++  testDir: "./tests/e2e",
++  testMatch: "crm-real.spec.ts",
++  workers: 1,
++  retries: 0,
++  timeout: 120_000,
++  outputDir: "test-results/crm-real",
++  reporter: "list",
++  use: {
++    baseURL: "http://127.0.0.1:3039",
++    ...devices["Desktop Chrome"],
++    // Raw traces retain bearer headers and sign-in bodies. Collect screenshots and redacted
++    // HTTP metadata explicitly, without writing credentials into evidence.
++    trace: "off",
++    video: "off",
++    screenshot: "only-on-failure",
++    actionTimeout: 15_000,
++    navigationTimeout: 30_000,
++  },
++  webServer: {
++    command: "npm run dev -- --host 127.0.0.1 --port 3039",
++    url: "http://127.0.0.1:3039",
++    reuseExistingServer: false,
++    env: { VITE_RUNTIME_MODE: "connected", VITE_API_BASE_URL: api },
++    timeout: 120_000,
++  },
++});
+diff --git a/playwright.crm-ui.config.ts b/playwright.crm-ui.config.ts
+new file mode 100644
+index 0000000..ae267c3
+--- /dev/null
++++ b/playwright.crm-ui.config.ts
+@@ -0,0 +1,4 @@
++import real from "./playwright.crm-real.config";
++import { defineConfig } from "@playwright/test";
++
++export default defineConfig({ ...real, testMatch: "crm-ui-real.spec.ts", outputDir: "test-results/crm-ui-real" });
+diff --git a/tests/e2e/crm-real.spec.ts b/tests/e2e/crm-real.spec.ts
+new file mode 100644
+index 0000000..b124bff
+--- /dev/null
++++ b/tests/e2e/crm-real.spec.ts
+@@ -0,0 +1,129 @@
++import { expect, test } from "@playwright/test";
++import { writeFile } from "node:fs/promises";
++
++type Mutation = { aggregateId: string; version: number; result: { customerId?: string; leadId?: string } };
++type Session = { principal: { memberId: string } };
++type ActivityPage = { items: { id: string; recordRef?: { recordId: string } }[]; pageInfo: { totalCount: number } };
++
++test("API CRM workflow with real UI sign-in, projection and durable Activity", async ({ page, request, browser }, testInfo) => {
++  const marker = `crm-${Date.now()}`;
++  const api = process.env.UNICORECRM_TEST_API_BASE_URL ?? "";
++  const workspace = process.env.UNICORECRM_TEST_WORKSPACE_ID ?? "";
++  const evidence: { method: string; path: string; status: number; correlationId: string }[] = [];
++  await page.goto("/#/login");
++  await page.getByLabel("Email", { exact: true }).fill(process.env.UNICORECRM_TEST_EMAIL ?? "");
++  await page.getByLabel(/Mật khẩu|Password/u, { exact: true }).fill(process.env.UNICORECRM_TEST_PASSWORD ?? "");
++  const signedIn = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/auth/sessions");
++  await page.getByRole("button", { name: /^(Đăng nhập|Sign in)$/u }).click();
++  const login = await signedIn;
++  expect(login.status()).toBe(200);
++  const credentials = await login.json() as { accessToken: string };
++  // A single eligible Workspace may redirect immediately after the selection route appears.
++  try { await page.waitForURL(/#\/w\/[^/]+\/crm\//u, { timeout: 5_000 }); }
++  catch { await page.getByRole("button").filter({ hasText: "unicore-demo" }).click({ timeout: 15_000 }); }
++  await expect(page).toHaveURL(/#\/w\/[^/]+\/crm\//u);
++  const workspaceKey = page.url().match(/#\/w\/([^/]+)/u)?.[1];
++  expect(workspaceKey).toBeTruthy();
++  const headers = { Authorization: `Bearer ${credentials.accessToken}`, "X-Workspace-Id": workspace };
++  async function call<T>(method: string, path: string, expected: number, data?: unknown, key?: string, version?: number): Promise<T> {
++    const correlationId = `${marker}-${evidence.length}`;
++    const response = await request.fetch(`${api}${path}`, {
++      method, headers: { ...headers, "X-Request-Id": correlationId, "X-Correlation-Id": correlationId,
++        ...(key ? { "Idempotency-Key": key } : {}), ...(version === undefined ? {} : { "If-Match": `"${version}"` }) },
++      ...(data === undefined ? {} : { data }),
++    });
++    evidence.push({ method, path, status: response.status(), correlationId });
++    expect(response.status(), `${method} ${path}`).toBe(expected);
++    return response.json() as Promise<T>;
++  }
++  try {
++    const session = await call<Session>("GET", "/auth/session", 200);
++    const member = session.principal.memberId;
++    const lead = await call<Mutation>("POST", "/leads", 201, {
++      displayName: marker, email: `${marker}@example.test`, phone: "0900000123", source: "WEB", ownerId: member,
++      estimatedValue: { amount: "0", currency: "USD" },
++    }, `${marker}-lead`);
++    const leadRecord = await call<{ ownerId: string }>("GET", `/leads/${lead.aggregateId}`, 200);
++    expect(leadRecord.ownerId).toBe(member);
++    const contact = await call<Mutation>("POST", "/contacts", 201, { fullName: `${marker} Contact`, workEmail: `${marker}-contact@example.test`, ownerId: member }, `${marker}-contact`);
++    const organization = await call<Mutation>("POST", "/organizations", 200, { displayName: `${marker} Organization` }, `${marker}-organization`);
++    await call<Mutation>("POST", `/contacts/${contact.aggregateId}/organization-relationships`, 200,
++      { organizationId: organization.aggregateId, role: "employee", isPrimaryAffiliation: true }, `${marker}-relationship`, contact.version);
++    const conversionBody = { accountSubject: { type: "CONTACT", mode: "EXISTING", id: contact.aggregateId } };
++    const conversionPath = `/workflows/lead-customer-conversion/${lead.aggregateId}`;
++    const conversion = await call<Mutation>("POST", conversionPath, 200, conversionBody, `${marker}-convert`, lead.version);
++    const replay = await call<Mutation>("POST", conversionPath, 200, conversionBody, `${marker}-convert`, lead.version);
++    expect(replay.result.customerId).toBe(conversion.result.customerId);
++    const customerId = conversion.result.customerId;
++    expect(customerId).toBeTruthy();
++    const summary = await call<{ customerIds: string[]; customerRelationships: unknown[] }>("GET", `/contacts/${contact.aggregateId}/relationship-summary`, 200);
++    expect(summary.customerIds).toEqual([customerId]);
++    expect(summary.customerRelationships).toEqual([]);
++    const organizationLead = await call<Mutation>("POST", "/leads", 201, {
++      displayName: `${marker} Organization lead`, email: `${marker}-org@example.test`, phone: "0900000123", source: "WEB", ownerId: member,
++      estimatedValue: { amount: "0", currency: "USD" },
++    }, `${marker}-organization-lead`);
++    const organizationConversion = await call<Mutation>("POST", `/workflows/lead-customer-conversion/${organizationLead.aggregateId}`, 200,
++      { accountSubject: { type: "ORGANIZATION_ACCOUNT", mode: "EXISTING", id: organization.aggregateId } }, `${marker}-organization-convert`, organizationLead.version);
++    const organizationCustomer = await call<{ relationshipRef: { type: string; id: string } }>("GET", `/customers/${organizationConversion.result.customerId}`, 200);
++    expect(organizationCustomer.relationshipRef).toEqual({ type: "ORGANIZATION_ACCOUNT", id: organization.aggregateId });
++    const directSummary = await call<{ customerIds: string[] }>("GET", `/contacts/${contact.aggregateId}/relationship-summary`, 200);
++    expect(directSummary.customerIds).toEqual([customerId]);
++    const taskInput = { title: `${marker} Task`, assigneeId: member, dueAt: new Date(Date.now() + 86400000).toISOString(),
++      recordRef: { moduleKey: "customers", recordId: customerId } };
++    await call<Mutation>("POST", "/tasks", 201, taskInput, `${marker}-task`);
++    const meeting = await call<Mutation>("POST", "/tasks", 201, { ...taskInput, title: `${marker} Meeting`,
++      description: "Agenda: isolated acceptance; location: test office; attendees: test Contact",
++      sourceRef: { type: "CUSTOMER_MEETING", id: customerId } }, `${marker}-meeting`);
++    await call<Mutation>("POST", `/tasks/${meeting.aggregateId}/complete`, 200, { outcome: "meeting completed" }, `${marker}-complete`, meeting.version);
++    const activityInput = { type: "NOTE", subject: `${marker} Activity`, recordRef: { moduleKey: "contacts", recordId: contact.aggregateId },
++      relationshipRef: { type: "ORGANIZATION_ACCOUNT", id: organization.aggregateId }, sourceRef: { type: "CONTACT_ACTIVITY", id: contact.aggregateId } };
++    const activity = await call<Mutation>("POST", "/activities", 201, activityInput, `${marker}-activity`);
++    const activityReplay = await call<Mutation>("POST", "/activities", 201, activityInput, `${marker}-activity`);
++    expect(activityReplay.aggregateId).toBe(activity.aggregateId);
++    const history = await call<ActivityPage>("GET", `/activities?recordModuleKey=contacts&recordId=${contact.aggregateId}`, 200);
++    expect(history.items.map(item => item.id)).toEqual([activity.aggregateId]);
++    await page.goto(`/#/w/${workspaceKey}/crm/contacts/${contact.aggregateId}`);
++    await expect(page.getByText(`${marker} Contact`, { exact: true }).first()).toBeVisible();
++    await page.reload();
++    await expect(page.getByText(`${marker} Contact`, { exact: true }).first()).toBeVisible();
++    await expect(page.getByText("1 hồ sơ khách hàng", { exact: true })).toBeVisible();
++    await page.getByRole("tab", { name: "Lịch sử", exact: true }).click();
++    await expect(page.getByText(`${marker} Activity`, { exact: true }).first()).toBeVisible();
++    await page.screenshot({ path: testInfo.outputPath("contact-after-refresh.png"), fullPage: true });
++    await call("POST", "/auth/session/logout", 200, { reason: "isolated acceptance" }, `${marker}-logout`);
++    await page.goto("/#/login");
++    await page.getByLabel("Email", { exact: true }).fill(process.env.UNICORECRM_TEST_EMAIL ?? "");
++    await page.getByLabel(/Mật khẩu|Password/u, { exact: true }).fill(process.env.UNICORECRM_TEST_PASSWORD ?? "");
++    const reloginResponse = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/auth/sessions");
++    await page.getByRole("button", { name: /^(Đăng nhập|Sign in)$/u }).click();
++    expect((await reloginResponse).status()).toBe(200);
++    await page.waitForURL(/#\/w\/[^/]+\/crm\//u);
++    await page.goto(`/#/w/${workspaceKey}/crm/contacts/${contact.aggregateId}`);
++    await page.getByRole("tab", { name: "Lịch sử", exact: true }).click();
++    await expect(page.getByText(`${marker} Activity`, { exact: true }).first()).toBeVisible();
++    const ownContext = await browser.newContext({ baseURL: "http://127.0.0.1:3039" });
++    try {
++      const ownPage = await ownContext.newPage();
++      await ownPage.goto("/#/login");
++      await ownPage.getByLabel("Email", { exact: true }).fill(process.env.UNICORECRM_TEST_OWN_EMAIL ?? "");
++      await ownPage.getByLabel(/Mật khẩu|Password/u, { exact: true }).fill(process.env.UNICORECRM_TEST_PASSWORD ?? "");
++      const ownLogin = ownPage.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/auth/sessions");
++      await ownPage.getByRole("button", { name: /^(Đăng nhập|Sign in)$/u }).click();
++      expect((await ownLogin).status()).toBe(200);
++      await ownPage.goto(`/#/w/${workspaceKey}/crm/contacts/${process.env.UNICORECRM_TEST_OWN_CONTACT_ID ?? ""}`);
++      await ownPage.getByRole("tab", { name: "Lịch sử", exact: true }).click();
++      await expect(ownPage.getByText("Activity security test", { exact: true }).first()).toBeVisible();
++      await expect(ownPage.getByText(`${marker} Activity`, { exact: true })).toHaveCount(0);
++      await ownPage.reload();
++      await ownPage.getByRole("tab", { name: "Lịch sử", exact: true }).click();
++      await expect(ownPage.getByText("Activity security test", { exact: true }).first()).toBeVisible();
++      await ownPage.screenshot({ path: testInfo.outputPath("sales-own-history-after-refresh.png"), fullPage: true });
++    } finally { await ownContext.close(); }
++    await writeFile(testInfo.outputPath("records.json"), JSON.stringify({ marker, leadId: lead.aggregateId, contactId: contact.aggregateId,
++      organizationId: organization.aggregateId, customerId, organizationCustomerId: organizationConversion.result.customerId,
++      taskMeetingId: meeting.aggregateId, activityId: activity.aggregateId }, null, 2));
++  } finally {
++    await writeFile(testInfo.outputPath("http.json"), JSON.stringify(evidence, null, 2));
++  }
++});
+diff --git a/tests/e2e/crm-ui-real.spec.ts b/tests/e2e/crm-ui-real.spec.ts
+new file mode 100644
+index 0000000..12ad43f
+--- /dev/null
++++ b/tests/e2e/crm-ui-real.spec.ts
+@@ -0,0 +1,142 @@
++import { expect, test } from "@playwright/test";
++import { writeFile } from "node:fs/promises";
++
++test("CRM journey through UI controls only", async ({ page }, info) => {
++  test.setTimeout(180_000);
++  const steps = ["Login", "Workspace", "Create Lead", "Link/Create Contact", "Organization relationship",
++    "Conversion", "Customer", "Task", "Activity/History", "Refresh"]
++    .map(name => ({ name, status: "BLOCKED", reason: "Earlier UI prerequisite has not completed" }));
++  const http: { method: string; path: string; status: number; correlationId: string | undefined }[] = [];
++  const marker = `ui-crm-${Date.now()}`;
++  const records: Record<string, string> = { marker };
++  let zeroAreaGuardDismissals = 0;
++  const retiredGuard = page.getByRole("dialog", { name: "Bạn có thay đổi chưa lưu", exact: true });
++  await page.addLocatorHandler(retiredGuard, async () => {
++    // Navigation can display a guard whose saved form has already unregistered.
++    // Use its visible UI only when it confirms there are zero unsaved areas.
++    await expect(retiredGuard).toContainText("Có 0 khu vực cấu hình chưa được lưu");
++    zeroAreaGuardDismissals++;
++    await retiredGuard.getByRole("button", { name: "Bỏ thay đổi", exact: true }).click();
++  });
++  async function mutation(path: string, click: () => Promise<void>, expected: number) {
++    const pending = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === path);
++    await click();
++    const response = await pending;
++    http.push({ method: "POST", path, status: response.status(), correlationId: response.request().headers()["x-correlation-id"] });
++    expect(response.status()).toBe(expected);
++    return response.json() as Promise<{ aggregateId: string; result: { customerId?: string } }>;
++  }
++  try {
++    await page.goto("/#/login");
++    await page.getByLabel("Email", { exact: true }).fill(process.env.UNICORECRM_TEST_EMAIL ?? "");
++    await page.getByLabel(/Mật khẩu|Password/u, { exact: true }).fill(process.env.UNICORECRM_TEST_PASSWORD ?? "");
++    await page.getByRole("button", { name: /^(Đăng nhập|Sign in)$/u }).click();
++    await page.waitForURL(/#\/(?:select-workspace|w\/[^/]+\/crm\/)/u);
++    Object.assign(steps[0], { status: "PASS", reason: "Real sign-in through UI" });
++    try { await page.waitForURL(/#\/w\/[^/]+\/crm\//u, { timeout: 5_000 }); }
++    catch { await page.getByRole("button").filter({ hasText: "unicore-demo" }).click(); }
++    await expect(page).toHaveURL(/#\/w\/[^/]+\/crm\//u);
++    Object.assign(steps[1], { status: "PASS", reason: "Authenticated Workspace selected" });
++    const key = page.url().match(/#\/w\/([^/]+)/u)?.[1];
++    await page.goto(`/#/w/${key}/crm/leads`);
++    await page.getByRole("button", { name: /Thêm Tiềm năng|Thêm Lead|Add Lead/iu }).first().click();
++    const dialog = page.getByRole("dialog", { name: /Thêm Tiềm năng mới|Thêm Lead mới|Add new Lead/iu });
++    await expect(dialog).toBeVisible();
++    await dialog.locator("#lead-name").fill(marker);
++    await dialog.locator("#lead-email").fill(`${marker}@example.test`);
++    await dialog.locator("#lead-phone").fill("0900000123");
++    await dialog.locator('[data-guidance-id="leads.form.advanced-toggle"]').click();
++    await expect(dialog.locator("#lead-source")).toHaveValue("");
++    const sourceControlValue = await dialog.locator("#lead-source").inputValue();
++    const result = await mutation("/leads", () => dialog.locator('button[type="submit"]').click(), 201);
++    records.leadId = result.aggregateId;
++    const leadRequest = http.find(entry => entry.path === "/leads");
++    await writeFile(info.outputPath("lead-create-evidence.json"), JSON.stringify({
++      sourceControlValue,
++      request: leadRequest, response: { aggregateId: result.aggregateId, status: 201 },
++    }, null, 2));
++    Object.assign(steps[2], { status: "PASS", reason: "Lead created through UI with Source empty" });
++    await writeFile(info.outputPath("ui-records.json"), JSON.stringify({ marker, leadId: result.aggregateId, sourceSubmitted: "" }, null, 2));
++    await expect(dialog).toBeHidden();
++    await page.goto(`/#/w/${key}/crm/leads/${result.aggregateId}`);
++    await expect(page.getByText(marker, { exact: true }).first()).toBeVisible();
++    await page.reload();
++    await expect(page.getByText(marker, { exact: true }).first()).toBeVisible();
++    await page.screenshot({ path: info.outputPath("lead-empty-source-created.png"), fullPage: true });
++    await page.goto(`/#/w/${key}/crm/contacts`);
++    await page.getByRole("button", { name: /^Thêm liên hệ(?: mới)?$/iu }).first().click();
++    const contactDialog = page.getByRole("dialog").filter({ has: page.locator("#contact-create-name") });
++    await contactDialog.locator("#contact-create-name").fill(`${marker} Contact`);
++    await contactDialog.locator("#contact-create-email").fill(`${marker}-contact@example.test`);
++    const contact = await mutation("/contacts", () => contactDialog.locator('button[type="submit"]').click(), 201);
++    records.contactId = contact.aggregateId;
++    await expect(contactDialog).toBeHidden();
++    Object.assign(steps[3], { status: "PASS", reason: "Contact created through UI; used as conversion subject below" });
++    await page.goto(`/#/w/${key}/crm/organizations`);
++    await page.getByRole("button", { name: /^Thêm tổ chức(?: B2B)?$/iu }).first().click();
++    const organizationDialog = page.getByRole("dialog").filter({ has: page.locator("#organization-create-displayName") });
++    await organizationDialog.locator("#organization-create-displayName").fill(`${marker} Organization`);
++    const organization = await mutation("/organizations", () => organizationDialog.locator('button[type="submit"]').click(), 200);
++    records.organizationId = organization.aggregateId;
++    await expect(organizationDialog).toBeHidden();
++    await page.goto(`/#/w/${key}/crm/contacts/${contact.aggregateId}`);
++    await page.getByRole("button", { name: "Quan hệ", exact: true }).click();
++    await page.getByRole("button", { name: "Liên kết", exact: true }).click();
++    const affiliation = page.getByRole("heading", { name: "Quan hệ với tổ chức", exact: true }).locator("xpath=ancestor::section[1]");
++    await affiliation.getByRole("button", { name: "Liên kết", exact: true }).click();
++    const affiliationDialog = page.getByRole("dialog", { name: "Liên kết tổ chức", exact: true });
++    await affiliationDialog.locator("#organization-relationship-subject").selectOption(organization.aggregateId);
++    await affiliationDialog.locator("#organization-relationship-primary").check();
++    await mutation(`/contacts/${contact.aggregateId}/organization-relationships`, () => affiliationDialog.locator('button[type="submit"]').click(), 200);
++    await expect(affiliationDialog).toBeHidden();
++    await expect(affiliation.getByText(`${marker} Organization`, { exact: true })).toBeVisible();
++    Object.assign(steps[4], { status: "PASS", reason: "Organization created and affiliated through UI" });
++    await page.goto(`/#/w/${key}/crm/leads/${result.aggregateId}/convert`);
++    await page.getByLabel("Mã đối tượng hiện có", { exact: true }).fill(contact.aggregateId);
++    const converted = await mutation(`/workflows/lead-customer-conversion/${result.aggregateId}`,
++      () => page.getByRole("button", { name: "Chuyển thành khách hàng", exact: true }).click(), 200);
++    const customerId = converted.result.customerId;
++    expect(customerId).toBeTruthy();
++    records.customerId = customerId ?? "";
++    Object.assign(steps[5], { status: "PASS", reason: "Existing Contact submitted using the conversion UI" });
++    await page.getByRole("link", { name: customerId, exact: true }).click();
++    await expect(page.locator("[data-customer-connected-workspace]")).toBeVisible();
++    Object.assign(steps[6], { status: "PASS", reason: "Authoritative connected Customer workspace opened" });
++    const taskButton = page.getByRole("button", { name: /^(Thêm công việc|Tạo công việc|Add task|Create task)$/u });
++    if (await taskButton.count() === 0) {
++      Object.assign(steps[7], { reason: "Connected Customer workspace has no Create Task control; only the Task-based Meeting control is exposed" });
++      await page.screenshot({ path: info.outputPath("customer-task-control-missing.png"), fullPage: true });
++    } else {
++      await taskButton.first().click();
++      const taskDialog = page.getByRole("dialog").filter({ has: page.locator("#task-create-title") });
++      await taskDialog.locator("#task-create-title").fill(`${marker} Task`);
++      await taskDialog.locator("#task-create-dueAt").fill("2026-11-01T09:00");
++      const task = await mutation("/tasks", () => taskDialog.locator('button[type="submit"]').click(), 201);
++      records.taskId = task.aggregateId;
++      Object.assign(steps[7], { status: "PASS", reason: "Customer Task created through UI" });
++    }
++    await page.goto(`/#/w/${key}/crm/contacts/${contact.aggregateId}`);
++    await page.getByRole("button", { name: "Ghi chú nhanh", exact: true }).click();
++    const noteDialog = page.getByRole("dialog", { name: "Ghi chú nhanh", exact: true });
++    await noteDialog.locator("#contact-quick-note-form-title").fill(`${marker} Activity`);
++    await noteDialog.locator("#contact-quick-note-form-body").fill("UI-only Activity persistence verification");
++    const activity = await mutation("/activities", () => noteDialog.locator('button[type="submit"]').click(), 201);
++    records.activityId = activity.aggregateId;
++    await expect(noteDialog).toBeHidden();
++    await page.getByRole("tab", { name: "Lịch sử", exact: true }).click();
++    await expect(page.getByText(`${marker} Activity`, { exact: true }).first()).toBeVisible();
++    Object.assign(steps[8], { status: "PASS", reason: "Manual Contact Activity saved and read through UI History" });
++    await page.reload();
++    await page.getByRole("tab", { name: "Lịch sử", exact: true }).click();
++    await expect(page.getByText(`${marker} Activity`, { exact: true }).first()).toBeVisible();
++    Object.assign(steps[9], { status: "PASS", reason: "Persisted Contact Activity survives browser refresh" });
++    await page.screenshot({ path: info.outputPath("contact-ui-history-refresh.png"), fullPage: true });
++    const blocked = steps.filter(step => step.status === "BLOCKED");
++    if (blocked.length) throw new Error(`BLOCKED: ${blocked.map(step => `${step.name}: ${step.reason}`).join("; ")}`);
++  } finally {
++    await writeFile(info.outputPath("ui-steps.json"), JSON.stringify(steps, null, 2));
++    await writeFile(info.outputPath("ui-http.json"), JSON.stringify(http, null, 2));
++    await writeFile(info.outputPath("ui-journey-records.json"), JSON.stringify(records, null, 2));
++    await writeFile(info.outputPath("ui-observations.json"), JSON.stringify({ zeroAreaGuardDismissals }, null, 2));
++  }
++});

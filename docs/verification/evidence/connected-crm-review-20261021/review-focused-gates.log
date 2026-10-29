@@ -1,0 +1,18 @@
+
+> unicorecrm-web@0.24.0-contract.0 quality:gate
+> node scripts/quality/run-quality-pipeline.mjs --require-gate --gate quality.quality-pipeline --gate quality.guidance-contracts --gate quality.presentation-responsibility
+
+
+[quality 1/1] START architecture/quality.quality-pipeline (check:quality-pipeline)
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+347 !== 345
+
+    at file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/tests/quality/architecture/check-quality-pipeline.mts:335:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/quality/run-node-entry.mjs:18:3
+[quality 1/1] FAIL architecture/quality.quality-pipeline: Node step failed with 1.
+
+[quality] FAIL 0/1 passed across 1 groups (13.1s).

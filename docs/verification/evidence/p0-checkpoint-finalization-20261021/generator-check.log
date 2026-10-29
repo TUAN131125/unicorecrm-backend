@@ -1,0 +1,57 @@
+file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/api/openapi/breaking-changes.mjs:290
+  if (findings.length) throw new Error(`OpenAPI breaking changes require explicit baseline approval:\n- ${findings.join("\n- ")}`);
+                             ^
+
+Error: OpenAPI breaking changes require explicit baseline approval:
+- Schema ActionAvailabilityReadModel [RESPONSE].blockerCodes[]: enum domain is incompatible.
+- Schema ConvertAcceptedQuoteToOrderDraftResponse [RESPONSE].result.order.actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema ConvertAcceptedQuoteToOrderDraftResponse [RESPONSE].result.order.actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema ConvertAcceptedQuoteToOrderDraftResponse [RESPONSE].result.order.creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema ConvertedAcceptedQuoteOrderDraftResult [RESPONSE].order.actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema ConvertedAcceptedQuoteOrderDraftResult [RESPONSE].order.actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema ConvertedAcceptedQuoteOrderDraftResult [RESPONSE].order.creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema CreateDirectOrderDraftResponse [RESPONSE].result.order.actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema CreateDirectOrderDraftResponse [RESPONSE].result.order.actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema CreateDirectOrderDraftResponse [RESPONSE].result.order.creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema CreditPolicyEvaluationReadModel [RESPONSE].blockerCodes[]: enum domain is incompatible.
+- Schema DirectOrderDraftMutationResult [RESPONSE].order.actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema DirectOrderDraftMutationResult [RESPONSE].order.actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema DirectOrderDraftMutationResult [RESPONSE].order.creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema ErrorCode [RESPONSE]: enum domain is incompatible.
+- Schema LogActivityRequest [REQUEST].type: enum domain is incompatible.
+- Schema OrderBatchMutationResponse [RESPONSE].result.orders[].actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema OrderBatchMutationResponse [RESPONSE].result.orders[].actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema OrderBatchMutationResponse [RESPONSE].result.orders[].creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema OrderBatchMutationResult [RESPONSE].orders[].actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema OrderBatchMutationResult [RESPONSE].orders[].actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema OrderBatchMutationResult [RESPONSE].orders[].creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema OrderListResponse [RESPONSE].items[].actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema OrderListResponse [RESPONSE].items[].actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema OrderListResponse [RESPONSE].items[].creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema OrderMutationResponse [RESPONSE].result.order.actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema OrderMutationResponse [RESPONSE].result.order.actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema OrderMutationResponse [RESPONSE].result.order.creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema OrderMutationResult [RESPONSE].order.actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema OrderMutationResult [RESPONSE].order.actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema OrderMutationResult [RESPONSE].order.creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema OrderReadActions [RESPONSE].cancel.blockerCodes[]: enum domain is incompatible.
+- Schema OrderReadActions [RESPONSE].confirm.blockerCodes[]: enum domain is incompatible.
+- Schema OrderReadModel [RESPONSE].actions.cancel.blockerCodes[]: enum domain is incompatible.
+- Schema OrderReadModel [RESPONSE].actions.confirm.blockerCodes[]: enum domain is incompatible.
+- Schema OrderReadModel [RESPONSE].creditPolicyEvaluation.blockerCodes[]: enum domain is incompatible.
+- Schema QuoteBatchMutationResponse [RESPONSE].result.quotes[].actions.accept.blockerCodes[]: enum domain is incompatible.
+- Schema QuoteBatchMutationResult [RESPONSE].quotes[].actions.accept.blockerCodes[]: enum domain is incompatible.
+- Schema QuoteListResponse [RESPONSE].items[].actions.accept.blockerCodes[]: enum domain is incompatible.
+- Schema QuoteMutationResponse [RESPONSE].result.quote.actions.accept.blockerCodes[]: enum domain is incompatible.
+- Schema QuoteMutationResult [RESPONSE].quote.actions.accept.blockerCodes[]: enum domain is incompatible.
+- Schema QuoteReadActions [RESPONSE].accept.blockerCodes[]: enum domain is incompatible.
+- Schema QuoteReadModel [RESPONSE].actions.accept.blockerCodes[]: enum domain is incompatible.
+    at assertNoBreakingChanges (file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/api/openapi/breaking-changes.mjs:290:30)
+    at checkGeneratedArtifacts (file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/api/openapi/write-or-check.mjs:56:3)
+    at runCli (file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/api/generate-openapi-client.mjs:33:5)
+    at file:///D:/Project_All/UnicoreCRM/frontend/unicorecrm-web/scripts/api/generate-openapi-client.mjs:43:77
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.1

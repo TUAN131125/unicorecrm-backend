@@ -1,0 +1,46 @@
+PASS fresh Workspace has no Lead before UI scenario expected=0 actual=0
+[WebServer] (node:32256) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:13724) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  1 tests\e2e\crm-ui-real.spec.ts:4:1 › CRM journey through UI controls only (38.9s)
+
+
+  1) tests\e2e\crm-ui-real.spec.ts:4:1 › CRM journey through UI controls only ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Đã hoàn thành', { exact: true }).first()
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText('Đã hoàn thành', { exact: true }).first()
+
+
+      136 |       await mutation(`/tasks/${task.aggregateId}/complete`, () => completeDialog.getByRole("button", { name: "Xác nhận", exact: true }).click(), 200);
+      137 |       await expect(completeDialog).toBeHidden();
+    > 138 |       await expect(page.getByText("Đã hoàn thành", { exact: true }).first()).toBeVisible();
+          |                                                                              ^
+      139 |       await page.goto(`/#/w/${key}/crm/customers/${customerId}`);
+      140 |       await expect(page.locator(`[data-customer-task-id="${task.aggregateId}"]`)).toContainText("COMPLETED");
+      141 |       Object.assign(steps[8], { status: "PASS", reason: "Task completed through UI and authoritative Customer work reloaded" });
+        at D:\Project_All\UnicoreCRM\frontend\unicorecrm-web\tests\e2e\crm-ui-real.spec.ts:138:78
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\crm-ui-real\crm-ui-real-CRM-journey-through-UI-controls-only\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\crm-ui-real\crm-ui-real-CRM-journey-through-UI-controls-only\error-context.md
+
+  1 failed
+    tests\e2e\crm-ui-real.spec.ts:4:1 › CRM journey through UI controls only ───────────────────────
+FAIL UI-only CRM journey (BLOCKED is not PASS) expected=0 actual=1
+PASS UI Lead persisted in fresh SQL Workspace expected=1 actual=1
+PASS UI Lead Source remains empty in SQL expected=1 actual=1
+Evidence: D:\Project_All\UnicoreCRM\backend\artifacts\activity-security\9f8843946f4c4c99b1fd1b5a6b6f6f05; isolated database retained: UnicoreCRM_ActivityTest_9f8843946f4c4c99b1fd1b5a6b6f6f05

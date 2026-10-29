@@ -1,0 +1,47 @@
+[
+  {
+    "column": "WorkspaceId",
+    "ordinal": 1,
+    "index": "IX_Activities_RecordHistory"
+  },
+  {
+    "column": "RecordModuleKey",
+    "ordinal": 2,
+    "index": "IX_Activities_RecordHistory"
+  },
+  {
+    "column": "RecordId",
+    "ordinal": 3,
+    "index": "IX_Activities_RecordHistory"
+  },
+  {
+    "column": "OccurredAt",
+    "ordinal": 4,
+    "index": "IX_Activities_RecordHistory"
+  },
+  {
+    "column": "ActivityId",
+    "ordinal": 5,
+    "index": "IX_Activities_RecordHistory"
+  },
+  {
+    "column": "WorkspaceId",
+    "ordinal": 1,
+    "index": "IX_Activities_WorkspaceId_OccurredAt_ActivityId"
+  },
+  {
+    "column": "OccurredAt",
+    "ordinal": 2,
+    "index": "IX_Activities_WorkspaceId_OccurredAt_ActivityId"
+  },
+  {
+    "column": "ActivityId",
+    "ordinal": 3,
+    "index": "IX_Activities_WorkspaceId_OccurredAt_ActivityId"
+  },
+  {
+    "column": "ActivityId",
+    "ordinal": 1,
+    "index": "PK_Activities"
+  }
+]

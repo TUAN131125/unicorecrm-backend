@@ -54,6 +54,8 @@ internal static class LeadsModule
         // Leads publishes its own record-access facts to AccessControl. AccessControl never reaches
         // into LeadsDbContext; it resolves this owner-owned contract instead.
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();
+        services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
+            Application.ProvideLeadRecordAccessFacts.LeadRecordAccessFactProvider>();
         return services;
     }
 }

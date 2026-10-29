@@ -1,0 +1,322 @@
+--- a/src/modules/customers/presentation/detail/CustomerConnectedWorkspace.tsx
++++ b/src/modules/customers/presentation/detail/CustomerConnectedWorkspace.tsx
+@@ -23,7 +23,7 @@
+         <CustomerDetailTabs activeTab={tab} setActiveTab={setTab} counts={{}} isRightPanelVisible={visible} onToggleRightPanel={() => setVisible(value => !value)}/>
+         <div className="p-4 sm:p-5">{tab === "overview" || tab === "relationship" ? <CustomerConnectedOverview projection={projection}/> : tab === "work" ? <div className="space-y-3"><p>{text("Xem Công việc và Lịch sử trong bảng quan hệ.", "Use Work and History in the relationship panel.")}</p><Button onClick={() => setVisible(true)}>{text("Hiện bảng quan hệ", "Show relationship panel")}</Button></div> : <p role="status">{text("Chưa có dữ liệu liên kết được xác minh cho mục này.", "A verified related-data projection is unavailable for this section.")}</p>}</div>
+       </main>
+-      <CustomerRelationshipPanel customerId={projection.customer.id} status={projection.customer.status} visible={visible}/>
++      <CustomerRelationshipPanel key={projection.customer.id} customerId={projection.customer.id} customerLabel={`${projection.customer.customerCode} · ${projection.identity.displayName}`} status={projection.customer.status} visible={visible}/>
+     </div>
+   </div>;
+ }
+--- a/src/modules/customers/presentation/detail/CustomerRelationshipPanel.tsx
++++ b/src/modules/customers/presentation/detail/CustomerRelationshipPanel.tsx
+@@ -1,4 +1,5 @@
+-import { MeetingActivityCreateModal } from "@/modules/tasks";
++import { MeetingActivityCreateModal, TaskCreateModal, getTaskApiRuntime } from "@/modules/tasks";
++import { useEffectiveAccess, useEffectiveRecordAccessDecision } from "@/platform/access-control";
+ import { useCustomerMeeting } from "../hooks/useCustomerMeeting";
+ import { useEffect, useState } from "react";
+ import { useNavigate } from "react-router-dom";
+@@ -9,13 +10,19 @@
+ import { WorkSection, WorkTaskItem, workHeaderClass, workTitleClass } from "@/components/crm/relationship-panel/RelationshipWorkPresentation";
+ import { useCustomerPanelData } from "../hooks/useCustomerPanelData";
+ 
+-export function CustomerRelationshipPanel({ customerId, status, visible }: { customerId: string; status?: string; visible: boolean }) {
++export function CustomerRelationshipPanel({ customerId, customerLabel, status, visible }: { customerId: string; customerLabel: string; status?: string; visible: boolean }) {
+   const { locale } = useI18n();
+   const vi = locale === "vi";
+   const text = (a: string, b: string) => vi ? a : b;
+   const navigate = useNavigate();
+   const [mode, setMode] = useState<RelationshipPanelMode>("WORK");
+   const [selectedId, setSelectedId] = useState<string>();
++  const [taskOpen, setTaskOpen] = useState(false);
++  const [taskCreated, setTaskCreated] = useState(false);
++  const access = useEffectiveAccess();
++  const record = useEffectiveRecordAccessDecision();
++  const canCreateTask = Boolean(record?.canRead && access.can("customers.view") && access.canPerform("tasks", "create")
++    && status && ["NEW", "ACTIVE", "INACTIVE"].includes(status) && getTaskApiRuntime().mode === "connected");
+   const data = useCustomerPanelData(customerId, mode === "HISTORY", visible);
+   const meeting = useCustomerMeeting(customerId, status, data.taskEntry.refresh);
+   useEffect(() => { if (!visible) setSelectedId(undefined); }, [visible]);
+@@ -43,11 +50,17 @@
+     <p className="text-[10px] text-slate-500">{text("Chỉ gồm hoạt động gắn trực tiếp Customer; không suy diễn từ Task, Contact hoặc Organization. Ghi nhận Email/SMS không xác nhận gửi.", "Direct Customer activities only; no inferred Task, Contact or Organization history. Email/SMS logs do not confirm delivery.")}</p>
+     <Modal isOpen={Boolean(selected)} onClose={() => setSelectedId(undefined)} title={text("Chi tiết hoạt động", "Activity detail")} size="sm">{selected && <article className="space-y-3 text-sm [overflow-wrap:anywhere]"><h3>{selected.subject}</h3><time dateTime={selected.occurredAt}>{date(selected.occurredAt)}</time><p>{resolveWorkspaceMemberLabel(selected.actorId, vi ? "vi" : "en")}</p><p className="whitespace-pre-wrap">{selected.body}</p></article>}</Modal>
+   </section>;
+-  return <><MeetingActivityCreateModal targetId={customerId} recordingOnly guardChanges isOpen={meeting.isOpen} onClose={meeting.close} formId="customer-meeting-form" defaults={{ reminder: false }} onSubmit={async () => {}} onSave={meeting.save}/><RelationshipWorkPanelShell isVisible={visible} motionKey={customerId} panelId="customer-right-work-panel" ariaLabel={text("Bảng quan hệ khách hàng", "Customer relationship panel")}
++  return <><TaskCreateModal key={customerId} targetId={customerId} formId="customer-task-create-form"
++    isOpen={taskOpen && canCreateTask} onClose={() => setTaskOpen(false)}
++    context={{ recordRef: { moduleKey: "customers", recordId: customerId }, sourceRef: { type: "CUSTOMER_360", id: customerId }, label: customerLabel }}
++    onCreated={() => { setTaskCreated(true); void data.taskEntry.refresh(); }}/>
++  <MeetingActivityCreateModal targetId={customerId} recordingOnly guardChanges isOpen={meeting.isOpen} onClose={meeting.close} formId="customer-meeting-form" defaults={{ reminder: false }} onSubmit={async () => {}} onSave={meeting.save}/><RelationshipWorkPanelShell isVisible={visible} motionKey={customerId} panelId="customer-right-work-panel" ariaLabel={text("Bảng quan hệ khách hàng", "Customer relationship panel")}
+     bodyClassName="max-h-[60vh] space-y-3 overflow-y-auto pr-1 crm-scroll-y xl:max-h-none"
+     header={<div className={workHeaderClass}><h2 className={workTitleClass}>{mode === "WORK" ? text("Công việc khách hàng", "Customer work") : text("Lịch sử khách hàng", "Customer history")}</h2></div>}
+     mode={{ value: mode, onChange: value => { setMode(value); setSelectedId(undefined); }, workLabel: text("Công việc", "Work"), historyLabel: text("Lịch sử", "History"), label: text("Chế độ bảng quan hệ", "Relationship panel mode") }} history={history}
+-    footer={<div className="space-y-2"><Button data-guidance-id="customers.detail.meeting" disabled={!meeting.canCreate} onClick={meeting.open}>{text("Tạo cuộc hẹn", "Create meeting")}</Button><p className="text-xs text-slate-500">{text("Cuộc hẹn được lưu thành công việc; chọn chính bạn trong Workspace. Khách hàng lưu trữ không nhận cuộc hẹn mới. Lịch sử không tự sinh hoạt động.", "Meetings are saved as tasks; select yourself in the Workspace. Archived customers cannot receive new meetings. History does not fabricate activities.")}</p></div>}>
++    footer={<div className="space-y-2"><Button data-guidance-id="customers.detail.create-task" disabled={!canCreateTask} onClick={() => { setTaskCreated(false); setTaskOpen(true); }}>{text("Tạo công việc", "Create task")}</Button>
++      {taskCreated && <p role="status">{text("Đã tạo công việc.", "Task created.")}</p>}
++      <Button data-guidance-id="customers.detail.meeting" disabled={!meeting.canCreate} onClick={meeting.open}>{text("Tạo cuộc hẹn", "Create meeting")}</Button><p className="text-xs text-slate-500">{text("Công việc gắn trực tiếp khách hàng; chọn thành viên Workspace làm người phụ trách. Khách hàng lưu trữ không nhận công việc mới. Cuộc hẹn vẫn là thao tác riêng; không tự sinh hoạt động.", "Tasks link directly to this Customer; select a Workspace member as assignee. Archived customers cannot receive new tasks. Meeting creation remains a separate action and does not fabricate activities.")}</p></div>}>
+     <WorkSection first title={text("Công việc liên quan trực tiếp", "Directly linked work")}>
+       {taskMessage && <p role="status">{taskMessage}</p>}
+       {data.tasks.error && <Button onClick={() => void data.taskEntry.refresh()}>{text("Thử lại", "Retry")}</Button>}
+--- a/src/modules/tasks/presentation/pages/TaskDetailPage.tsx
++++ b/src/modules/tasks/presentation/pages/TaskDetailPage.tsx
+@@ -172,7 +172,8 @@
+     <RecordDetailFrame id="task-detail-page">
+       <button type="button" onClick={() => navigate("..")} className="inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-indigo-700"><ArrowLeft size={14} /> {vi ? "Quay lại Công việc" : "Back to Tasks"}</button>
+ 
+-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
++      {/* These labels already follow locale; the legacy DOM bridge must not restore a previous status literal. */}
++      <div data-i18n-skip="true" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+         <main className="space-y-5">
+           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+--- a/src/guidance/content/crm/extendedScreens.ts
++++ b/src/guidance/content/crm/extendedScreens.ts
+@@ -79,14 +79,14 @@
+     id: "crm.tasks.detail",
+     routeKey: "TASK_DETAIL",
+     productSpace: "crm",
+-    version: 2,
++    version: 3,
+     title: text("Chi tiết công việc", "Task detail"),
+     purpose: text("Xem đầy đủ ngữ cảnh, thời hạn, người phụ trách và kết quả của một công việc.", "Review the full context, due time, owner, and outcome of a task."),
+     primaryTasks: [
+       task("deal-reference", "Kiểm tra mã cơ hội được liên kết. Công việc lưu độc lập và không tự thay đổi cơ hội.", "Check the linked opportunity identity. The Task persists independently and does not change the Deal."),
+       task("review", "Đọc mô tả, bản ghi liên quan và lịch sử cập nhật trước khi xử lý.", "Read the description, related records, and history before acting."),
+       task("update", "Cập nhật người phụ trách, hạn hoặc trạng thái khi kế hoạch thay đổi.", "Update owner, due time, or status when the plan changes.", [CAPABILITIES.TASKS_UPDATE]),
+-      task("finish", "Ghi kết quả và hoàn thành công việc khi hành động đã xong.", "Record the outcome and complete the task when the action is done.", [CAPABILITIES.TASKS_COMPLETE]),
++      task("finish", "Ghi kết quả và hoàn thành công việc khi hành động đã xong. Trạng thái cập nhật từ Backend sau xác nhận và vẫn giữ sau tải lại.", "Record the outcome and complete the task when the action is done. Status updates from the Backend after confirmation and persists after refresh.", [CAPABILITIES.TASKS_COMPLETE]),
+     ],
+     relatedWorkflowIds: ["workflow.task-execution"],
+     requiredCapabilities: [CAPABILITIES.TASKS_READ],
+@@ -614,7 +614,7 @@
+   }),
+   createScreenGuidance({
+     id: "crm.customers.detail",
+-    version: 3,
++    version: 4,
+     routeKey: "CUSTOMER_DETAIL",
+     productSpace: "crm",
+     title: text("Hồ sơ khách hàng", "Customer profile"),
+@@ -625,7 +625,7 @@
+       task("work", "Dùng nút cạnh Khác để ẩn/hiện bảng; chọn Công việc hoặc Lịch sử và tải thêm khi có trang kế tiếp.", "Use the toggle beside More to show or hide the panel; choose Work or History and load more when another page exists."),
+       task("history", "Mở hoạt động bằng bàn phím hoặc chuột. Tạo cuộc hẹn lưu thành Task, không tự sinh Activity hoặc gửi lời mời.", "Open activities with keyboard or pointer. Meetings save Tasks without creating Activities or sending invitations."),
+     ],
+-    additionalSteps: [{ id: "meeting", targetId: "customers.detail.meeting", title: text("Tạo cuộc hẹn", "Create meeting"), body: text("Chọn chính bạn làm người phụ trách, nhập thời gian và lưu. Work tải lại sau Backend xác nhận. Customer lưu trữ không nhận Task mới.", "Select yourself, enter the time and save. Work refreshes after Backend confirmation. Archived Customers cannot receive new Tasks."), placement: "top", expectedAction: "view", optional: true, requiredCapabilities: [CAPABILITIES.TASKS_CREATE] }, {
++    additionalSteps: [{ id: "create-task", targetId: "customers.detail.create-task", title: text("Tạo công việc", "Create task"), body: text("Nhập tiêu đề, hạn xử lý và chọn thành viên Workspace. Công việc tự liên kết khách hàng đang xem; lưu thành công sẽ đóng form và tải lại Work. Khi chưa rõ kết quả, thử lại cùng yêu cầu. Khách hàng lưu trữ không nhận công việc mới.", "Enter a title and due date and select a Workspace member. The Task links to the current Customer; a confirmed save closes the form and refreshes Work. Retry the same request when acknowledgement is unknown. Archived Customers cannot receive new tasks."), placement: "top", expectedAction: "view", optional: true, requiredCapabilities: [CAPABILITIES.TASKS_CREATE] }, { id: "meeting", targetId: "customers.detail.meeting", title: text("Tạo cuộc hẹn", "Create meeting"), body: text("Chọn chính bạn làm người phụ trách, nhập thời gian và lưu. Work tải lại sau Backend xác nhận. Customer lưu trữ không nhận Task mới.", "Select yourself, enter the time and save. Work refreshes after Backend confirmation. Archived Customers cannot receive new Tasks."), placement: "top", expectedAction: "view", optional: true, requiredCapabilities: [CAPABILITIES.TASKS_CREATE] }, {
+       id: "workspace",
+       targetId: "customers.detail.workspace",
+       title: text("Đọc hồ sơ trong phạm vi được phép", "Review the permitted profile"),
+--- a/tests/e2e/crm-ui-real.spec.ts
++++ b/tests/e2e/crm-ui-real.spec.ts
+@@ -4,11 +4,19 @@
+ test("CRM journey through UI controls only", async ({ page }, info) => {
+   test.setTimeout(180_000);
+   const steps = ["Login", "Workspace", "Create Lead", "Link/Create Contact", "Organization relationship",
+-    "Conversion", "Customer", "Task", "Activity/History", "Refresh"]
++    "Conversion", "Customer", "Task", "Complete Task", "Activity/History", "Refresh", "Relogin"]
+     .map(name => ({ name, status: "BLOCKED", reason: "Earlier UI prerequisite has not completed" }));
+   const http: { method: string; path: string; status: number; correlationId: string | undefined }[] = [];
+   const marker = `ui-crm-${Date.now()}`;
+   const records: Record<string, string> = { marker };
++  const taskReads: { path: string; status: string; version: number }[] = [];
++  const taskEvidence: unknown[] = [];
++  page.on("response", async response => {
++    if (response.request().method() === "GET" && /\/tasks\/task_[A-Za-z0-9]+$/u.test(new URL(response.url()).pathname) && response.ok()) {
++      const body = await response.json() as { status: string; resourceVersion: number };
++      taskReads.push({ path: new URL(response.url()).pathname, status: body.status, version: body.resourceVersion });
++    }
++  });
+   let zeroAreaGuardDismissals = 0;
+   const retiredGuard = page.getByRole("dialog", { name: "Bạn có thay đổi chưa lưu", exact: true });
+   await page.addLocatorHandler(retiredGuard, async () => {
+@@ -24,7 +32,15 @@
+     const response = await pending;
+     http.push({ method: "POST", path, status: response.status(), correlationId: response.request().headers()["x-correlation-id"] });
+     expect(response.status()).toBe(expected);
+-    return response.json() as Promise<{ aggregateId: string; result: { customerId?: string } }>;
++    const body = await response.json() as { aggregateId: string; version: number; outcome: string; result: { customerId?: string; task?: { id: string; status: string; priority: string; dueAt: string; assigneeId: string; recordRef?: { moduleKey: string; recordId: string }; relationshipRef?: { type: string; id: string }; sourceRef?: { type: string; id: string } } } };
++    if (path.startsWith("/tasks") && body.result.task) {
++      const request = response.request().postDataJSON() as { recordRef?: unknown; relationshipRef?: unknown; sourceRef?: unknown; priority?: string; dueAt?: string; assigneeId?: string };
++      const task = body.result.task;
++      taskEvidence.push({ method: "POST", path, status: response.status(), version: body.version, outcome: body.outcome,
++        request: { recordRef: request.recordRef, relationshipRef: request.relationshipRef, sourceRef: request.sourceRef, priority: request.priority, dueAt: request.dueAt, assigneeId: request.assigneeId },
++        response: { id: task.id, status: task.status, priority: task.priority, dueAt: task.dueAt, assigneeId: task.assigneeId, recordRef: task.recordRef, relationshipRef: task.relationshipRef, sourceRef: task.sourceRef } });
++    }
++    return body;
+   }
+   try {
+     await page.goto("/#/login");
+@@ -110,10 +126,28 @@
+       await taskButton.first().click();
+       const taskDialog = page.getByRole("dialog").filter({ has: page.locator("#task-create-title") });
+       await taskDialog.locator("#task-create-title").fill(`${marker} Task`);
+-      await taskDialog.locator("#task-create-dueAt").fill("2026-11-01T09:00");
++      await taskDialog.getByLabel("Mô tả / kết quả mong đợi", { exact: true }).fill(`${marker} Expected outcome`);
++      await taskDialog.getByLabel("Mức ưu tiên", { exact: true }).selectOption("HIGH");
++      await taskDialog.locator("#task-create-dueAt").click();
++      await page.getByRole("button", { name: "Áp dụng", exact: true }).click();
+       const task = await mutation("/tasks", () => taskDialog.locator('button[type="submit"]').click(), 201);
+       records.taskId = task.aggregateId;
++      await expect(taskDialog).toBeHidden();
++      const taskRow = page.locator(`[data-customer-task-id="${task.aggregateId}"]`);
++      await expect(taskRow).toContainText(`${marker} Task`);
++      await page.reload();
++      await expect(page.locator(`[data-customer-task-id="${task.aggregateId}"]`)).toContainText(`${marker} Task`);
+       Object.assign(steps[7], { status: "PASS", reason: "Customer Task created through UI" });
++      await page.locator(`[data-customer-task-id="${task.aggregateId}"]`).getByRole("button").click();
++      await page.getByRole("button", { name: "Hoàn thành", exact: true }).click();
++      const completeDialog = page.getByRole("dialog", { name: "Hoàn thành công việc", exact: true });
++      await completeDialog.locator("textarea").fill(`${marker} Completed through UI`);
++      await mutation(`/tasks/${task.aggregateId}/complete`, () => completeDialog.getByRole("button", { name: "Xác nhận", exact: true }).click(), 200);
++      await expect(completeDialog).toBeHidden();
++      await expect(page.getByText("Đã hoàn thành", { exact: true }).first()).toBeVisible();
++      await page.goto(`/#/w/${key}/crm/customers/${customerId}`);
++      await expect(page.locator(`[data-customer-task-id="${task.aggregateId}"]`)).toContainText("COMPLETED");
++      Object.assign(steps[8], { status: "PASS", reason: "Task completed through UI and authoritative Customer work reloaded" });
+     }
+     await page.goto(`/#/w/${key}/crm/contacts/${contact.aggregateId}`);
+     await page.getByRole("button", { name: "Ghi chú nhanh", exact: true }).click();
+@@ -125,12 +159,26 @@
+     await expect(noteDialog).toBeHidden();
+     await page.getByRole("tab", { name: "Lịch sử", exact: true }).click();
+     await expect(page.getByText(`${marker} Activity`, { exact: true }).first()).toBeVisible();
+-    Object.assign(steps[8], { status: "PASS", reason: "Manual Contact Activity saved and read through UI History" });
++    Object.assign(steps[9], { status: "PASS", reason: "Manual Contact Activity saved and read through UI History" });
+     await page.reload();
+     await page.getByRole("tab", { name: "Lịch sử", exact: true }).click();
+     await expect(page.getByText(`${marker} Activity`, { exact: true }).first()).toBeVisible();
+-    Object.assign(steps[9], { status: "PASS", reason: "Persisted Contact Activity survives browser refresh" });
++    Object.assign(steps[10], { status: "PASS", reason: "Persisted Contact Activity survives browser refresh" });
+     await page.screenshot({ path: info.outputPath("contact-ui-history-refresh.png"), fullPage: true });
++    await page.locator("#user-profile-dropdown").click();
++    await page.getByRole("menuitem", { name: "Đăng xuất", exact: true }).click();
++    await page.waitForURL(/#\/login/u);
++    await page.getByLabel("Email", { exact: true }).fill(process.env.UNICORECRM_TEST_EMAIL ?? "");
++    await page.getByLabel(/Mật khẩu|Password/u, { exact: true }).fill(process.env.UNICORECRM_TEST_PASSWORD ?? "");
++    await page.getByRole("button", { name: /^(Đăng nhập|Sign in)$/u }).click();
++    try { await page.waitForURL(/#\/w\/[^/]+\/crm\//u, { timeout: 5_000 }); }
++    catch { await page.getByRole("button").filter({ hasText: "unicore-demo" }).click(); }
++    await page.goto(`/#/w/${key}/crm/customers/${customerId}`);
++    if (records.taskId) {
++      await expect(page.locator(`[data-customer-task-id="${records.taskId}"]`)).toContainText("COMPLETED");
++      await page.screenshot({ path: info.outputPath("customer-task-after-relogin.png"), fullPage: true });
++      Object.assign(steps[11], { status: "PASS", reason: "Completed Customer Task survives real logout/sign-in" });
++    }
+     const blocked = steps.filter(step => step.status === "BLOCKED");
+     if (blocked.length) throw new Error(`BLOCKED: ${blocked.map(step => `${step.name}: ${step.reason}`).join("; ")}`);
+   } finally {
+@@ -138,5 +186,7 @@
+     await writeFile(info.outputPath("ui-http.json"), JSON.stringify(http, null, 2));
+     await writeFile(info.outputPath("ui-journey-records.json"), JSON.stringify(records, null, 2));
+     await writeFile(info.outputPath("ui-observations.json"), JSON.stringify({ zeroAreaGuardDismissals }, null, 2));
++    await writeFile(info.outputPath("ui-task-reads.json"), JSON.stringify(taskReads, null, 2));
++    await writeFile(info.outputPath("ui-task-mutations.json"), JSON.stringify(taskEvidence, null, 2));
+   }
+ });
+--- a/tests/contract/customer-relationship-panel.test.mts
++++ b/tests/contract/customer-relationship-panel.test.mts
+@@ -49,7 +49,7 @@
+ function LocationProbe() { return React.createElement("output", { "data-test-location": useLocation().pathname }); }
+ const host = document.getElementById("root"); if (!host) throw new Error("fixture root");
+ const root = createRoot(host); let generation = 0;
+-async function render(id = "customer-A", visible = true) { await act(async () => root.render(React.createElement(I18nProvider, null, React.createElement(MemoryRouter, null, React.createElement(React.Fragment, null, React.createElement(CustomerRelationshipPanel, { key: ++generation, customerId: id, visible }), React.createElement(LocationProbe)))))); }
++async function render(id = "customer-A", visible = true) { await act(async () => root.render(React.createElement(I18nProvider, null, React.createElement(MemoryRouter, null, React.createElement(React.Fragment, null, React.createElement(CustomerRelationshipPanel, { key: ++generation, customerId: id, customerLabel: "Authorized Customer", visible }), React.createElement(LocationProbe)))))); }
+ async function click(text: string) { const b = [...document.querySelectorAll("button")].find(b => b.textContent === text); assert.ok(b, text); await act(async () => b.click()); }
+ await render(); assert.equal(document.querySelectorAll("[data-customer-task-id]").length, 50); assert.ok(!document.body.textContent?.includes("WRONG-CUSTOMER")); assert.ok(!document.body.textContent?.includes("CONTACT-TASK"));
+ await click("Tải thêm công việc"); assert.equal(document.querySelectorAll("[data-customer-task-id]").length, 51);
+@@ -77,6 +77,7 @@
+ const meetingButton = [...document.querySelectorAll("button")].find(x => x.textContent === "Tạo cuộc hẹn");
+ assert.ok(meetingButton); assert.equal(meetingButton.disabled, true);
+ assert.equal(document.querySelector("#customer-meeting-form-title"), null);
+-assert.equal([...document.querySelectorAll("button")].some(x => /Tạo công việc/.test(x.textContent ?? "")), false);
++const createButton = document.querySelector<HTMLButtonElement>('[data-guidance-id="customers.detail.create-task"]');
++assert.ok(createButton); assert.equal(createButton.disabled, true, "Task creation requires current Customer record authority");
+ assert.ok(document.querySelector('button[aria-controls]')); await act(async () => root.unmount());
+-console.log("PASS isolated Customer panel/Overview: exact direct refs, stable dedup paging, Activity detail/Escape, loading/empty/error/retry, scope/FLS refusal, retired response, projected-only identity, Meeting disabled without record authority and generic creation absent. Not connected evidence.");
++console.log("PASS isolated Customer panel/Overview: exact direct refs, stable dedup paging, Activity detail/Escape, loading/empty/error/retry, scope/FLS refusal, retired response, projected-only identity, Meeting and Task creation disabled without record authority. Not connected evidence.");
+--- /dev/null
++++ b/tests/contract/customer-task-create-session.test.mts
+@@ -0,0 +1,81 @@
++import assert from "node:assert/strict";
++import { JSDOM } from "jsdom";
++
++const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: "http://localhost", pretendToBeVisual: true });
++for (const key of ["window", "document", "navigator", "localStorage", "HTMLElement", "Element", "Node", "Event", "CustomEvent", "EventTarget", "MutationObserver"] as const)
++  Object.defineProperty(globalThis, key, { value: key === "window" ? dom.window : dom.window[key], configurable: true });
++Object.defineProperties(globalThis, {
++  IS_REACT_ACT_ENVIRONMENT: { value: true, configurable: true },
++  getComputedStyle: { value: dom.window.getComputedStyle.bind(dom.window), configurable: true },
++  requestAnimationFrame: { value: dom.window.requestAnimationFrame.bind(dom.window), configurable: true },
++  cancelAnimationFrame: { value: dom.window.cancelAnimationFrame.bind(dom.window), configurable: true },
++  ResizeObserver: { value: class { observe() {} unobserve() {} disconnect() {} }, configurable: true },
++});
++Object.defineProperty(dom.window.HTMLElement.prototype, "scrollIntoView", { value() {}, configurable: true });
++Object.defineProperty(dom.window, "matchMedia", { value: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) });
++const React = await import("react"), { act } = React;
++const { createRoot } = await import("react-dom/client");
++const auth = await import("@/platform/identity-auth");
++assert.ok(auth.signIn({ email: "admin@unicorecrm.local", password: "admin123" }).ok);
++const { initializeApplicationComposition } = await import("@/app/composition");
++await initializeApplicationComposition({ mode: "demo" });
++const ws = await import("@/platform/workspace-context"), ac = await import("@/platform/access-control");
++await ac.loadAccessGovernance(ws.getWorkspaceContextSnapshot().workspaceId);
++const services = await import("@/modules/tasks/application/composition/taskApplicationServices");
++const original = services.getTaskApplicationServices();
++const inputs: Array<Parameters<typeof original.api.commands.createTask>[0]> = [], keys: string[] = [];
++const { ApplicationError } = await import("@/shared/domain");
++let hold = true, reject = true, release: (() => void) | undefined;
++services.configureTaskApplication({ ...original, api: { ...original.api, commands: { ...original.api.commands,
++  async createTask(input, options) {
++    inputs.push(input); keys.push(options.idempotencyKey);
++    if (hold) await new Promise<void>(resolve => { release = resolve; });
++    if (reject) throw new ApplicationError({ code: "NETWORK_ERROR", category: "NETWORK", message: "Private diagnostic", retryable: true });
++    return original.api.commands.createTask(input, options);
++  },
++} } });
++const { TaskCreateModal } = await import("@/modules/tasks");
++const { I18nProvider } = await import("@/i18n"), { MemoryRouter } = await import("react-router-dom");
++const { getDirtyUnsavedWork } = await import("@/platform/unsaved-work");
++const host = document.getElementById("root"); assert.ok(host);
++const root = createRoot(host);
++let target = "customer-A", open = true, created = 0, closed = 0;
++async function render() {
++  await act(async () => root.render(React.createElement(I18nProvider, null, React.createElement(MemoryRouter, null,
++    React.createElement(TaskCreateModal, { key: target, targetId: target, isOpen: open, formId: "session-task-form",
++      context: { recordRef: { moduleKey: "customers", recordId: target }, sourceRef: { type: "CUSTOMER_360", id: target }, label: `Authorized ${target}` },
++      defaults: { dueAt: "2027-01-02T17:00" },
++      onClose() { closed++; open = false; void render(); }, onCreated() { created++; },
++    })))));
++}
++async function changeTitle(value: string) {
++  const input = document.querySelector<HTMLInputElement>("#task-create-title"); assert.ok(input);
++  await act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")?.set?.call(input, value); input.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
++}
++async function submit(times = 1) {
++  const form = document.getElementById("session-task-form"); assert.ok(form);
++  await act(async () => { for (let i = 0; i < times; i++) form.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })); });
++}
++try {
++  await render(); await changeTitle("Customer A task");
++  const stale = getDirtyUnsavedWork()[0]; assert.ok(stale);
++  await submit(2); assert.equal(inputs.length, 1, "double submit sends one request");
++  assert.equal(inputs[0]?.recordRef?.moduleKey, "customers"); assert.equal(inputs[0]?.recordRef?.recordId, "customer-A");
++  assert.equal(inputs[0]?.relationshipRef, undefined); assert.equal(inputs[0]?.sourceRef?.type, "CUSTOMER_360");
++  await act(async () => release?.());
++  assert.equal(document.querySelector<HTMLInputElement>("#task-create-title")?.value, "Customer A task");
++  assert.ok(document.querySelector('[role="alert"]')); assert.ok(!document.body.textContent?.includes("Private diagnostic"));
++  hold = false; reject = false; await submit();
++  assert.equal(inputs.length, 2); assert.deepEqual(inputs[0], inputs[1]); assert.equal(keys[0], keys[1], "unknown outcome retry preserves exact intent/key");
++  assert.equal(created, 1); assert.equal(closed, 1);
++  target = "customer-B"; open = true; await render();
++  assert.equal(await stale.save(), false, "retired Customer registration cannot create another task");
++  assert.equal(document.querySelector<HTMLInputElement>("#task-create-title")?.value, "");
++  await changeTitle("Customer B draft"); const workspaceDraft = getDirtyUnsavedWork()[0]; assert.ok(workspaceDraft);
++  const current = ws.getWorkspaceContextSnapshot();
++  const alternate = ws.listWorkspaceMemberships().find(m => m.status === "active" && m.workspaceId !== current.workspaceId); assert.ok(alternate);
++  await act(async () => { await ws.switchWorkspaceContext(alternate.workspaceKey); });
++  assert.equal(await workspaceDraft.save(), false, "retired Workspace cannot save Customer draft");
++  assert.equal(inputs.length, 2);
++  console.log("PASS Customer Task modal: exact record/source, no relationshipRef, duplicate submit, unknown outcome same-key retry, draft retention, success callbacks, Customer and Workspace retirement. In-process protocol evidence only.");
++} finally { await act(async () => root.unmount()); }

@@ -1,0 +1,5 @@
+{
+  "barrier": "SQL idempotency table lock after reference authorization",
+  "ownerChangedBeforeRelease": true,
+  "status": 201
+}

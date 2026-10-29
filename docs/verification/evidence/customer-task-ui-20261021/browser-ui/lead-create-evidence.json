@@ -1,0 +1,13 @@
+{
+  "sourceControlValue": "",
+  "request": {
+    "method": "POST",
+    "path": "/leads",
+    "status": 201,
+    "correlationId": "a7a15a28-4783-42de-8c58-2774bb62c8df"
+  },
+  "response": {
+    "aggregateId": "lead_d8cfb6f891db4cf39dcad874895169a2",
+    "status": 201
+  }
+}

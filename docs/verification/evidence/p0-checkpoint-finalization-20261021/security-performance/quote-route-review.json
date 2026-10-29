@@ -1,0 +1,15 @@
+{
+  "audits": [
+    {
+      "count": 1,
+      "operation": "listQuotes",
+      "outcome": "READ"
+    }
+  ],
+  "tables": [
+    "__EFMigrationsHistory",
+    "Quotes",
+    "ReadAuditRecords"
+  ],
+  "quoteMutationCommit": "BLOCKED: no admitted Quote mutation routes"
+}
