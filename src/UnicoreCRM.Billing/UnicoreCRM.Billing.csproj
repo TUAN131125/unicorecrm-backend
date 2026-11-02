@@ -11,5 +11,6 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <ProjectReference Include="../UnicoreCRM.BuildingBlocks/UnicoreCRM.BuildingBlocks.csproj" />
     <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Sales/UnicoreCRM.Sales.csproj" />
   </ItemGroup>
 </Project>

@@ -9,6 +9,12 @@ public interface IContactCustomerSubjectParticipant
         string requestId, string correlationId, CancellationToken cancellationToken);
 }
 
+internal interface IContactCustomerListIdentityParticipant
+{
+    Task<IReadOnlyDictionary<string, string>> ResolveVisibleAsync(TrustedWorkspaceContext trusted,
+        IReadOnlyCollection<string> contactIds, string requestId, string correlationId, CancellationToken cancellationToken);
+}
+
 internal sealed record CustomerStakeholderContact(string RelationshipId, string ContactId, string DisplayName,
     string Role, DateTimeOffset EffectiveFrom, DateTimeOffset? EffectiveTo);
 internal interface ICustomerStakeholderReadParticipant

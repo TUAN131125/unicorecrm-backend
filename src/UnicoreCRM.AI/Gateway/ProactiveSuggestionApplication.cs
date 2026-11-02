@@ -54,7 +54,7 @@ internal sealed class ProactiveSuggestionApplication(
                 if (output is null) error = AiErrors.InvalidProviderResponse();
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { error = AiErrors.ProviderTimeout(); }
-            catch (AiProviderUnavailableException) { error = AiErrors.ProviderUnavailable(); }
+            catch (AiProviderUnavailableException exception) { error = AiErrors.ProviderUnavailable(exception.Reason); }
             catch (AiProviderRateLimitedException) { error = AiErrors.ProviderRateLimited(); }
             catch (AiProviderInvalidResponseException) { error = AiErrors.InvalidProviderResponse(); }
             catch (AiProviderSafetyRefusalException) { error = AiErrors.ProviderSafetyRefusal(); }

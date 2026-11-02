@@ -9,6 +9,7 @@ internal sealed class WorkspaceOptions
 internal sealed class DevelopmentWorkspaceBootstrapOptions
 {
     public bool Enabled { get; init; }
+    public bool EnsureStudioConfiguration { get; init; }
     public string IdentityEmail { get; init; } = string.Empty;
     public DevelopmentWorkspaceOptions MemberWorkspace { get; init; } = new();
     public DevelopmentWorkspaceOptions NonMemberWorkspace { get; init; } = new();

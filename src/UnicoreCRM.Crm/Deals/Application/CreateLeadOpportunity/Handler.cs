@@ -13,7 +13,9 @@ namespace UnicoreCRM.Crm.Deals.Application.CreateLeadOpportunity;
 internal sealed class Handler(
     CreateDeal.Handler createDeal,
     DealAuthorization authorization,
-    IWorkspaceMemberReferenceValidator memberValidator) : ILeadQualificationDealParticipant
+    DealPipelineRegistry registry,
+    IWorkspaceMemberReferenceValidator memberValidator,
+    DealReferenceValidation references) : ILeadQualificationDealParticipant
 {
     public async Task<LeadOpportunityDealResult> ValidateOpportunityAsync(
         LeadOpportunityDealCommand command,
@@ -30,7 +32,7 @@ internal sealed class Handler(
         CreateDealValidation.TryCreate(
             request,
             out var profile,
-            out var stage,
+            out var stageCode,
             out var forecastCategory,
             out var nextActionAt,
             out var nextActionSummary,
@@ -38,11 +40,11 @@ internal sealed class Handler(
             out var fields);
         if (fields.Count != 0)
             return Failed(DealErrors.Validation(fields));
-        if (stage is null)
-            return Failed(DealErrors.StageNotFound(request.StageCode!));
-        if (stage.Category is not DealStageCategory.Open)
-            return Failed(DealErrors.TerminalStageRequiresOutcome());
-        var progressive = DealValidation.ProgressiveProfileErrors(profile!, stage.Code, forecastCategory);
+        var configured = await registry.ReadInitialStageForCreateAsync(access.Value!.Trusted, cancellationToken);
+        if (configured.Error is not null) return Failed(configured.Error);
+        var stage = configured.Stage!;
+        forecastCategory = DealStages.DeriveForecast(stage, profile!.OpportunityScore);
+        var progressive = DealValidation.ProgressiveProfileErrors(profile!, stage, forecastCategory);
         if (progressive.Count != 0)
             return Failed(DealErrors.ProgressiveProfile(progressive));
         var fieldError = DealFieldSecurity.GuardCreateWrite(
@@ -52,6 +54,13 @@ internal sealed class Handler(
         if (!await memberValidator.IsActiveMemberAsync(
                 access.Value.Trusted.WorkspaceId, profile!.OwnerId, cancellationToken))
             return Failed(DealErrors.OwnerNotAssignable());
+        // Contact NEW does not exist during this preflight. Verify product references through
+        // the same owner reader as normal creation before any workflow participant commits.
+        // Creation repeats mutable reference checks at its authoritative write boundary.
+        var referenceError = await references.ValidateAsync(null, command.InterestedProductIds,
+            new DealRequestMetadata(command.RequestId, command.CorrelationId), cancellationToken);
+        if (referenceError is not null)
+            return Failed(referenceError);
         return new(true, null, null, null, null, null, null);
     }
 
@@ -89,7 +98,7 @@ internal sealed class Handler(
     private static CreateDealRequest Request(LeadOpportunityDealCommand command, string contactId) => new(
         Name: command.Name,
         BuyerRef: new DealBuyerReference("CONTACT", contactId),
-        StageCode: "DISCOVERY",
+        StageCode: null,
         Amount: command.EstimatedValue,
         OpportunityScore: "10",
         OwnerId: command.OwnerId,

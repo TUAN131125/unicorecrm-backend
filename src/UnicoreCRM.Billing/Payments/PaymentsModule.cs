@@ -13,9 +13,11 @@ internal static class PaymentsModule
     internal static IServiceCollection AddPaymentsModule(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("UnicoreCRM");
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteRetentionVerifier, PaymentsQuoteRetentionVerifier>();
         services.AddDbContext<PaymentsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "payments")));
         services.AddScoped<IPaymentsPersistence, EfPaymentsPersistence>();
+        services.AddScoped<Contracts.IOrderPaymentPlanParticipant,OrderPaymentPlanParticipant>();
         services.AddDevelopmentSchemaMigration(
             "payments",
             (provider, cancellationToken) => provider.GetRequiredService<PaymentsDbContext>().Database.MigrateAsync(cancellationToken));

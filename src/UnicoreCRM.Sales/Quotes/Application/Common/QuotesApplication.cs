@@ -3,6 +3,7 @@ using UnicoreCRM.Sales.Quotes.Domain;
 namespace UnicoreCRM.Sales.Quotes.Application.Common;
 
 internal sealed record QuoteRequestMetadata(string RequestId, string CorrelationId);
+internal sealed record QuoteCommandMetadata(string RequestId, string CorrelationId, string IdempotencyKey, long? ExpectedVersion);
 
 internal sealed record QuoteOperationError(
     string Code,
@@ -27,17 +28,35 @@ internal sealed record QuoteListSpecification(
     string? Status,
     string? SourceDealId,
     string? BuyerType,
-    string? BuyerId);
+    string? BuyerId,
+    string? ScopeOwnerId = null,
+    string? RootQuoteId = null,
+    string Archived = "ACTIVE");
+
+internal sealed record QuoteRootRevisionState(int MaximumRevision, bool HasWorkingRevision);
 
 internal sealed record QuotePage(IReadOnlyList<Quote> Items, int TotalCount);
 
 internal interface IQuotesPersistence
 {
+    Task<IQuoteTransaction> BeginAsync(CancellationToken cancellationToken);
+    Task LockAsync(string key, CancellationToken cancellationToken);
+    Task<Quote?> LoadQuoteAsync(string workspaceId, string quoteId, CancellationToken cancellationToken);
+    Task<QuoteCommandRecord?> FindCommandAsync(string scopeKey, CancellationToken cancellationToken);
+    Task<QuoteCustomerDecisionRecord?> FindCustomerDecisionAsync(string workspaceId, string decisionId, CancellationToken cancellationToken);
+    Task<string?> ReadCreatorAsync(string workspaceId, string quoteId, CancellationToken cancellationToken);
+    Task<QuoteRootRevisionState> ReadRootRevisionStateAsync(string workspaceId, string rootQuoteId, CancellationToken cancellationToken);
+    Task<string> NextNumberAsync(CancellationToken cancellationToken);
+    void AddQuote(Quote quote);
+    void AddCommand(QuoteCommandRecord record);
+    void AddOutbox(QuoteOutboxMessage message);
     Task<Quote?> ReadQuoteAsync(string workspaceId, string quoteId, CancellationToken cancellationToken);
     Task<QuotePage> ReadQuotesAsync(string workspaceId, QuoteListSpecification specification, CancellationToken cancellationToken);
     void AddReadAudit(QuoteReadAuditRecord readAudit);
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
+internal interface IQuoteTransaction : IAsyncDisposable { Task CommitAsync(CancellationToken cancellationToken); }
+internal sealed class QuotePersistenceConcurrencyException(Exception inner) : Exception("Quote changed concurrently.", inner);
 
 internal static class QuoteErrors
 {

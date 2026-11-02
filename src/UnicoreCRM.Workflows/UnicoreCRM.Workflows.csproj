@@ -18,5 +18,7 @@
     <!-- Workflows consumes owner participant contracts only. It opens no foreign DbContext. -->
     <ProjectReference Include="../UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />
     <ProjectReference Include="../UnicoreCRM.Operations/UnicoreCRM.Operations.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Sales/UnicoreCRM.Sales.csproj" />
+    <ProjectReference Include="../UnicoreCRM.Billing/UnicoreCRM.Billing.csproj" />
   </ItemGroup>
 </Project>

@@ -27,8 +27,8 @@ internal static class CustomersModule
         services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.ICustomerTaskReferenceAuthority,
             Application.ValidateTaskReference.CustomerTaskReferenceAuthority>();
         services.AddScoped<Application.Health.CustomerHealthAssessmentService>();
-        services.AddScoped<IProactiveCustomerHealthReader, Application.Health.ProactiveCustomerHealthReader>();
-        services.AddScoped<ICustomerAttentionReader, Application.Health.CustomerAttentionReader>();
+        services.AddScoped<IProactiveCustomerHealthReader, Infrastructure.Persistence.EfProactiveCustomerHealthReader>();
+        services.AddScoped<ICustomerAttentionReader, Infrastructure.Persistence.EfCustomerAttentionReader>();
         services.AddScoped<IProactiveCustomerAiContextReader, Application.Health.ProactiveCustomerAiContextReader>();
         services.AddScoped<Application.ListCustomers.Handler>();
         services.AddScoped<Application.GetCustomer.Handler>();

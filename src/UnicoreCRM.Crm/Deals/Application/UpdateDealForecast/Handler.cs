@@ -1,11 +1,12 @@
 using UnicoreCRM.Crm.Deals.Application.Common;
 using UnicoreCRM.Crm.Deals.Contracts;
+using UnicoreCRM.Crm.Deals.Domain;
 
 namespace UnicoreCRM.Crm.Deals.Application.UpdateDealForecast;
 
 internal sealed record Command(string DealId, UpdateDealForecastRequest Request, DealCommandMetadata Metadata);
 
-internal sealed class Handler(DealAuthorization authorization, DealMutationExecution execution)
+internal sealed class Handler(DealAuthorization authorization, DealMutationExecution execution, DealPipelineRegistry registry)
 {
     internal async Task<DealOperationResult<DealMutationResponse>> HandleAsync(
         Command command,
@@ -18,6 +19,7 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
         if (!DealValidation.IsEntityId(command.DealId))
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.NotFound());
 
+        DealPipelineStage? currentStage = null;
         var fingerprint = DealCommandSupport.Fingerprint(new { command.DealId, command.Request, command.Metadata.ExpectedVersion });
         return await execution.ExecuteAsync(
             access.Value!,
@@ -37,7 +39,7 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
                         out var fields))
                     return DealErrors.Validation(fields);
                 var profile = deal.Profile with { ExpectedCloseDate = closeDate, OpportunityScore = score };
-                var progressive = DealValidation.ProgressiveProfileErrors(profile, deal.StageCode, category);
+                var progressive = DealValidation.ProgressiveProfileErrors(profile, currentStage!, category);
                 if (progressive.Count != 0)
                     return DealErrors.ProgressiveProfile(progressive);
                 return deal.UpdateForecast(closeDate, score, category, access.Value!.Trusted.MemberId, now)
@@ -48,6 +50,12 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             (recordAccess, record) => authorization.EnforceRecordAsync(
                 recordAccess, record, "updateDealForecast", metadata, cancellationToken),
             recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "forecastCategory", "forecastHistory"),
-            cancellationToken);
+            cancellationToken,
+            async (deal, token) =>
+            {
+                var selected = await registry.SelectAsync(deal.WorkspaceId, deal.PipelineId, deal.StageCode, token, requireActive: false);
+                currentStage = selected.Stage;
+                return selected.Error;
+            });
     }
 }

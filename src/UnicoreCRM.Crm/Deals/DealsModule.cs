@@ -13,15 +13,21 @@ internal static class DealsModule
     internal static IServiceCollection AddDealsModule(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("UnicoreCRM");
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteRetentionVerifier, DealsQuoteRetentionVerifier>();
         services.AddDbContext<DealsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "deals")));
         services.AddScoped<IDealsPersistence, EfDealsPersistence>();
+        services.AddScoped<IDealPipelinePersistence, EfDealsPersistence>();
+        services.AddScoped<DealPipelineRegistry>();
+        services.AddScoped<Contracts.IDealPipelineProvisioning>(provider => provider.GetRequiredService<DealPipelineRegistry>());
         services.AddDevelopmentSchemaMigration(
             "deals",
             (provider, cancellationToken) => provider.GetRequiredService<DealsDbContext>().Database.MigrateAsync(cancellationToken));
         services.AddScoped<DealAuthorization>();
         services.AddScoped<DealMutationExecution>();
         services.AddScoped<DealReferenceValidation>();
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteRelationshipVerifier,
+            Application.VerifyQuoteSource.QuoteRelationshipVerifier>();
         services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IDealTaskReferenceAuthority,
             Application.ValidateTaskReference.DealTaskReferenceAuthority>();
         services.AddScoped<Contracts.IDealSummaryReader, Application.ReadDealSummary.DealSummaryReader>();

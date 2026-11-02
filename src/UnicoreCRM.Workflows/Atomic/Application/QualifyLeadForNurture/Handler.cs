@@ -2,15 +2,13 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
 using UnicoreCRM.Crm.Contacts.Contracts;
 using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Operations.Tasks.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Workflows.Atomic.Contracts;
 using UnicoreCRM.Workflows.Atomic.Domain;
-using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
+using UnicoreCRM.Workflows.Atomic.Application.Persistence;
 
 namespace UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForNurture;
 
@@ -53,7 +51,7 @@ internal sealed class ParticipantContentionException(string participant)
 /// identity, and reaches every owner only through that owner's narrow participant contract.
 /// </summary>
 internal sealed class Handler(
-    WorkflowsDbContext dbContext,
+    IAtomicWorkflowAnchorStore anchors,
     ICurrentWorkspace currentWorkspace,
     ILeadQualificationParticipant leads,
     IContactQualificationParticipant contacts,
@@ -91,7 +89,7 @@ internal sealed class Handler(
             {
                 // Nothing this attempt was mid-way through committed. Drop the stale anchor from the
                 // tracker so the retry re-reads durable state rather than its own lost view.
-                dbContext.ChangeTracker.Clear();
+                anchors.DiscardPendingAnchorChanges();
             }
             catch (Exception exception) when (IsContention(exception))
             {
@@ -128,8 +126,7 @@ internal sealed class Handler(
         var scopeKey = ScopeKey(trusted.WorkspaceId, command);
         var fingerprint = Fingerprint(command);
 
-        var anchor = await dbContext.LeadQualificationAnchors
-            .SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
+        var anchor = await anchors.FindQualificationAsync(scopeKey, cancellationToken);
 
         // Legacy anchors did not record Task owner intent; it cannot be recovered from a hash or
         // from current owner data. Refuse rather than silently accept an unprovable replay.
@@ -282,7 +279,7 @@ internal sealed class Handler(
                 return Error("INTERNAL_ERROR", 500);
             anchor.RecordContact(resolution.ContactId, resolution.ContactVersion.Value,
                 resolution.WasCreated, resolution.DisplayName, timeProvider.GetUtcNow());
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await anchors.PersistQualificationAsync(anchor, cancellationToken);
         }
 
         // ---- 2. Follow-up Task -----------------------------------------------------------
@@ -320,7 +317,7 @@ internal sealed class Handler(
             if (created.TaskId is null || created.TaskVersion is null)
                 return Error("INTERNAL_ERROR", 500);
             anchor.RecordTask(created.TaskId, created.TaskVersion.Value, timeProvider.GetUtcNow());
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await anchors.PersistQualificationAsync(anchor, cancellationToken);
         }
 
         // ---- 3. Terminal Lead close ------------------------------------------------------
@@ -349,7 +346,7 @@ internal sealed class Handler(
 
         var response = ComposeResponse(anchor, closure);
         anchor.Complete(closure.Version!.Value, JsonSerializer.Serialize(response, ResponseJson), timeProvider.GetUtcNow());
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await anchors.PersistQualificationAsync(anchor, cancellationToken);
 
         return new LeadNurtureQualificationResult(
             true,
@@ -434,17 +431,15 @@ internal sealed class Handler(
             command.TaskOwnerId ?? leadOwnerId,
             command.CorrelationId,
             timeProvider.GetUtcNow());
-        dbContext.LeadQualificationAnchors.Add(anchor);
         try
         {
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await anchors.CreateQualificationAsync(anchor, cancellationToken);
             return anchor;
         }
-        catch (DbUpdateException)
+        catch (Exception exception) when (anchors.IsUpdateFailure(exception))
         {
-            dbContext.ChangeTracker.Clear();
-            return await dbContext.LeadQualificationAnchors
-                .SingleAsync(item => item.ScopeKey == scopeKey, cancellationToken);
+            anchors.DiscardPendingAnchorChanges();
+            return await anchors.GetQualificationAsync(scopeKey, cancellationToken);
         }
     }
 
@@ -509,11 +504,10 @@ internal sealed class Handler(
     /// is the third, and is the only route by which an owner's internal contention reaches here -
     /// Workflows never inspects a provider error owned by another module.
     /// </summary>
-    private static bool IsContention(Exception exception) => exception switch
+    private bool IsContention(Exception exception) => exception switch
     {
         ParticipantContentionException => true,
-        DbUpdateConcurrencyException => true,
-        SqlException sql => sql.Number is 1205 or 1222,
+        _ when anchors.IsProviderContention(exception) => true,
         _ => exception.InnerException is not null && IsContention(exception.InnerException)
     };
 

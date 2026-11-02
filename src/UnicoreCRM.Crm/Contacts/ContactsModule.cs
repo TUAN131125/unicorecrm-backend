@@ -16,6 +16,9 @@ internal static class ContactsModule
         services.AddDbContext<ContactsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "contacts")));
         services.AddScoped<IContactsPersistence, EfContactsPersistence>();
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteDocumentPartyReader, Application.QuoteDocuments.PartyReader>();
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteAcceptancePartyReader, Application.QuoteDocuments.AcceptancePartyReader>();
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteAutomaticBuyerReader, QuoteAutomaticBuyerReader>();
         services.AddScoped<IIntegrationEventSource, ContactIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "contacts",
@@ -35,6 +38,7 @@ internal static class ContactsModule
         services.AddScoped<Application.Relationships.Handler>();
         services.AddScoped<Contracts.IOrganizationContactReadParticipant, Application.ReadOrganizationContacts.Participant>();
         services.AddScoped<Contracts.IContactCustomerSubjectParticipant, Application.CustomerParticipants.SubjectParticipant>();
+        services.AddScoped<Contracts.IContactCustomerListIdentityParticipant, Application.CustomerParticipants.SubjectParticipant>();
         services.AddScoped<Contracts.ICustomerStakeholderReadParticipant, Application.CustomerParticipants.StakeholderParticipant>();
         services.AddScoped<Contracts.ILeadCustomerStakeholderParticipant, Application.CustomerParticipants.LeadConversionStakeholderParticipant>();
         // The Lead qualification participant. It is an internal owner boundary consumed by the

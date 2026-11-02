@@ -48,7 +48,8 @@ public sealed record CreateDealRequest(
     string? NextActionAt = null,
     string? NextActionSummary = null,
     string? NextActionTaskId = null,
-    string? Notes = null);
+    string? Notes = null,
+    string? PipelineId = null);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ReplaceDealProfileRequest(
@@ -107,7 +108,7 @@ public sealed record DealReadModel(
     DealBuyerReference BuyerRef,
     string StageCode,
     string StageCategory,
-    DealMoney Amount,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DealMoney? Amount,
     string OpportunityScore,
     string OwnerId,
     string ExpectedCloseDate,
@@ -117,6 +118,7 @@ public sealed record DealReadModel(
     string CreatedAt,
     string UpdatedAt)
 {
+    public string PipelineId { get; init; } = "";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ContactId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SourceLeadId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? WonAt { get; init; }

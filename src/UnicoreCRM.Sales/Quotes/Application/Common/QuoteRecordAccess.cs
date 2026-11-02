@@ -34,6 +34,7 @@ internal static class QuoteFieldSecurity
             ["taxTotal"] = true,
             ["grandTotal"] = true,
             ["validUntil"] = false,
+            ["validity"] = false,
             ["reviewRequestedAt"] = false,
             ["sentAt"] = false,
             ["acceptedAt"] = false,
@@ -57,7 +58,9 @@ internal static class QuoteFieldSecurity
             ["approvalContentFingerprint"] = false,
             ["approvalPolicyVersion"] = false,
             ["paymentAgreement"] = false,
+            ["salesAcceptance"] = false,
             ["deliveryHistory"] = false,
+            ["customerDecisionHistory"] = false,
             ["senderName"] = false,
             ["senderAddress"] = false,
             ["senderEmail"] = false,
@@ -79,6 +82,7 @@ internal static class QuoteFieldSecurity
     internal static QuoteReadModel Project(QuoteReadModel model, RecordAccessAuthorization access) =>
         model with
         {
+            Validity = access.CanRead("validUntil") ? Keep(access, "validity", model.Validity) : null,
             RevisionOfQuoteId = Keep(access, "revisionOfQuoteId", model.RevisionOfQuoteId),
             SourceDealId = Keep(access, "sourceDealId", model.SourceDealId),
             ContactId = Keep(access, "contactId", model.ContactId),
@@ -106,12 +110,27 @@ internal static class QuoteFieldSecurity
             ApprovalContentFingerprint = Keep(access, "approvalContentFingerprint", model.ApprovalContentFingerprint),
             ApprovalPolicyVersion = Keep(access, "approvalPolicyVersion", model.ApprovalPolicyVersion),
             PaymentAgreement = Keep(access, "paymentAgreement", model.PaymentAgreement),
+            SalesAcceptance=access.CanRead("customerDecisionHistory")?Keep(access,"salesAcceptance",model.SalesAcceptance):null,
             DeliveryHistory = Keep(access, "deliveryHistory", model.DeliveryHistory),
+            CustomerDecisionHistory = Keep(access, "customerDecisionHistory", model.CustomerDecisionHistory),
+            Actions = model.Actions with
+            {
+                Revise = Gate(model.Actions.Revise, QuoteRevisionCommands.CanCreate(model, access) && access.CanRead("lineItems")),
+                Expire = Gate(model.Actions.Expire, access.CanWrite("status") && access.CanWrite("expiredAt") && access.CanRead("validUntil")),
+                Archive = Gate(model.Actions.Archive, access.CanWrite("archivedAt") && access.CanWrite("archiveReason")),
+                Reject = model.Actions.Reject is not { Allowed: true } reject || access.CanWrite("status") && access.CanWrite("rejectedAt") && access.CanWrite("customerDecisionHistory") && access.CanRead("customerDecisionHistory")
+                    ? model.Actions.Reject : reject with { Allowed = false, BlockerCodes = ["ACCESS_DENIED"] },
+                RecordCustomerResponse = model.Actions.RecordCustomerResponse is not { Allowed: true } report || access.CanWrite("customerDecisionHistory") && access.CanRead("customerDecisionHistory")
+                    ? model.Actions.RecordCustomerResponse : report with { Allowed = false, BlockerCodes = ["ACCESS_DENIED"] }
+            },
             SenderName = Keep(access, "senderName", model.SenderName),
             SenderAddress = Keep(access, "senderAddress", model.SenderAddress),
             SenderEmail = Keep(access, "senderEmail", model.SenderEmail),
             SenderTaxId = Keep(access, "senderTaxId", model.SenderTaxId)
         };
+
+    private static QuoteActionAvailabilityReadModel? Gate(QuoteActionAvailabilityReadModel? hint, bool permitted) =>
+        hint is { Allowed: true } && !permitted ? hint with { Allowed = false, BlockerCodes = ["ACCESS_DENIED"] } : hint;
 
     private static T? Keep<T>(RecordAccessAuthorization access, string fieldKey, T? value) =>
         access.CanRead(fieldKey) ? value : default;
@@ -123,11 +142,12 @@ internal sealed class QuoteAuthorization(IRecordAccessEvaluator evaluator)
 
     internal async Task<QuoteOperationResult<QuoteAccess>> AuthorizeAsync(
         QuoteRequestMetadata metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AccessRequirement? requirement = null)
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
-            QuoteCapabilities.Read.Capability,
+            (requirement ?? QuoteCapabilities.Read).Capability,
             QuoteFieldSecurity.FieldKeys,
             RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
@@ -166,8 +186,7 @@ internal sealed class QuoteAuthorization(IRecordAccessEvaluator evaluator)
         return decision.IsAllowed ? null : QuoteErrors.NotFound();
     }
 
-    // ownerId is admitted as a Quote wire field, but current authority does not identify it as the
-    // canonical AccessControl owner fact. It therefore cannot widen OWN scope; TEAM and CUSTOM are
-    // already fail-closed in AccessControl.
-    internal static RecordAccessFacts Facts(Quote quote) => RecordAccessFacts.Found(null);
+    // Owner policy approved for Quote Core: an active Workspace member is validated on write.
+    // Legacy rows without an owner continue to fail OWN scope closed.
+    internal static RecordAccessFacts Facts(Quote quote) => RecordAccessFacts.Found(quote.OwnerId);
 }

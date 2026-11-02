@@ -25,6 +25,7 @@ internal static class DealProjection
             Utc(deal.CreatedAt),
             Utc(deal.UpdatedAt))
         {
+            PipelineId = deal.PipelineId,
             ContactId = profile.ContactId,
             SourceLeadId = profile.SourceLeadId,
             WonAt = OptionalUtc(deal.WonAt),
@@ -56,7 +57,7 @@ internal static class DealProjection
         value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture);
 
     internal static string BusinessDate(DateOnly value) => value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-    internal static DealMoney Money(DealMoneyValue value) => new(value.Amount, value.Currency);
+    internal static DealMoney? Money(DealMoneyValue? value) => value is null ? null : new(value.Amount, value.Currency);
     internal static string ForecastCategory(DealForecastCategory value) => value switch
     {
         DealForecastCategory.Commit => "COMMIT",

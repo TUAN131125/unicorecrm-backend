@@ -30,8 +30,13 @@ internal sealed class WorkspaceAiProviderResolver(
             return new(primary, active.Policy.RetryRateLimited, fallback);
         }
 
+        // Once a Workspace owns configuration, only explicit activation permits execution.
+        // Disable also preserves pending drafts, so checking Status alone is insufficient.
+        if (await store.FindAsync(workspaceId, cancellationToken) is not null)
+            throw new AiProviderUnavailableException("WORKSPACE_AI_INACTIVE");
+
         var provider = (configuration["AI:DeploymentDefault:Provider"] ?? "GEMINI").Trim().ToUpperInvariant();
-        var model = configuration["AI:DeploymentDefault:Model"] ?? (provider == "GEMINI" ? "gemini-2.5-flash" : "gpt-5-mini");
+        var model = configuration["AI:DeploymentDefault:Model"] ?? (provider == "GEMINI" ? "gemini-2.5-flash" : AiProviderCatalog.DefaultOpenAiModel);
         return new(ResolveTarget(provider, model, AiConfigurationValues.DeploymentCredential, null), false, null);
     }
 
@@ -42,10 +47,10 @@ internal sealed class WorkspaceAiProviderResolver(
         if (source == AiConfigurationValues.WorkspaceCredential)
         {
             try { credential = protectedCredential is null ? null : protector.Unprotect(protectedCredential); }
-            catch (Exception) { throw new AiProviderUnavailableException(); }
+            catch (System.Security.Cryptography.CryptographicException) { throw new AiProviderUnavailableException("CREDENTIAL_UNREADABLE"); }
         }
         else credential = configuration[$"AI:Providers:{provider}:ApiKey"];
-        if (string.IsNullOrWhiteSpace(credential)) throw new AiProviderUnavailableException();
+        if (string.IsNullOrWhiteSpace(credential)) throw new AiProviderUnavailableException("CREDENTIAL_MISSING");
         return new(provider, model, credential);
     }
 }

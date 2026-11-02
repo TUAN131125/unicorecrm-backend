@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using UnicoreCRM.Crm.Leads.Contracts;
 using UnicoreCRM.Operations.Tasks.Contracts;
@@ -9,7 +8,7 @@ using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Workflows.Atomic.Contracts;
 using UnicoreCRM.Workflows.Atomic.Domain;
-using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
+using UnicoreCRM.Workflows.Atomic.Application.Persistence;
 
 namespace UnicoreCRM.Workflows.Atomic.Application.HandoverLead;
 
@@ -27,7 +26,7 @@ internal sealed class NoopLeadHandoverFaultInjector : ILeadHandoverFaultInjector
     public Task AfterParticipantCommitAsync(LeadHandoverFaultPoint point, CancellationToken ct) => Task.CompletedTask;
 }
 
-internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant leads,
+internal sealed class Handler(IAtomicWorkflowAnchorStore anchors, ILeadHandoverParticipant leads,
     ILeadHandoverTaskParticipant tasks, ILeadHandoverPolicyReader policies, IServiceAccessAuthorizer services,
     ILeadHandoverFaultInjector faults, TimeProvider time, ILogger<Handler> logger)
     : ILeadHandoverWorkflow, ILeadHandoverRecoveryRunner
@@ -35,7 +34,6 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
     internal const string RecoveryPrincipal = "svc_lead_handover_recovery";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(2);
-    private const int RecoveryCandidateLimit = 100;
     private const int RecoveryExecutionLimit = 10;
 
     public async Task<LeadHandoverOperationResult> ExecuteAsync(LeadHandoverCommand command, CancellationToken ct)
@@ -51,7 +49,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
         var fingerprint = Hash(JsonSerializer.Serialize(new { command.LeadId, command.ExpectedVersion,
             request.NextOwnerId, request.Reason }, Json));
         var scope = Hash($"{trusted.WorkspaceId}\nhandoverLeadWithTasks\n{trusted.MemberId}\n{command.LeadId}\n{command.IdempotencyKey}");
-        var prior = await db.LeadHandoverAnchors.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scope, ct);
+        var prior = await anchors.FindHandoverReceiptAsync(scope, ct);
         if (prior is not null)
         {
             if (!MatchesIntent(prior, command.ExpectedVersion, request)) return new(false, null, "IDEMPOTENCY_KEY_REUSED", 409, IdempotencyKey: command.IdempotencyKey);
@@ -68,15 +66,14 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
             command.RequestId, prepared.OwnerId!, request.NextOwnerId!, request.Reason!, policy.AcceptanceSlaHours, now);
         var taskAdmission = await tasks.ValidateAsync(TaskCommand(anchor, trusted.MemberId), ct);
         if (!taskAdmission.IsSuccess) return new(false, null, taskAdmission.ErrorCode, taskAdmission.ErrorStatus, taskAdmission.FieldErrors);
-        db.LeadHandoverAnchors.Add(anchor);
         try
         {
-            await db.SaveChangesAsync(ct);
+            await anchors.CreateHandoverAsync(anchor, ct);
         }
-        catch (DbUpdateException exception) when (exception.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
+        catch (Exception exception) when (anchors.IsUniqueInsertRace(exception))
         {
-            db.ChangeTracker.Clear();
-            prior = await db.LeadHandoverAnchors.AsNoTracking().SingleOrDefaultAsync(x => x.ScopeKey == scope, ct);
+            anchors.DiscardPendingAnchorChanges();
+            prior = await anchors.FindHandoverReceiptAsync(scope, ct);
             if (prior is not null && MatchesIntent(prior, command.ExpectedVersion, request))
                 return await AuthorizeReceiptAsync(await ResumeAsync(scope, trusted.MemberId, true, ct), command, true, ct);
             return Fail("LEAD_HANDOVER_IN_PROGRESS", 409);
@@ -91,8 +88,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
         // its success response. Later requests recheck resource/field permissions only.
         if (replay)
         {
-            var anchor = await db.LeadHandoverAnchors.AsNoTracking().SingleAsync(
-                x => x.HandoverId == result.Response!.CommandId && x.LeadId == command.LeadId, ct);
+            var anchor = await anchors.GetHandoverReceiptAsync(result.Response!.CommandId, command.LeadId, ct);
             var disclosure = await tasks.AuthorizeReplayAsync(TaskCommand(anchor, anchor.OriginalPrincipalId), ct);
             if (!disclosure.IsSuccess) return Fail(disclosure.ErrorCode!, disclosure.ErrorStatus!.Value);
         }
@@ -102,12 +98,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
     public async Task<int> ResumeDueAsync(CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        var ids = await db.LeadHandoverAnchors.AsNoTracking()
-            .Where(x => x.Stage != LeadHandoverStage.Completed && x.Stage != LeadHandoverStage.ManualReview
-                && (x.NextRetryAt == null || x.NextRetryAt <= now)
-                && (x.ExecutionAttemptId == null || x.ExecutionLeaseExpiresAt == null || x.ExecutionLeaseExpiresAt <= now))
-            .OrderBy(x => x.UpdatedAt).ThenBy(x => x.ScopeKey)
-            .Select(x => new { x.ScopeKey, x.WorkspaceId, x.CorrelationId }).Take(RecoveryCandidateLimit).ToArrayAsync(ct);
+        var ids = await anchors.FindDueHandoversAsync(now, ct);
         var count = 0;
         var executions = 0;
         foreach (var item in ids)
@@ -129,12 +120,12 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
 
     private async Task DeferDeniedRecoveryAsync(string scope, CancellationToken ct)
     {
-        db.ChangeTracker.Clear();
-        var anchor = await db.LeadHandoverAnchors.SingleOrDefaultAsync(x => x.ScopeKey == scope, ct);
+        anchors.DiscardPendingAnchorChanges();
+        var anchor = await anchors.FindHandoverForUpdateAsync(scope, ct);
         if (anchor is null || !anchor.DeferRecoveryAccessDenied(time.GetUtcNow())) return;
         // Rowversion prevents this deferral from overwriting concurrent lease acquisition or progress.
-        try { await db.SaveChangesAsync(ct); }
-        catch (DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); }
+        try { await anchors.PersistHandoverAsync(anchor, ct); }
+        catch (Exception exception) when (anchors.IsConcurrencyConflict(exception)) { anchors.DiscardPendingAnchorChanges(); }
     }
 
     private async Task<LeadHandoverOperationResult> ResumeAsync(string scope, string executor, bool replay, CancellationToken ct)
@@ -142,16 +133,16 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
         var attempt = $"handover_execution_{Guid.NewGuid():N}";
         while (true)
         {
-            db.ChangeTracker.Clear();
-            var anchor = await db.LeadHandoverAnchors.SingleAsync(x => x.ScopeKey == scope, ct);
+            anchors.DiscardPendingAnchorChanges();
+            var anchor = await anchors.GetHandoverForUpdateAsync(scope, ct);
             if (anchor.Stage == LeadHandoverStage.Completed)
                 return new(true, JsonSerializer.Deserialize<LeadHandoverResponse>(anchor.ResponseJson!, Json)! with { Outcome = "REPLAYED" });
             if (anchor.Stage == LeadHandoverStage.ManualReview) return Fail(anchor.LastErrorCode!, 409);
             var now = time.GetUtcNow();
             if (anchor.HasActiveLease(now, attempt)) return Fail("LEAD_HANDOVER_IN_PROGRESS", 409);
             anchor.AcquireLease(attempt, executor, now, Lease);
-            try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateConcurrencyException) { return Fail("LEAD_HANDOVER_IN_PROGRESS", 409); }
+            try { await anchors.PersistHandoverAsync(anchor, ct); }
+            catch (Exception exception) when (anchors.IsConcurrencyConflict(exception)) { return Fail("LEAD_HANDOVER_IN_PROGRESS", 409); }
             if (anchor.Stage == LeadHandoverStage.Created)
             {
                 var reservation = await leads.ReserveAsync(LeadCommand(anchor, "reserve", executor), ct);
@@ -169,8 +160,8 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                     anchor.RecordStage(attempt, LeadHandoverStage.TasksCommitted,
                         JsonSerializer.Serialize(committed, Json), committed.EmittedEventIds,
                         committed.AuditEvidenceIds, time.GetUtcNow());
-                    try { await db.SaveChangesAsync(ct); }
-                    catch (DbUpdateConcurrencyException) { return Fail("LEAD_HANDOVER_IN_PROGRESS", 409); }
+                    try { await anchors.PersistHandoverAsync(anchor, ct); }
+                    catch (Exception exception) when (anchors.IsConcurrencyConflict(exception)) { return Fail("LEAD_HANDOVER_IN_PROGRESS", 409); }
                     continue;
                 }
                 if (committed.ErrorCode == "HANDOVER_TASKS_FENCED")
@@ -214,13 +205,13 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                     new(task.ReassignedTaskIds, task.HandoverTaskId!, task.HandoverTaskVersion!.Value,
                         anchor.TakeoverDueAt.UtcDateTime.ToString("O"), anchor.ResolvedSlaHours), [],
                     JsonSerializer.Deserialize<string[]>(anchor.EmittedEventIdsJson)!, JsonSerializer.Deserialize<string[]>(anchor.AuditEvidenceIdsJson)!);
-                db.IntegrationOutboxMessages.Add(new WorkflowIntegrationOutboxMessage(anchor, lead.Version, time.GetUtcNow()));
+                var outbox = new WorkflowIntegrationOutboxMessage(anchor, lead.Version, time.GetUtcNow());
                 anchor.Complete(JsonSerializer.Serialize(response with { Outcome = "COMMITTED" }, Json), time.GetUtcNow());
-                await db.SaveChangesAsync(ct);
+                await anchors.PersistHandoverCompletionAsync(anchor, outbox, ct);
                 return new(true, response);
             }
-            try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateConcurrencyException) { return Fail("LEAD_HANDOVER_IN_PROGRESS", 409); }
+            try { await anchors.PersistHandoverAsync(anchor, ct); }
+            catch (Exception exception) when (anchors.IsConcurrencyConflict(exception)) { return Fail("LEAD_HANDOVER_IN_PROGRESS", 409); }
         }
     }
 
@@ -234,7 +225,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
             {
                 anchor.RecordStage(attempt, LeadHandoverStage.LeadReserved, null,
                     reservation.Response!.EmittedEventIds, reservation.Response.AuditEvidenceIds, time.GetUtcNow());
-                await db.SaveChangesAsync(ct);
+                await anchors.PersistHandoverAsync(anchor, ct);
                 return Fail("LEAD_HANDOVER_IN_PROGRESS", 503);
             }
             if (reservation.ErrorCode != "HANDOVER_RESERVATION_FENCED")
@@ -250,7 +241,7 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
                 anchor.RecordStage(attempt, LeadHandoverStage.TasksCommitted,
                     JsonSerializer.Serialize(resolved, Json), resolved.EmittedEventIds,
                     resolved.AuditEvidenceIds, time.GetUtcNow());
-                await db.SaveChangesAsync(ct);
+                await anchors.PersistHandoverAsync(anchor, ct);
                 return Fail("LEAD_HANDOVER_IN_PROGRESS", 503);
             }
             if (resolved.ErrorCode != "HANDOVER_TASKS_FENCED")
@@ -259,14 +250,14 @@ internal sealed class Handler(WorkflowsDbContext db, ILeadHandoverParticipant le
             if (!released.IsSuccess) return await RetryAsync(anchor, attempt, released.ErrorCode!, ct);
         }
         anchor.ManualReview(attempt, code, time.GetUtcNow());
-        await db.SaveChangesAsync(ct);
+        await anchors.PersistHandoverAsync(anchor, ct);
         return Fail(code, status);
     }
     private async Task<LeadHandoverOperationResult> RetryAsync(LeadHandoverAnchor anchor, string attempt, string code, CancellationToken ct)
     {
         var now = time.GetUtcNow();
         anchor.Retry(attempt, code, now.AddMinutes(1), now);
-        await db.SaveChangesAsync(ct);
+        await anchors.PersistHandoverAsync(anchor, ct);
         return Fail(code, 503);
     }
     private static LeadHandoverParticipantCommand LeadCommand(LeadHandoverAnchor a, string stage, string executor) =>

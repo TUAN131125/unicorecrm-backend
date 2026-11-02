@@ -17,7 +17,7 @@ internal sealed class ConversationClaimer(CommunicationsDbContext db, IRecordAcc
             ["id", "lastActivityAt", "ownerId"], RecordAccessRepresentation.Full, request, ct);
         if (!Supported(claim) || !claim.CanReadUnassigned || !claim.CanWrite("ownerId")) return null;
         var read = await evaluator.AuthorizeResourceAsync("communications", "communications.read",
-            ConversationAccessFacts.Fields.Keys.ToArray(), RecordAccessRepresentation.Full, request, ct);
+            CommunicationsAccessFields.Conversations.Keys.ToArray(), RecordAccessRepresentation.Full, request, ct);
         if (!Supported(read) || read.TrustedWorkspace != claim.TrustedWorkspace) return null;
         var trusted = claim.TrustedWorkspace!;
         return await members.IsActiveMemberAsync(trusted.WorkspaceId, trusted.MemberId, ct) ? claim : null;

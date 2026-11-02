@@ -13,7 +13,9 @@ internal static class ProvidersModule
         IHostEnvironment environment)
     {
         var timeoutSeconds = Math.Clamp(configuration.GetValue("AI:Provider:TimeoutSeconds", 10), 1, 60);
-        services.AddSingleton(new AiProviderRuntimeOptions(TimeSpan.FromSeconds(timeoutSeconds)));
+        // This budget applies only to Gemini synthetic tests; OpenAI and Chat retain TimeoutSeconds.
+        var testTimeoutSeconds = Math.Clamp(configuration.GetValue("AI:Provider:ConfigurationTestTimeoutSeconds", Math.Max(30, timeoutSeconds)), 1, 60);
+        services.AddSingleton(new AiProviderRuntimeOptions(TimeSpan.FromSeconds(timeoutSeconds), TimeSpan.FromSeconds(testTimeoutSeconds)));
         services.AddSingleton<AiProviderOutputValidator>();
         services.AddSingleton<AiProviderCatalog>();
         var dataProtection = services.AddDataProtection().SetApplicationName("UnicoreCRM.AI");
@@ -25,12 +27,15 @@ internal static class ProvidersModule
                 : Path.GetFullPath(keyRingPath, environment.ContentRootPath);
             Directory.CreateDirectory(resolvedKeyRingPath);
             dataProtection.PersistKeysToFileSystem(new DirectoryInfo(resolvedKeyRingPath));
+            if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
         }
         else if (!environment.IsDevelopment())
         {
             throw new InvalidOperationException("AI:DataProtection:KeyRingPath must identify a durable production key-ring location.");
         }
         var deterministicTransport = environment.IsDevelopment() && configuration.GetValue("AI:ProviderTesting:UseDeterministicTransport", false);
+        // HttpClient's finite 100-second default exceeds the 60-second application cap.
+        // The application token also bounds response-body reads (ResponseHeadersRead).
         var gemini = services.AddHttpClient<GeminiAiProvider>(client => client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/"));
         var openAi = services.AddHttpClient<OpenAiProvider>(client => client.BaseAddress = new Uri("https://api.openai.com/"));
         if (deterministicTransport)

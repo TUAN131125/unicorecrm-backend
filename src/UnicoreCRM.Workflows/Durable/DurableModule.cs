@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using UnicoreCRM.Workflows.Durable.Infrastructure;
+using UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace;
 
 namespace UnicoreCRM.Workflows.Durable;
 

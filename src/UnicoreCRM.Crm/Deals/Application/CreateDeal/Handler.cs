@@ -10,6 +10,8 @@ internal sealed record Command(CreateDealRequest Request, DealCommandMetadata Me
 internal sealed class Handler(
     DealAuthorization authorization,
     IDealsPersistence persistence,
+    IDealPipelinePersistence pipelinePersistence,
+    DealPipelineRegistry registry,
     IWorkspaceMemberReferenceValidator memberValidator,
     DealReferenceValidation references,
     TimeProvider timeProvider)
@@ -26,7 +28,7 @@ internal sealed class Handler(
         CreateDealValidation.TryCreate(
             command.Request,
             out var profile,
-            out var stage,
+            out var stageCode,
             out var forecastCategory,
             out var nextActionAt,
             out var nextActionSummary,
@@ -38,25 +40,18 @@ internal sealed class Handler(
             return DealOperationResult<DealMutationResponse>.Failure(
                 productGap ? DealErrors.FieldValidation(fields) : DealErrors.Validation(fields));
         }
-        if (stage is null)
-            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.StageNotFound(command.Request.StageCode!));
-        if (stage.Category is not DealStageCategory.Open)
-            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.TerminalStageRequiresOutcome());
-
-        var progressive = DealValidation.ProgressiveProfileErrors(profile!, stage.Code, forecastCategory);
-        if (progressive.Count != 0)
-            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.ProgressiveProfile(progressive));
-
         var trusted = access.Value!.Trusted;
         var fingerprint = DealCommandSupport.Fingerprint(new
         {
             profile,
-            stage = stage.Code,
-            forecastCategory,
+            stageCode,
+            pipelineId = command.Request.PipelineId,
+            forecastCategory = command.Request.ForecastCategory is null ? (object)forecastCategory : new { explicitCategory = forecastCategory },
             nextActionAt,
             nextActionSummary,
             nextActionTaskId
         });
+        await registry.EnsureDefaultAsync(trusted.WorkspaceId, trusted.MemberId, cancellationToken);
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
         var scopeKey = DealCommandSupport.ScopeKey(
             trusted,
@@ -64,16 +59,38 @@ internal sealed class Handler(
             "WORKSPACE",
             command.Metadata.IdempotencyKey,
             command.Metadata.IdempotencyScopeActorId);
+        await pipelinePersistence.LockCommandAsync(scopeKey, cancellationToken);
+        await pipelinePersistence.LockRegistryAsync(trusted.WorkspaceId, cancellationToken);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
             // Answered from stored evidence alone, so an owner deactivated after the original commit
             // cannot retroactively invalidate the replay or create a second Deal.
             var replayError = DealCommandSupport.ReplayError(existing, fingerprint);
+            // Compatibility with immutable replay evidence committed before PipelineId existed.
+            using var stored = System.Text.Json.JsonDocument.Parse(existing.ResponseJson);
+            if (command.Request.PipelineId is null && !stored.RootElement.GetProperty("result").GetProperty("deal").TryGetProperty("pipelineId", out _))
+            {
+                var original = DealCommandSupport.Replay(existing).Result.Deal;
+                var legacyForecast = command.Request.ForecastCategory is not null ? forecastCategory
+                    : original.ForecastCategory == "COMMIT" ? DealForecastCategory.Commit
+                    : original.ForecastCategory == "BEST_CASE" ? DealForecastCategory.BestCase : DealForecastCategory.Pipeline;
+                var legacyStage = stageCode ?? (command.Metadata.QualificationSourceLeadId is not null ? original.StageCode : null);
+                var legacy = DealCommandSupport.Fingerprint(new { profile, stage = legacyStage,
+                    forecastCategory = legacyForecast, nextActionAt, nextActionSummary, nextActionTaskId });
+                replayError = DealCommandSupport.ReplayError(existing, legacy);
+            }
             return replayError is null
                 ? DealOperationResult<DealMutationResponse>.Success(Project(DealCommandSupport.Replay(existing), access.Value!))
                 : DealOperationResult<DealMutationResponse>.Failure(replayError);
         }
+
+        var selection = await registry.SelectAsync(trusted.WorkspaceId, command.Request.PipelineId, stageCode, cancellationToken);
+        if (selection.Error is not null) return DealOperationResult<DealMutationResponse>.Failure(selection.Error);
+        var stage = selection.Stage!;
+        forecastCategory = command.Request.ForecastCategory is null ? DealStages.DeriveForecast(stage, profile!.OpportunityScore) : forecastCategory;
+        var progressive = DealValidation.ProgressiveProfileErrors(profile!, stage, forecastCategory);
+        if (progressive.Count != 0) return DealOperationResult<DealMutationResponse>.Failure(DealErrors.ProgressiveProfile(progressive));
 
         if (command.Metadata.QualificationSourceLeadId is { } sourceLeadId)
         {
@@ -109,7 +126,8 @@ internal sealed class Handler(
             stage.Category,
             forecastCategory,
             now,
-            command.Metadata.QualificationSourceLeadId);
+            command.Metadata.QualificationSourceLeadId,
+            selection.Pipeline!.PipelineId);
         deal.InitializeNextAction(nextActionAt, nextActionSummary, nextActionTaskId);
         persistence.AddDeal(deal);
         var response = DealCommandSupport.RecordCommit(

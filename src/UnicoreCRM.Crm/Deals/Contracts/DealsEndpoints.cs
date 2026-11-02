@@ -29,10 +29,10 @@ public static class DealsEndpoints
     }
 
     private static void MapGet(IEndpointRouteBuilder endpoints, string path, Delegate handler, string name) =>
-        endpoints.MapGet(path, handler).RequireAuthorization().RequireTrustedWorkspace().WithName(name);
+        endpoints.MapGet(path, handler).RequireAuthorization().RequireTrustedWorkspace().AddEndpointFilter<DealBusyFilter>().WithName(name);
 
     private static void MapPost(IEndpointRouteBuilder endpoints, string path, Delegate handler, string name) =>
-        endpoints.MapPost(path, handler).RequireAuthorization().RequireTrustedWorkspace().WithName(name);
+        endpoints.MapPost(path, handler).RequireAuthorization().RequireTrustedWorkspace().AddEndpointFilter<DealBusyFilter>().WithName(name);
 
     private static async Task<IResult> ListDealsAsync(
         HttpContext context,
@@ -65,7 +65,8 @@ public static class DealsEndpoints
             Query(context, "buyerType"),
             Query(context, "buyerId"),
             metadata!.RequestId,
-            metadata.CorrelationId), cancellationToken);
+            metadata.CorrelationId,
+            Query(context, "pipelineId")), cancellationToken);
         return DealsHttp.Result(result, metadata.CorrelationId);
     }
 

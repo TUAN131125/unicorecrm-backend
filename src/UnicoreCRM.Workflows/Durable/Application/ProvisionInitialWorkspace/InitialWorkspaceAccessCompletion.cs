@@ -2,7 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
-using UnicoreCRM.Workflows.Durable.Infrastructure;
+using UnicoreCRM.Crm.Deals.Contracts;
 
 namespace UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace;
 
@@ -15,6 +15,7 @@ namespace UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace;
 internal sealed class InitialWorkspaceAccessCompletion(
     IInitialWorkspaceAccessProvisioning access,
     IInitialWorkspaceProvisioning workspaces,
+    IDealPipelineProvisioning pipelines,
     IHostEnvironment environment,
     IOptions<DurableWorkflowOptions> options)
 {
@@ -29,6 +30,7 @@ internal sealed class InitialWorkspaceAccessCompletion(
             throw new InvalidOperationException("Development fault injection failed the initial Workspace access assignment.");
 
         await access.EnsureInitialWorkspaceAccessAsync(workspaceId, membershipId, cancellationToken);
+        await pipelines.EnsureDefaultAsync(workspaceId, membershipId, cancellationToken);
         await workspaces.CompleteInitialWorkspaceAsync(accountId, cancellationToken);
     }
 }

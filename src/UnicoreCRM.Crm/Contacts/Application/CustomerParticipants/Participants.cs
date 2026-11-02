@@ -6,8 +6,31 @@ using UnicoreCRM.Platform.Workspace.Contracts;
 namespace UnicoreCRM.Crm.Contacts.Application.CustomerParticipants;
 
 internal sealed class SubjectParticipant(ContactAuthorization authorization, IContactsPersistence persistence, TimeProvider timeProvider)
-    : IContactCustomerSubjectParticipant
+    : IContactCustomerSubjectParticipant, IContactCustomerListIdentityParticipant
 {
+    public async Task<IReadOnlyDictionary<string, string>> ResolveVisibleAsync(TrustedWorkspaceContext trusted,
+        IReadOnlyCollection<string> contactIds, string requestId, string correlationId, CancellationToken cancellationToken)
+    {
+        if (contactIds.Count > 250) throw new ArgumentOutOfRangeException(nameof(contactIds));
+        var visible = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (contactIds.Count == 0) return visible;
+        var metadata = new ContactRequestMetadata(requestId, correlationId);
+        var access = await authorization.AuthorizeAsync(metadata, ContactCapabilities.Read, cancellationToken);
+        if (!access.IsSuccess || access.Value!.Trusted.WorkspaceId != trusted.WorkspaceId
+            || !access.Value.Authorization.CanRead("fullName")) return visible;
+        var records = await persistence.ReadContactsByIdsAsync(trusted.WorkspaceId, contactIds, cancellationToken);
+        foreach (var record in records)
+        {
+            if (await authorization.EnforceRecordAsync(access.Value, record, "listCustomerIdentities", metadata, cancellationToken) is not null) continue;
+            var projected = ContactFieldSecurity.Project(ContactProjection.Document(record), access.Value.Authorization);
+            visible[record.ContactId] = projected.FullName;
+            persistence.AddReadAudit(new ContactReadAuditRecord("listCustomerIdentities", trusted.WorkspaceId,
+                trusted.MemberId, record.ContactId, requestId, correlationId, record.Version, timeProvider.GetUtcNow()));
+        }
+        if (visible.Count > 0) await persistence.SaveChangesAsync(cancellationToken);
+        return visible;
+    }
+
     public async Task<ContactCustomerSubject?> ResolveVisibleAsync(TrustedWorkspaceContext trusted, string contactId,
         string requestId, string correlationId, CancellationToken cancellationToken)
     {

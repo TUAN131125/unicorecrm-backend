@@ -9,7 +9,7 @@ internal static class CreateDealValidation
     internal static bool TryCreate(
         CreateDealRequest request,
         out DealProfile? profile,
-        out DealStageDefinition? stage,
+        out string? stageCode,
         out DealForecastCategory forecastCategory,
         out DateTimeOffset? nextActionAt,
         out string? nextActionSummary,
@@ -19,8 +19,8 @@ internal static class CreateDealValidation
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
         var name = DealValidation.Text(request.Name, "name", 1, 240, true, fields);
         var buyer = DealValidation.Buyer(request.BuyerRef, fields);
-        var stageCode = DealValidation.Text(request.StageCode, "stageCode", 1, 120, true, fields);
-        stage = stageCode is not null && DealStages.TryGet(stageCode, out var found) ? found : null;
+        stageCode = DealValidation.Text(request.StageCode, "stageCode", 1, 120, false, fields);
+        DealValidation.OptionalEntity(request.PipelineId, "pipelineId", fields);
         var amount = DealValidation.Money(request.Amount, "amount", fields);
         var score = DealValidation.Percentage(request.OpportunityScore, "opportunityScore", true, fields);
         var ownerId = DealValidation.Entity(request.OwnerId, "ownerId", true, fields);
@@ -36,15 +36,12 @@ internal static class CreateDealValidation
         nextActionTaskId = DealValidation.Entity(request.NextActionTaskId, "nextActionTaskId", false, fields);
 
         errors = fields;
-        if (fields.Count != 0 || stage is null)
+        if (fields.Count != 0)
         {
             profile = null;
             return fields.Count == 0;
         }
 
-        forecastCategory = request.ForecastCategory is null
-            ? DealStages.DeriveForecast(stage.Code, score!)
-            : forecastCategory;
         profile = new DealProfile(
             name!, buyer!, amount!, score!, ownerId!, closeDate!.Value,
             contactId, sourceLeadId, interestedProductIds, notes);

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using UnicoreCRM.Platform.Workspace.Contracts;
-using UnicoreCRM.Workflows.Durable.Infrastructure;
 
 namespace UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace;
 

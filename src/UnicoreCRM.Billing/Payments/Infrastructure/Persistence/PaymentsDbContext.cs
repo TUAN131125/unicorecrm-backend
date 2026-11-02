@@ -14,6 +14,12 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("payments");
+        modelBuilder.Entity<PaymentPlanEvent>(e=>
+        {
+            e.ToTable("PlanEvents");e.HasKey(x=>x.EventId);
+            foreach(var key in new[]{"EventId","WorkspaceId","PlanId","CommandId","EventType"})e.Property<string>(key).HasMaxLength(128);
+            e.Property(x=>x.PayloadJson).HasColumnType("nvarchar(max)");e.HasIndex(x=>new{x.WorkspaceId,x.PlanId,x.EventType}).IsUnique();
+        });
         modelBuilder.Entity<PaymentPlan>(entity =>
         {
             entity.ToTable("PaymentPlans", table =>
@@ -45,7 +51,11 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
             Timestamp(entity.Property(item => item.ActivatedAt));
             Timestamp(entity.Property(item => item.CompletedAt));
             Timestamp(entity.Property(item => item.CancelledAt));
-            entity.HasIndex(item => new { item.WorkspaceId, item.OrderId });
+            entity.Property(item=>item.ResourceVersion).IsConcurrencyToken();
+            entity.HasIndex(item => new { item.WorkspaceId, item.OrderId }).IsUnique().HasFilter("[State] IN ('DRAFT','ACTIVE')");
+            entity.Property<string>("QuoteSourceId").HasMaxLength(128)
+                .HasComputedColumnSql("CONVERT(nvarchar(128), JSON_VALUE([AgreementSnapshotJson], '$.sourceQuoteId'))", stored: true);
+            entity.HasIndex("WorkspaceId", "QuoteSourceId");
         });
 
         modelBuilder.Entity<PaymentScheduleLine>(entity =>

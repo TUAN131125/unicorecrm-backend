@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Sales.Quotes.Application.Common;
 using UnicoreCRM.Sales.Quotes.Contracts;
 
@@ -9,7 +10,10 @@ internal sealed record Query(string QuoteId, QuoteRequestMetadata Metadata);
 internal sealed partial class Handler(
     QuoteAuthorization authorization,
     IQuotesPersistence persistence,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IQuoteCustomerDecisionPolicyReader? customerPolicy = null,
+    IQuoteLifecyclePolicyReader? lifecyclePolicy = null, IWorkspaceTimeZoneReader? timeZones = null,
+    IEnumerable<IQuoteRetentionVerifier>? retentionVerifiers = null, QuoteLifecycleClock? lifecycleClock = null, QuoteDocumentCommands? documentCommands = null, QuoteSalesPolicyReader? salesPolicies = null, IQuoteApprovalPolicyReader? approvalPolicies = null)
 {
     internal async Task<QuoteOperationResult<QuoteReadModel>> HandleAsync(
         Query query,
@@ -37,9 +41,17 @@ internal sealed partial class Handler(
         if (denied is not null)
             return QuoteOperationResult<QuoteReadModel>.Failure(denied);
 
+        var zone = timeZones is null ? null : await timeZones.ReadTimeZoneAsync(quote.WorkspaceId, cancellationToken);
         var document = QuoteFieldSecurity.Project(
-            QuoteProjection.Document(quote),
+            QuoteProjection.Document(quote, customerPolicy?.Read(quote.WorkspaceId), lifecyclePolicy?.Read(quote.WorkspaceId),
+                timeZones is null ? null : QuoteValidity.Evaluate(quote.ValidUntil, zone, lifecycleClock?.GetUtcNow(quote.WorkspaceId) ?? timeProvider.GetUtcNow()), QuoteRetentionVerification.Available(retentionVerifiers)),
             access.Value.Authorization);
+        if (document.Actions.Revise is { Allowed: true } hint
+            && (await persistence.ReadRootRevisionStateAsync(quote.WorkspaceId, quote.RootQuoteId, cancellationToken)).HasWorkingRevision)
+            document = document with { Actions = document.Actions with { Revise = hint with { Allowed = false, BlockerCodes = ["QUOTE_REVISION_BLOCKED"] } } };
+        if (documentCommands is not null)
+            document = document with { Actions = document.Actions with { IssueDocument = await documentCommands.AvailabilityAsync(quote, access.Value, query.Metadata, cancellationToken) } };
+        document = document with { OrdinarySales = salesPolicies?.WithoutInternalApproval(quote.WorkspaceId) == true && (approvalPolicies is null || (await approvalPolicies.ReadAsync(quote.WorkspaceId, cancellationToken))?.AlwaysRequireApproval != true) };
         await QuoteReadAudit.RecordResourceAsync(
             persistence,
             access.Value,

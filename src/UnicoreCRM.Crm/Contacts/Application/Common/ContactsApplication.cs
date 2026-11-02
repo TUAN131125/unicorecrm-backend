@@ -42,6 +42,7 @@ internal interface IContactsPersistence
     Task<ListContacts.ContactListSlice> ReadContactPageAsync(ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, long>> ReadContactStatusCountsAsync(ListContacts.ContactListSpecification specification, CancellationToken cancellationToken);
     Task<Contact?> ReadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Contact>> ReadContactsByIdsAsync(string workspaceId, IReadOnlyCollection<string> contactIds, CancellationToken cancellationToken);
     Task<Contact?> LoadContactAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Contact>> ReadContactsAsync(
         string workspaceId,
@@ -75,6 +76,7 @@ internal interface IContactsPersistence
     Task<IReadOnlyList<ContactCustomerRelationship>> ReadCustomerRelationshipsAsync(string workspaceId, string contactId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ContactCustomerRelationship>> ReadCustomerStakeholderRelationshipsAsync(string workspaceId, string customerId, CancellationToken cancellationToken);
     Task<ContactOrganizationRelationship?> LoadOrganizationRelationshipAsync(string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken);
+    Task<ContactOrganizationRelationship?> ReadOrganizationRelationshipAsync(string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken);
     Task<ContactCustomerRelationship?> LoadCustomerRelationshipAsync(string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken);
     Task<ContactOrganizationRelationship?> LoadActivePrimaryOrganizationRelationshipAsync(string workspaceId, string contactId, string? exceptRelationshipId, CancellationToken cancellationToken);
     Task<bool> HasActiveOrganizationRelationshipAsync(string workspaceId, string contactId, string organizationId, CancellationToken cancellationToken);

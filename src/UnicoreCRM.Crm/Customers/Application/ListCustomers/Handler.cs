@@ -6,6 +6,8 @@ using UnicoreCRM.Crm.Customers.Application.Health;
 using UnicoreCRM.Crm.Customers.Contracts;
 using UnicoreCRM.Crm.Customers.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
+using UnicoreCRM.Crm.Contacts.Contracts;
+using UnicoreCRM.Crm.Organizations.Contracts;
 
 namespace UnicoreCRM.Crm.Customers.Application.ListCustomers;
 
@@ -13,7 +15,8 @@ internal sealed record Query(CustomerRequestMetadata Metadata, string? Q, string
     string? OwnerId, string? Segment, string? Tier, string? Cursor, int Limit);
 
 internal sealed partial class Handler(CustomerAuthorization authorization, ICustomersPersistence persistence,
-    CustomerHealthAssessmentService health, TimeProvider timeProvider)
+    CustomerHealthAssessmentService health, TimeProvider timeProvider,
+    IContactCustomerListIdentityParticipant contacts, IOrganizationCustomerListIdentityParticipant organizations)
 {
     private static readonly HashSet<string> Types = ["B2C", "B2B"];
     private static readonly HashSet<string> Statuses = ["NEW", "ACTIVE", "AT_RISK", "INACTIVE", "CHURNED", "DO_NOT_CONTACT", "ARCHIVED"];
@@ -58,7 +61,22 @@ internal sealed partial class Handler(CustomerAuthorization authorization, ICust
         var assessments = await health.AssessBatchAsync(access.Value.Trusted, page, cancellationToken);
         var items = page.Select(x => CustomerFieldSecurity.Project(CustomerProjection.Document(x), access.Value.Authorization)
             with { HealthAssessment = assessments[x.CustomerId] }).ToArray();
-        return CustomerOperationResult<CustomerListResponse>.Success(new(items, new(next, hasNext)));
+        // Resolve only the returned page, through each source owner. Keep shared scoped authorization I/O sequential.
+        var contactNames = await contacts.ResolveVisibleAsync(access.Value.Trusted,
+            page.Where(x => x.RelationshipType == "CONTACT").Select(x => x.RelationshipId).Distinct(StringComparer.Ordinal).ToArray(),
+            query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+        var organizationNames = await organizations.ResolveVisibleAsync(access.Value.Trusted,
+            page.Where(x => x.RelationshipType == "ORGANIZATION_ACCOUNT").Select(x => x.RelationshipId).Distinct(StringComparer.Ordinal).ToArray(),
+            query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+        var identities = new Dictionary<string, Customer360Identity>(StringComparer.Ordinal);
+        foreach (var customer in page)
+        {
+            if (customer.RelationshipType == "CONTACT" && contactNames.TryGetValue(customer.RelationshipId, out var contactName))
+                identities[customer.CustomerId] = new(contactName) { ContactId = customer.RelationshipId };
+            else if (customer.RelationshipType == "ORGANIZATION_ACCOUNT" && organizationNames.TryGetValue(customer.RelationshipId, out var organizationName))
+                identities[customer.CustomerId] = new(organizationName) { OrganizationId = customer.RelationshipId };
+        }
+        return CustomerOperationResult<CustomerListResponse>.Success(new(items, new(next, hasNext)) { Identities = identities });
     }
 
     private static string? Normalize(string? value, int max, string field, IDictionary<string, string[]> fields)

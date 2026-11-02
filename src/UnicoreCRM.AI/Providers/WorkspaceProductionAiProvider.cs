@@ -91,6 +91,12 @@ internal sealed class WorkspaceProductionAiProvider(
         AiProviderFailure.Cancelled => new OperationCanceledException("Provider request cancelled."),
         AiProviderFailure.InvalidResponse => new AiProviderInvalidResponseException(),
         AiProviderFailure.SafetyRefusal => new AiProviderSafetyRefusalException(),
+        AiProviderFailure.AuthenticationFailure => new AiProviderUnavailableException("CREDENTIAL_REJECTED"),
+        AiProviderFailure.PermissionDenied => new AiProviderUnavailableException("PROVIDER_PERMISSION_DENIED"),
+        AiProviderFailure.ModelUnavailable => new AiProviderUnavailableException("MODEL_UNAVAILABLE"),
+        AiProviderFailure.BillingRequired => new AiProviderUnavailableException("PROVIDER_ACCOUNT_NOT_READY"),
+        AiProviderFailure.InvalidRequest => new AiProviderUnavailableException("PROVIDER_REQUEST_REJECTED"),
+        AiProviderFailure.NetworkFailure => new AiProviderUnavailableException("PROVIDER_NETWORK_FAILURE"),
         _ => new AiProviderUnavailableException()
     };
 }

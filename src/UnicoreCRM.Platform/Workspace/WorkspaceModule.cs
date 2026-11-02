@@ -26,6 +26,10 @@ internal static class WorkspaceModule
         services.AddScoped<IDevelopmentWorkspaceReferenceLookup, EfDevelopmentWorkspaceReferenceLookup>();
         services.AddScoped<IWorkspaceMemberReferenceValidator, EfWorkspaceMemberReferenceValidator>();
         services.AddScoped<IEffectiveWorkspaceBaseCurrencyReader, EfEffectiveWorkspaceBaseCurrencyReader>();
+        services.AddScoped<IQuoteWorkspacePolicyReader, EfQuoteWorkspacePolicyReader>();
+        services.AddScoped<IQuoteSellerReader, EfQuoteSellerReader>();
+        services.AddOptions<QuoteApprovalPolicyOptions>().Bind(configuration.GetSection("QuoteApprovalPolicies"));
+        services.AddScoped<IQuoteApprovalPolicyReader, ConfiguredQuoteApprovalPolicyReader>();
         services.AddScoped<IWorkspaceTimeZoneReader, EfWorkspaceTimeZoneReader>();
         services.AddScoped<ILeadHandoverPolicyReader, EfLeadHandoverPolicyReader>();
         services.AddScoped<IWorkspaceAccessDirectorySource, EfWorkspaceAccessDirectorySource>();

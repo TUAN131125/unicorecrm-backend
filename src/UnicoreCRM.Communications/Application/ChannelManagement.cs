@@ -25,7 +25,7 @@ internal sealed class ChannelManagement(CommunicationsDbContext db, ICurrentWork
     {
         if (!workspace.IsResolved) throw new CommunicationReadException("ACCESS_DENIED", 403);
         var result = await evaluator.AuthorizeResourceAsync("communications.channels", "communications.channels.manage",
-            ChannelAccessFacts.Fields.Keys.ToArray(), RecordAccessRepresentation.Full, new("", correlation), ct);
+            CommunicationsAccessFields.Channels.Keys.ToArray(), RecordAccessRepresentation.Full, new("", correlation), ct);
         var a = result.TrustedWorkspace;
         var w = workspace.Require();
         string[] writtenFields = operation switch

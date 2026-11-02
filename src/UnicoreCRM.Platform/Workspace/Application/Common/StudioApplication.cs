@@ -161,6 +161,8 @@ internal static class StudioValidation
         CheckMax(fields, "businessInformation.tradingName", request.BusinessInformation.TradingName, 200);
         CheckMax(fields, "businessInformation.legalName", request.BusinessInformation.LegalName, 240);
         CheckMax(fields, "businessInformation.email", request.BusinessInformation.Email, 320);
+        if (request.Addresses.Where(x => x is not null).GroupBy(x => x.Id, StringComparer.Ordinal).Any(g => g.Count() > 1))
+            fields["addresses"] = ["Address identifiers must be unique."];
         if (request.Addresses.Count > 100) fields["addresses"] = ["addresses must contain at most 100 items."];
         for (var index = 0; index < request.Addresses.Count; index++)
         {

@@ -18,7 +18,8 @@ internal sealed record Query(
     string? BuyerType,
     string? BuyerId,
     string RequestId,
-    string CorrelationId);
+    string CorrelationId,
+    string? PipelineId = null);
 
 internal sealed class Handler(
     DealAuthorization authorization,
@@ -49,6 +50,7 @@ internal sealed class Handler(
         if (query.StageCode is not null && (query.StageCode.Length is < 1 or > 120))
             fields["stageCode"] = ["stageCode must contain between 1 and 120 characters."];
         var stageCategory = ParseStageCategory(query.StageCategory, fields);
+        DealValidation.OptionalEntity(query.PipelineId, "pipelineId", fields);
         DealValidation.OptionalEntity(query.OwnerId, "ownerId", fields);
         if (query.BuyerType is not null && query.BuyerType is not ("CONTACT" or "ORGANIZATION_ACCOUNT"))
             fields["buyerType"] = ["buyerType must be CONTACT or ORGANIZATION_ACCOUNT."];
@@ -70,9 +72,9 @@ internal sealed class Handler(
         var deals = await persistence.ReadDealsAsync(
             trusted.WorkspaceId,
             scope == RecordAccessScopeFilter.OwnedByMember ? access.Value!.Authorization.ScopeOwnerMemberId : null,
-            cancellationToken);
+            cancellationToken, query.PipelineId, query.StageCode);
         var filtered = deals.Where(deal =>
-            (search is null || Search(deal, search))
+            (search is null || Search(deal, search, access.Value.Authorization))
             && (query.StageCode is null || deal.StageCode == query.StageCode)
             && (stageCategory is null || deal.StageCategory == stageCategory)
             && (query.OwnerId is null || deal.Profile.OwnerId == query.OwnerId)
@@ -97,22 +99,25 @@ internal sealed class Handler(
             timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);
         return DealOperationResult<DealListResponse>.Success(new DealListResponse(
-            items.Select(DealProjection.Document).ToArray(),
+            items.Select(deal => DealFieldSecurity.Project(DealProjection.Document(deal), access.Value.Authorization)).ToArray(),
             new DealPageInfo(hasNext, hasNext ? DealListCursor.Encode(nextOffset) : null, totalCount)));
     }
 
-    private static bool Search(Deal deal, string search) =>
-        new[] { deal.Profile.Name, deal.Profile.BuyerRef.Id, deal.Profile.ContactId, deal.Profile.SourceLeadId, deal.Profile.Notes }
+    private static bool Search(Deal deal, string search, RecordAccessAuthorization access) =>
+        new[] { deal.Profile.Name, deal.Profile.BuyerRef.Id,
+            access.CanRead("contactId") ? deal.Profile.ContactId : null,
+            access.CanRead("sourceLeadId") ? deal.Profile.SourceLeadId : null,
+            access.CanRead("notes") ? deal.Profile.Notes : null }
             .Where(value => value is not null)
             .Any(value => value!.Contains(search, StringComparison.OrdinalIgnoreCase));
 
     private static IOrderedEnumerable<Deal> Order(IEnumerable<Deal> deals, string sortBy, bool descending)
     {
-        Func<Deal, IComparable> key = sortBy switch
+        Func<Deal, IComparable?> key = sortBy switch
         {
             "createdAt" => deal => deal.CreatedAt,
             "expectedCloseDate" => deal => deal.Profile.ExpectedCloseDate,
-            "amount" => deal => DealDecimal.ParseScaled(deal.Profile.Amount.Amount),
+            "amount" => deal => deal.Profile.Amount is { } amount ? DealDecimal.ParseScaled(amount.Amount) : null,
             "opportunityScore" => deal => DealDecimal.ParseScaled(deal.Profile.OpportunityScore),
             _ => deal => deal.UpdatedAt
         };

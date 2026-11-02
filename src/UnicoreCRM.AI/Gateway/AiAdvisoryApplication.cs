@@ -57,10 +57,10 @@ internal sealed class AiAdvisoryApplication(
             await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_TIMEOUT", started, startedAt);
             return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.ProviderTimeout());
         }
-        catch (AiProviderUnavailableException)
+        catch (AiProviderUnavailableException exception)
         {
             await RecordUsageAsync(executionId, trusted, contextResult.ToolNames, contextResult.Items, "AI_PROVIDER_UNAVAILABLE", started, startedAt);
-            return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.ProviderUnavailable());
+            return AiOperationResult<AiAdvisoryResponse>.Failure(AiErrors.ProviderUnavailable(exception.Reason));
         }
         catch (AiProviderRateLimitedException)
         {

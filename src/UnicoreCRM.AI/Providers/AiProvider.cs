@@ -11,7 +11,9 @@ internal sealed record AiProviderRequest(
     string ContextData,
     string Locale,
     int ContextCount,
-    AiProviderOutputContract OutputContract = AiProviderOutputContract.Advisory);
+    AiProviderOutputContract OutputContract = AiProviderOutputContract.Advisory,
+    bool IsConfigurationTest = false,
+    string? CorrelationId = null);
 
 internal sealed record AiProviderResponse(string Content, string? RequestId = null, int? InputTokens = null, int? OutputTokens = null,
     string? Provider = null, string? Model = null);
@@ -27,7 +29,8 @@ internal interface IAiProvider
 
 internal sealed class AiProviderUnavailableException : Exception
 {
-    internal AiProviderUnavailableException() : base("The configured AI provider is unavailable.") { }
+    internal AiProviderUnavailableException(string? reason = null) : base("The configured AI provider is unavailable.") { Reason = reason; }
+    internal string? Reason { get; }
 }
 
 internal sealed class AiProviderRateLimitedException : Exception
@@ -43,4 +46,7 @@ internal sealed class AiProviderSafetyRefusalException : Exception
     internal AiProviderSafetyRefusalException() : base("The configured AI provider refused the request under its safety policy.") { }
 }
 
-internal sealed record AiProviderRuntimeOptions(TimeSpan Timeout);
+internal sealed record AiProviderRuntimeOptions(TimeSpan Timeout, TimeSpan? ConfigurationTestTimeout = null)
+{
+    internal TimeSpan TestTimeoutFor(string provider) => provider == "GEMINI" ? ConfigurationTestTimeout ?? Timeout : Timeout;
+}

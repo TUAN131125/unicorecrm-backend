@@ -20,8 +20,6 @@ internal static partial class OpportunityRequestValidation
         if (command.InterestedProductIds.Count != command.InterestedProductIds.Distinct(StringComparer.Ordinal).Count())
             fields["deal.interestedProductIds"] = ["interestedProductIds cannot contain duplicates."];
         Text(command.NeedSummary, "deal.needSummary", 0, 4000, false, fields);
-        if (string.IsNullOrWhiteSpace(command.NeedSummary) && command.InterestedProductIds.Count == 0)
-            fields["deal"] = ["needSummary or at least one interestedProductId is required."];
         BusinessDate(command.ExpectedCloseDate, "deal.expectedCloseDate", fields);
         Money(command.EstimatedValue, fields);
         Text(command.DecisionProcess, "deal.decisionProcess", 0, 2000, false, fields);

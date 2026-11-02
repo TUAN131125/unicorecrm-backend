@@ -11,10 +11,12 @@ internal sealed class Deal
         DealStageCategory stageCategory,
         DealForecastCategory forecastCategory,
         DateTimeOffset now,
-        string? qualificationSourceLeadId = null)
+        string? qualificationSourceLeadId = null,
+        string? pipelineId = null)
     {
         DealId = DealIds.New("deal");
         WorkspaceId = workspaceId;
+        PipelineId = pipelineId ?? DealPipeline.DefaultId(workspaceId);
         Profile = profile;
         ScopeOwnerId = profile.OwnerId;
         QualificationSourceLeadId = qualificationSourceLeadId;
@@ -29,6 +31,7 @@ internal sealed class Deal
 
     public string DealId { get; private set; } = null!;
     public string WorkspaceId { get; private set; } = null!;
+    public string PipelineId { get; private set; } = null!;
     public DealProfile Profile { get; private set; } = null!;
 
     /// <summary>

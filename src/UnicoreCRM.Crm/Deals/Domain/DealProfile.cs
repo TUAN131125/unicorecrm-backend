@@ -3,7 +3,7 @@ namespace UnicoreCRM.Crm.Deals.Domain;
 internal sealed record DealProfile(
     string Name,
     DealBuyer BuyerRef,
-    DealMoneyValue Amount,
+    DealMoneyValue? Amount,
     string OpportunityScore,
     string OwnerId,
     DateOnly ExpectedCloseDate,

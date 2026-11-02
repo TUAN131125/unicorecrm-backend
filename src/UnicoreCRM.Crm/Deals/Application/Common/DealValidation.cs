@@ -13,7 +13,7 @@ internal static partial class DealValidation
 {
     internal static IReadOnlyDictionary<string, string[]> ProgressiveProfileErrors(
         DealProfile profile,
-        string stageCode,
+        DealPipelineStage stage,
         DealForecastCategory? forecastCategory)
     {
         var fields = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -23,12 +23,12 @@ internal static partial class DealValidation
             fields["buyerRef"] = ["buyerRef is required for this Deal stage."];
         if (profile.OwnerId.Length == 0)
             fields["ownerId"] = ["ownerId is required for this Deal stage."];
-        if (stageCode is "PROPOSAL" or "NEGOTIATION")
+        if (stage.RequiresPositiveAmount)
         {
-            if (DealDecimal.ParseScaled(profile.Amount.Amount) <= 0)
-                fields["amount"] = ["amount must be greater than zero for PROPOSAL or NEGOTIATION."];
+            if (profile.Amount is null || DealDecimal.ParseScaled(profile.Amount.Amount) <= 0)
+                fields["amount"] = ["amount must be greater than zero for this stage."];
             if (forecastCategory is null)
-                fields["forecastCategory"] = ["forecastCategory is required for PROPOSAL or NEGOTIATION."];
+                fields["forecastCategory"] = ["forecastCategory is required for this stage."];
         }
         return fields;
     }
@@ -72,13 +72,11 @@ internal static partial class DealValidation
 
     internal static DealMoneyValue? Money(DealMoney? input, string field, IDictionary<string, string[]> fields)
     {
-        if (input is null)
-        {
-            fields[field] = [$"{field} is required."];
-            return null;
-        }
+        if (input is null) return null;
         if (input.Amount is null || !DecimalPattern().IsMatch(input.Amount))
             fields[$"{field}.amount"] = ["amount must be a base-10 decimal string with at most 6 fractional digits."];
+        else if (DealDecimal.ParseScaled(input.Amount) < 0)
+            fields[$"{field}.amount"] = ["amount must be non-negative."];
         if (input.Currency is null || !CurrencyPattern().IsMatch(input.Currency))
             fields[$"{field}.currency"] = ["currency must be a three-letter uppercase code."];
         return fields.ContainsKey($"{field}.amount") || fields.ContainsKey($"{field}.currency")

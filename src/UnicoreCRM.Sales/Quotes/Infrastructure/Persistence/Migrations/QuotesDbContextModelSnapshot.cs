@@ -23,6 +23,8 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence("QuoteNumbers", "quotes");
+
             modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.Quote", b =>
                 {
                     b.Property<string>("WorkspaceId")
@@ -156,6 +158,9 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
                     b.Property<string>("PaymentAgreementJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ProductSnapshotsJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("QuoteNumber")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -173,6 +178,7 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetimeoffset(7)");
 
                     b.Property<long>("ResourceVersion")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
                     b.Property<DateTimeOffset?>("ReviewRequestedAt")
@@ -260,6 +266,9 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
 
                     b.HasKey("WorkspaceId", "QuoteId");
 
+                    b.HasIndex("WorkspaceId", "QuoteNumber")
+                        .IsUnique();
+
                     b.HasIndex("WorkspaceId", "SourceDealId");
 
                     b.HasIndex("WorkspaceId", "Status");
@@ -272,6 +281,9 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
                     b.HasIndex("WorkspaceId", "GrandTotalAmount", "QuoteId");
 
                     b.HasIndex("WorkspaceId", "QuoteNumber", "QuoteId");
+
+                    b.HasIndex("WorkspaceId", "RootQuoteId", "QuoteRevision")
+                        .IsUnique();
 
                     b.HasIndex("WorkspaceId", "UpdatedAt", "QuoteId")
                         .IsDescending(false, true, false);
@@ -303,6 +315,960 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Quotes_SourcePath", "(([SourcePath] COLLATE Latin1_General_100_BIN2 = N'DEAL' AND DATALENGTH([SourcePath]) = DATALENGTH(N'DEAL')) OR ([SourcePath] COLLATE Latin1_General_100_BIN2 = N'DIRECT_SALE' AND DATALENGTH([SourcePath]) = DATALENGTH(N'DIRECT_SALE')))");
 
                             t.HasCheckConstraint("CK_Quotes_Status", "(([Status] COLLATE Latin1_General_100_BIN2 = N'DRAFT' AND DATALENGTH([Status]) = DATALENGTH(N'DRAFT')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'REVIEW' AND DATALENGTH([Status]) = DATALENGTH(N'REVIEW')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'SENT' AND DATALENGTH([Status]) = DATALENGTH(N'SENT')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'ACCEPTED' AND DATALENGTH([Status]) = DATALENGTH(N'ACCEPTED')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'REJECTED' AND DATALENGTH([Status]) = DATALENGTH(N'REJECTED')) OR ([Status] COLLATE Latin1_General_100_BIN2 = N'EXPIRED' AND DATALENGTH([Status]) = DATALENGTH(N'EXPIRED')))");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceCase", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CaseId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("BuyerId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("BuyerType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("CaseStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("CommercialFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("IssuedPdfSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("QuoteRevision")
+                        .HasColumnType("int");
+
+                    b.Property<long>("ResourceVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RootQuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("WorkspaceId", "CaseId");
+
+                    b.HasIndex("WorkspaceId", "QuoteId", "DocumentId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "QuoteId", "CreatedAt", "CaseId");
+
+                    b.ToTable("AcceptanceCases", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_AcceptanceCase_State", "[CaseStatus] COLLATE Latin1_General_100_BIN2 IN ('COLLECTING_PROOFS','QUARANTINED')");
+
+                            t.HasCheckConstraint("CK_AcceptanceCase_Version", "[QuoteRevision]>=1 AND [ResourceVersion]>=1");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceInvitation", b =>
+                {
+                    b.Property<string>("InvitationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CommercialFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset?>("ConsentedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeliveryErrorCode")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("DeliveryStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ProtectedDeliveryPayload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("QuoteVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RecipientEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("InvitationId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "QuoteId");
+
+                    b.ToTable("AcceptanceInvitations", "quotes");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProof", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ProofId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CaseId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("EvidenceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("FileSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<long>("ResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Retention")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ScanStatus")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("StorageStatus")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("WorkspaceId", "ProofId");
+
+                    b.HasIndex("WorkspaceId", "CaseId", "Sha256")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "CaseId", "UploadedAt", "ProofId");
+
+                    b.ToTable("AcceptanceProofs", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_AcceptanceProof_Bounds", "[FileSize] BETWEEN 1 AND 10485760 AND [ResourceVersion]=1 AND [MediaType]='application/pdf'");
+
+                            t.HasCheckConstraint("CK_AcceptanceProof_Quarantine", "[StorageStatus] COLLATE Latin1_General_100_BIN2 = 'QUARANTINED' AND [ScanStatus] COLLATE Latin1_General_100_BIN2 = 'SCAN_PENDING'");
+
+                            t.HasCheckConstraint("CK_AcceptanceProof_Type", "[EvidenceType] COLLATE Latin1_General_100_BIN2 IN ('CUSTOMER_CONSENT','IDENTITY','DELEGATION','SUPPORTING_DOCUMENT')");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProofContent", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ProofId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CaseId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("ContentLength")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("ProtectedBytes")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ProtectionFormat")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("WorkspaceId", "ProofId");
+
+                    b.HasIndex("WorkspaceId", "CaseId", "ProofId")
+                        .IsUnique();
+
+                    b.ToTable("AcceptanceProofContents", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_AcceptanceProofContent_Bounds", "[ContentLength] BETWEEN 1 AND 10485760 AND DATALENGTH([ProtectedBytes]) > [ContentLength]");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteCommandRecord", b =>
+                {
+                    b.Property<string>("ScopeKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AuditId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long?>("PriorVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("ResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ResponseJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("ScopeKey");
+
+                    b.HasIndex("AuditId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "QuoteId", "OccurredAt");
+
+                    b.ToTable("CommandRecords", "quotes");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteCustomerDecisionRecord", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("DecisionId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AuditId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CommandId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ContentFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("ContentResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("DecisionType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("QuoteRevision")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("ResultResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("WorkspaceId", "DecisionId");
+
+                    b.HasIndex("WorkspaceId", "QuoteId", "ResultResourceVersion")
+                        .IsUnique();
+
+                    b.ToTable("CustomerDecisionRecords", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_CustomerDecisionRecords_PayloadJson", "ISJSON([PayloadJson]) = 1");
+
+                            t.HasCheckConstraint("CK_CustomerDecisionRecords_Trust", "[VerificationStatus] COLLATE Latin1_General_100_BIN2 = 'UNVERIFIED'");
+
+                            t.HasCheckConstraint("CK_CustomerDecisionRecords_Type", "[DecisionType] COLLATE Latin1_General_100_BIN2 IN ('ACCEPTANCE','REJECTION')");
+
+                            t.HasCheckConstraint("CK_CustomerDecisionRecords_Version", "[QuoteRevision] >= 1 AND [ContentResourceVersion] >= 1 AND [ResultResourceVersion] = [ContentResourceVersion] + 1");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteDocument", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("DocumentId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ApprovalPolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("BindingHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("CommercialFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("DocumentVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FieldManifestJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("FileSize")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("IssuedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("PageCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PdfSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("QuoteRevision")
+                        .HasColumnType("int");
+
+                    b.Property<long>("ResultResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RootQuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("SellerConfigurationVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("SourceResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TemplateVersion")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.HasKey("WorkspaceId", "DocumentId");
+
+                    b.HasIndex("WorkspaceId", "QuoteId", "BindingHash")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "QuoteId", "DocumentVersion")
+                        .IsUnique();
+
+                    b.ToTable("Documents", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_QuoteDocument_Bounds", "[FileSize] BETWEEN 1 AND 10485760 AND [PageCount] BETWEEN 1 AND 100 AND [DocumentVersion] >= 1 AND [QuoteRevision] >= 1 AND [SourceResourceVersion] >= 1 AND [ResultResourceVersion] = [SourceResourceVersion] + 1");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteDocumentContent", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("DocumentId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<byte[]>("Bytes")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.HasKey("WorkspaceId", "DocumentId");
+
+                    b.ToTable("DocumentContents", "quotes");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteEvidenceSourceVersion", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SourceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("ResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("BuyerId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("BuyerType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("WorkspaceId", "SourceId", "ResourceVersion");
+
+                    b.HasIndex("WorkspaceId", "BuyerType", "BuyerId", "SourceId", "ResourceVersion");
+
+                    b.ToTable("AcceptanceEvidenceSourceVersions", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_AcceptanceSourceVersion_Approval", "[Status]<>'APPROVED' OR (COALESCE(JSON_VALUE([SnapshotJson],'$.assuranceLevel'),'')='DEVELOPMENT_SIMULATION' AND COALESCE(JSON_VALUE([SnapshotJson],'$.verificationMethod'),'')='ORGANIZATION_ISSUED_AUTHORITY_WITH_INDEPENDENT_SOURCE_CHECK' AND JSON_VALUE([SnapshotJson],'$.approvedBy') IS NOT NULL AND JSON_VALUE([SnapshotJson],'$.createdBy') IS NOT NULL AND JSON_VALUE([SnapshotJson],'$.approvedBy')<>JSON_VALUE([SnapshotJson],'$.createdBy') AND JSON_QUERY([SnapshotJson],'$.evidence') IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_AcceptanceSourceVersion_Buyer", "[BuyerType] COLLATE Latin1_General_100_BIN2 IN ('CONTACT','ORGANIZATION_ACCOUNT')");
+
+                            t.HasCheckConstraint("CK_AcceptanceSourceVersion_Json", "ISJSON([SnapshotJson])=1 AND DATALENGTH([SnapshotJson])<=32768");
+
+                            t.HasCheckConstraint("CK_AcceptanceSourceVersion_Number", "[ResourceVersion]>=1");
+
+                            t.HasCheckConstraint("CK_AcceptanceSourceVersion_State", "[Status] COLLATE Latin1_General_100_BIN2 IN ('DRAFT','APPROVED','REVOKED')");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteIdentityVersion", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CaseId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("ResourceVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("WorkspaceId", "CaseId", "ResourceVersion");
+
+                    b.HasIndex("WorkspaceId", "CaseId", "QuoteId");
+
+                    b.ToTable("IdentityAuthorityVersions", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_IdentityAuthorityVersion_Json", "ISJSON([SnapshotJson])=1 AND DATALENGTH([SnapshotJson])<=131072");
+
+                            t.HasCheckConstraint("CK_IdentityAuthorityVersion_Kind", "[Kind] COLLATE Latin1_General_100_BIN2 IN ('BINDING_RECORDED','SOURCE_CHECK_ATTEMPTED','ASSESSMENT_RECORDED','REVIEW_RECORDED')");
+
+                            t.HasCheckConstraint("CK_IdentityAuthorityVersion_Number", "[ResourceVersion]>=1");
+
+                            t.HasCheckConstraint("CK_IdentityAuthorityVersion_Review", "[Kind]<>'REVIEW_RECORDED' OR (COALESCE(JSON_VALUE([SnapshotJson],'$.independentReview.assuranceLevel'),'')='DEVELOPMENT_SIMULATION' AND COALESCE(JSON_VALUE([SnapshotJson],'$.independentReview.actualSourceVerification'),'')='false' AND COALESCE(JSON_VALUE([SnapshotJson],'$.independentReview.environment'),'')='Development' AND COALESCE(JSON_VALUE([SnapshotJson],'$.independentReview.decision'),'') IN ('APPROVE_SIMULATION','REQUEST_MORE_EVIDENCE','REJECT_REVIEW') AND COALESCE(JSON_VALUE([SnapshotJson],'$.independentReview.reviewerId'),'')=[ActorId] AND COALESCE(JSON_VALUE([SnapshotJson],'$.independentReview.caseId'),'')=[CaseId] AND COALESCE(JSON_VALUE([SnapshotJson],'$.independentReview.quoteId'),'')=[QuoteId] AND JSON_VALUE([SnapshotJson],'$.independentReview.reviewDecisionId') IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteOutboxMessage", b =>
+                {
+                    b.Property<string>("EventId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("WorkspaceId", "OccurredAt");
+
+                    b.ToTable("OutboxMessages", "quotes");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanAttempt", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AttemptId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CaseId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Epoch")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("InputLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("InputSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("LeaseExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LeaseId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PolicyDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("ProofId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RuntimeDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("WorkspaceId", "AttemptId");
+
+                    b.HasIndex("WorkspaceId", "ProofId", "AttemptNumber")
+                        .IsUnique();
+
+                    b.ToTable("AcceptanceProofScanAttempts", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProofScanAttempt_Bounds", "[AttemptNumber] BETWEEN 1 AND 12 AND [InputLength] BETWEEN 1 AND 10485760 AND [LeaseExpiresAt]>[StartedAt]");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanJob", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ProofId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AttemptId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CaseId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Epoch")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("EpochAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<long>("InputLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("InputSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("InterventionReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LastResultAttemptId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LeaseId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("LifetimeAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("ResourceVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("WorkspaceId", "ProofId");
+
+                    b.HasIndex("WorkspaceId", "CaseId", "ProofId");
+
+                    b.HasIndex("WorkspaceId", "Status", "NextAttemptAt");
+
+                    b.ToTable("AcceptanceProofScanJobs", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProofScanJob_Bounds", "[LifetimeAttempts] BETWEEN 0 AND 12 AND [EpochAttempts] BETWEEN 0 AND 3 AND [EpochAttempts]<=[LifetimeAttempts] AND [ResourceVersion]>=1 AND [InputLength] BETWEEN 1 AND 10485760");
+
+                            t.HasCheckConstraint("CK_ProofScanJob_Lease", "([Status]='SCANNING' AND [AttemptId] IS NOT NULL AND [LeaseId] IS NOT NULL AND [LeaseExpiresAt] IS NOT NULL) OR ([Status]<>'SCANNING' AND [LeaseId] IS NULL AND [LeaseExpiresAt] IS NULL)");
+
+                            t.HasCheckConstraint("CK_ProofScanJob_State", "[Status] COLLATE Latin1_General_100_BIN2 IN ('SCAN_PENDING','SCANNING','CLEAN','UNSAFE','INVALID_PDF','SCAN_FAILED','NEEDS_INTERVENTION')");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanResult", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AttemptId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CaseId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("MalwareVerdict")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ParserStatus")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ProofId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ProvenanceJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReasonCode")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.HasKey("WorkspaceId", "AttemptId");
+
+                    b.HasIndex("WorkspaceId", "CaseId", "ProofId", "AttemptId")
+                        .IsUnique();
+
+                    b.ToTable("AcceptanceProofScanResults", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProofScanResult_Clean", "[Outcome]<>'CLEAN' OR ([ParserStatus]='PASS' AND [MalwareVerdict]='CLEAN')");
+
+                            t.HasCheckConstraint("CK_ProofScanResult_Json", "ISJSON([ProvenanceJson])=1");
+
+                            t.HasCheckConstraint("CK_ProofScanResult_Outcome", "[Outcome] COLLATE Latin1_General_100_BIN2 IN ('CLEAN','UNSAFE','INVALID_PDF','SCAN_FAILED')");
                         });
                 });
 
@@ -363,6 +1329,227 @@ namespace UnicoreCRM.Sales.Quotes.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_ReadAuditRecords_ResourceVersion", "[ResourceVersion] IS NULL OR [ResourceVersion] >= 0");
                         });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteSalesAcceptance", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AcceptanceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("AcceptedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AssuranceLevel")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("AutoConfirmRequested")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("CommercialFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ConversionStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("CustomerAgreedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Evidence")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("OperationalApprovalRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OrderId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RecordedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("WorkspaceId", "AcceptanceId");
+
+                    b.HasIndex("ConversionStatus", "NextAttemptAt");
+
+                    b.HasIndex("WorkspaceId", "QuoteId")
+                        .IsUnique();
+
+                    b.ToTable("SalesAcceptances", "quotes", t =>
+                        {
+                            t.HasCheckConstraint("CK_SalesAcceptances_Assurance", "[AssuranceLevel] = 'ORDINARY_SALES_UNVERIFIED'");
+
+                            t.HasCheckConstraint("CK_SalesAcceptances_Snapshot", "ISJSON([SnapshotJson]) = 1");
+
+                            t.HasCheckConstraint("CK_SalesAcceptances_Source", "[Source] IN ('CUSTOMER_LINK','STAFF_RECORDED')");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceCase", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteDocument", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "QuoteId", "DocumentId")
+                        .HasPrincipalKey("WorkspaceId", "QuoteId", "DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProof", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceCase", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProofContent", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProof", null)
+                        .WithOne()
+                        .HasForeignKey("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProofContent", "WorkspaceId", "CaseId", "ProofId")
+                        .HasPrincipalKey("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProof", "WorkspaceId", "CaseId", "ProofId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteCustomerDecisionRecord", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.Quote", null)
+                        .WithMany("CustomerDecisions")
+                        .HasForeignKey("WorkspaceId", "QuoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteDocument", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.Quote", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "QuoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteDocumentContent", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteDocument", null)
+                        .WithOne()
+                        .HasForeignKey("UnicoreCRM.Sales.Quotes.Domain.QuoteDocumentContent", "WorkspaceId", "DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteIdentityVersion", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceCase", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "CaseId", "QuoteId")
+                        .HasPrincipalKey("WorkspaceId", "CaseId", "QuoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanAttempt", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProof", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "CaseId", "ProofId")
+                        .HasPrincipalKey("WorkspaceId", "CaseId", "ProofId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanJob", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteAcceptanceProof", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "CaseId", "ProofId")
+                        .HasPrincipalKey("WorkspaceId", "CaseId", "ProofId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanResult", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanAttempt", null)
+                        .WithOne()
+                        .HasForeignKey("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanResult", "WorkspaceId", "CaseId", "ProofId", "AttemptId")
+                        .HasPrincipalKey("UnicoreCRM.Sales.Quotes.Domain.QuoteProofScanAttempt", "WorkspaceId", "CaseId", "ProofId", "AttemptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.QuoteSalesAcceptance", b =>
+                {
+                    b.HasOne("UnicoreCRM.Sales.Quotes.Domain.Quote", null)
+                        .WithOne("SalesAcceptance")
+                        .HasForeignKey("UnicoreCRM.Sales.Quotes.Domain.QuoteSalesAcceptance", "WorkspaceId", "QuoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Quotes.Domain.Quote", b =>
+                {
+                    b.Navigation("CustomerDecisions");
+
+                    b.Navigation("SalesAcceptance");
                 });
 #pragma warning restore 612, 618
         }

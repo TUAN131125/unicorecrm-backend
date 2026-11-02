@@ -10,6 +10,7 @@ internal sealed record Command(ArchiveDealsBatchRequest Request, DealCommandMeta
 internal sealed class Handler(
     DealAuthorization authorization,
     IDealsPersistence persistence,
+    IDealPipelinePersistence pipelines,
     TimeProvider timeProvider)
 {
     internal async Task<DealOperationResult<DealBatchMutationResponse>> HandleAsync(
@@ -52,6 +53,8 @@ internal sealed class Handler(
         // a caller who could reach these deals when the batch committed but cannot reach them now
         // must not be able to replay the committed batch and read its stored projection back.
         var dealIds = normalizedItems.Select(item => item.DealId).ToArray();
+        foreach (var id in dealIds.Order(StringComparer.Ordinal))
+            await pipelines.LockCommandAsync($"aggregate:{trusted.WorkspaceId}:{id}", cancellationToken);
         var deals = await persistence.LoadDealsAsync(trusted.WorkspaceId, dealIds, cancellationToken);
         if (deals.Count != normalizedItems.Count)
             return DealOperationResult<DealBatchMutationResponse>.Failure(DealErrors.NotFound());

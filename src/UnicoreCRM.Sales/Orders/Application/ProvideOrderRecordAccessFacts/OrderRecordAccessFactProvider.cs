@@ -11,6 +11,7 @@ internal sealed partial class OrderRecordAccessFactProvider(IOrdersPersistence p
     private static readonly RecordAccessResourceDescriptor OrdersDescriptor = RecordAccessResourceDescriptor.Create(
         resourceKey: OrderAuthorization.ResourceKey,
         readCapability: OrderCapabilities.Read.Capability,
+        commandCapabilities: new Dictionary<string,string>{["order.confirm"]="orders.confirm"},
         enforceableFields: OrderFieldSecurity.EnforceableFields);
 
     public RecordAccessResourceDescriptor Descriptor => OrdersDescriptor;

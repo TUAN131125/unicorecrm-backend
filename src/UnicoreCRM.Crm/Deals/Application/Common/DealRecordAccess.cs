@@ -38,6 +38,7 @@ internal static class DealFieldSecurity
         new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
         {
             ["id"] = true,
+            ["pipelineId"] = true,
             ["name"] = true,
             ["buyerRef"] = true,
             ["stageCode"] = true,
@@ -161,6 +162,7 @@ internal static class DealFieldSecurity
 
         // A create always sets the opening stage and a forecast category, and optionally a next
         // action.
+        if (!access.CanWrite("pipelineId")) blocked.Add("pipelineId");
         if (!access.CanWrite("stageCode")) blocked.Add("stageCode");
         if (!access.CanWrite("stageCategory")) blocked.Add("stageCategory");
         if (!access.CanWrite("forecastCategory")) blocked.Add("forecastCategory");
@@ -172,8 +174,8 @@ internal static class DealFieldSecurity
 
     /// <summary>
     /// The create-contract fields a Deal always carries a value for. A non-writable required create
-    /// field fails the creation closed: there is no admitted representation of a Deal created
-    /// without a name, buyer, amount, score, owner or expected close date.
+    /// field fails the creation closed. An unknown estimate is allowed by the domain, but its
+    /// field still participates in the creation write policy.
     /// </summary>
     private static readonly string[] RequiredCreateFields =
         ["name", "buyerRef", "amount", "opportunityScore", "ownerId", "expectedCloseDate", "interestedProductIds"];
@@ -188,7 +190,7 @@ internal static class DealFieldSecurity
         {
             ["name"] = profile.Name,
             ["buyerRef"] = $"{profile.BuyerRef.Type}|{profile.BuyerRef.Id}",
-            ["amount"] = $"{profile.Amount.Amount}|{profile.Amount.Currency}",
+            ["amount"] = profile.Amount is null ? "null" : $"{profile.Amount.Amount}|{profile.Amount.Currency}",
             ["opportunityScore"] = profile.OpportunityScore,
             ["ownerId"] = profile.OwnerId,
             ["expectedCloseDate"] = profile.ExpectedCloseDate.ToString("O", CultureInfo.InvariantCulture),

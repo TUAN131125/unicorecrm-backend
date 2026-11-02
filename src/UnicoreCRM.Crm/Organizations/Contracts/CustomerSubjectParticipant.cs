@@ -8,3 +8,9 @@ public interface IOrganizationCustomerSubjectParticipant
     Task<OrganizationCustomerSubject?> ResolveVisibleAsync(TrustedWorkspaceContext trusted, string organizationId,
         string requestId, string correlationId, CancellationToken cancellationToken);
 }
+
+internal interface IOrganizationCustomerListIdentityParticipant
+{
+    Task<IReadOnlyDictionary<string, string>> ResolveVisibleAsync(TrustedWorkspaceContext trusted,
+        IReadOnlyCollection<string> organizationIds, string requestId, string correlationId, CancellationToken cancellationToken);
+}

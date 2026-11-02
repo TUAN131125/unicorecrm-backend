@@ -59,7 +59,8 @@ internal sealed class Handler(
         var now = timeProvider.GetUtcNow();
         var today = DateOnly.FromDateTime(now.UtcDateTime);
         var buckets = deals
-            .GroupBy(deal => deal.Profile.Amount.Currency, StringComparer.Ordinal)
+            .Where(deal => deal.Profile.Amount is not null)
+            .GroupBy(deal => deal.Profile.Amount!.Currency, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group => Bucket(group.Key, group, today))
             .ToArray();
@@ -89,7 +90,7 @@ internal sealed class Handler(
         BigInteger weighted = 0;
         foreach (var deal in values)
         {
-            var amount = DealDecimal.ParseScaled(deal.Profile.Amount.Amount);
+            var amount = DealDecimal.ParseScaled(deal.Profile.Amount!.Amount);
             open += amount;
             switch (deal.ForecastCategory)
             {

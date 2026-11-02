@@ -36,12 +36,14 @@ using UnicoreCRM.ApiHost.Serialization;
 
 const string MigrateCommand = "--migrate";
 const string SeedDemoCommand = "--seed-demo";
+const string DemoSeedHostCommand = "--demo-seed-host";
 const string RepairWorkspaceOwnerAuthorityCommand = "--repair-workspace-owner-authority";
 const string WorkspaceTargetPrefix = "--workspace-id=";
 var runMigrations = args.Contains(MigrateCommand, StringComparer.OrdinalIgnoreCase);
 var runDemoBootstrap = args.Contains(SeedDemoCommand, StringComparer.OrdinalIgnoreCase);
+var runDemoSeedHost = args.Contains(DemoSeedHostCommand, StringComparer.OrdinalIgnoreCase);
 var runWorkspaceOwnerAuthorityRepair = args.Contains(RepairWorkspaceOwnerAuthorityCommand, StringComparer.OrdinalIgnoreCase);
-if (new[] { runMigrations, runDemoBootstrap, runWorkspaceOwnerAuthorityRepair }.Count(enabled => enabled) > 1)
+if (new[] { runMigrations, runDemoBootstrap, runWorkspaceOwnerAuthorityRepair, runDemoSeedHost }.Count(enabled => enabled) > 1)
     throw new InvalidOperationException("Specify only one maintenance command per process invocation.");
 var repairWorkspaceTargets = args
     .Where(argument => argument.StartsWith(WorkspaceTargetPrefix, StringComparison.OrdinalIgnoreCase))
@@ -54,13 +56,24 @@ if (repairWorkspaceTargets.Length != 0 && !runWorkspaceOwnerAuthorityRepair)
 var hostArguments = args
     .Where(argument => !string.Equals(argument, MigrateCommand, StringComparison.OrdinalIgnoreCase)
                        && !string.Equals(argument, SeedDemoCommand, StringComparison.OrdinalIgnoreCase)
+                       && !string.Equals(argument, DemoSeedHostCommand, StringComparison.OrdinalIgnoreCase)
                        && !string.Equals(argument, RepairWorkspaceOwnerAuthorityCommand, StringComparison.OrdinalIgnoreCase)
                        && !argument.StartsWith(WorkspaceTargetPrefix, StringComparison.OrdinalIgnoreCase))
     .ToArray();
 
 var builder = WebApplication.CreateBuilder(hostArguments);
+builder.Services.AddRateLimiter(options=>
+{
+    options.RejectionStatusCode=StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("quote-public-consent",context=>System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {PermitLimit=30,Window=TimeSpan.FromMinutes(1),QueueLimit=0,AutoReplenishment=true}));
+});
 
 builder.AddDevelopmentLocalConfiguration();
+
+if (runDemoSeedHost && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("The demo seed host is available only in Development.");
 
 if (runDemoBootstrap)
     builder.AddDevelopmentDemoBootstrap();
@@ -96,6 +109,17 @@ builder.Services.AddAIModule(builder.Configuration, builder.Environment);
 builder.Services.AddPlatformOperationsModule(builder.Configuration);
 builder.Services.AddCommunicationsModule(builder.Configuration);
 
+if (runDemoSeedHost)
+{
+    // An explicit local acceptance host must not dispatch email, webhooks, AI or recovery work
+    // in unrelated workspaces. Keep framework hosting services and all normal API enforcement.
+    foreach (var worker in builder.Services.Where(service =>
+                 service.ServiceType == typeof(IHostedService)
+                 && service.ImplementationType?.Namespace?.StartsWith("UnicoreCRM.", StringComparison.Ordinal) == true).ToArray())
+        builder.Services.Remove(worker);
+    builder.WebHost.UseUrls("http://127.0.0.1:5098");
+}
+
 var app = builder.Build();
 
 if (runMigrations || runDemoBootstrap || runWorkspaceOwnerAuthorityRepair)
@@ -129,6 +153,7 @@ if (app.Environment.IsDevelopment()
     && app.Configuration.GetSection("Frontend:AllowedOrigins").Get<string[]>() is { Length: > 0 })
     app.UseCors(DevelopmentFrontendCors);
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseTrustedWorkspaceResolution();
 app.UseAuthorization();
 app.MapIdentityAuthEndpoints();
@@ -143,6 +168,7 @@ app.MapTasksEndpoints();
 app.MapSupportEndpoints();
 app.MapLeadsEndpoints();
 app.MapDealsEndpoints();
+app.MapDealPipelineEndpoints();
 app.MapContactsEndpoints();
 app.MapCommunicationsEndpoints();
 app.MapCustomersEndpoints();
@@ -150,6 +176,7 @@ app.MapOrganizationsEndpoints();
 app.MapProductsEndpoints();
 app.MapQuotesEndpoints();
 app.MapOrdersEndpoints();
+app.MapOrderConfirmationEndpoints();
 app.MapPaymentsEndpoints();
 app.MapPaymentIntentEndpoints();
 app.MapPaymentRecordEndpoints();

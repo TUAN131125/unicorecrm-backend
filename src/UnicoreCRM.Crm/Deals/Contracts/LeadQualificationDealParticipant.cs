@@ -23,7 +23,7 @@ public sealed record LeadOpportunityDealCommand(
     string OwnerId,
     string ExpectedCloseDate,
     IReadOnlyList<string> InterestedProductIds,
-    DealMoney EstimatedValue,
+    DealMoney? EstimatedValue,
     string? NeedSummary,
     string? NextActionAt,
     string? NextActionSummary,

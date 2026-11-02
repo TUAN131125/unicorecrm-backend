@@ -6,6 +6,7 @@
     <AssemblyName>UnicoreCRM.ApiHost</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../scripts/QuotePdfWorker/UnicoreCRM.QuotePdfWorker.csproj" ReferenceOutputAssembly="false" />
     <InternalsVisibleTo Include="UnicoreCRM.Communications.Verifier" />
     <ProjectReference Include="../UnicoreCRM.Communications/UnicoreCRM.Communications.csproj" />
     <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
@@ -20,6 +21,9 @@
     <ProjectReference Include="../UnicoreCRM.AI/UnicoreCRM.AI.csproj" />
     <ProjectReference Include="../UnicoreCRM.PlatformOperations/UnicoreCRM.PlatformOperations.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Update="appsettings.Development.Local.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
   <!-- The SDK prunes Xml against every 10.0 patch, but the installed shared framework may
        precede its security fix. Keep the explicitly patched runtime asset in this host. -->
   <Target Name="KeepPatchedCryptographyXml" AfterTargets="AddPrunePackageReferences">
@@ -27,4 +31,15 @@
       <PrunePackageReference Remove="System.Security.Cryptography.Xml" />
     </ItemGroup>
   </Target>
+  <Target Name="CopyQuotePdfWorker" AfterTargets="Build">
+    <ItemGroup><QuotePdfWorkerFiles Include="../../scripts/QuotePdfWorker/bin/$(Configuration)/$(TargetFramework)/*" /></ItemGroup>
+    <Copy SourceFiles="@(QuotePdfWorkerFiles)" DestinationFolder="$(OutDir)QuotePdfWorker" />
+  </Target>
+  <Target Name="PublishQuotePdfWorker" AfterTargets="Publish">
+    <ItemGroup><PublishedQuotePdfWorkerFiles Include="../../scripts/QuotePdfWorker/bin/$(Configuration)/$(TargetFramework)/*" /></ItemGroup>
+    <Copy SourceFiles="@(PublishedQuotePdfWorkerFiles)" DestinationFolder="$(PublishDir)QuotePdfWorker" />
+  </Target>
+<ItemGroup><ProjectReference Include="../../scripts/QuoteProofValidatorWorker/UnicoreCRM.QuoteProofValidatorWorker.csproj" ReferenceOutputAssembly="false"/></ItemGroup>
+<Target Name="CopyQuoteProofValidatorWorker" AfterTargets="Build"><ItemGroup><ProofValidatorFiles Include="../../scripts/QuoteProofValidatorWorker/bin/$(Configuration)/$(TargetFramework)/*"/></ItemGroup><Copy SourceFiles="@(ProofValidatorFiles)" DestinationFolder="$(OutDir)QuoteProofValidatorWorker"/></Target>
+<Target Name="PublishQuoteProofValidatorWorker" AfterTargets="Publish"><ItemGroup><PublishedProofValidatorFiles Include="../../scripts/QuoteProofValidatorWorker/bin/$(Configuration)/$(TargetFramework)/*"/></ItemGroup><Copy SourceFiles="@(PublishedProofValidatorFiles)" DestinationFolder="$(PublishDir)QuoteProofValidatorWorker"/></Target>
 </Project>

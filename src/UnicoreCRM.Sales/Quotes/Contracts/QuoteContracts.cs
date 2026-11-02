@@ -6,9 +6,24 @@ namespace UnicoreCRM.Sales.Quotes.Contracts;
 public static class QuoteCapabilities
 {
     public static AccessRequirement Read { get; } = AccessRequirement.ForCanonicalCapability("quotes.read");
+    public static AccessRequirement Create { get; } = AccessRequirement.ForCanonicalCapability("quotes.create");
+    public static AccessRequirement Update { get; } = AccessRequirement.ForCanonicalCapability("quotes.update");
+    public static AccessRequirement Delete { get; } = AccessRequirement.ForCanonicalCapability("quotes.delete");
+    public static AccessRequirement IssueDocument { get; } = AccessRequirement.ForCanonicalCapability("quotes.issueDocument");
+    public static AccessRequirement SubmitAcceptanceEvidence { get; } = AccessRequirement.ForCanonicalCapability("quotes.submitAcceptanceEvidence");
+    public static AccessRequirement ReadAcceptanceEvidence { get; } = AccessRequirement.ForCanonicalCapability("quotes.readAcceptanceEvidence");
+    public static AccessRequirement ReadAcceptanceProofContent { get; } = AccessRequirement.ForCanonicalCapability("quotes.readAcceptanceProofContent");
+    public static AccessRequirement VerifyAcceptanceEvidence { get; } = AccessRequirement.ForCanonicalCapability("quotes.verifyAcceptanceEvidence");
+    public static AccessRequirement AcceptVerified { get; } = AccessRequirement.ForCanonicalCapability("quotes.acceptVerified");
+    public static AccessRequirement ManageAcceptanceEvidenceSources { get; } = AccessRequirement.ForCanonicalCapability("quotes.manageAcceptanceEvidenceSources");
+    public static AccessRequirement RecordAcceptanceSourceCheck { get; } = AccessRequirement.ForCanonicalCapability("quotes.recordAcceptanceSourceCheck");
+    public static AccessRequirement AssessAcceptanceIdentityAuthority { get; } = AccessRequirement.ForCanonicalCapability("quotes.assessAcceptanceIdentityAuthority");
+    public static AccessRequirement Approve { get; } = AccessRequirement.ForCanonicalCapability("quotes.approve");
 }
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record QuoteMoney(string Amount, string Currency);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record QuoteBuyerReference(string Type, string Id);
 
 public sealed record QuoteLineReadModel(
@@ -40,7 +55,15 @@ public sealed record CommercialAdjustmentReadModel(
     QuoteMoney Amount);
 
 public sealed record QuoteActionAvailabilityReadModel(bool Allowed, IReadOnlyList<string> BlockerCodes);
-public sealed record QuoteReadActions(QuoteActionAvailabilityReadModel Accept);
+public sealed record QuoteReadActions(QuoteActionAvailabilityReadModel Accept)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? IssueDocument { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? Revise { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? Expire { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? Archive { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? Reject { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? RecordCustomerResponse { get; init; }
+}
 
 public sealed record QuoteApprovalReasonReadModel(string Code, string Label)
 {
@@ -48,12 +71,14 @@ public sealed record QuoteApprovalReasonReadModel(string Code, string Label)
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Limit { get; init; }
 }
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PaymentAmountRuleDocument(string Type)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteMoney? Amount { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Percentage { get; init; }
 }
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PaymentDueRuleDocument(string Type)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Date { get; init; }
@@ -101,6 +126,13 @@ public sealed record QuoteDeliveryRecordReadModel(
     string SentAt,
     string ContentFingerprint)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? RecordedAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ReportedSentAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public int? QuoteRevision { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? ResourceVersion { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ApprovalContentFingerprint { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ApprovalPolicyVersion { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? DocumentAuthority { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? EvidenceType { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? RecipientEmail { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Recipient { get; init; }
@@ -129,6 +161,7 @@ public sealed record QuoteReadModel(
     string CreatedAt,
     string UpdatedAt)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteValidityReadModel? Validity { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? RevisionOfQuoteId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SourceDealId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ContactId { get; init; }
@@ -156,7 +189,10 @@ public sealed record QuoteReadModel(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ApprovalContentFingerprint { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ApprovalPolicyVersion { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PaymentAgreementSnapshotDocument? PaymentAgreement { get; init; }
+    public bool OrdinarySales { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteSalesAcceptanceView? SalesAcceptance { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<QuoteDeliveryRecordReadModel>? DeliveryHistory { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<QuoteCustomerDecisionReadModel>? CustomerDecisionHistory { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SenderName { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SenderAddress { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SenderEmail { get; init; }

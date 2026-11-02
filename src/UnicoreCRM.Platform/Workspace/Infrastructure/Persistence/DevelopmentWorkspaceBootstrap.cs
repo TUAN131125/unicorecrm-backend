@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using UnicoreCRM.Platform.IdentityAuth.Contracts;
 using UnicoreCRM.Platform.Workspace.Domain;
+using UnicoreCRM.Platform.Workspace.Application.Common;
 
 namespace UnicoreCRM.Platform.Workspace.Infrastructure.Persistence;
 
@@ -26,8 +27,8 @@ internal sealed partial class DevelopmentWorkspaceBootstrap(
         var identity = await identityLookup.FindActiveByEmailAsync(bootstrap.IdentityEmail, cancellationToken)
             ?? throw new InvalidOperationException("The Development Workspace bootstrap identity must already be an active IdentityAuth account.");
         var now = TimeProvider.System.GetUtcNow();
-        var memberWorkspace = await EnsureWorkspaceAsync(dbContext, bootstrap.MemberWorkspace, now, cancellationToken);
-        var nonMemberWorkspace = await EnsureWorkspaceAsync(dbContext, bootstrap.NonMemberWorkspace, now, cancellationToken);
+        var memberWorkspace = await EnsureWorkspaceAsync(dbContext, bootstrap.MemberWorkspace, bootstrap.EnsureStudioConfiguration, now, cancellationToken);
+        var nonMemberWorkspace = await EnsureWorkspaceAsync(dbContext, bootstrap.NonMemberWorkspace, bootstrap.EnsureStudioConfiguration, now, cancellationToken);
         if (!await dbContext.Memberships.AnyAsync(
                 membership => membership.WorkspaceId == memberWorkspace.WorkspaceId && membership.AccountId == identity.AccountId,
                 cancellationToken))
@@ -45,10 +46,12 @@ internal sealed partial class DevelopmentWorkspaceBootstrap(
     private static async Task<WorkspaceDefinition> EnsureWorkspaceAsync(
         WorkspaceDbContext dbContext,
         DevelopmentWorkspaceOptions options,
+        bool ensureStudioConfiguration,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var workspace = await dbContext.Workspaces.SingleOrDefaultAsync(item => item.Key == options.Key, cancellationToken);
+        var created = workspace is null;
         if (workspace is null)
         {
             workspace = new WorkspaceDefinition(options.Key, options.Name, options.LogoText, now);
@@ -61,6 +64,26 @@ internal sealed partial class DevelopmentWorkspaceBootstrap(
                 JsonSerializer.Serialize(options.Capabilities.Distinct(StringComparer.Ordinal).ToArray()),
                 JsonSerializer.Serialize(options.EnabledModuleKeys.Distinct(StringComparer.Ordinal).ToArray()),
                 JsonSerializer.Serialize(options.AvailableProductSpaces.Distinct(StringComparer.Ordinal).ToArray())));
+        }
+        if (created || ensureStudioConfiguration)
+        {
+            // Use the same Workspace-owned initializer as initial provisioning. Existing Studio
+            // configuration is never replaced; opt-in repair only fills a wholly missing fixture.
+            var hasConfiguration = await dbContext.StudioConfigurations.AnyAsync(item => item.WorkspaceId == workspace.WorkspaceId, cancellationToken);
+            var hasQuickSetup = await dbContext.StudioQuickSetups.AnyAsync(item => item.WorkspaceId == workspace.WorkspaceId, cancellationToken);
+            if (hasConfiguration != hasQuickSetup)
+                throw new InvalidOperationException("Development Studio fixture is partial; refusing to overwrite existing state.");
+            if (!hasConfiguration)
+            {
+                var projection = created
+                    ? dbContext.BootstrapProjections.Local.Single(item => item.WorkspaceId == workspace.WorkspaceId)
+                    : await dbContext.BootstrapProjections.SingleAsync(item => item.WorkspaceId == workspace.WorkspaceId, cancellationToken);
+                var studio = StudioDefaults.Create(workspace.WorkspaceId, workspace.Name, projection.Locale,
+                    projection.TimeZone, projection.BaseCurrency,
+                    JsonSerializer.Deserialize<string[]>(projection.EnabledModuleKeysJson) ?? [], now);
+                dbContext.StudioConfigurations.Add(studio.Configuration);
+                dbContext.StudioQuickSetups.Add(studio.QuickSetup);
+            }
         }
         return workspace;
     }

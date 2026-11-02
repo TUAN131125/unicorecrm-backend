@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UnicoreCRM.BuildingBlocks;
+using UnicoreCRM.Workflows.Atomic.Application.Persistence;
 using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
 
 namespace UnicoreCRM.Workflows.Atomic;
@@ -13,6 +14,10 @@ internal static class AtomicModule
         var connectionString = configuration.GetConnectionString("UnicoreCRM");
         services.AddDbContext<WorkflowsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "workflow")));
+        services.AddScoped<IAtomicWorkflowAnchorStore, EfAtomicWorkflowAnchorStore>();
+        services.AddScoped<IOrderConfirmationTransaction,OrderConfirmationTransaction>();
+        services.AddScoped<Application.ConfirmOrder.Handler>();
+        services.AddScoped<Application.AcceptedQuoteOrder.AutomaticConfirmation>();
         services.AddScoped<IIntegrationEventSource, WorkflowIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "workflow",
@@ -27,6 +32,8 @@ internal static class AtomicModule
         services.AddScoped<Contracts.ILeadCustomerConversionWorkflow>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
         services.AddScoped<Application.ConvertLeadToCustomer.ILeadCustomerConversionRecoveryRunner>(sp=>sp.GetRequiredService<Application.ConvertLeadToCustomer.Handler>());
         services.AddHostedService<Application.ConvertLeadToCustomer.RecoveryService>();
+        services.AddHostedService<Application.AcceptedQuoteOrder.RecoveryService>();
+        services.AddHostedService<Application.AcceptedQuoteOrder.DraftPlanRecoveryService>();
         services.AddScoped<Application.HandoverLead.Handler>();
         services.AddScoped<Contracts.ILeadHandoverWorkflow>(sp => sp.GetRequiredService<Application.HandoverLead.Handler>());
         services.AddScoped<Application.HandoverLead.ILeadHandoverRecoveryRunner>(sp => sp.GetRequiredService<Application.HandoverLead.Handler>());

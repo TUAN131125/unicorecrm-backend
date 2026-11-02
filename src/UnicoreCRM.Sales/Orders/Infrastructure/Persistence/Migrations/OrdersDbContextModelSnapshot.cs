@@ -33,6 +33,9 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("AcceptanceJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ActionsJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -53,6 +56,10 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("BuyerNameSnapshot")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("BuyerType")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -62,13 +69,29 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
 
+                    b.Property<string>("CommercialSnapshotFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
 
+                    b.Property<string>("ConfirmationOrigin")
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<string>("ConfirmationPolicyVersion")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<DateTimeOffset?>("ConfirmedAt")
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("ConfirmedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("ContactId")
                         .HasMaxLength(128)
@@ -121,6 +144,13 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<bool>("OperationalApprovalRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OperationalReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<DateOnly>("OrderDate")
                         .HasColumnType("date");
 
@@ -132,6 +162,9 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                     b.Property<string>("OwnerId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PaymentAgreementSnapshotJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RecipientEmail")
                         .HasMaxLength(320)
@@ -146,10 +179,15 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(80)");
 
                     b.Property<long>("ResourceVersion")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
                     b.Property<string>("ShippingAddressJson")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SourceAcceptanceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("SourceDealId")
                         .HasMaxLength(128)
@@ -166,6 +204,9 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
                     b.Property<string>("SourceQuoteNumber")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
+
+                    b.Property<long?>("SourceQuoteResourceVersion")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -200,7 +241,9 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "SourceDealId");
 
-                    b.HasIndex("WorkspaceId", "SourceQuoteId");
+                    b.HasIndex("WorkspaceId", "SourceQuoteId")
+                        .IsUnique()
+                        .HasFilter("[SourceQuoteId] IS NOT NULL");
 
                     b.HasIndex("WorkspaceId", "State");
 
@@ -237,6 +280,85 @@ namespace UnicoreCRM.Sales.Orders.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Orders_State", "(([State] COLLATE Latin1_General_100_BIN2 = N'DRAFT' AND DATALENGTH([State]) = DATALENGTH(N'DRAFT')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'CONFIRMED' AND DATALENGTH([State]) = DATALENGTH(N'CONFIRMED')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'COMPLETED' AND DATALENGTH([State]) = DATALENGTH(N'COMPLETED')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'CANCELLED' AND DATALENGTH([State]) = DATALENGTH(N'CANCELLED')))");
                         });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Orders.Domain.OrderCreationEvidence", b =>
+                {
+                    b.Property<string>("AuditId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AcceptanceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("QuoteId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("AuditId");
+
+                    b.HasIndex("WorkspaceId", "AcceptanceId")
+                        .IsUnique();
+
+                    b.ToTable("CreationEvidence", "orders");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Sales.Orders.Domain.OrderOutboxMessage", b =>
+                {
+                    b.Property<string>("EventId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("EventId");
+
+                    b.ToTable("OutboxMessages", "orders");
                 });
 
             modelBuilder.Entity("UnicoreCRM.Sales.Orders.Domain.OrderReadAuditRecord", b =>

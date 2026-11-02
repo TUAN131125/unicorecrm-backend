@@ -17,6 +17,8 @@ internal static class OrganizationsModule
         services.AddDbContext<OrganizationsDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "organizations")));
         services.AddScoped<IOrganizationsPersistence, EfOrganizationsPersistence>();
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteDocumentPartyReader, Application.QuoteDocuments.PartyReader>();
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteAutomaticBuyerReader, QuoteAutomaticBuyerReader>();
         services.AddScoped<IIntegrationEventSource, OrganizationIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "organizations",
@@ -33,6 +35,7 @@ internal static class OrganizationsModule
         services.AddScoped<Application.ArchiveOrganization.Handler>();
         services.AddScoped<IOrganizationRelationshipTargetParticipant, Application.ResolveRelationshipTargets.Participant>();
         services.AddScoped<IOrganizationCustomerSubjectParticipant, Application.ResolveCustomerSubject.Participant>();
+        services.AddScoped<IOrganizationCustomerListIdentityParticipant, Application.ResolveCustomerSubject.Participant>();
         services.AddScoped<IRecordAccessFactProvider, Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();
         services.AddScoped<UnicoreCRM.Operations.Tasks.Contracts.IActivityReferenceAuthority,
             Application.ProvideOrganizationRecordAccessFacts.OrganizationRecordAccessFactProvider>();

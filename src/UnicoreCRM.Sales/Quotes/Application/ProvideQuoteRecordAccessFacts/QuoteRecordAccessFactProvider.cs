@@ -11,6 +11,12 @@ internal sealed partial class QuoteRecordAccessFactProvider(IQuotesPersistence p
     private static readonly RecordAccessResourceDescriptor QuotesDescriptor = RecordAccessResourceDescriptor.Create(
         resourceKey: QuoteAuthorization.ResourceKey,
         readCapability: QuoteCapabilities.Read.Capability,
+        deleteCapability: QuoteCapabilities.Delete.Capability,
+        updateCapability: QuoteCapabilities.Update.Capability,
+        approveCapability: QuoteCapabilities.Approve.Capability,
+        commandCapabilities: new Dictionary<string, string>
+        { ["quote.create"] = QuoteCapabilities.Create.Capability, ["quote.update"] = QuoteCapabilities.Update.Capability,
+            ["quote.issueDocument"] = QuoteCapabilities.IssueDocument.Capability, ["quote.archive"] = QuoteCapabilities.Delete.Capability, ["quote.approve"] = QuoteCapabilities.Approve.Capability },
         enforceableFields: QuoteFieldSecurity.EnforceableFields);
 
     public RecordAccessResourceDescriptor Descriptor => QuotesDescriptor;

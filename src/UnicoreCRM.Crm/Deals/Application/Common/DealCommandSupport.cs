@@ -25,14 +25,23 @@ internal static class DealCommandSupport
         existing.Fingerprint == fingerprint ? null : DealErrors.IdempotencyReused(existing.IdempotencyKey);
 
     internal static DealMutationResponse Replay(DealIdempotencyRecord record) =>
-        (JsonSerializer.Deserialize<DealMutationResponse>(record.ResponseJson, JsonOptions)
-            ?? throw new InvalidOperationException("Stored Deals idempotency response is invalid.")) with
-        { Outcome = "REPLAYED" };
+        EnrichReplay(JsonSerializer.Deserialize<DealMutationResponse>(record.ResponseJson, JsonOptions)
+            ?? throw new InvalidOperationException("Stored Deals idempotency response is invalid."), record.WorkspaceId);
 
-    internal static DealBatchMutationResponse ReplayBatch(DealIdempotencyRecord record) =>
-        (JsonSerializer.Deserialize<DealBatchMutationResponse>(record.ResponseJson, JsonOptions)
-            ?? throw new InvalidOperationException("Stored Deals batch idempotency response is invalid.")) with
-        { Outcome = "REPLAYED" };
+    private static DealMutationResponse EnrichReplay(DealMutationResponse value, string workspaceId) => value with
+    {
+        Outcome = "REPLAYED",
+        Result = new(value.Result.Deal with { PipelineId = value.Result.Deal.PipelineId.Length == 0
+            ? DealPipeline.DefaultId(workspaceId) : value.Result.Deal.PipelineId })
+    };
+
+    internal static DealBatchMutationResponse ReplayBatch(DealIdempotencyRecord record)
+    {
+        var value = JsonSerializer.Deserialize<DealBatchMutationResponse>(record.ResponseJson, JsonOptions)
+            ?? throw new InvalidOperationException("Stored Deals batch idempotency response is invalid.");
+        return value with { Outcome = "REPLAYED", Result = new(value.Result.Deals.Select(deal => deal with
+        { PipelineId = deal.PipelineId.Length == 0 ? DealPipeline.DefaultId(record.WorkspaceId) : deal.PipelineId }).ToArray()) };
+    }
 
     internal static DealMutationResponse RecordCommit(
         IDealsPersistence persistence,

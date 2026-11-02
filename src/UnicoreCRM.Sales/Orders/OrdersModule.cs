@@ -13,9 +13,13 @@ internal static class OrdersModule
     internal static IServiceCollection AddOrdersModule(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("UnicoreCRM");
+        services.AddScoped<UnicoreCRM.Sales.Quotes.Contracts.IQuoteRetentionVerifier, OrdersQuoteRetentionVerifier>();
         services.AddDbContext<OrdersDbContext>(options =>
             options.UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "orders")));
         services.AddScoped<IOrdersPersistence, EfOrdersPersistence>();
+        services.AddScoped<Contracts.IAcceptedQuoteOrderWriter,AcceptedQuoteOrderWriter>();
+        services.AddScoped<Contracts.IOrderConfirmationParticipant,OrderConfirmationParticipant>();
+        services.AddScoped<Contracts.IOrderPaymentPlanSourceReader,OrderPaymentPlanSourceReader>();
         services.AddDevelopmentSchemaMigration(
             "orders",
             (provider, cancellationToken) => provider.GetRequiredService<OrdersDbContext>().Database.MigrateAsync(cancellationToken));

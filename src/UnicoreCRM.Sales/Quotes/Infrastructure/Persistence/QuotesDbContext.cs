@@ -7,12 +7,93 @@ internal sealed class QuotesDbContext(DbContextOptions<QuotesDbContext> options)
 {
     internal DbSet<Quote> Quotes => Set<Quote>();
     internal DbSet<QuoteReadAuditRecord> ReadAuditRecords => Set<QuoteReadAuditRecord>();
+    internal DbSet<QuoteCommandRecord> CommandRecords => Set<QuoteCommandRecord>();
+    internal DbSet<QuoteOutboxMessage> OutboxMessages => Set<QuoteOutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("quotes");
+        modelBuilder.MapSalesAcceptance();
+        QuoteProofModel.Configure(modelBuilder);
+        QuoteProofScanModel.Configure(modelBuilder);
+        QuoteIdentityModel.Configure(modelBuilder);
+        modelBuilder.HasSequence<long>("QuoteNumbers", "quotes");
+        modelBuilder.Entity<QuoteCustomerDecisionRecord>(entity =>
+        {
+            entity.ToTable("CustomerDecisionRecords", table =>
+            {
+                table.HasCheckConstraint("CK_CustomerDecisionRecords_PayloadJson", "ISJSON([PayloadJson]) = 1");
+                table.HasCheckConstraint("CK_CustomerDecisionRecords_Type", "[DecisionType] COLLATE Latin1_General_100_BIN2 IN ('ACCEPTANCE','REJECTION')");
+                table.HasCheckConstraint("CK_CustomerDecisionRecords_Trust", "[VerificationStatus] COLLATE Latin1_General_100_BIN2 = 'UNVERIFIED'");
+                table.HasCheckConstraint("CK_CustomerDecisionRecords_Version", "[QuoteRevision] >= 1 AND [ContentResourceVersion] >= 1 AND [ResultResourceVersion] = [ContentResourceVersion] + 1");
+            });
+            entity.HasKey(x => new { x.WorkspaceId, x.DecisionId });
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128);
+            entity.Property(x => x.DecisionId).HasMaxLength(128).UseCollation("Latin1_General_100_BIN2");
+            entity.Property(x => x.QuoteId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ActorId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.DecisionType).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.VerificationStatus).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ContentFingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.RequestFingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.PolicyVersion).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.PayloadJson).IsRequired();
+            entity.Property(x => x.CommandId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.AuditId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.EventId).HasMaxLength(128).IsRequired();
+            entity.HasIndex(x => new { x.WorkspaceId, x.QuoteId, x.ResultResourceVersion }).IsUnique();
+        });
+        modelBuilder.Entity<QuoteDocument>(entity =>
+        {
+            entity.ToTable("Documents", table => {
+                table.HasCheckConstraint("CK_QuoteDocument_Bounds", "[FileSize] BETWEEN 1 AND 10485760 AND [PageCount] BETWEEN 1 AND 100 AND [DocumentVersion] >= 1 AND [QuoteRevision] >= 1 AND [SourceResourceVersion] >= 1 AND [ResultResourceVersion] = [SourceResourceVersion] + 1");
+            });
+            entity.HasKey(x => new { x.WorkspaceId, x.DocumentId });
+            foreach (var name in new[] { "WorkspaceId", "DocumentId", "QuoteId", "RootQuoteId", "IssuedBy" }) entity.Property<string>(name).HasMaxLength(128);
+            foreach (var name in new[] { "BindingHash", "CommercialFingerprint", "PdfSha256" }) entity.Property<string>(name).HasMaxLength(64);
+            foreach (var name in new[] { "ApprovalPolicyVersion", "PolicyVersion", "TemplateVersion" }) entity.Property<string>(name).HasMaxLength(160);
+            entity.Property(x => x.SnapshotJson).IsRequired(); entity.Property(x => x.FieldManifestJson).IsRequired();
+            entity.HasOne<Quote>().WithMany().HasForeignKey(x => new { x.WorkspaceId, x.QuoteId }).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.WorkspaceId, x.QuoteId, x.DocumentVersion }).IsUnique();
+            entity.HasIndex(x => new { x.WorkspaceId, x.QuoteId, x.BindingHash }).IsUnique();
+        });
+        modelBuilder.Entity<QuoteDocumentContent>(entity =>
+        {
+            entity.ToTable("DocumentContents"); entity.HasKey(x => new { x.WorkspaceId, x.DocumentId });
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128); entity.Property(x => x.DocumentId).HasMaxLength(128);
+            entity.Property(x => x.Bytes).HasColumnType("varbinary(max)").IsRequired();
+            entity.HasOne<QuoteDocument>().WithOne().HasForeignKey<QuoteDocumentContent>(x => new { x.WorkspaceId, x.DocumentId }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<QuoteCommandRecord>(entity =>
+        {
+            entity.ToTable("CommandRecords"); entity.HasKey(x => x.ScopeKey);
+            entity.Property(x => x.ScopeKey).HasMaxLength(64);
+            entity.Property(x => x.Fingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ActorId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.Operation).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.QuoteId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.AuditId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.RequestId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.CorrelationId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ResponseJson).IsRequired();
+            entity.HasIndex(x => x.AuditId).IsUnique();
+            entity.HasIndex(x => new { x.WorkspaceId, x.QuoteId, x.OccurredAt });
+        });
+        modelBuilder.Entity<QuoteOutboxMessage>(entity =>
+        {
+            entity.ToTable("OutboxMessages"); entity.HasKey(x => x.EventId);
+            entity.Property(x => x.EventId).HasMaxLength(128);
+            entity.Property(x => x.WorkspaceId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.QuoteId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.EventType).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.CorrelationId).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.PayloadJson).IsRequired();
+            entity.HasIndex(x => new { x.WorkspaceId, x.OccurredAt });
+        });
         modelBuilder.Entity<Quote>(entity =>
         {
+            entity.HasMany(x => x.CustomerDecisions).WithOne().HasForeignKey(x => new { x.WorkspaceId, x.QuoteId }).OnDelete(DeleteBehavior.Restrict);
             entity.ToTable("Quotes", table =>
             {
                 table.HasCheckConstraint("CK_Quotes_QuoteRevision", "[QuoteRevision] >= 1");
@@ -77,12 +158,13 @@ internal sealed class QuotesDbContext(DbContextOptions<QuotesDbContext> options)
             entity.Property(item => item.ApprovalContentFingerprint).HasMaxLength(256);
             entity.Property(item => item.ApprovalPolicyVersion).HasMaxLength(160);
             entity.Property(item => item.PaymentAgreementJson).HasColumnType("nvarchar(max)");
+            entity.Property(item => item.ProductSnapshotsJson).HasColumnType("nvarchar(max)");
             entity.Property(item => item.DeliveryHistoryJson).HasColumnType("nvarchar(max)");
             entity.Property(item => item.SenderName).HasMaxLength(300);
             entity.Property(item => item.SenderAddress).HasMaxLength(1000);
             entity.Property(item => item.SenderEmail).HasMaxLength(320);
             entity.Property(item => item.SenderTaxId).HasMaxLength(120);
-            entity.Property(item => item.ResourceVersion);
+            entity.Property(item => item.ResourceVersion).IsConcurrencyToken();
             Timestamp(entity.Property(item => item.CreatedAt));
             Timestamp(entity.Property(item => item.UpdatedAt));
 
@@ -93,6 +175,8 @@ internal sealed class QuotesDbContext(DbContextOptions<QuotesDbContext> options)
             entity.HasIndex(item => new { item.WorkspaceId, item.ValidUntil, item.QuoteId });
             entity.HasIndex(item => new { item.WorkspaceId, item.GrandTotalAmount, item.QuoteId });
             entity.HasIndex(item => new { item.WorkspaceId, item.QuoteNumber, item.QuoteId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.QuoteNumber }).IsUnique();
+            entity.HasIndex(item => new { item.WorkspaceId, item.RootQuoteId, item.QuoteRevision }).IsUnique();
             entity.HasIndex(item => new { item.WorkspaceId, item.Status });
             entity.HasIndex(item => new { item.WorkspaceId, item.SourceDealId });
             entity.HasIndex(item => new { item.WorkspaceId, item.BuyerType, item.BuyerId });
@@ -120,6 +204,29 @@ internal sealed class QuotesDbContext(DbContextOptions<QuotesDbContext> options)
             Timestamp(entity.Property(item => item.OccurredAt));
             entity.HasIndex(item => new { item.WorkspaceId, item.OccurredAt });
         });
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => SaveChangesAsync(true, cancellationToken);
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        GuardImmutableEvidence();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        GuardImmutableEvidence();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    private void GuardImmutableEvidence()
+    {
+        QuoteProofModel.Guard(this);
+        QuoteProofScanModel.Guard(this);
+        if (ChangeTracker.Entries().Any(entry => entry.Entity is QuoteIdentityVersion or QuoteEvidenceSourceVersion or QuoteProofScanAttempt or QuoteProofScanResult or QuoteCommandRecord or QuoteOutboxMessage or QuoteCustomerDecisionRecord or QuoteDocument or QuoteDocumentContent or QuoteAcceptanceProof or QuoteAcceptanceProofContent
+            && entry.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Quote command evidence is immutable.");
     }
 
     private static void EntityId(Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<string> property) =>

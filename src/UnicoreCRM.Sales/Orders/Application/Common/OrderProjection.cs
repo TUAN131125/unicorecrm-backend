@@ -19,7 +19,9 @@ internal static class OrderProjection
             Money(order.TaxTotalAmount, order.TaxTotalCurrency),
             Money(order.GrandTotalAmount, order.GrandTotalCurrency),
             order.Currency,
-            OrderPersistedDocuments.Actions(order.ActionsJson),
+            order.State=="DRAFT" && order.SourceAcceptanceId is not null
+                ? new(new(true,[]),new(false,["CONTRACT_OPERATION_BLOCKED"]))
+                : OrderPersistedDocuments.Actions(order.ActionsJson),
             order.ResourceVersion,
             Timestamp(order.CreatedAt),
             Timestamp(order.UpdatedAt))
@@ -31,6 +33,8 @@ internal static class OrderProjection
             SourceDealId = order.SourceDealId,
             Adjustments = OrderPersistedDocuments.Adjustments(order.AdjustmentsJson),
             ConfirmedAt = Timestamp(order.ConfirmedAt),
+            ConfirmationOrigin=order.ConfirmationOrigin,
+            ConfirmationPolicyVersion=order.ConfirmationPolicyVersion,
             CompletedAt = Timestamp(order.CompletedAt),
             CancelledAt = Timestamp(order.CancelledAt),
             ExpectedDeliveryDate = order.ExpectedDeliveryDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -43,7 +47,12 @@ internal static class OrderProjection
             CreditPolicyEvaluation = OrderPersistedDocuments.CreditPolicyEvaluation(order.CreditPolicyEvaluationJson),
             ArchivedAt = Timestamp(order.ArchivedAt),
             ArchiveReason = order.ArchiveReason,
-            CreditApproval = OrderPersistedDocuments.CreditApproval(order.CreditApprovalJson)
+            CreditApproval = OrderPersistedDocuments.CreditApproval(order.CreditApprovalJson),
+            PaymentAgreementSnapshot=order.PaymentAgreementSnapshotJson is null?null:System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(order.PaymentAgreementSnapshotJson),
+            Acceptance=order.AcceptanceJson is null?null:System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(order.AcceptanceJson),
+            CommercialSnapshotFingerprint=order.CommercialSnapshotFingerprint,
+            SourceQuoteResourceVersion=order.SourceQuoteResourceVersion,
+            BuyerNameSnapshot=order.BuyerNameSnapshot
         };
 
     private static OrderMoney Money(decimal amount, string currency) =>

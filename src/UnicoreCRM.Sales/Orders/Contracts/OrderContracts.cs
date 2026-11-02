@@ -13,7 +13,7 @@ public sealed record OrderBuyerReference(string Type, string Id);
 
 public sealed record OrderLineReadModel(
     string Id,
-    string ProductId,
+    [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] string? ProductId,
     string ProductNameSnapshot,
     string Quantity,
     OrderMoney UnitPrice,
@@ -90,6 +90,8 @@ public sealed record OrderReadModel(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SourceDealId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<OrderCommercialAdjustmentReadModel>? Adjustments { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ConfirmedAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ConfirmationOrigin { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ConfirmationPolicyVersion { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? CompletedAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? CancelledAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ExpectedDeliveryDate { get; init; }
@@ -103,6 +105,11 @@ public sealed record OrderReadModel(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ArchivedAt { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ArchiveReason { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public OrderCreditApprovalSummaryReadModel? CreditApproval { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public System.Text.Json.JsonElement? PaymentAgreementSnapshot { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public System.Text.Json.JsonElement? Acceptance { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? CommercialSnapshotFingerprint { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public long? SourceQuoteResourceVersion { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? BuyerNameSnapshot { get; init; }
 }
 
 public sealed record OrderListResponse(IReadOnlyList<OrderReadModel> Items, OrderPageInfo PageInfo);

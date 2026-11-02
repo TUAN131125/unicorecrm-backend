@@ -46,7 +46,8 @@ internal sealed class LeadQualificationAnchor
         string participantMemberId,
         string taskAssigneeId,
         string correlationId,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        int intentVersion = 1)
     {
         ScopeKey = scopeKey;
         WorkspaceId = workspaceId;
@@ -55,7 +56,7 @@ internal sealed class LeadQualificationAnchor
         IdempotencyKey = idempotencyKey;
         Fingerprint = fingerprint;
         ExpectedLeadVersion = expectedLeadVersion;
-        IntentVersion = 1;
+        IntentVersion = intentVersion;
         ParticipantMemberId = participantMemberId;
         TaskAssigneeId = taskAssigneeId;
         CorrelationId = correlationId;

@@ -6,6 +6,7 @@ namespace UnicoreCRM.Crm.Deals.Application.Common;
 
 internal sealed class DealMutationExecution(
     IDealsPersistence persistence,
+    IDealPipelinePersistence pipelines,
     TimeProvider timeProvider)
 {
     internal async Task<DealOperationResult<DealMutationResponse>> ExecuteAsync(
@@ -19,10 +20,16 @@ internal sealed class DealMutationExecution(
         Func<TrustedWorkspaceContext, CancellationToken, Task<DealOperationError?>>? precondition,
         Func<DealAccess, Deal, Task<DealOperationError?>> recordGuard,
         Func<DealAccess, DealOperationError?>? fieldWriteGuard,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<Deal, CancellationToken, Task<DealOperationError?>>? stageGuard = null)
     {
         var trusted = access.Trusted;
         await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+        var scopeKey = DealCommandSupport.ScopeKey(trusted, operation, dealId, metadata.IdempotencyKey);
+        await pipelines.LockCommandAsync(scopeKey, cancellationToken);
+        if (stageGuard is not null)
+            await pipelines.LockRegistryAsync(trusted.WorkspaceId, cancellationToken);
+        await pipelines.LockCommandAsync($"aggregate:{trusted.WorkspaceId}:{dealId}", cancellationToken);
 
         // The record-access guard runs before the idempotency lookup so a replay cannot bypass it.
         // Record scope is current authorization, not a business precondition, so a caller who no
@@ -34,7 +41,6 @@ internal sealed class DealMutationExecution(
         if (guardError is not null)
             return DealOperationResult<DealMutationResponse>.Failure(guardError);
 
-        var scopeKey = DealCommandSupport.ScopeKey(trusted, operation, dealId, metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)
         {
@@ -71,6 +77,11 @@ internal sealed class DealMutationExecution(
         if (deal.Version != expectedVersion)
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.VersionConflict(deal.DealId, expectedVersion, deal.Version));
         var priorVersion = deal.Version;
+        if (stageGuard is not null)
+        {
+            var stageError = await stageGuard(deal, cancellationToken);
+            if (stageError is not null) return DealOperationResult<DealMutationResponse>.Failure(stageError);
+        }
         var now = timeProvider.GetUtcNow();
         var mutationError = mutate(deal, now);
         if (mutationError is not null)

@@ -103,5 +103,5 @@ internal static class WorkspaceCapabilityPolicy
     // authorized administrator. This remains a separate projection so future owner-only authority
     // does not have to leak into ordinary custom roles.
     internal static IReadOnlyList<string> CustomRoleAssignableCapabilities { get; } =
-        [.. WorkspaceOwnerCapabilities, "communications.read", "communications.queue.read", "communications.claim", "communications.transition", "communications.link", "communications.channels.manage"];
+        [.. WorkspaceOwnerCapabilities, "quotes.issueDocument", "quotes.submitAcceptanceEvidence", "quotes.readAcceptanceEvidence", "quotes.readAcceptanceProofContent", "quotes.manageAcceptanceEvidenceSources", "quotes.recordAcceptanceSourceCheck", "quotes.assessAcceptanceIdentityAuthority", "quotes.verifyAcceptanceEvidence", "quotes.acceptVerified", "communications.read", "communications.queue.read", "communications.claim", "communications.transition", "communications.link", "communications.channels.manage"];
 }

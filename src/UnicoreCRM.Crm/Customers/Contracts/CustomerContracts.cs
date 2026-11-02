@@ -35,7 +35,10 @@ public sealed record UpdateCustomerRequest
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)] public sealed record ArchiveCustomerRequest;
 
 public sealed record CustomerPageInfo(string? NextCursor, bool HasNextPage);
-public sealed record CustomerListResponse(IReadOnlyList<CustomerDocument> Items, CustomerPageInfo PageInfo);
+public sealed record CustomerListResponse(IReadOnlyList<CustomerDocument> Items, CustomerPageInfo PageInfo)
+{
+    public IReadOnlyDictionary<string, Customer360Identity> Identities { get; init; } = new Dictionary<string, Customer360Identity>();
+}
 
 public sealed record CustomerMutationResponse(string CommandId, string CorrelationId, string AggregateId,
     string AggregateType, long Version, string OccurredAt, string Outcome, CustomerDocument Result,

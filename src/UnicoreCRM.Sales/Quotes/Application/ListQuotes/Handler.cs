@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Sales.Quotes.Application.Common;
 using UnicoreCRM.Sales.Quotes.Contracts;
@@ -15,12 +16,17 @@ internal sealed record Query(
     string? SourceDealId,
     string? BuyerType,
     string? BuyerId,
-    QuoteRequestMetadata Metadata);
+    QuoteRequestMetadata Metadata,
+    string? RootQuoteId = null,
+    string? Archived = null);
 
 internal sealed partial class Handler(
     QuoteAuthorization authorization,
     IQuotesPersistence persistence,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IQuoteCustomerDecisionPolicyReader? customerPolicy = null,
+    IQuoteLifecyclePolicyReader? lifecyclePolicy = null, IWorkspaceTimeZoneReader? timeZones = null,
+    IEnumerable<IQuoteRetentionVerifier>? retentionVerifiers = null, QuoteLifecycleClock? lifecycleClock = null)
 {
     internal async Task<QuoteOperationResult<QuoteListResponse>> HandleAsync(
         Query query,
@@ -39,7 +45,7 @@ internal sealed partial class Handler(
         // OpenAPI declares the allowed sort fields/directions, but no defaults. These fallbacks
         // exist only to keep unsorted pagination deterministic and are not a wire-contract promise.
         var sortBy = query.SortBy ?? "updatedAt";
-        if (sortBy is not ("updatedAt" or "createdAt" or "validUntil" or "grandTotal" or "quoteNumber"))
+        if (sortBy is not ("updatedAt" or "createdAt" or "validUntil" or "grandTotal" or "quoteNumber" or "quoteRevision"))
             fields["sortBy"] = ["sortBy is invalid."];
         var descending = (query.SortDirection ?? "desc") switch
         {
@@ -53,11 +59,17 @@ internal sealed partial class Handler(
         if (query.BuyerType is not null && query.BuyerType is not ("CONTACT" or "ORGANIZATION_ACCOUNT"))
             fields["buyerType"] = ["buyerType must be CONTACT or ORGANIZATION_ACCOUNT."];
         OptionalEntityId(query.BuyerId, "buyerId", fields);
+        OptionalEntityId(query.RootQuoteId, "rootQuoteId", fields);
+        if (query.Archived is not null and not ("ACTIVE" or "ARCHIVED" or "ALL")) fields["archived"] = ["archived must be ACTIVE, ARCHIVED or ALL."];
+        if (query.RootQuoteId is not null && !access.Value!.Authorization.CanRead("rootQuoteId")
+            || !access.Value!.Authorization.CanRead("archivedAt"))
+            return QuoteOperationResult<QuoteListResponse>.Failure(QuoteErrors.AccessDenied());
         if (fields.Count != 0)
             return QuoteOperationResult<QuoteListResponse>.Failure(QuoteErrors.Validation(fields));
 
         QuotePage page;
-        if (access.Value!.Authorization.ScopeFilter == RecordAccessScopeFilter.Workspace)
+        if (access.Value!.Authorization.ScopeFilter == RecordAccessScopeFilter.Workspace
+            || access.Value.Authorization.ScopeFilter == RecordAccessScopeFilter.OwnedByMember && access.Value.Authorization.ScopeOwnerMemberId is not null)
         {
             page = await persistence.ReadQuotesAsync(
                 access.Value.Trusted.WorkspaceId,
@@ -70,7 +82,8 @@ internal sealed partial class Handler(
                     query.Status,
                     query.SourceDealId,
                     query.BuyerType,
-                    query.BuyerId),
+                    query.BuyerId,
+                    access.Value.Authorization.ScopeFilter == RecordAccessScopeFilter.OwnedByMember ? access.Value.Authorization.ScopeOwnerMemberId : null, query.RootQuoteId, query.Archived ?? "ACTIVE"),
                 cancellationToken);
         }
         else
@@ -82,9 +95,13 @@ internal sealed partial class Handler(
 
         var nextOffset = offset + page.Items.Count;
         var hasNextPage = nextOffset < page.TotalCount;
+        var decisionPolicy = customerPolicy?.Read(access.Value.Trusted.WorkspaceId);
+        var b4Policy = lifecyclePolicy?.Read(access.Value.Trusted.WorkspaceId);
+        var zone = timeZones is null ? null : await timeZones.ReadTimeZoneAsync(access.Value.Trusted.WorkspaceId, cancellationToken);
+        var now = lifecycleClock?.GetUtcNow(access.Value.Trusted.WorkspaceId) ?? timeProvider.GetUtcNow();
         var response = new QuoteListResponse(
             page.Items.Select(item => QuoteFieldSecurity.Project(
-                QuoteProjection.Document(item),
+                QuoteProjection.Document(item, decisionPolicy, b4Policy, timeZones is null ? null : QuoteValidity.Evaluate(item.ValidUntil, zone, now), QuoteRetentionVerification.Available(retentionVerifiers)),
                 access.Value.Authorization)).ToArray(),
             new QuotePageInfo(
                 hasNextPage,

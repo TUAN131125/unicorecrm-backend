@@ -18,7 +18,7 @@ internal static partial class OrderPersistedDocuments
 
     private static readonly string[] RequiredLineProperties =
     [
-        "id", "productId", "productNameSnapshot", "quantity", "unitPrice", "discountRate",
+        "id", "productNameSnapshot", "quantity", "unitPrice", "discountRate",
         "taxMode", "lineSubtotal", "lineDiscountAmount", "lineTaxAmount", "lineTotal"
     ];
 
@@ -285,7 +285,7 @@ internal static partial class OrderPersistedDocuments
         {
             Shape(line, "lineItems", LineProperties, RequiredLineProperties);
             EntityId(line, "id", "lineItems");
-            EntityId(line, "productId", "lineItems");
+            if(line.TryGetProperty("productId",out _))EntityId(line, "productId", "lineItems");
             String(line, "productNameSnapshot", "lineItems", 1, 300);
             OptionalString(line, "skuSnapshot", "lineItems", 0, 120);
             OptionalString(line, "productTypeSnapshot", "lineItems", 0, 120);

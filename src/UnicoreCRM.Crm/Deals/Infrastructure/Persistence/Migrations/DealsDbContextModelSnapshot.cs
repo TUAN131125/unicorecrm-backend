@@ -77,6 +77,11 @@ namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<string>("PipelineId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("Profile")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -145,9 +150,13 @@ namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[QualificationSourceLeadId] IS NOT NULL");
 
+                    b.HasIndex("WorkspaceId", "PipelineId", "StageCode");
+
                     b.HasIndex("WorkspaceId", "StageCategory", "StageCode");
 
                     b.HasIndex("WorkspaceId", "UpdatedAt", "DealId");
+
+                    b.HasIndex("WorkspaceId", "WinEvidenceType", "WinEvidenceSourceId");
 
                     b.HasIndex("WorkspaceId", "ScopeOwnerId", "UpdatedAt", "DealId");
 
@@ -300,6 +309,148 @@ namespace UnicoreCRM.Crm.Deals.Infrastructure.Persistence.Migrations
                     b.HasIndex("WorkspaceId", "OccurredAt");
 
                     b.ToTable("OutboxMessages", "deals");
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Crm.Deals.Domain.DealPipeline", b =>
+                {
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PipelineId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameVi")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("WorkspaceId", "PipelineId");
+
+                    b.HasIndex("WorkspaceId")
+                        .IsUnique()
+                        .HasFilter("[IsDefault] = 1 AND [IsActive] = 1");
+
+                    b.ToTable("Pipelines", "deals", t =>
+                        {
+                            t.HasCheckConstraint("CK_Pipelines_DefaultActive", "[IsDefault] = 0 OR [IsActive] = 1");
+                        });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Crm.Deals.Domain.Deal", b =>
+                {
+                    b.HasOne("UnicoreCRM.Crm.Deals.Domain.DealPipeline", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "PipelineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Crm.Deals.Domain.DealPipeline", b =>
+                {
+                    b.OwnsMany("UnicoreCRM.Crm.Deals.Domain.DealPipelineStage", "Stages", b1 =>
+                        {
+                            b1.Property<string>("WorkspaceId")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("PipelineId")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("StageId")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("Category")
+                                .IsRequired()
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Code")
+                                .IsRequired()
+                                .HasMaxLength(120)
+                                .HasColumnType("nvarchar(120)");
+
+                            b1.Property<string>("Color")
+                                .IsRequired()
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<int>("DefaultProbability")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("ForecastFloor")
+                                .IsRequired()
+                                .HasMaxLength(24)
+                                .HasColumnType("nvarchar(24)");
+
+                            b1.Property<bool>("IsActive")
+                                .HasColumnType("bit");
+
+                            b1.Property<bool>("IsSystem")
+                                .HasColumnType("bit");
+
+                            b1.Property<string>("LabelEn")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("LabelVi")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<int>("Order")
+                                .HasColumnType("int");
+
+                            b1.Property<bool>("RequiresPositiveAmount")
+                                .HasColumnType("bit");
+
+                            b1.HasKey("WorkspaceId", "PipelineId", "StageId");
+
+                            b1.HasIndex("WorkspaceId", "PipelineId", "Code")
+                                .IsUnique();
+
+                            b1.ToTable("PipelineStages", "deals");
+
+                            b1.WithOwner()
+                                .HasForeignKey("WorkspaceId", "PipelineId");
+                        });
+
+                    b.Navigation("Stages");
                 });
 #pragma warning restore 612, 618
         }

@@ -188,7 +188,14 @@ namespace UnicoreCRM.Billing.Payments.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("QuoteSourceId")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasComputedColumnSql("CONVERT(nvarchar(128), JSON_VALUE([AgreementSnapshotJson], '$.sourceQuoteId'))", true);
+
                     b.Property<long>("ResourceVersion")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
                     b.Property<string>("ScheduleLineIdsJson")
@@ -214,7 +221,11 @@ namespace UnicoreCRM.Billing.Payments.Infrastructure.Persistence.Migrations
 
                     b.HasKey("WorkspaceId", "PaymentPlanId");
 
-                    b.HasIndex("WorkspaceId", "OrderId");
+                    b.HasIndex("WorkspaceId", "OrderId")
+                        .IsUnique()
+                        .HasFilter("[State] IN ('DRAFT','ACTIVE')");
+
+                    b.HasIndex("WorkspaceId", "QuoteSourceId");
 
                     b.ToTable("PaymentPlans", "payments", t =>
                         {
@@ -234,6 +245,47 @@ namespace UnicoreCRM.Billing.Payments.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_PaymentPlans_State", "(([State] COLLATE Latin1_General_100_BIN2 = N'DRAFT' AND DATALENGTH([State]) = DATALENGTH(N'DRAFT')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'ACTIVE' AND DATALENGTH([State]) = DATALENGTH(N'ACTIVE')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'SUPERSEDED' AND DATALENGTH([State]) = DATALENGTH(N'SUPERSEDED')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'CANCELLED' AND DATALENGTH([State]) = DATALENGTH(N'CANCELLED')) OR ([State] COLLATE Latin1_General_100_BIN2 = N'COMPLETED' AND DATALENGTH([State]) = DATALENGTH(N'COMPLETED')))");
                         });
+                });
+
+            modelBuilder.Entity("UnicoreCRM.Billing.Payments.Domain.PaymentPlanEvent", b =>
+                {
+                    b.Property<string>("EventId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CommandId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PlanId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("WorkspaceId", "PlanId", "EventType")
+                        .IsUnique();
+
+                    b.ToTable("PlanEvents", "payments");
                 });
 
             modelBuilder.Entity("UnicoreCRM.Billing.Payments.Domain.PaymentReadAuditRecord", b =>

@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
 using UnicoreCRM.Crm.Contacts.Contracts;
 using UnicoreCRM.Crm.Deals.Contracts;
 using UnicoreCRM.Crm.Leads.Contracts;
@@ -11,7 +9,7 @@ using UnicoreCRM.Platform.Workspace.Contracts;
 using UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForNurture;
 using UnicoreCRM.Workflows.Atomic.Contracts;
 using UnicoreCRM.Workflows.Atomic.Domain;
-using UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
+using UnicoreCRM.Workflows.Atomic.Application.Persistence;
 
 namespace UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity;
 
@@ -21,7 +19,7 @@ namespace UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity;
 /// make every retry converge without Workflows opening another owner's persistence.
 /// </summary>
 internal sealed class Handler(
-    WorkflowsDbContext dbContext,
+    IAtomicWorkflowAnchorStore anchors,
     ICurrentWorkspace currentWorkspace,
     ILeadOpportunityQualificationParticipant leads,
     IContactQualificationParticipant contacts,
@@ -44,10 +42,29 @@ internal sealed class Handler(
             }
             catch (Exception exception) when (IsContention(exception) && attempt < MaxAttempts)
             {
-                dbContext.ChangeTracker.Clear();
+                anchors.DiscardPendingAnchorChanges();
             }
             catch (Exception exception) when (IsContention(exception))
             {
+                // A competing same-intent request can advance the anchor on every attempt. The
+                // final failed rowversion write may have lost specifically to its completion.
+                // Re-authorize and read that committed receipt once; never compose success from
+                // an in-progress anchor or retry another participant after the attempt limit.
+                anchors.DiscardPendingAnchorChanges();
+                if (currentWorkspace.IsResolved)
+                {
+                    var trusted = currentWorkspace.Require();
+                    var access = await leads.AuthorizeOpportunityAsync(
+                        new(command.LeadId, command.RequestId, command.CorrelationId), cancellationToken);
+                    if (!access.IsSuccess)
+                        return Error(access.ErrorCode!, access.ErrorStatus!.Value);
+                    if (!string.Equals(access.TrustedWorkspace!.WorkspaceId, trusted.WorkspaceId, StringComparison.Ordinal))
+                        return Error("WORKSPACE_MISMATCH", 403);
+                    var winner = await anchors.FindQualificationAsync(ScopeKey(trusted.WorkspaceId, command), cancellationToken);
+                    if (winner is { IntentVersion: 1 or 2, Stage: LeadQualificationStage.Completed }
+                        && string.Equals(winner.Fingerprint, Fingerprint(command), StringComparison.Ordinal))
+                        return Replayed(winner);
+                }
                 return Error("INTERNAL_ERROR", 500);
             }
         }
@@ -72,16 +89,18 @@ internal sealed class Handler(
         if (!string.Equals(access.TrustedWorkspace!.WorkspaceId, trusted.WorkspaceId, StringComparison.Ordinal))
             return Error("WORKSPACE_MISMATCH", 403);
 
+        await using var qualificationLock = await anchors.LockQualificationAsync(trusted.WorkspaceId, command.LeadId, cancellationToken);
         var scopeKey = ScopeKey(trusted.WorkspaceId, command);
         var fingerprint = Fingerprint(command);
-        var anchor = await dbContext.LeadQualificationAnchors
-            .SingleOrDefaultAsync(item => item.ScopeKey == scopeKey, cancellationToken);
-        if (anchor is not null && anchor.IntentVersion != 1)
+        var anchor = await anchors.FindQualificationAsync(scopeKey, cancellationToken);
+        if (anchor is not null && anchor.IntentVersion is not (1 or 2))
             return Error("INTERNAL_ERROR", 500);
         if (anchor is not null && !string.Equals(anchor.Fingerprint, fingerprint, StringComparison.Ordinal))
             return Error("IDEMPOTENCY_KEY_REUSED", 409) with { IdempotencyKey = command.IdempotencyKey };
         if (anchor is { Stage: LeadQualificationStage.Completed })
             return Replayed(anchor);
+        if (await anchors.HasOtherOpportunityIntentAsync(trusted.WorkspaceId, command.LeadId, scopeKey, cancellationToken))
+            return Error("LIFECYCLE_CONFLICT", 409);
 
         var prepared = await leads.PrepareOpportunityAsync(
             new(command.LeadId, command.RequestId, command.CorrelationId, command.ExpectedVersion),
@@ -103,19 +122,21 @@ internal sealed class Handler(
         }
 
         var effectiveCloseDate = command.ExpectedCloseDate ?? prepared.SuggestedOpportunityCloseDate;
-        var effectiveAmount = command.EstimatedValue ?? (prepared.EstimatedValueAmount is not null
-            && prepared.EstimatedValueCurrency is not null
+        // Preserve the meaning of an existing v1 intent; new intents keep an absent estimate unknown.
+        var effectiveAmount = command.EstimatedValue ?? (anchor?.IntentVersion == 1
+            && prepared.EstimatedValueAmount is not null && prepared.EstimatedValueCurrency is not null
                 ? new LeadQualificationMoneyInput(prepared.EstimatedValueAmount, prepared.EstimatedValueCurrency)
                 : null);
-        if (anchor?.DealId is null && (effectiveCloseDate is null || effectiveAmount is null))
-            return Error("INTERNAL_ERROR", 500);
+        if (anchor?.DealId is null && effectiveCloseDate is null)
+            return Error("LEAD_OPPORTUNITY_INPUT_INVALID", 422,
+                new Dictionary<string, string[]> { ["deal.expectedCloseDate"] = ["An expected close date is required when the Lead has no fallback."] });
 
         // Preflight every grantable downstream capability and owner reference before Contact NEW can
         // commit. Actual participants repeat their checks at the authoritative mutation boundary.
         if (anchor?.ContactId is null)
         {
             var dealValidation = await deals.ValidateOpportunityAsync(
-                DealCommand(command, null, effectiveCloseDate!, effectiveAmount!, null, null), cancellationToken);
+                DealCommand(command, null, effectiveCloseDate!, effectiveAmount, null, null), cancellationToken);
             if (!dealValidation.IsSuccess)
                 return MapDealFailure(dealValidation);
 
@@ -192,7 +213,7 @@ internal sealed class Handler(
             anchor.RecordContact(
                 resolution.ContactId, resolution.ContactVersion.Value,
                 resolution.WasCreated, resolution.DisplayName, timeProvider.GetUtcNow());
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await anchors.PersistQualificationAsync(anchor, cancellationToken);
         }
 
         if (command.FollowUpTask is { } followUp && anchor.TaskId is null)
@@ -211,12 +232,12 @@ internal sealed class Handler(
             if (createdTask.TaskId is null || createdTask.TaskVersion is null)
                 return Error("INTERNAL_ERROR", 500);
             anchor.RecordTask(createdTask.TaskId, createdTask.TaskVersion.Value, timeProvider.GetUtcNow());
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await anchors.PersistQualificationAsync(anchor, cancellationToken);
         }
 
         if (anchor.DealId is null)
         {
-            if (effectiveCloseDate is null || effectiveAmount is null)
+            if (effectiveCloseDate is null)
                 return Error("INTERNAL_ERROR", 500);
             var createdDeal = await deals.CreateOpportunityAsync(
                 DealCommand(
@@ -234,7 +255,7 @@ internal sealed class Handler(
             if (createdDeal.DealId is null || createdDeal.DealVersion is null)
                 return Error("INTERNAL_ERROR", 500);
             anchor.RecordDeal(createdDeal.DealId, createdDeal.DealVersion.Value, timeProvider.GetUtcNow());
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await anchors.PersistQualificationAsync(anchor, cancellationToken);
         }
 
         var closure = await leads.CloseForOpportunityAsync(
@@ -261,7 +282,7 @@ internal sealed class Handler(
 
         var response = ComposeResponse(anchor, closure);
         anchor.Complete(closure.Version!.Value, JsonSerializer.Serialize(response, ResponseJson), timeProvider.GetUtcNow());
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await anchors.PersistQualificationAsync(anchor, cancellationToken);
         return new(
             true, closure.Outcome, anchor.LeadId, closure.Version,
             anchor.ContactId, anchor.TaskId, anchor.DealId, "OPPORTUNITY",
@@ -325,18 +346,17 @@ internal sealed class Handler(
             trusted.MemberId,
             command.OwnerId,
             command.CorrelationId,
-            timeProvider.GetUtcNow());
-        dbContext.LeadQualificationAnchors.Add(anchor);
+            timeProvider.GetUtcNow(),
+            intentVersion: 2);
         try
         {
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await anchors.CreateQualificationAsync(anchor, cancellationToken);
             return anchor;
         }
-        catch (DbUpdateException)
+        catch (Exception exception) when (anchors.IsUpdateFailure(exception))
         {
-            dbContext.ChangeTracker.Clear();
-            return await dbContext.LeadQualificationAnchors.SingleAsync(
-                item => item.ScopeKey == scopeKey, cancellationToken);
+            anchors.DiscardPendingAnchorChanges();
+            return await anchors.GetQualificationAsync(scopeKey, cancellationToken);
         }
     }
 
@@ -344,7 +364,7 @@ internal sealed class Handler(
         LeadOpportunityQualificationCommand command,
         string? contactId,
         string expectedCloseDate,
-        LeadQualificationMoneyInput amount,
+        LeadQualificationMoneyInput? amount,
         string? taskId,
         LeadQualificationFollowUpTaskInput? followUp,
         string? workflowScopeKey = null,
@@ -355,7 +375,7 @@ internal sealed class Handler(
             command.OwnerId,
             expectedCloseDate,
             command.InterestedProductIds,
-            new DealMoney(amount.Amount, amount.Currency),
+            amount is null ? null : new DealMoney(amount.Amount, amount.Currency),
             command.NeedSummary,
             followUp?.DueAt,
             followUp?.Title,
@@ -420,11 +440,10 @@ internal sealed class Handler(
         IReadOnlyDictionary<string, string[]>? fields = null) =>
         new(false, null, null, null, null, null, null, null, code, status, fields);
 
-    private static bool IsContention(Exception exception) => exception switch
+    private bool IsContention(Exception exception) => exception switch
     {
         ParticipantContentionException => true,
-        DbUpdateConcurrencyException => true,
-        SqlException sql => sql.Number is 1205 or 1222,
+        _ when anchors.IsProviderContention(exception) => true,
         _ => exception.InnerException is not null && IsContention(exception.InnerException)
     };
 

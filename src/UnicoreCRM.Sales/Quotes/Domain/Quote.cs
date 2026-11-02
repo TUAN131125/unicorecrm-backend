@@ -1,13 +1,131 @@
 namespace UnicoreCRM.Sales.Quotes.Domain;
 
 /// <summary>
-/// Quotes-owned durable read state. This slice exposes no Quote creation or mutation path;
-/// controlled verifier fixtures and future separately admitted Quotes commands are the only
-/// current ways rows can be written.
+/// Quotes owns durable commercial snapshots and Draft content replacement.
 /// </summary>
 internal sealed class Quote
 {
     private Quote() { }
+
+    internal Quote(string workspaceId, string quoteId, string number, string buyerType, string buyerId,
+        string sourcePath, string? dealId, string? contactId, string? leadId, QuoteDraftContent content, DateTimeOffset now)
+    {
+        WorkspaceId = workspaceId; QuoteId = quoteId; QuoteNumber = number;
+        RootQuoteId = quoteId; QuoteRevision = 1; Status = "DRAFT";
+        BuyerType = buyerType; BuyerId = buyerId; SourcePath = sourcePath;
+        SourceDealId = dealId; ContactId = contactId; SourceLeadId = leadId;
+        ActionsJson = "{\"accept\":{\"allowed\":false,\"blockerCodes\":[\"QUOTE_ACCEPTANCE_BLOCKED\"]}}";
+        CreatedAt = now; ResourceVersion = 0;
+        ReplaceDraft(content, now);
+    }
+
+    internal Quote? CreateRevision(string id, string number, int revision, QuoteDraftContent content, DateTimeOffset now)
+    {
+        if (ArchivedAt is not null || Status is not ("SENT" or "REJECTED" or "EXPIRED") || revision <= QuoteRevision
+            || string.IsNullOrWhiteSpace(RootQuoteId)) return null;
+        return new Quote(WorkspaceId, id, number, BuyerType, BuyerId, SourcePath, SourceDealId, ContactId, SourceLeadId, content, now)
+        { RootQuoteId = RootQuoteId, RevisionOfQuoteId = QuoteId, QuoteRevision = revision,
+            SenderName = SenderName, SenderAddress = SenderAddress, SenderEmail = SenderEmail, SenderTaxId = SenderTaxId };
+    }
+
+    internal bool RecordDocumentIssued(DateTimeOffset now)
+    {
+        if (ArchivedAt is not null || Status is not ("DRAFT" or "REVIEW" or "SENT")) return false;
+        ResourceVersion++; UpdatedAt = now; return true;
+    }
+
+    internal bool Expire(DateOnly workspaceDate, DateTimeOffset now)
+    {
+        if (ArchivedAt is not null || Status != "SENT" || ValidUntil is null || workspaceDate <= ValidUntil.Value) return false;
+        Status = "EXPIRED"; ExpiredAt = now; UpdatedAt = now; ResourceVersion++;
+        return true;
+    }
+
+    internal bool Archive(string reason, DateTimeOffset now)
+    {
+        if (ArchivedAt is not null || Status is not ("DRAFT" or "REVIEW" or "REJECTED" or "EXPIRED")
+            || string.IsNullOrWhiteSpace(reason) || reason.Length > 500) return false;
+        ArchivedAt = now; ArchiveReason = reason; UpdatedAt = now; ResourceVersion++;
+        return true;
+    }
+
+    internal bool ReplaceDraft(QuoteDraftContent content, DateTimeOffset now)
+    {
+        if (Status is not ("DRAFT" or "REVIEW") || ArchivedAt is not null) return false;
+        Title = content.Title; Currency = content.Currency; OwnerId = content.OwnerId;
+        RecipientEmail = content.RecipientEmail; LineItemsJson = content.LineItemsJson;
+        AdjustmentsJson = content.AdjustmentsJson; ProductSnapshotsJson = content.ProductSnapshotsJson;
+        SubtotalAmount = content.Subtotal; DiscountTotalAmount = content.Discount;
+        TaxTotalAmount = content.Tax; GrandTotalAmount = content.Total;
+        SubtotalCurrency = DiscountTotalCurrency = TaxTotalCurrency = GrandTotalCurrency = content.Currency;
+        ValidUntil = content.ValidUntil; Notes = content.Notes; PaymentAgreementJson = content.PaymentAgreementJson;
+        Status = "DRAFT";
+        // Retired internal approval metadata remains historical; it never authorizes new issuance.
+        UpdatedAt = now; ResourceVersion++;
+        return true;
+    }
+
+    internal void RequestApproval(bool required, string reasonsJson, string fingerprint, string policyVersion,
+        string actor, string? note, DateTimeOffset now)
+    {
+        ApprovalRequired = required; ApprovalReasonsJson = reasonsJson;
+        ApprovalStatus = required ? "PENDING" : "NOT_REQUIRED";
+        Status = required ? "REVIEW" : "DRAFT";
+        ApprovalRequestedAt = now; ApprovalRequestedBy = actor; ReviewRequestedAt = required ? now : null;
+        ApprovedAt = null; ApprovedBy = null; ApprovalDecisionNote = note;
+        ApprovalContentFingerprint = fingerprint; ApprovalPolicyVersion = policyVersion;
+        UpdatedAt = now; ResourceVersion++;
+    }
+
+    internal void DecideApproval(bool approve, string actor, string? note, DateTimeOffset now)
+    {
+        ApprovalStatus = approve ? "APPROVED" : "CHANGES_REQUESTED";
+        ApprovedAt = approve ? now : null; ApprovedBy = approve ? actor : null;
+        ApprovalDecisionNote = note; Status = approve ? "REVIEW" : "DRAFT";
+        UpdatedAt = now; ResourceVersion++;
+    }
+
+    internal bool RecordDelivery(string historyJson, DateTimeOffset now)
+    {
+        if (Status is not ("DRAFT" or "REVIEW" or "SENT") || ArchivedAt is not null) return false;
+        DeliveryHistoryJson = historyJson;
+        Status = "SENT"; SentAt ??= now; UpdatedAt = now; ResourceVersion++;
+        return true;
+    }
+
+    internal bool Reject(string reason, DateTimeOffset now, QuoteCustomerDecisionRecord decision)
+    {
+        if (Status != "SENT" || ArchivedAt is not null || string.IsNullOrWhiteSpace(reason) || reason.Length > 500) return false;
+        if (decision.DecisionType != "REJECTION" || !AppendDecision(decision)) return false;
+        Status = "REJECTED"; RejectedAt = now; UpdatedAt = now; ResourceVersion++;
+        return true;
+    }
+
+    internal bool RecordReportedAcceptance(QuoteCustomerDecisionRecord decision, DateTimeOffset now)
+    {
+        if (Status != "SENT" || ArchivedAt is not null || decision.DecisionType != "ACCEPTANCE" || !AppendDecision(decision)) return false;
+        UpdatedAt = now; ResourceVersion++;
+        return true;
+    }
+
+    private bool AppendDecision(QuoteCustomerDecisionRecord decision)
+    {
+        if (decision.WorkspaceId != WorkspaceId || decision.QuoteId != QuoteId || decision.QuoteRevision != QuoteRevision
+            || decision.ContentResourceVersion != ResourceVersion || decision.ResultResourceVersion != ResourceVersion + 1
+            || decision.VerificationStatus != "UNVERIFIED" || CustomerDecisions.Any(x => x.DecisionId == decision.DecisionId)) return false;
+        CustomerDecisions.Add(decision);
+        return true;
+    }
+
+    internal List<QuoteCustomerDecisionRecord> CustomerDecisions { get; private set; } = [];
+    internal QuoteSalesAcceptance? SalesAcceptance { get; private set; }
+    internal bool AcceptSales(QuoteSalesAcceptance acceptance, DateTimeOffset now)
+    {
+        if(Status!="SENT" || ArchivedAt is not null || SalesAcceptance is not null
+            || acceptance.WorkspaceId!=WorkspaceId || acceptance.QuoteId!=QuoteId)return false;
+        SalesAcceptance=acceptance; Status="ACCEPTED"; AcceptedAt=now; UpdatedAt=now; ResourceVersion++;
+        return true;
+    }
 
     internal string WorkspaceId { get; private set; } = null!;
     internal string QuoteId { get; private set; } = null!;
@@ -57,6 +175,7 @@ internal sealed class Quote
     internal string? ApprovalContentFingerprint { get; private set; }
     internal string? ApprovalPolicyVersion { get; private set; }
     internal string? PaymentAgreementJson { get; private set; }
+    internal string? ProductSnapshotsJson { get; private set; }
     internal string? DeliveryHistoryJson { get; private set; }
     internal string? SenderName { get; private set; }
     internal string? SenderAddress { get; private set; }
@@ -66,3 +185,7 @@ internal sealed class Quote
     internal DateTimeOffset CreatedAt { get; private set; }
     internal DateTimeOffset UpdatedAt { get; private set; }
 }
+
+internal sealed record QuoteDraftContent(string Title, string Currency, string OwnerId, string? RecipientEmail,
+    string LineItemsJson, string AdjustmentsJson, string ProductSnapshotsJson, decimal Subtotal, decimal Discount,
+    decimal Tax, decimal Total, DateOnly? ValidUntil, string? Notes, string? PaymentAgreementJson);

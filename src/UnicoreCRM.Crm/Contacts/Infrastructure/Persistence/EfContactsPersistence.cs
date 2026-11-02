@@ -9,6 +9,12 @@ namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence;
 
 internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : IContactsPersistence
 {
+    public async Task<IReadOnlyList<Contact>> ReadContactsByIdsAsync(string workspaceId,
+        IReadOnlyCollection<string> contactIds, CancellationToken cancellationToken) =>
+        await dbContext.Contacts.AsNoTracking()
+            .Where(item => item.WorkspaceId == workspaceId && contactIds.Contains(item.ContactId))
+            .ToArrayAsync(cancellationToken);
+
     // Read-side reference facts owned by this module; historical relations remain facts.
     public string ActivityReadFactsSql => """
 SELECT c.WorkspaceId, c.ContactId AS RecordId, c.OwnerId, CASE WHEN c.ArchivedAt IS NULL AND c.Status<>N'archived' THEN 1 ELSE 0 END AS CanLog,
@@ -221,6 +227,9 @@ FROM contacts.Contacts c INNER JOIN contacts.OrganizationRelationships r
             .OrderBy(item => item.EffectiveTo == null ? 0 : 1)
             .ThenByDescending(item => item.EffectiveFrom).ThenBy(item => item.RelationshipId)
             .ToArrayAsync(cancellationToken);
+
+    public Task<ContactOrganizationRelationship?> ReadOrganizationRelationshipAsync(string workspaceId,string contactId,string relationshipId,CancellationToken cancellationToken) =>
+        dbContext.Set<ContactOrganizationRelationship>().AsNoTracking().SingleOrDefaultAsync(x=>x.WorkspaceId==workspaceId && x.ContactId==contactId && x.RelationshipId==relationshipId,cancellationToken);
 
     public Task<ContactOrganizationRelationship?> LoadOrganizationRelationshipAsync(
         string workspaceId, string contactId, string relationshipId, CancellationToken cancellationToken) =>

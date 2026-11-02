@@ -494,6 +494,47 @@ namespace UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence.Migrations
                     b.ToTable("LeadQualificationAnchors", "workflow");
                 });
 
+            modelBuilder.Entity("UnicoreCRM.Workflows.Atomic.Domain.OrderConfirmationReceipt", b =>
+                {
+                    b.Property<string>("ScopeKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ResponseJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("ScopeKey");
+
+                    b.HasIndex("WorkspaceId", "OrderId")
+                        .IsUnique();
+
+                    b.ToTable("OrderConfirmationReceipts", "workflow");
+                });
+
             modelBuilder.Entity("UnicoreCRM.Workflows.Atomic.Domain.WorkflowIntegrationOutboxMessage", b =>
                 {
                     b.Property<string>("EventId")

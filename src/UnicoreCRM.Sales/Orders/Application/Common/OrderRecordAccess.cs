@@ -46,7 +46,12 @@ internal static class OrderFieldSecurity
             ["resourceVersion"] = true,
             ["createdAt"] = true,
             ["updatedAt"] = true,
-            ["creditApproval"] = false
+            ["creditApproval"] = false,
+            ["paymentAgreementSnapshot"] = false,
+            ["acceptance"] = false,
+            ["commercialSnapshotFingerprint"] = false,
+            ["sourceQuoteResourceVersion"] = false,
+            ["buyerNameSnapshot"] = false
         };
 
     internal static IReadOnlyList<string> FieldKeys { get; } =
@@ -83,7 +88,12 @@ internal static class OrderFieldSecurity
             CreditPolicyEvaluation = Keep(access, "creditPolicyEvaluation", model.CreditPolicyEvaluation),
             ArchivedAt = Keep(access, "archivedAt", model.ArchivedAt),
             ArchiveReason = Keep(access, "archiveReason", model.ArchiveReason),
-            CreditApproval = Keep(access, "creditApproval", model.CreditApproval)
+            CreditApproval = Keep(access, "creditApproval", model.CreditApproval),
+            PaymentAgreementSnapshot=Keep(access,"paymentAgreementSnapshot",model.PaymentAgreementSnapshot),
+            Acceptance=Keep(access,"acceptance",model.Acceptance),
+            CommercialSnapshotFingerprint=Keep(access,"commercialSnapshotFingerprint",model.CommercialSnapshotFingerprint),
+            SourceQuoteResourceVersion=Keep(access,"sourceQuoteResourceVersion",model.SourceQuoteResourceVersion),
+            BuyerNameSnapshot=access.CanRead("buyerRef")?Keep(access,"buyerNameSnapshot",model.BuyerNameSnapshot):null
         };
 
     private static T? Keep<T>(RecordAccessAuthorization access, string fieldKey, T? value) =>
@@ -96,11 +106,11 @@ internal sealed class OrderAuthorization(IRecordAccessEvaluator evaluator)
 
     internal async Task<OrderOperationResult<OrderAccess>> AuthorizeAsync(
         OrderRequestMetadata metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,string capability="orders.read")
     {
         var authorization = await evaluator.AuthorizeResourceAsync(
             ResourceKey,
-            OrderCapabilities.Read.Capability,
+            capability,
             OrderFieldSecurity.FieldKeys,
             RecordAccessRepresentation.Full,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
@@ -127,7 +137,7 @@ internal sealed class OrderAuthorization(IRecordAccessEvaluator evaluator)
         Order order,
         string enforcementPoint,
         OrderRequestMetadata metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,bool requireMutation=false)
     {
         var decision = await evaluator.AuthorizeRecordAsync(
             access.Authorization,
@@ -136,6 +146,7 @@ internal sealed class OrderAuthorization(IRecordAccessEvaluator evaluator)
             enforcementPoint,
             new RecordAccessRequestContext(metadata.RequestId, metadata.CorrelationId),
             cancellationToken);
+        if(requireMutation && decision is {IsAllowed:true,ReadOnlyScope:true})return OrderErrors.AccessDenied();
         return decision.IsAllowed ? null : OrderErrors.NotFound();
     }
 

@@ -37,8 +37,9 @@ internal static class AiErrors
     internal static AiOperationError ContextNotFound() =>
         new("AI_CONTEXT_NOT_FOUND", 404, "AI context was not found or is not visible");
 
-    internal static AiOperationError ProviderUnavailable() =>
-        new("AI_PROVIDER_UNAVAILABLE", 503, "AI provider is unavailable", true);
+    internal static AiOperationError ProviderUnavailable(string? reason = null) =>
+        new("AI_PROVIDER_UNAVAILABLE", 503, "AI provider is unavailable", reason is null or "PROVIDER_NETWORK_FAILURE",
+            reason is null ? null : new Dictionary<string, string[]> { ["provider"] = [reason] });
 
     internal static AiOperationError ProviderTimeout() =>
         new("AI_PROVIDER_TIMEOUT", 504, "AI provider timed out", true);

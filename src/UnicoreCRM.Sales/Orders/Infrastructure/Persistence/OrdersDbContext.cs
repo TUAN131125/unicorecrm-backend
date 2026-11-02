@@ -11,6 +11,19 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("orders");
+        modelBuilder.Entity<OrderCreationEvidence>(e=>
+        {
+            e.ToTable("CreationEvidence");e.HasKey(x=>x.AuditId);
+            foreach(var key in new[]{"AuditId","WorkspaceId","QuoteId","AcceptanceId","OrderId"})e.Property<string>(key).HasMaxLength(128);
+            e.Property(x=>x.Fingerprint).HasMaxLength(64);e.Property(x=>x.PayloadJson).HasColumnType("nvarchar(max)");
+            e.HasIndex(x=>new{x.WorkspaceId,x.AcceptanceId}).IsUnique();
+        });
+        modelBuilder.Entity<OrderOutboxMessage>(e=>
+        {
+            e.ToTable("OutboxMessages");e.HasKey(x=>x.EventId);
+            foreach(var key in new[]{"EventId","WorkspaceId","OrderId"})e.Property<string>(key).HasMaxLength(128);
+            e.Property(x=>x.EventType).HasMaxLength(128);e.Property(x=>x.PayloadJson).HasColumnType("nvarchar(max)");
+        });
         modelBuilder.Entity<Order>(entity =>
         {
             entity.ToTable("Orders", table =>
@@ -50,6 +63,10 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
             entity.Property(item => item.GrandTotalCurrency).HasMaxLength(3).IsFixedLength().IsRequired();
             entity.Property(item => item.Currency).HasMaxLength(3).IsFixedLength().IsRequired();
             Timestamp(entity.Property(item => item.ConfirmedAt));
+            entity.Property(item=>item.ConfirmedBy).HasMaxLength(128);
+            entity.Property(item=>item.ConfirmationOrigin).HasMaxLength(48);
+            entity.Property(item=>item.ConfirmationPolicyVersion).HasMaxLength(80);
+            entity.Property(item=>item.OperationalReviewNotes).HasMaxLength(2000);
             Timestamp(entity.Property(item => item.CompletedAt));
             Timestamp(entity.Property(item => item.CancelledAt));
             entity.Property(item => item.ExpectedDeliveryDate).HasColumnType("date");
@@ -63,10 +80,17 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
             entity.Property(item => item.ActionsJson).HasColumnType("nvarchar(max)").IsRequired();
             Timestamp(entity.Property(item => item.ArchivedAt));
             entity.Property(item => item.ArchiveReason).HasMaxLength(500);
-            entity.Property(item => item.ResourceVersion);
+            entity.Property(item => item.ResourceVersion).IsConcurrencyToken();
             Timestamp(entity.Property(item => item.CreatedAt));
             Timestamp(entity.Property(item => item.UpdatedAt));
             entity.Property(item => item.CreditApprovalJson).HasColumnType("nvarchar(max)");
+            entity.Property(item => item.PaymentAgreementSnapshotJson).HasColumnType("nvarchar(max)");
+            entity.Property(item => item.AcceptanceJson).HasColumnType("nvarchar(max)");
+            entity.Property(item => item.SourceAcceptanceId).HasMaxLength(128);
+            entity.Property(item => item.CommercialSnapshotFingerprint).HasMaxLength(64);
+            entity.Property(item => item.BuyerNameSnapshot).HasMaxLength(500);
+            entity.Property(item => item.SourceQuoteResourceVersion);
+            entity.Property(item => item.OperationalApprovalRequired);
 
             entity.HasIndex(item => new { item.WorkspaceId, item.UpdatedAt, item.OrderId })
                 .IsDescending(false, true, true);
@@ -75,7 +99,7 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
             entity.HasIndex(item => new { item.WorkspaceId, item.GrandTotalAmount, item.OrderId });
             entity.HasIndex(item => new { item.WorkspaceId, item.OrderNumber, item.OrderId });
             entity.HasIndex(item => new { item.WorkspaceId, item.State });
-            entity.HasIndex(item => new { item.WorkspaceId, item.SourceQuoteId });
+            entity.HasIndex(item => new { item.WorkspaceId, item.SourceQuoteId }).IsUnique().HasFilter("[SourceQuoteId] IS NOT NULL");
             entity.HasIndex(item => new { item.WorkspaceId, item.SourceDealId });
             entity.HasIndex(item => new { item.WorkspaceId, item.BuyerType, item.BuyerId });
         });

@@ -45,7 +45,7 @@ internal interface IDealsPersistence
     /// in scope, and the predicate is part of the SQL query rather than an in-memory filter, so a
     /// hidden row never reaches the count or the page.
     /// </param>
-    Task<IReadOnlyList<Deal>> ReadDealsAsync(string workspaceId, string? scopeOwnerMemberId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Deal>> ReadDealsAsync(string workspaceId, string? scopeOwnerMemberId, CancellationToken cancellationToken, string? pipelineId = null, string? stageCode = null);
     Task<IReadOnlyList<Deal>> LoadDealsAsync(string workspaceId, IReadOnlyCollection<string> dealIds, CancellationToken cancellationToken);
     Task<DealIdempotencyRecord?> FindIdempotencyAsync(string scopeKey, CancellationToken cancellationToken);
     void AddDeal(Deal deal);
@@ -62,6 +62,8 @@ internal interface IDealsTransaction : IAsyncDisposable
 
 internal sealed class DealsPersistenceConcurrencyException(Exception innerException)
     : Exception("The Deal resource changed concurrently.", innerException);
+internal sealed class DealsPersistenceBusyException(Exception innerException)
+    : Exception("The Deal operation is temporarily contended.", innerException);
 
 internal static class DealErrors
 {

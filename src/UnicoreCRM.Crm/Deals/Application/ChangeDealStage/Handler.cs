@@ -6,7 +6,7 @@ namespace UnicoreCRM.Crm.Deals.Application.ChangeDealStage;
 
 internal sealed record Command(string DealId, ChangeDealStageRequest Request, DealCommandMetadata Metadata);
 
-internal sealed class Handler(DealAuthorization authorization, DealMutationExecution execution)
+internal sealed class Handler(DealAuthorization authorization, DealMutationExecution execution, DealPipelineRegistry registry)
 {
     internal async Task<DealOperationResult<DealMutationResponse>> HandleAsync(
         Command command,
@@ -23,13 +23,9 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
         var stageCode = DealValidation.RequiredText(command.Request.StageCode, "stageCode", 120, fields);
         if (fields.Count != 0)
             return DealOperationResult<DealMutationResponse>.Failure(DealErrors.Validation(fields));
-        if (!DealStages.TryGet(stageCode!, out var stage))
-            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.StageNotFound(stageCode!));
-        var targetStage = stage!;
-        if (targetStage.Category is not DealStageCategory.Open)
-            return DealOperationResult<DealMutationResponse>.Failure(DealErrors.TerminalStageRequiresOutcome());
+        DealPipelineStage? targetStage = null;
 
-        var fingerprint = DealCommandSupport.Fingerprint(new { command.DealId, StageCode = targetStage.Code, command.Metadata.ExpectedVersion });
+        var fingerprint = DealCommandSupport.Fingerprint(new { command.DealId, StageCode = stageCode, command.Metadata.ExpectedVersion });
         return await execution.ExecuteAsync(
             access.Value!,
             "changeDealStageCommand",
@@ -39,11 +35,11 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             fingerprint,
             (deal, now) =>
             {
-                var forecast = DealStages.DeriveForecast(targetStage.Code, deal.Profile.OpportunityScore);
-                var progressive = DealValidation.ProgressiveProfileErrors(deal.Profile, targetStage.Code, forecast);
+                var forecast = DealStages.DeriveForecast(targetStage!, deal.Profile.OpportunityScore);
+                var progressive = DealValidation.ProgressiveProfileErrors(deal.Profile, targetStage!, forecast);
                 if (progressive.Count != 0)
                     return DealErrors.ProgressiveProfile(progressive);
-                return deal.ChangeStage(targetStage.Code, targetStage.Category, forecast, access.Value!.Trusted.MemberId, now) switch
+                return deal.ChangeStage(targetStage!.Code, targetStage.Category, forecast, access.Value!.Trusted.MemberId, now) switch
                 {
                     DealTransitionResult.Succeeded => null,
                     DealTransitionResult.InvalidTransition => DealErrors.InvalidStageTransition(deal.DealId),
@@ -54,6 +50,12 @@ internal sealed class Handler(DealAuthorization authorization, DealMutationExecu
             (recordAccess, record) => authorization.EnforceRecordAsync(
                 recordAccess, record, "changeDealStage", metadata, cancellationToken),
             recordAccess => DealAuthorization.EnforceFieldWrite(recordAccess, "stageCode", "stageCategory", "stageEnteredAt"),
-            cancellationToken);
+            cancellationToken,
+            async (deal, token) =>
+            {
+                var selected = await registry.SelectAsync(deal.WorkspaceId, deal.PipelineId, stageCode, token);
+                targetStage = selected.Stage;
+                return selected.Error;
+            });
     }
 }
