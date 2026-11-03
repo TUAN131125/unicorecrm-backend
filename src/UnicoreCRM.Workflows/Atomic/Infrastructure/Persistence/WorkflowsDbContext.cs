@@ -18,6 +18,14 @@ internal sealed class WorkflowsDbContext(DbContextOptions<WorkflowsDbContext> op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("workflow");
+        modelBuilder.Entity<AcceptedQuoteCustomerTask>(e=>
+        {
+            e.ToTable("AcceptedQuoteCustomerTasks");e.HasKey(x=>new{x.WorkspaceId,x.OrderId});
+            foreach(var name in new[]{"WorkspaceId","OrderId","QuoteId","AcceptanceId","CustomerId","LastErrorCode","Executor"})e.Property(name).HasMaxLength(128);
+            e.Property(x=>x.State).HasMaxLength(16);e.Property(x=>x.Resolution).HasMaxLength(16);
+            e.HasIndex(x=>new{x.WorkspaceId,x.AcceptanceId}).IsUnique();
+            e.HasIndex(x=>new{x.State,x.NextAttemptAt});
+        });
         modelBuilder.Entity<OrderConfirmationReceipt>(e=>
         {
             e.ToTable("OrderConfirmationReceipts");e.HasKey(x=>x.ScopeKey);e.Property(x=>x.ScopeKey).HasMaxLength(64);

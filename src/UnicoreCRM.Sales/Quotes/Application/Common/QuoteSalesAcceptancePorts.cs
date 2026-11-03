@@ -10,8 +10,12 @@ internal interface IQuoteSalesAcceptanceStore
     void Add(QuoteSalesAcceptance acceptance);
     void Add(QuoteAcceptanceInvitation invitation);
     Task ReloadAsync(QuoteAcceptanceInvitation invitation,CancellationToken ct);
+    Task ReloadQuoteAsync(Quote quote,CancellationToken ct);
+    Task<bool> HasUnresolvedDeliveryAsync(string workspace,string quote,CancellationToken ct);
 }
 internal interface IQuoteGmailSender
 {
-    Task<string?> SendAsync(string workspace,string recipient,string subject,string body,byte[] pdf,string fileName,string messageId,CancellationToken ct);
+    string? ConfigurationError(string workspace);
+    Task<QuoteGmailResult> SendAsync(string workspace,string recipient,string subject,string body,byte[] pdf,string fileName,string messageId,CancellationToken ct);
 }
+internal sealed record QuoteGmailResult(string Status, string? ErrorCode);

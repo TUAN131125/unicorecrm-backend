@@ -20,6 +20,7 @@ internal static class OrdersModule
         services.AddScoped<Contracts.IAcceptedQuoteOrderWriter,AcceptedQuoteOrderWriter>();
         services.AddScoped<Contracts.IOrderConfirmationParticipant,OrderConfirmationParticipant>();
         services.AddScoped<Contracts.IOrderPaymentPlanSourceReader,OrderPaymentPlanSourceReader>();
+        services.AddScoped<Contracts.IConfirmedQuoteCustomerSourceReader,ConfirmedQuoteCustomerSourceReader>();
         services.AddDevelopmentSchemaMigration(
             "orders",
             (provider, cancellationToken) => provider.GetRequiredService<OrdersDbContext>().Database.MigrateAsync(cancellationToken));

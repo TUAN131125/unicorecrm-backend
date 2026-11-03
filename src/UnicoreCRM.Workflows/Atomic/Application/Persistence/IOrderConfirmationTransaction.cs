@@ -9,5 +9,6 @@ internal interface IOrderConfirmationSession:IAsyncDisposable
 {
     OwnerTransaction OwnerTransaction {get;}
     Task<OrderConfirmationReceipt?> FindAsync(string scope,CancellationToken ct);
+    Task EnqueueCustomerAsync(string workspaceId,string orderId,string quoteId,string acceptanceId,DateTimeOffset now,CancellationToken ct);
     Task CommitAsync(OrderConfirmationReceipt receipt,CancellationToken ct);
 }

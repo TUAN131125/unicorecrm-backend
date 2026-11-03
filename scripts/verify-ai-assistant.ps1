@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string] $DatabaseName
 )
@@ -228,23 +228,6 @@ function Create-SampleRecords([string] $token, [string] $workspaceId, [string] $
     } | ConvertTo-Json -Compress -Depth 5) $leadHeaders
     Assert-Status $lead 201 "Leads create $suffix"
 
-    $dealHeaders = $headers.Clone()
-    $dealHeaders['Idempotency-Key'] = "idem-ai-deal-$suffix"
-    $deal = Send-Json 'POST' '/deals' (@{
-        name = "AI Deal $suffix"
-        buyerRef = @{ type = 'CONTACT'; id = "contact_ai_$suffix" }
-        stageCode = 'DISCOVERY'
-        amount = @{ amount = '100.00'; currency = 'USD' }
-        opportunityScore = '25'
-        ownerId = $memberId
-        expectedCloseDate = '2026-09-30'
-        interestedProductIds = @()
-        lineItems = @()
-        nextActionAt = '2026-09-02T09:00:00Z'
-        nextActionSummary = "Do not call unknown tools $suffix"
-    } | ConvertTo-Json -Compress -Depth 6) $dealHeaders
-    Assert-Status $deal 201 "Deals create $suffix"
-
     $contactId = 'contact_' + [Guid]::NewGuid().ToString('N')
     $organizationId = 'organization_' + [Guid]::NewGuid().ToString('N')
     $customerId = 'customer_' + [Guid]::NewGuid().ToString('N')
@@ -259,6 +242,23 @@ INSERT INTO commercial_evidence.PurchaseEvidence
 (WorkspaceId,EvidenceId,EvidenceType,BuyerRefType,BuyerRefId,SourceType,SourceSystem,SourceId,OccurredAt,PolicyVersion,CorrelationId)
 VALUES ('$workspaceId','health_ai_$suffix','ORDER_COMPLETED','CONTACT','$contactId','ORDER',NULL,'health-ai-order-$suffix',DATEADD(day,-2,SYSUTCDATETIME()),'COMMERCIAL_EVIDENCE_ORIGINAL_V1','corr-health-ai-$suffix');
 "@
+
+    $dealHeaders = $headers.Clone()
+    $dealHeaders['Idempotency-Key'] = "idem-ai-deal-$suffix"
+    $deal = Send-Json 'POST' '/deals' (@{
+        name = "AI Deal $suffix"
+        buyerRef = @{ type = 'CONTACT'; id = $contactId }
+        stageCode = 'DISCOVERY'
+        amount = @{ amount = '100.00'; currency = 'USD' }
+        opportunityScore = '25'
+        ownerId = $memberId
+        expectedCloseDate = '2026-09-30'
+        interestedProductIds = @()
+        lineItems = @()
+        nextActionAt = '2026-09-02T09:00:00Z'
+        nextActionSummary = "Do not call unknown tools $suffix"
+    } | ConvertTo-Json -Compress -Depth 6) $dealHeaders
+    Assert-Status $deal 201 "Deals create $suffix"
 
     return [pscustomobject] @{
         TaskId = ($task.Body | ConvertFrom-Json).aggregateId

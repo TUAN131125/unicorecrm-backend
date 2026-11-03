@@ -19,7 +19,11 @@ param(
 
     [int] $ReadyTimeoutSeconds = 420,
 
-    [switch] $KeepDatabase
+    [switch] $KeepDatabase,
+
+    [switch] $Browser,
+
+    [string] $EvidenceDirectory = (Join-Path ([IO.Path]::GetTempPath()) ('unicore-orders-read-' + [Guid]::NewGuid().ToString('N')))
 )
 
 $ErrorActionPreference = 'Stop'
@@ -195,8 +199,8 @@ function Set-OrderScope {
     param([string] $RoleId, [string] $Scope)
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
 DELETE FROM access.RoleDataScopes WHERE PolicyId = 'scope_orders_read_core';
-INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson)
-VALUES ('scope_orders_read_core', '$RoleId', 'orders', '$Scope', '[]');
+INSERT INTO access.RoleDataScopes (PolicyId, RoleId, ResourceKey, Scope, AllowedOwnerIdsJson, WorkspaceId)
+VALUES ('scope_orders_read_core', '$RoleId', 'orders', '$Scope', '[]', '$($script:WorkspaceId)');
 "@
 }
 
@@ -289,7 +293,10 @@ $salesProject = Join-Path $repositoryRoot 'src/UnicoreCRM.Sales/UnicoreCRM.Sales
 $demoEmail = 'orders.read.provisioned@example.test'
 $demoPassword = 'Orders-Read-Core!2026'
 $hostProcess = $null
-$logPath = Join-Path ([IO.Path]::GetTempPath()) ("unicore-orders-read-$([Guid]::NewGuid().ToString('N')).log")
+$frontendProcess = $null
+$databaseCreated = $false
+[void](New-Item -ItemType Directory -Force -Path $EvidenceDirectory)
+$logPath = Join-Path (Resolve-Path $EvidenceDirectory).Path 'apihost.log'
 $orderA = 'order_read_core_a'
 $orderB = 'order_read_core_b'
 $orderC = 'order_read_core_c'
@@ -304,18 +311,15 @@ try {
     Write-Host "Provisioning isolated database $DatabaseName on $SqlServer ..."
     Invoke-SqlNonQuery -Query @"
 IF DB_ID('$DatabaseName') IS NOT NULL
-BEGIN
-    ALTER DATABASE [$DatabaseName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    DROP DATABASE [$DatabaseName];
-END;
+    THROW 51000, 'Orders verification requires a new isolated database name.', 1;
 CREATE DATABASE [$DatabaseName];
 "@
+    $databaseCreated = $true
 
     $env:ASPNETCORE_ENVIRONMENT = 'Development'
     $env:DOTNET_ENVIRONMENT = 'Development'
     $env:ASPNETCORE_URLS = $script:BaseUrl
     $env:ConnectionStrings__UnicoreCRM = New-ConnectionString -Database $DatabaseName
-    $env:Development__ApplyMigrations = 'true'
     $env:IdentityAuth__EmailVerification__Sender__Kind = 'DevelopmentLog'
     $env:UNICORE_DEV_SEED_ENABLED = 'false'
     $env:IdentityAuth__DevelopmentBootstrap__Enabled = 'true'
@@ -326,6 +330,14 @@ CREATE DATABASE [$DatabaseName];
     $env:AccessControl__DevelopmentBootstrap__Enabled = 'false'
     $env:Workflows__InitialWorkspaceProvisioning__ResumeEnabled = 'false'
     $env:AI__Provider__Kind = 'DevelopmentDeterministic'
+    if ($Browser) { $env:Frontend__AllowedOrigins__0 = 'http://127.0.0.1:3049' }
+
+    # Starting the HTTP host no longer performs maintenance. Apply the actual owner
+    # migrations and the explicit identity fixture before testing authenticated reads.
+    & dotnet run --no-build --no-launch-profile --project $hostProject -- --migrate
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated Orders verification migration failed.' }
+    & dotnet run --no-build --no-launch-profile --project $hostProject -- --seed-demo
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated Orders verification bootstrap failed.' }
 
     $hostProcess = Start-Process -FilePath 'dotnet' `
         -ArgumentList @('run', '--no-build', '--no-launch-profile', '--project', $hostProject) `
@@ -373,9 +385,9 @@ CREATE DATABASE [$DatabaseName];
 
     $defaultCapability = Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM access.RoleCapabilities WHERE RoleId = '$roleId' AND Capability = 'orders.read'"
-    Add-Result 'initial provisioning does not invent orders.read' '0' ([string]$defaultCapability)
-    Invoke-SqlNonQuery -Database $DatabaseName `
-        -Query "INSERT INTO access.RoleCapabilities (RoleId, Capability) VALUES ('$roleId', 'orders.read')"
+    # WorkspaceCapabilityPolicy now includes Orders read in the default owner role.
+    # Assert the real provisioning behavior; do not patch grants into the fixture.
+    Add-Result 'initial provisioning grants owner orders.read exactly once' '1' ([string]$defaultCapability)
 
     Add-Result 'fresh migration created Orders table' '1' ([string](Get-Scalar -Database $DatabaseName `
         -Query "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'orders' AND TABLE_NAME = 'Orders'"))
@@ -550,8 +562,8 @@ FROM orders.ReadAuditRecords WHERE RequestId = '$detailAuditRequestId'
 
     Clear-OrderFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_orders_read_audit_required', '$roleId', 'orders', 'state', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (WorkspaceId, PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('$($script:WorkspaceId)', 'field_orders_read_audit_required', '$roleId', 'orders', 'state', 'Hidden');
 "@
     Add-Result 'read audit: required hidden field list => 403 and +0' '403|0' `
         (Measure-OrderRead -Path '/orders').Probe
@@ -559,8 +571,8 @@ VALUES ('field_orders_read_audit_required', '$roleId', 'orders', 'state', 'Hidde
         (Measure-OrderRead -Path "/orders/$orderA").Probe
     Clear-OrderFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_orders_read_audit_filter', '$roleId', 'orders', 'sourceQuoteId', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (WorkspaceId, PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('$($script:WorkspaceId)', 'field_orders_read_audit_filter', '$roleId', 'orders', 'sourceQuoteId', 'Hidden');
 "@
     Add-Result 'read audit: hidden-filter rejection => 403 and +0' '403|0' `
         (Measure-OrderRead -Path '/orders?sourceQuoteId=quote_source_a').Probe
@@ -689,8 +701,8 @@ FROM orders.ReadAuditRecords
 
     Clear-OrderFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_orders_read_cursor_recipient', '$roleId', 'orders', 'recipientName', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (WorkspaceId, PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('$($script:WorkspaceId)', 'field_orders_read_cursor_recipient', '$roleId', 'orders', 'recipientName', 'Hidden');
 "@
     Add-Result 'cursor rejects changed effective searchable-field set' '422|VALIDATION_FAILED|True' `
         (Cursor-ValidationResult (Invoke-Order -Method 'GET' `
@@ -811,9 +823,9 @@ VALUES ('field_orders_read_cursor_recipient', '$roleId', 'orders', 'recipientNam
     Set-OrderScope -RoleId $roleId -Scope 'Workspace'
     Clear-OrderFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
-('field_orders_read_filter_quote', '$roleId', 'orders', 'sourceQuoteId', 'Hidden'),
-('field_orders_read_filter_deal', '$roleId', 'orders', 'sourceDealId', 'Masked');
+INSERT INTO access.RoleFieldSecurity (WorkspaceId, PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('$($script:WorkspaceId)', 'field_orders_read_filter_quote', '$roleId', 'orders', 'sourceQuoteId', 'Hidden'),
+('$($script:WorkspaceId)', 'field_orders_read_filter_deal', '$roleId', 'orders', 'sourceDealId', 'Masked');
 "@
     $hiddenQuoteKnown = Invoke-Order -Method 'GET' -Path '/orders?sourceQuoteId=quote_source_a'
     $hiddenQuoteUnknown = Invoke-Order -Method 'GET' -Path '/orders?sourceQuoteId=quote_source_unknown'
@@ -832,9 +844,9 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
     Clear-OrderFields
 
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
-('field_orders_read_recipient', '$roleId', 'orders', 'recipientName', 'Hidden'),
-('field_orders_read_notes', '$roleId', 'orders', 'notes', 'Masked');
+INSERT INTO access.RoleFieldSecurity (WorkspaceId, PolicyId, RoleId, ResourceKey, FieldKey, Access) VALUES
+('$($script:WorkspaceId)', 'field_orders_read_recipient', '$roleId', 'orders', 'recipientName', 'Hidden'),
+('$($script:WorkspaceId)', 'field_orders_read_notes', '$roleId', 'orders', 'notes', 'Masked');
 "@
     $fieldDetail = Invoke-Order -Method 'GET' -Path "/orders/$orderA"
     Add-Result 'optional HIDDEN Order field is omitted' 'True' `
@@ -845,8 +857,8 @@ INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, A
         ([string](Invoke-Order -Method 'GET' -Path '/orders?search=Delivery').Body.items.Count)
     Clear-OrderFields
     Invoke-SqlNonQuery -Database $DatabaseName -Query @"
-INSERT INTO access.RoleFieldSecurity (PolicyId, RoleId, ResourceKey, FieldKey, Access)
-VALUES ('field_orders_read_required', '$roleId', 'orders', 'orderNumber', 'Hidden');
+INSERT INTO access.RoleFieldSecurity (WorkspaceId, PolicyId, RoleId, ResourceKey, FieldKey, Access)
+VALUES ('$($script:WorkspaceId)', 'field_orders_read_required', '$roleId', 'orders', 'orderNumber', 'Hidden');
 "@
     Add-Result 'required Order field restriction fails operation closed' '403' `
         (Invoke-Order -Method 'GET' -Path "/orders/$orderA").Status
@@ -1012,6 +1024,66 @@ VALUES ('field_orders_read_required', '$roleId', 'orders', 'orderNumber', 'Hidde
     Add-Result 'mutation probes change no Order state' ([string]$countBeforeMutationProbes) `
         ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM orders.Orders'))
 
+    Add-Result 'accepted Quote conversion endpoint is absent' '404' `
+        (Invoke-Order -Method 'POST' -Path '/order-drafts/from-accepted-quote' -Body '{"quoteId":"quote_source_a"}').Status
+    Add-Result 'canonical confirmation endpoint is absent' '404' `
+        (Invoke-Order -Method 'POST' -Path "/workflows/order-confirmation/$orderA/confirm-with-payment-plan" -Body '{}').Status
+
+    # Restart the real host without migrations, reseeding or browser storage recovery.
+    $beforeRestart = (Invoke-Order -Method 'GET' -Path "/orders/$orderA").Raw
+    $beforeRows = Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM orders.Orders'
+    Stop-Process -Id $hostProcess.Id -Force
+    $hostProcess.WaitForExit(10000) | Out-Null
+    $hostProcess = Start-Process -FilePath 'dotnet' `
+        -ArgumentList @('run', '--no-build', '--no-launch-profile', '--project', $hostProject) `
+        -PassThru -WindowStyle Hidden -RedirectStandardOutput "$logPath.restart" -RedirectStandardError "$logPath.restart.err"
+    $ready = $false
+    for ($attempt = 0; $attempt -lt $ReadyTimeoutSeconds; $attempt++) {
+        if ($hostProcess.HasExited) { throw 'Restarted ApiHost exited before readiness.' }
+        try {
+            if ((Invoke-Api -Method 'GET' -Path '/auth/session').Status -eq 401) { $ready = $true; break }
+        } catch { }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $ready) { throw 'Restarted ApiHost readiness timed out.' }
+    $signIn = Invoke-Api -Method 'POST' -Path '/auth/sessions' `
+        -IdempotencyKey 'idem-orders-read-relogin-0001' `
+        -Body (@{ email = $demoEmail; password = $demoPassword } | ConvertTo-Json -Compress)
+    Add-Result 'relogin after ApiHost restart' '200' $signIn.Status
+    $script:Token = $signIn.Body.accessToken
+    $afterRestart = Invoke-Order -Method 'GET' -Path "/orders/$orderA"
+    Add-Result 'persisted Order detail after restart and relogin' '200' $afterRestart.Status
+    Add-Result 'complete Order snapshot unchanged after restart and relogin' 'True' `
+        ($beforeRestart -ceq $afterRestart.Raw).ToString()
+    Add-Result 'SQL Order count unchanged after restart' ([string]$beforeRows) `
+        ([string](Get-Scalar -Database $DatabaseName -Query 'SELECT COUNT(*) FROM orders.Orders'))
+
+    if ($Browser) {
+        $frontendRoot = Join-Path (Split-Path $repositoryRoot) 'frontend/unicorecrm-web'
+        $env:VITE_RUNTIME_MODE = 'connected'
+        $env:VITE_API_BASE_URL = $script:BaseUrl
+        $env:UNICORECRM_ORDER_TEST_EMAIL = $demoEmail
+        $env:UNICORECRM_ORDER_TEST_PASSWORD = $demoPassword
+        $env:UNICORECRM_ORDER_TEST_WORKSPACE = Get-Scalar -Database $DatabaseName `
+            -Query "SELECT [Key] FROM workspace.Workspaces WHERE WorkspaceId = '$($script:WorkspaceId)'"
+        $env:UNICORECRM_ORDER_TEST_API = $script:BaseUrl
+        $env:UNICORECRM_ORDER_TEST_EVIDENCE = Join-Path (Resolve-Path $EvidenceDirectory).Path 'browser'
+        $frontendProcess = Start-Process -FilePath 'node' -WorkingDirectory $frontendRoot `
+            -ArgumentList @('node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '3049', '--strictPort') `
+            -PassThru -WindowStyle Hidden -RedirectStandardOutput "$logPath.vite" -RedirectStandardError "$logPath.vite.err"
+        $frontendReady = $false
+        for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            if ($frontendProcess.HasExited) { throw 'Isolated Vite exited before readiness.' }
+            try {
+                if ((Invoke-WebRequest 'http://127.0.0.1:3049' -NoProxy).StatusCode -eq 200) { $frontendReady = $true; break }
+            } catch { }
+            Start-Sleep -Seconds 1
+        }
+        if (-not $frontendReady) { throw 'Isolated Vite readiness timed out.' }
+        & node (Join-Path $PSScriptRoot 'verify-orders-read-browser.mjs')
+        Add-Result 'real connected Chromium Order List/Detail refresh and relogin' '0' ([string]$LASTEXITCODE)
+    }
+
     $ordersRoot = Join-Path $repositoryRoot 'src/UnicoreCRM.Sales/Orders'
     $ordersSource = (Get-ChildItem -LiteralPath $ordersRoot -Recurse -File -Filter '*.cs' | Get-Content -Raw) -join "`n"
     $endpointSource = Get-Content -Raw -LiteralPath (Join-Path $ordersRoot 'Contracts/OrdersEndpoints.cs')
@@ -1019,9 +1091,8 @@ VALUES ('field_orders_read_required', '$roleId', 'orders', 'orderNumber', 'Hidde
         ([string]([regex]::Matches($endpointSource, 'endpoints\.MapGet\(').Count))
     Add-Result 'Orders maps no mutation method' '0' `
         ([string]([regex]::Matches($endpointSource, 'endpoints\.Map(Post|Put|Patch|Delete)\(').Count))
-    Add-Result 'Orders has no Product/Quote/Payment/Shipping runtime lookup' 'True' `
+    Add-Result 'Orders has no foreign commercial runtime lookup beyond admitted retention contracts' 'True' `
         (($ordersSource -notmatch '\b(Products|Quotes|Payments|Shipping)DbContext\b') `
-            -and ($ordersSource -notmatch 'UnicoreCRM\.Sales\.(Products|Quotes)') `
             -and ($ordersSource -notmatch '\bI(Product|Quote|Payment|Shipping)[A-Za-z]*Reader\b')).ToString()
     Add-Result 'Orders has no foreign owner DbContext' 'True' `
         ($ordersSource -notmatch '\b(Quotes|Products|Payments|Shipping|CommercialEvidence|Customers)DbContext\b').ToString()
@@ -1049,6 +1120,9 @@ VALUES ('field_orders_read_required', '$roleId', 'orders', 'orderNumber', 'Hidde
         ($logText -notmatch [regex]::Escape($corruptSecret)).ToString()
 }
 finally {
+    if ($null -ne $frontendProcess -and -not $frontendProcess.HasExited) {
+        Stop-Process -Id $frontendProcess.Id -Force
+    }
     if ($null -ne $hostProcess -and -not $hostProcess.HasExited) {
         Stop-Process -Id $hostProcess.Id -Force
         $hostProcess.WaitForExit(10000) | Out-Null
@@ -1063,7 +1137,7 @@ finally {
         Pop-Location
     }
 
-    if (-not $KeepDatabase) {
+    if ($databaseCreated -and -not $KeepDatabase) {
         try {
             Invoke-SqlNonQuery -Query @"
 IF DB_ID('$DatabaseName') IS NOT NULL

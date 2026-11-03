@@ -8,6 +8,26 @@ namespace UnicoreCRM.Crm.Organizations.Application.ResolveCustomerSubject;
 internal sealed class Participant(OrganizationAuthorization authorization, IOrganizationsPersistence persistence, TimeProvider timeProvider)
     : IOrganizationCustomerSubjectParticipant, IOrganizationCustomerListIdentityParticipant
 {
+    public async Task<IReadOnlySet<string>> MatchVisibleAsync(TrustedWorkspaceContext trusted, IReadOnlyCollection<string> ids,
+        string search, string requestId, string correlationId, CancellationToken ct)
+    {
+        if(ids.Count>250)throw new ArgumentOutOfRangeException(nameof(ids));
+        var metadata=new OrganizationRequestMetadata(requestId,correlationId);
+        var grant=await authorization.AuthorizeAsync(metadata, ct);
+        var matches=new HashSet<string>(StringComparer.Ordinal);
+        if(!grant.IsSuccess || grant.Value!.Trusted.WorkspaceId!=trusted.WorkspaceId)return matches;
+        var records=await persistence.ReadOrganizationsAsync(trusted.WorkspaceId,ids,ct);
+        foreach(var row in records)
+        {
+            var projected=OrganizationProjection.Document(row);
+            if(!((grant.Value.Authorization.CanRead("displayName") && projected.DisplayName?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("legalName") && projected.LegalName?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("email") && projected.Email?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("phone") && projected.Phone?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("taxCode") && projected.TaxCode?.Contains(search,StringComparison.OrdinalIgnoreCase)==true)))continue;
+            if(await authorization.EnforceRecordAsync(grant.Value,row,"searchCustomerIdentity",metadata,ct) is not null)continue;
+            matches.Add(row.OrganizationId);
+        }
+        return matches;
+    }
+
+
     public async Task<IReadOnlyDictionary<string, string>> ResolveVisibleAsync(TrustedWorkspaceContext trusted,
         IReadOnlyCollection<string> organizationIds, string requestId, string correlationId, CancellationToken cancellationToken)
     {

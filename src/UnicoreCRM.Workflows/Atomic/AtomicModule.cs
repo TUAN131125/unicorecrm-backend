@@ -18,6 +18,8 @@ internal static class AtomicModule
         services.AddScoped<IOrderConfirmationTransaction,OrderConfirmationTransaction>();
         services.AddScoped<Application.ConfirmOrder.Handler>();
         services.AddScoped<Application.AcceptedQuoteOrder.AutomaticConfirmation>();
+        services.AddScoped<Application.AcceptedQuoteCustomer.RecoveryRunner>();
+        services.AddHostedService<Application.AcceptedQuoteCustomer.RecoveryService>();
         services.AddScoped<IIntegrationEventSource, WorkflowIntegrationEventSource>();
         services.AddDevelopmentSchemaMigration(
             "workflow",

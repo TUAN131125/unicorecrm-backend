@@ -8,6 +8,26 @@ namespace UnicoreCRM.Crm.Contacts.Application.CustomerParticipants;
 internal sealed class SubjectParticipant(ContactAuthorization authorization, IContactsPersistence persistence, TimeProvider timeProvider)
     : IContactCustomerSubjectParticipant, IContactCustomerListIdentityParticipant
 {
+    public async Task<IReadOnlySet<string>> MatchVisibleAsync(TrustedWorkspaceContext trusted, IReadOnlyCollection<string> ids,
+        string search, string requestId, string correlationId, CancellationToken ct)
+    {
+        if(ids.Count>250)throw new ArgumentOutOfRangeException(nameof(ids));
+        var metadata=new ContactRequestMetadata(requestId,correlationId);
+        var grant=await authorization.AuthorizeAsync(metadata, ContactCapabilities.Read, ct);
+        var matches=new HashSet<string>(StringComparer.Ordinal);
+        if(!grant.IsSuccess || grant.Value!.Trusted.WorkspaceId!=trusted.WorkspaceId)return matches;
+        var records=await persistence.ReadContactsByIdsAsync(trusted.WorkspaceId,ids,ct);
+        foreach(var row in records)
+        {
+            var projected=ContactProjection.Document(row);
+            if(!((grant.Value.Authorization.CanRead("fullName") && projected.FullName?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("displayName") && projected.DisplayName?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("personalEmail") && projected.PersonalEmail?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("workEmail") && projected.WorkEmail?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("mobilePhone") && projected.MobilePhone?.Contains(search,StringComparison.OrdinalIgnoreCase)==true) || (grant.Value.Authorization.CanRead("workPhone") && projected.WorkPhone?.Contains(search,StringComparison.OrdinalIgnoreCase)==true)))continue;
+            if(await authorization.EnforceRecordAsync(grant.Value,row,"searchCustomerIdentity",metadata,ct) is not null)continue;
+            matches.Add(row.ContactId);
+        }
+        return matches;
+    }
+
+
     public async Task<IReadOnlyDictionary<string, string>> ResolveVisibleAsync(TrustedWorkspaceContext trusted,
         IReadOnlyCollection<string> contactIds, string requestId, string correlationId, CancellationToken cancellationToken)
     {

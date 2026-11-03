@@ -1,0 +1,23 @@
+# B6.2 scanner boundary — implementation plan only
+
+Approved scope: B6.1 stores untrusted PDF candidates in QUARANTINED/SCAN_PENDING. B6.2 is a separate implementation checkpoint. There is no registered scanner, verdict writer, proof-content HTTP endpoint or quarantine release path.
+
+`Quotes.Contracts.ITrustedProofScanner` receives server-owned Workspace/Case/Proof identity, exact SHA-256/length and an owner-controlled stream. `TrustedProofScanResult` reserves scanner identity, engine/signature versions, start/completion times, verdict and reason. The state vocabulary reserves SCANNING/CLEAN/UNSAFE/SCAN_FAILED; B6.1 SQL admits only SCAN_PENDING and QUARANTINED. Do not instantiate fake CLEAN results. No verifier or acceptance capability is inferred from upload/read permission.
+
+B6.2 must add a narrow internal content lease at Quotes owner. Reauthorize worker identity; enforce exact scope/hash/length before and after streaming; decrypt only inside the owner/isolated scan path. Metadata endpoints must continue to avoid loading binary content. A Development read-only CLI integrity harness currently proves hashes without emitting plaintext; it is not a production scanner/content service.
+
+Candidate deployment: isolated ClamAV clamd with protected local socket/network, no exposed public TCP port. The official documentation states clamd TCP has no authentication. Stream bounded bytes, align StreamMaxLength/MaxFileSize/MaxScanSize, limit concurrent jobs and bytes, and bound connect/read/overall deadlines. Never let engine limits, unavailable signatures, timeout or parser errors imply CLEAN. Keep such outcomes quarantined with an auditable reason. Do not run scanner work in the upload transaction or hold Quote locks while scanning.
+
+Add a separate isolated PDF structural validator: xref/object consistency, supported PDF version, page and nesting limits, encryption/password handling, embedded files, JavaScript/actions, launch/network references, decompression and memory/time bounds. Decide a reviewed policy for each finding; do not treat AV CLEAN as proof of a harmless PDF or signer authority. B6.1 only checks header/version and trailing EOF candidacy and never parses/renders uploads.
+
+Use freshclam with monitored signed database updates. Persist exact engine/signature versions and immutable scan events, tied to the actual bytes/hash. Define maximum signature age, rescan policy, retry/backoff, cancellation and stale/duplicate scan decision concurrency before enabling release. A new signature version must not silently rewrite prior verdict/history. Scanning and human review are separate capabilities and commands.
+
+Observed Development environment: Windows local SQL Server; clamscan/clamdscan/clamd were not found on PATH; docker CLI exists. No actual production container/OS/service topology was established from local deployment files. No scanner executable, service, container or signature database was installed. Select and validate the real deployment topology in B6.2.
+
+Capacity: SQL stores immutable encrypted LOBs, with the B6.1 per-file/case/Workspace limits. Ten thousand 50 KiB proofs imply approximately 488 MiB plaintext before encryption, row/index and transaction-log/backup overhead; ten thousand maximum-size proofs approach 98 GiB. Per-Workspace quotas are not a substitute for global database capacity planning. No 10,000-concurrent-user capacity claim or malware-scanner PASS is made.
+
+Recovery requirements: retain the application discriminator `UnicoreCRM.AI` used by the existing shared Data Protection registration, purpose version and all keys needed for historical proofs. Windows Development profile keys are DPAPI-protected; a process restart plus private SQL decryption/hash check passed. TDE is disabled locally. One database backup predates this checkpoint; coordinated database/key backup and restore to another service identity/host have NOT been verified. The existing production host requires an explicit durable `AI:DataProtection:KeyRingPath`; production key wrapping/access/backup/restore must be reviewed before claiming recovery readiness. Never export keys into source or evidence.
+
+Retention remains INDEFINITE_TECHNICAL_B61. No delete, overwrite, purge, restore or legal retention schedule is implemented. B6.2 must not silently weaken this invariant.
+
+Primary references: [ClamAV scanning](https://docs.clamav.net/manual/Usage/Scanning.html), [ClamAV configuration](https://docs.clamav.net/manual/Usage/Configuration.html), [ASP.NET Core Data Protection defaults](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/default-settings?view=aspnetcore-10.0).

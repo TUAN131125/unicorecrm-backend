@@ -13,7 +13,7 @@ internal sealed partial class Handler(
     TimeProvider timeProvider,
     IQuoteCustomerDecisionPolicyReader? customerPolicy = null,
     IQuoteLifecyclePolicyReader? lifecyclePolicy = null, IWorkspaceTimeZoneReader? timeZones = null,
-    IEnumerable<IQuoteRetentionVerifier>? retentionVerifiers = null, QuoteLifecycleClock? lifecycleClock = null, QuoteDocumentCommands? documentCommands = null, QuoteSalesPolicyReader? salesPolicies = null, IQuoteApprovalPolicyReader? approvalPolicies = null)
+    IEnumerable<IQuoteRetentionVerifier>? retentionVerifiers = null, QuoteLifecycleClock? lifecycleClock = null, QuoteDocumentCommands? documentCommands = null, QuoteSalesPolicyReader? salesPolicies = null, IQuoteApprovalPolicyReader? approvalPolicies = null, QuoteSalesAcceptanceService? salesAcceptance = null)
 {
     internal async Task<QuoteOperationResult<QuoteReadModel>> HandleAsync(
         Query query,
@@ -52,6 +52,12 @@ internal sealed partial class Handler(
         if (documentCommands is not null)
             document = document with { Actions = document.Actions with { IssueDocument = await documentCommands.AvailabilityAsync(quote, access.Value, query.Metadata, cancellationToken) } };
         document = document with { OrdinarySales = salesPolicies?.WithoutInternalApproval(quote.WorkspaceId) == true && (approvalPolicies is null || (await approvalPolicies.ReadAsync(quote.WorkspaceId, cancellationToken))?.AlwaysRequireApproval != true) };
+        if (salesAcceptance is not null)
+        {
+            var actions = await salesAcceptance.AvailabilityAsync(quote, query.Metadata, cancellationToken);
+            document = document with { Actions = document.Actions with {
+                SendGmail = actions.Gmail, RecordSalesAcceptance = actions.Staff, CreateAcceptanceLink = actions.Link } };
+        }
         await QuoteReadAudit.RecordResourceAsync(
             persistence,
             access.Value,

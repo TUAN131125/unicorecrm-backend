@@ -1,0 +1,3026 @@
+{
+  "kind": "UnicoreCRMAuthenticationAdmissionReviewSubject",
+  "schemaVersion": 1,
+  "status": "PREPARED_NOT_ADOPTED_NOT_ADMITTED",
+  "operationIds": [
+    "changePassword",
+    "requestPasswordReset",
+    "resetPassword",
+    "inviteWorkspaceMember",
+    "acceptWorkspaceInvitation",
+    "resendWorkspaceInvitation",
+    "revokeWorkspaceInvitation"
+  ],
+  "canonicalBaseline": {
+    "version": "0.23.21-contract.0",
+    "openApiSha256": "4bcde6f6c52bf96545106cff5273aff1681b66c8ee239c91cbef921edfd70880"
+  },
+  "frontendObservedOnly": {
+    "version": "0.24.0-contract.0",
+    "openApiSha256": "13ffb0783b8dbbffd41b5a73e83d29580e98c0221fa85fc933ae97f28f4cd25f",
+    "wholeFrontendAdoptionRequested": false,
+    "sixExistingWireComparisons": {
+      "requestPasswordReset": {
+        "method": "POST",
+        "path": "/auth/password-reset-requests",
+        "operationEqual": true,
+        "pathMetadataEqual": true,
+        "securityEqual": true,
+        "componentClosureEqual": false,
+        "observedOnlySchemaDifferences": [
+          "#/components/schemas/ErrorCode"
+        ],
+        "extraFrontendErrorCodesNotAdopted": 53,
+        "allOtherClosureComponentsEqual": true,
+        "operationCanonicalJsonSha256": "7bb3ffbef9b3f176444c433411bcb1b053b7de457214b0fa77e6dec7a291103d",
+        "closureCanonicalJsonSha256": "46705d544290c46a88aa8e72d6b01a2274c016a5685e2c0ed4304f1445ecd80a"
+      },
+      "resetPassword": {
+        "method": "POST",
+        "path": "/auth/password-resets",
+        "operationEqual": true,
+        "pathMetadataEqual": true,
+        "securityEqual": true,
+        "componentClosureEqual": false,
+        "observedOnlySchemaDifferences": [
+          "#/components/schemas/ErrorCode"
+        ],
+        "extraFrontendErrorCodesNotAdopted": 53,
+        "allOtherClosureComponentsEqual": true,
+        "operationCanonicalJsonSha256": "11cf12d4f2e7fd441688c04bee506803e9f6cd0d0aae8baf6dd14ada62237cb1",
+        "closureCanonicalJsonSha256": "07c7a194632d2a51542ba2d40580b97f568b0cff4f643db39f920f1282b3b576"
+      },
+      "inviteWorkspaceMember": {
+        "method": "POST",
+        "path": "/access/invitations",
+        "operationEqual": true,
+        "pathMetadataEqual": true,
+        "securityEqual": true,
+        "componentClosureEqual": false,
+        "observedOnlySchemaDifferences": [
+          "#/components/schemas/ErrorCode"
+        ],
+        "extraFrontendErrorCodesNotAdopted": 53,
+        "allOtherClosureComponentsEqual": true,
+        "operationCanonicalJsonSha256": "c0159db3ebe5a7b605d26b7a5c765b1a1998e24d84264693879d7dc37616acdc",
+        "closureCanonicalJsonSha256": "c56160d7642852758b2b4d15d538060b7ee069a758fbc160e885791426559d60"
+      },
+      "acceptWorkspaceInvitation": {
+        "method": "POST",
+        "path": "/auth/invitations/accept",
+        "operationEqual": true,
+        "pathMetadataEqual": true,
+        "securityEqual": true,
+        "componentClosureEqual": false,
+        "observedOnlySchemaDifferences": [
+          "#/components/schemas/ErrorCode"
+        ],
+        "extraFrontendErrorCodesNotAdopted": 53,
+        "allOtherClosureComponentsEqual": true,
+        "operationCanonicalJsonSha256": "f3f39adf3736750669bb589055f2c3e4f882c7e6c2adbaa31af4b0b8544d2991",
+        "closureCanonicalJsonSha256": "c8e57dccf1d8d402733f687035f48c1d4212804a89d9ea640caa4029f410635b"
+      },
+      "resendWorkspaceInvitation": {
+        "method": "POST",
+        "path": "/access/invitations/{invitationId}/resend",
+        "operationEqual": true,
+        "pathMetadataEqual": true,
+        "securityEqual": true,
+        "componentClosureEqual": false,
+        "observedOnlySchemaDifferences": [
+          "#/components/schemas/ErrorCode"
+        ],
+        "extraFrontendErrorCodesNotAdopted": 53,
+        "allOtherClosureComponentsEqual": true,
+        "operationCanonicalJsonSha256": "9064b1b3104467c8c6bec9b19f09b096c542ee9561b26df67ef5b8a859b9a470",
+        "closureCanonicalJsonSha256": "7d76e1fedf9142a868b28ffee29c8667b9b592b8bf3292906b2051cd61d4c237"
+      },
+      "revokeWorkspaceInvitation": {
+        "method": "POST",
+        "path": "/access/invitations/{invitationId}/revoke",
+        "operationEqual": true,
+        "pathMetadataEqual": true,
+        "securityEqual": true,
+        "componentClosureEqual": false,
+        "observedOnlySchemaDifferences": [
+          "#/components/schemas/ErrorCode"
+        ],
+        "extraFrontendErrorCodesNotAdopted": 53,
+        "allOtherClosureComponentsEqual": true,
+        "operationCanonicalJsonSha256": "6546ef9fc73047a11a2ea144aa1d721b54d786d9117adff0b2b5604a5ffbd2bf",
+        "closureCanonicalJsonSha256": "7d76e1fedf9142a868b28ffee29c8667b9b592b8bf3292906b2051cd61d4c237"
+      }
+    }
+  },
+  "boundInputsSha256": {
+    "backend/docs/development/auth-workspace-admission-proposal.md": "7e71d24337d7260a61c237405ea7a25634d74e37556a5adcc362d21138fb300f",
+    "design-authority/canonical-design/BASELINE.json": "fc8c7aef8ef62ccac5c912933de8558e896caf80d54247de421463d0c2cc9fea",
+    "design-authority/contracts/openapi.json": "4bcde6f6c52bf96545106cff5273aff1681b66c8ee239c91cbef921edfd70880",
+    "design-authority/canonical-design/authority/operation-registry.json": "31433fd21a0b55f5d135c4edd55785a16d3ec52701df4c2ae0cae3a06f541606",
+    "design-authority/canonical-design/authority/precedence-and-architecture.md": "387b1e16ab672c3b33273b161df7b38f3aa1c35ffbb1ac9272be8e7350b8b961",
+    "design-authority/canonical-design/authority/authority-gaps.json": "a95d9327f34f2028a669593730991190c059e87ee360786ef0d2bf667103534a",
+    "design-authority/canonical-design/authority/cross-owner-contract-map.json": "2a681c7d280fe44c0f339e929c3c062c7ce7f888bdd49fb43ace978475fa809f",
+    "design-authority/canonical-design/authority/owner-context-map.json": "a65c1aab5d9f5e5aec8859e87d2bdf5d6f2fd8b7b0b2f4de569b733e9fb41e35",
+    ".unicore-ai/manifests/governance-baseline.json": "ffead101e1badc8ca094504e78c8ecd4dd4e3db90016a425cc75fee64de24a1d",
+    ".unicore-ai/governance/policies/solo-development-v2.json": "7816032c334656fcc665926c0198e2c5898d03fd99ba4260b1ab823c44780be2",
+    ".unicore-ai/governance/policies/governance-change-control-v1.json": "d5565eb113c18837c1efd9a35d0f23b26c2c9fec4873735dc74be3e21430b898",
+    ".unicore-ai/manifests/principal-attestation-policy.json": "57850bc067154fd26ed1db46e0a068ecf037a7184ff45d9dbd7f9ccef7774a55",
+    "backend/src/UnicoreCRM.Platform/IdentityAuth/Contracts/AuthenticatedIdentityReference.cs": "8301d603aa8d29adad2d95314895809a09dcf1101ee79dfbe3d21b91502bf958",
+    "backend/src/UnicoreCRM.Platform/Workspace/Contracts/WorkspaceAccessDirectorySource.cs": "599b197330b7650a966e6832b1354c74c701f0ed20bb3b044f03fde81d43e4f1",
+    "backend/src/UnicoreCRM.Platform/AccessControl/Contracts/InitialWorkspaceAccessProvisioning.cs": "08b9b2e166f8af91cda6bf51d48f8c1959049d384867070e14c8327477bef74c",
+    "backend/src/UnicoreCRM.Platform/Workspace/Domain/WorkspaceMembership.cs": "f12c727b3a1cf3096b399de3372cfd16a59a72b7ece2fdf94957921a84b34082"
+  },
+  "proposedOpenApiFragment": {
+    "openapi": "3.1.0",
+    "info": {
+      "title": "Authentication admission review fragment",
+      "version": "PROPOSAL-NOT-ADOPTED"
+    },
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "paths": {
+      "/auth/password-reset-requests": {
+        "post": {
+          "operationId": "requestPasswordReset",
+          "tags": [
+            "Identity"
+          ],
+          "summary": "Accept a password reset request without revealing account existence",
+          "security": [],
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/RequestIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/CorrelationIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/IdempotencyKeyHeader"
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Password reset request accepted.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PasswordResetRequestAcceptedResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            }
+          },
+          "x-contract-status": "PRODUCTION_CONTRACT_READY",
+          "x-module-owner": "platform/identity-auth",
+          "x-required-capability": "identity.account.recover",
+          "x-resource-scope": "ACCOUNT",
+          "x-data-scope": "GLOBAL_IDENTITY",
+          "x-workspace-required": false,
+          "x-actor-required": false,
+          "x-idempotency-policy": "REQUIRED",
+          "x-concurrency-policy": "BACKEND_SERIALIZED",
+          "x-audit-requirement": "IMMUTABLE_IDENTITY_SECURITY_AUDIT",
+          "x-event-outbox-expectation": "IDENTITY_SECURITY_EVENT_RECORDED",
+          "x-transaction-boundary": "PASSWORD_RESET_REQUEST_TRANSACTION",
+          "x-error-codes": [
+            "VALIDATION_FAILED",
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMITED",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR"
+          ],
+          "x-aggregate-id-policy": "SERVER_ASSIGNED",
+          "x-credentials-policy": "INCLUDE"
+        }
+      },
+      "/auth/password-resets": {
+        "post": {
+          "operationId": "resetPassword",
+          "tags": [
+            "Identity"
+          ],
+          "summary": "Complete a password reset token exchange",
+          "security": [],
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/RequestIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/CorrelationIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/IdempotencyKeyHeader"
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetPasswordRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Password reset completed.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PasswordResetCompletedResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            }
+          },
+          "x-contract-status": "PRODUCTION_CONTRACT_READY",
+          "x-module-owner": "platform/identity-auth",
+          "x-required-capability": "identity.account.recover",
+          "x-resource-scope": "ACCOUNT",
+          "x-data-scope": "GLOBAL_IDENTITY",
+          "x-workspace-required": false,
+          "x-actor-required": false,
+          "x-idempotency-policy": "REQUIRED",
+          "x-concurrency-policy": "BACKEND_SERIALIZED",
+          "x-audit-requirement": "IMMUTABLE_IDENTITY_SECURITY_AUDIT",
+          "x-event-outbox-expectation": "IDENTITY_SECURITY_EVENT_RECORDED",
+          "x-transaction-boundary": "PASSWORD_RESET_TRANSACTION",
+          "x-error-codes": [
+            "TOKEN_INVALID",
+            "TOKEN_EXPIRED",
+            "VALIDATION_FAILED",
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMITED",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR"
+          ],
+          "x-aggregate-id-policy": "SERVER_ASSIGNED",
+          "x-credentials-policy": "INCLUDE"
+        }
+      },
+      "/access/invitations": {
+        "post": {
+          "operationId": "inviteWorkspaceMember",
+          "tags": [
+            "AccessGovernance"
+          ],
+          "summary": "Invite a workspace member",
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/WorkspaceIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/RequestIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/CorrelationIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/IdempotencyKeyHeader"
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteWorkspaceMemberRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Authoritative access-governance response.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AccessMutationResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "412": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            }
+          },
+          "x-contract-status": "PRODUCTION_CONTRACT_READY",
+          "x-module-owner": "platform/access-control",
+          "x-workspace-required": true,
+          "x-actor-required": true,
+          "x-credentials-policy": "INCLUDE",
+          "x-data-scope": "SELECTED_WORKSPACE",
+          "x-required-capability": "access.configure",
+          "x-resource-scope": "WORKSPACE_MEMBERSHIP",
+          "x-idempotency-policy": "REQUIRED",
+          "x-concurrency-policy": "BACKEND_SERIALIZED",
+          "x-audit-requirement": "IMMUTABLE_ACCESS_GOVERNANCE_AUDIT",
+          "x-event-outbox-expectation": "WORKSPACE_MEMBER_INVITED",
+          "x-transaction-boundary": "WORKSPACE_INVITATION_TRANSACTION",
+          "x-error-codes": [
+            "AUTHENTICATION_REQUIRED",
+            "ACCESS_DENIED",
+            "WORKSPACE_MISMATCH",
+            "RESOURCE_SCOPE_DENIED",
+            "RESOURCE_NOT_FOUND",
+            "VALIDATION_FAILED",
+            "VERSION_CONFLICT",
+            "IDEMPOTENCY_KEY_REUSED",
+            "LIFECYCLE_CONFLICT",
+            "RATE_LIMITED",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR",
+            "LAST_WORKSPACE_ADMINISTRATOR",
+            "ROLE_NAME_CONFLICT",
+            "ROLE_IN_USE",
+            "ROLE_INACTIVE",
+            "MEMBER_ALREADY_EXISTS",
+            "INVITATION_ALREADY_PENDING",
+            "INVITATION_NOT_PENDING"
+          ],
+          "x-aggregate-id-policy": "SERVER_ASSIGNED"
+        }
+      },
+      "/auth/invitations/accept": {
+        "post": {
+          "operationId": "acceptWorkspaceInvitation",
+          "tags": [
+            "Identity"
+          ],
+          "summary": "Accept a workspace invitation for the current account",
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/RequestIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/CorrelationIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/IdempotencyKeyHeader"
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptWorkspaceInvitationRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Invitation acceptance result.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InvitationAcceptanceResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            }
+          },
+          "x-contract-status": "PRODUCTION_CONTRACT_READY",
+          "x-module-owner": "platform/identity-auth",
+          "x-required-capability": "identity.invitation.accept",
+          "x-resource-scope": "WORKSPACE_INVITATION",
+          "x-data-scope": "GLOBAL_IDENTITY",
+          "x-workspace-required": false,
+          "x-actor-required": true,
+          "x-idempotency-policy": "REQUIRED",
+          "x-concurrency-policy": "BACKEND_SERIALIZED",
+          "x-audit-requirement": "IMMUTABLE_IDENTITY_SECURITY_AUDIT",
+          "x-event-outbox-expectation": "IDENTITY_SECURITY_EVENT_RECORDED",
+          "x-transaction-boundary": "WORKSPACE_INVITATION_ACCEPTANCE_TRANSACTION",
+          "x-error-codes": [
+            "AUTHENTICATION_REQUIRED",
+            "ACCESS_DENIED",
+            "INVITATION_INVALID",
+            "TOKEN_EXPIRED",
+            "IDEMPOTENCY_KEY_REUSED",
+            "VALIDATION_FAILED",
+            "RATE_LIMITED",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR"
+          ],
+          "x-aggregate-id-policy": "SERVER_ASSIGNED",
+          "x-credentials-policy": "INCLUDE"
+        }
+      },
+      "/access/invitations/{invitationId}/resend": {
+        "post": {
+          "operationId": "resendWorkspaceInvitation",
+          "tags": [
+            "AccessGovernance"
+          ],
+          "summary": "Resend a pending workspace invitation",
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/WorkspaceIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/RequestIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/CorrelationIdHeader"
+            },
+            {
+              "name": "invitationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            {
+              "$ref": "#/components/parameters/IdempotencyKeyHeader"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Authoritative access-governance response.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AccessMutationResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "412": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            }
+          },
+          "x-contract-status": "PRODUCTION_CONTRACT_READY",
+          "x-module-owner": "platform/access-control",
+          "x-workspace-required": true,
+          "x-actor-required": true,
+          "x-credentials-policy": "INCLUDE",
+          "x-data-scope": "SELECTED_WORKSPACE",
+          "x-required-capability": "access.configure",
+          "x-resource-scope": "WORKSPACE_INVITATION",
+          "x-idempotency-policy": "REQUIRED",
+          "x-concurrency-policy": "BACKEND_SERIALIZED",
+          "x-audit-requirement": "IMMUTABLE_ACCESS_GOVERNANCE_AUDIT",
+          "x-event-outbox-expectation": "WORKSPACE_INVITATION_RESENT",
+          "x-transaction-boundary": "WORKSPACE_INVITATION_RESEND_TRANSACTION",
+          "x-error-codes": [
+            "AUTHENTICATION_REQUIRED",
+            "ACCESS_DENIED",
+            "WORKSPACE_MISMATCH",
+            "RESOURCE_SCOPE_DENIED",
+            "RESOURCE_NOT_FOUND",
+            "VALIDATION_FAILED",
+            "VERSION_CONFLICT",
+            "IDEMPOTENCY_KEY_REUSED",
+            "LIFECYCLE_CONFLICT",
+            "RATE_LIMITED",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR",
+            "LAST_WORKSPACE_ADMINISTRATOR",
+            "ROLE_NAME_CONFLICT",
+            "ROLE_IN_USE",
+            "ROLE_INACTIVE",
+            "MEMBER_ALREADY_EXISTS",
+            "INVITATION_ALREADY_PENDING",
+            "INVITATION_NOT_PENDING"
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInvitationActionRequest"
+                }
+              }
+            }
+          },
+          "x-aggregate-id-policy": "MUST_MATCH_TARGET"
+        }
+      },
+      "/access/invitations/{invitationId}/revoke": {
+        "post": {
+          "operationId": "revokeWorkspaceInvitation",
+          "tags": [
+            "AccessGovernance"
+          ],
+          "summary": "Revoke a pending workspace invitation",
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/WorkspaceIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/RequestIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/CorrelationIdHeader"
+            },
+            {
+              "name": "invitationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            {
+              "$ref": "#/components/parameters/IdempotencyKeyHeader"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Authoritative access-governance response.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AccessMutationResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "412": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            }
+          },
+          "x-contract-status": "PRODUCTION_CONTRACT_READY",
+          "x-module-owner": "platform/access-control",
+          "x-workspace-required": true,
+          "x-actor-required": true,
+          "x-credentials-policy": "INCLUDE",
+          "x-data-scope": "SELECTED_WORKSPACE",
+          "x-required-capability": "access.configure",
+          "x-resource-scope": "WORKSPACE_INVITATION",
+          "x-idempotency-policy": "REQUIRED",
+          "x-concurrency-policy": "BACKEND_SERIALIZED",
+          "x-audit-requirement": "IMMUTABLE_ACCESS_GOVERNANCE_AUDIT",
+          "x-event-outbox-expectation": "WORKSPACE_INVITATION_REVOKED",
+          "x-transaction-boundary": "WORKSPACE_INVITATION_REVOCATION_TRANSACTION",
+          "x-error-codes": [
+            "AUTHENTICATION_REQUIRED",
+            "ACCESS_DENIED",
+            "WORKSPACE_MISMATCH",
+            "RESOURCE_SCOPE_DENIED",
+            "RESOURCE_NOT_FOUND",
+            "VALIDATION_FAILED",
+            "VERSION_CONFLICT",
+            "IDEMPOTENCY_KEY_REUSED",
+            "LIFECYCLE_CONFLICT",
+            "RATE_LIMITED",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR",
+            "LAST_WORKSPACE_ADMINISTRATOR",
+            "ROLE_NAME_CONFLICT",
+            "ROLE_IN_USE",
+            "ROLE_INACTIVE",
+            "MEMBER_ALREADY_EXISTS",
+            "INVITATION_ALREADY_PENDING",
+            "INVITATION_NOT_PENDING"
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInvitationActionRequest"
+                }
+              }
+            }
+          },
+          "x-aggregate-id-policy": "MUST_MATCH_TARGET"
+        }
+      },
+      "/auth/password-changes": {
+        "post": {
+          "operationId": "changePassword",
+          "tags": [
+            "Identity"
+          ],
+          "summary": "Change the authenticated account password and revoke all sessions",
+          "security": [
+            {
+              "bearerAuth": []
+            }
+          ],
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/RequestIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/CorrelationIdHeader"
+            },
+            {
+              "$ref": "#/components/parameters/IdempotencyKeyHeader"
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Credential updated and all existing sessions revoked atomically.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ChangePasswordCompletedResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Problem Details",
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProblemDetails"
+                  }
+                }
+              }
+            }
+          },
+          "x-contract-status": "PRODUCTION_CONTRACT_READY",
+          "x-module-owner": "platform/identity-auth",
+          "x-required-capability": "identity.account.change-password",
+          "x-resource-scope": "ACCOUNT",
+          "x-data-scope": "GLOBAL_IDENTITY",
+          "x-workspace-required": false,
+          "x-actor-required": true,
+          "x-idempotency-policy": "REQUIRED",
+          "x-concurrency-policy": "BACKEND_SERIALIZED",
+          "x-audit-requirement": "IMMUTABLE_IDENTITY_SECURITY_AUDIT",
+          "x-event-outbox-expectation": "IDENTITY_SECURITY_EVENT_RECORDED",
+          "x-transaction-boundary": "SELF_PASSWORD_CHANGE_TRANSACTION",
+          "x-error-codes": [
+            "AUTHENTICATION_REQUIRED",
+            "SESSION_EXPIRED",
+            "SESSION_REVOKED",
+            "TOKEN_INVALID",
+            "INVALID_CREDENTIALS",
+            "ACCOUNT_SUSPENDED",
+            "VALIDATION_FAILED",
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMITED",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR"
+          ],
+          "x-aggregate-id-policy": "SERVER_ASSIGNED",
+          "x-credentials-policy": "INCLUDE"
+        }
+      }
+    },
+    "components": {
+      "parameters": {
+        "CorrelationIdHeader": {
+          "name": "X-Correlation-Id",
+          "in": "header",
+          "required": false,
+          "description": "End-to-end correlation identifier.",
+          "schema": {
+            "$ref": "#/components/schemas/CorrelationId"
+          }
+        },
+        "IdempotencyKeyHeader": {
+          "name": "Idempotency-Key",
+          "in": "header",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          }
+        },
+        "RequestIdHeader": {
+          "name": "X-Request-Id",
+          "in": "header",
+          "required": true,
+          "description": "Unique transport-attempt identifier.",
+          "schema": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        },
+        "WorkspaceIdHeader": {
+          "name": "X-Workspace-Id",
+          "in": "header",
+          "required": true,
+          "description": "Active workspace routing context. The server validates membership and derives tenant authority.",
+          "schema": {
+            "$ref": "#/components/schemas/WorkspaceId"
+          }
+        }
+      },
+      "schemas": {
+        "AcceptWorkspaceInvitationRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "token"
+          ],
+          "properties": {
+            "token": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 4096
+            }
+          }
+        },
+        "AccessDataScope": {
+          "type": "string",
+          "enum": [
+            "OWN",
+            "TEAM",
+            "WORKSPACE",
+            "CUSTOM"
+          ]
+        },
+        "AccessDataScopePolicyDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "policyId",
+            "workspaceId",
+            "roleId",
+            "resourceKey",
+            "scope"
+          ],
+          "properties": {
+            "policyId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "roleId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "resourceKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "scope": {
+              "$ref": "#/components/schemas/AccessDataScope"
+            },
+            "allowedOwnerIds": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            }
+          }
+        },
+        "AccessFieldAccess": {
+          "type": "string",
+          "enum": [
+            "READ_WRITE",
+            "READ_ONLY",
+            "MASKED",
+            "HIDDEN"
+          ]
+        },
+        "AccessFieldSecurityPolicyDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "policyId",
+            "workspaceId",
+            "roleId",
+            "resourceKey",
+            "fieldKey",
+            "access"
+          ],
+          "properties": {
+            "policyId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "roleId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "resourceKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "fieldKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "access": {
+              "$ref": "#/components/schemas/AccessFieldAccess"
+            }
+          }
+        },
+        "AccessMutationResponse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "commandId",
+            "correlationId",
+            "aggregateId",
+            "aggregateType",
+            "version",
+            "occurredAt",
+            "outcome",
+            "result"
+          ],
+          "properties": {
+            "commandId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "correlationId": {
+              "$ref": "#/components/schemas/CorrelationId"
+            },
+            "aggregateId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "aggregateType": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "version": {
+              "$ref": "#/components/schemas/ResourceVersion"
+            },
+            "occurredAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "COMMITTED",
+                "REPLAYED"
+              ]
+            },
+            "warnings": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "emittedEventIds": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "auditEvidenceIds": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "result": {
+              "$ref": "#/components/schemas/WorkspaceAccessDirectoryDocument"
+            }
+          }
+        },
+        "AccessRoleDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "roleId",
+            "workspaceId",
+            "name",
+            "isActive",
+            "capabilities",
+            "version"
+          ],
+          "properties": {
+            "roleId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "sourceTemplateId": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "isActive": {
+              "type": "boolean"
+            },
+            "capabilities": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "version": {
+              "$ref": "#/components/schemas/ResourceVersion"
+            }
+          }
+        },
+        "ChangePasswordCompletedResponse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "completedAt",
+            "sessionsRevoked"
+          ],
+          "properties": {
+            "completedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "sessionsRevoked": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "ChangePasswordRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "currentPassword",
+            "nextPassword"
+          ],
+          "properties": {
+            "currentPassword": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 1024
+            },
+            "nextPassword": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 1024
+            }
+          }
+        },
+        "CorrelationId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "EntityId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "ErrorCode": {
+          "type": "string",
+          "enum": [
+            "ACCESS_DENIED",
+            "ACCOUNT_ALREADY_EXISTS",
+            "ACCOUNT_SUSPENDED",
+            "ALLOCATION_RESIDUAL_CONFLICT",
+            "AUTHENTICATION_REQUIRED",
+            "COD_COLLECTION_EVIDENCE_REQUIRED",
+            "COD_COLLECTION_REQUIRED_BEFORE_REMITTANCE",
+            "COD_EVIDENCE_INVALID",
+            "CONTACT_ALREADY_ARCHIVED",
+            "CONTRACT_OPERATION_BLOCKED",
+            "CONTRACT_VIOLATION",
+            "CREDIT_APPROVAL_ALREADY_CONSUMED",
+            "CREDIT_APPROVAL_BINDING_MISMATCH",
+            "CREDIT_APPROVAL_NOT_FOUND",
+            "CREDIT_APPROVAL_REASON_REQUIRED",
+            "CREDIT_APPROVAL_REQUIRED",
+            "CREDIT_APPROVAL_STATE_CONFLICT",
+            "CREDIT_APPROVAL_SUPERSEDED",
+            "CURRENCY_MISMATCH",
+            "DEAL_BATCH_EMPTY",
+            "DEAL_BATCH_VERSION_CONFLICT",
+            "DEAL_INVALID_STAGE_TRANSITION",
+            "DEAL_LOSS_REASON_REQUIRED",
+            "DEAL_OWNER_NOT_ASSIGNABLE",
+            "DEAL_PROGRESSIVE_PROFILE_INCOMPLETE",
+            "DEAL_RECYCLE_DATE_REQUIRED",
+            "DEAL_STAGE_INACTIVE",
+            "DEAL_STAGE_NOT_FOUND",
+            "DEAL_TERMINAL_TRANSITION_REQUIRES_OUTCOME",
+            "DEAL_WIN_EVIDENCE_INVALID",
+            "DEAL_WIN_EVIDENCE_REQUIRED",
+            "DEAL_WON_TRANSITION_BLOCKED",
+            "DUPLICATE_BUSINESS_KEY",
+            "DUPLICATE_EXTERNAL_REFERENCE",
+            "EMAIL_NOT_VERIFIED",
+            "FIELD_VALIDATION_FAILED",
+            "FULFILLMENT_EVIDENCE_REQUIRED",
+            "IDEMPOTENCY_KEY_REUSED",
+            "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+            "INTEGRATION_UNAVAILABLE",
+            "INTERNAL_ERROR",
+            "INVALID_CREDENTIALS",
+            "INVITATION_ALREADY_PENDING",
+            "INVITATION_INVALID",
+            "INVITATION_NOT_PENDING",
+            "INVOICE_CREDIT_EXCEEDS_REMAINING",
+            "INVOICE_CREDIT_REASON_REQUIRED",
+            "INVOICE_DELIVERY_CHANNEL_UNAVAILABLE",
+            "INVOICE_DELIVERY_FAILED",
+            "INVOICE_DISCARD_BLOCKED",
+            "INVOICE_HAS_CREDIT_NOTES",
+            "INVOICE_HAS_EFFECTIVE_ALLOCATIONS",
+            "INVOICE_ISSUE_IN_PROGRESS",
+            "INVOICE_ISSUE_RETRY_NOT_ALLOWED",
+            "INVOICE_NOT_CREDITABLE",
+            "INVOICE_NOT_DRAFT",
+            "INVOICE_NOT_ISSUED",
+            "INVOICE_VOID_NOT_ALLOWED",
+            "LAST_WORKSPACE_ADMINISTRATOR",
+            "LEAD_ALREADY_ANONYMIZED",
+            "LEAD_ALREADY_ARCHIVED",
+            "LEAD_ANONYMIZATION_NOT_ALLOWED",
+            "LEAD_ASSIGNMENT_REASON_REQUIRED",
+            "LEAD_BATCH_ASSIGNMENT_CONFLICT",
+            "LEAD_BATCH_DISQUALIFICATION_CONFLICT",
+            "LEAD_BATCH_EMPTY",
+            "LEAD_BATCH_TRANSITION_CONFLICT",
+            "LEAD_BATCH_VERSION_CONFLICT",
+            "LEAD_CONSENT_DECISION_INVALID",
+            "LEAD_CONSENT_EXPIRY_INVALID",
+            "LEAD_CONSENT_SOURCE_REQUIRED",
+            "LEAD_DIRECT_SALE_INPUT_INVALID",
+            "LEAD_DISQUALIFICATION_EVIDENCE_REQUIRED",
+            "LEAD_DUPLICATE_CLUSTER_INVALID",
+            "LEAD_DUPLICATE_MERGE_SOURCE_REQUIRED",
+            "LEAD_DUPLICATE_RECORD_NOT_FOUND",
+            "LEAD_DUPLICATE_RELATIONSHIP_CONFLICT",
+            "LEAD_DUPLICATE_REVIEW_REASON_REQUIRED",
+            "LEAD_DUPLICATE_VERSION_CONFLICT",
+            "LEAD_EXPORT_EMPTY",
+            "LEAD_EXPORT_SCOPE_DENIED",
+            "LEAD_EXPORT_UNAVAILABLE",
+            "LEAD_FOLLOW_UP_DATE_INVALID",
+            "LEAD_FOLLOW_UP_NOTE_REQUIRED",
+            "LEAD_HANDOVER_REASON_REQUIRED",
+            "LEAD_HANDOVER_TASK_SCOPE_DENIED",
+            "LEAD_HANDOVER_TASK_VERSION_CONFLICT",
+            "LEAD_IMPORT_BATCH_TOO_LARGE",
+            "LEAD_IMPORT_CHECKSUM_REQUIRED",
+            "LEAD_IMPORT_DUPLICATE_CONTACT",
+            "LEAD_IMPORT_EMPTY",
+            "LEAD_INVALID_TRANSITION",
+            "LEAD_NURTURE_INPUT_INVALID",
+            "LEAD_OPPORTUNITY_INPUT_INVALID",
+            "LEAD_OWNER_NOT_ASSIGNABLE",
+            "LEAD_PROGRESSIVE_PROFILE_INCOMPLETE",
+            "LEAD_QUALIFICATION_DOWNSTREAM_CAPABILITY_REQUIRED",
+            "LEAD_QUALIFICATION_DOWNSTREAM_MODULE_DISABLED",
+            "LEAD_QUALIFICATION_RELATIONSHIP_INVALID",
+            "LEAD_QUEUE_CLAIM_CONFLICT",
+            "LEAD_REOPEN_NOT_ALLOWED",
+            "LEAD_RETENTION_REASON_REQUIRED",
+            "LEAD_TAG_REQUIRED",
+            "LIFECYCLE_CONFLICT",
+            "MEMBER_ALREADY_EXISTS",
+            "MFA_EXPIRED",
+            "MFA_INVALID",
+            "MFA_LOCKED",
+            "MONEY_INVALID",
+            "ORDER_ARCHIVE_BLOCKED",
+            "ORDER_CANCELLATION_BLOCKED",
+            "ORDER_COMMERCIAL_IMMUTABLE",
+            "ORDER_COMPLETION_BLOCKED",
+            "ORDER_CONFIRMATION_BLOCKED",
+            "ORDER_DELIVERY_EVIDENCE_INVALID",
+            "ORDER_DRAFT_PRICING_INVALID",
+            "ORDER_DRAFT_SOURCE_QUOTE_NOT_ALLOWED",
+            "ORDER_DUPLICATION_BLOCKED",
+            "ORDER_LIFECYCLE_CONFLICT",
+            "ORDER_PRICING_FAILED",
+            "ORGANIZATION_ALREADY_ARCHIVED",
+            "PASSWORD_POLICY_VIOLATION",
+            "PAYMENT_ALLOCATION_EXCEEDS_AVAILABLE",
+            "PAYMENT_DELIVERY_CHANNEL_UNAVAILABLE",
+            "PAYMENT_DELIVERY_FAILED",
+            "PAYMENT_EVIDENCE_REQUIRED",
+            "PAYMENT_GATE_BLOCKED",
+            "PAYMENT_INTENT_ALREADY_TERMINAL",
+            "PAYMENT_INTENT_RETRY_NOT_ALLOWED",
+            "PAYMENT_INTENT_VERSION_CONFLICT",
+            "PAYMENT_METHOD_CURRENCY_UNSUPPORTED",
+            "PAYMENT_METHOD_DISABLED",
+            "PAYMENT_OPERATION_BLOCKED",
+            "PAYMENT_PLAN_FINANCIAL_EVIDENCE_EXISTS",
+            "PAYMENT_PLAN_LINE_INVALID",
+            "PAYMENT_PLAN_TOTAL_MISMATCH",
+            "PAYMENT_PLAN_VERSION_CONFLICT",
+            "PAYMENT_PROVIDER_UNAVAILABLE",
+            "PAYMENT_RECORD_RECONCILIATION_BLOCKED",
+            "PAYMENT_REQUEST_DELIVERY_BLOCKED",
+            "PAYMENT_SOURCE_NOT_EFFECTIVE",
+            "PRODUCT_ARCHIVED",
+            "PRODUCT_ARCHIVE_BLOCKED",
+            "PRODUCT_PRICING_INVALID",
+            "PRODUCT_RESTORE_BLOCKED",
+            "PRODUCT_SKU_CONFLICT",
+            "PRODUCT_UNAVAILABLE",
+            "QUOTE_ACCEPTANCE_BLOCKED",
+            "QUOTE_APPROVAL_NOT_PENDING",
+            "QUOTE_APPROVAL_REQUIRED",
+            "QUOTE_APPROVAL_STALE",
+            "QUOTE_ARCHIVE_BLOCKED",
+            "QUOTE_BATCH_ATOMICITY_FAILED",
+            "QUOTE_DELIVERY_EVIDENCE_INVALID",
+            "QUOTE_DRAFT_IMMUTABLE",
+            "QUOTE_EXPIRATION_BLOCKED",
+            "QUOTE_ORDER_ALREADY_CONVERTED",
+            "QUOTE_ORDER_CONVERSION_BLOCKED",
+            "QUOTE_PRICING_FAILED",
+            "QUOTE_REJECTION_BLOCKED",
+            "QUOTE_REVISION_BLOCKED",
+            "QUOTE_SEND_BLOCKED",
+            "RATE_LIMITED",
+            "RECONCILIATION_BLOCKED",
+            "REFUND_AMOUNT_EXCEEDS_AVAILABLE",
+            "REFUND_ATTEMPT_NOT_FOUND",
+            "REFUND_ATTEMPT_STATE_CONFLICT",
+            "REFUND_CANCELLATION_NOT_SUPPORTED",
+            "REFUND_CANCELLATION_PENDING",
+            "REFUND_CANCELLATION_REASON_REQUIRED",
+            "REFUND_CANCELLATION_REJECTED",
+            "REFUND_OPERATION_BLOCKED",
+            "REFUND_PROVIDER_REFERENCE_CONFLICT",
+            "REFUND_RECOVERY_MANUAL_REVIEW_REQUIRED",
+            "REFUND_RETRY_NOT_ALLOWED",
+            "RELATIONSHIP_CONFLICT",
+            "REQUEST_CANCELLED",
+            "REQUEST_TIMEOUT",
+            "RESOURCE_NOT_FOUND",
+            "RESOURCE_SCOPE_DENIED",
+            "RESOURCE_VERSION_CONFLICT",
+            "RETURN_CREDIT_EXCEEDS_ISSUED_INVOICE_VALUE",
+            "RETURN_CUSTOMER_CREDIT_ALLOCATION_MANUAL_REVIEW_REQUIRED",
+            "RETURN_CUSTOMER_CREDIT_POLICY_REQUIRED",
+            "RETURN_DELIVERY_EVIDENCE_REQUIRED",
+            "RETURN_INELIGIBLE_OVERRIDE_REQUIRED",
+            "RETURN_QUANTITY_EXCEEDS_REMAINING",
+            "RETURN_REFUND_EXCEEDS_EFFECTIVE_PAYMENT_ALLOCATIONS",
+            "RETURN_REFUND_SAGA_MANUAL_REVIEW_REQUIRED",
+            "RETURN_RESOLUTION_EVIDENCE_REQUIRED",
+            "RETURN_SAGA_MANUAL_REVIEW_REQUIRED",
+            "RETURN_STATE_CONFLICT",
+            "ROLE_INACTIVE",
+            "ROLE_IN_USE",
+            "ROLE_NAME_CONFLICT",
+            "SESSION_EXPIRED",
+            "SESSION_REVOKED",
+            "SHIPPING_BOOKING_STATE_CONFLICT",
+            "SHIPPING_PROVIDER_AUTHENTICATION_FAILED",
+            "SHIPPING_PROVIDER_RATE_LIMITED",
+            "SHIPPING_PROVIDER_REJECTED",
+            "SHIPPING_PROVIDER_RESPONSE_INVALID",
+            "SHIPPING_PROVIDER_TIMEOUT",
+            "SHIPPING_PROVIDER_UNAVAILABLE",
+            "SUPPORT_CASE_INVALID_TRANSITION",
+            "TASK_CANCELLATION_REASON_REQUIRED",
+            "TASK_INVALID_TRANSITION",
+            "TASK_OUTCOME_REQUIRED",
+            "TOKEN_EXPIRED",
+            "TOKEN_INVALID",
+            "UNKNOWN_BUSINESS_STATUS",
+            "VALIDATION_FAILED",
+            "VERSION_CONFLICT",
+            "WORKSPACE_MISMATCH",
+            "LEAD_CONVERSION_INELIGIBLE",
+            "LEAD_ALREADY_CONVERTED",
+            "LEAD_CONVERSION_SUBJECT_INVALID",
+            "LEAD_CONVERSION_MANUAL_REVIEW"
+          ]
+        },
+        "IdempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "description": "Stable key scoped by workspace, operation and authenticated actor."
+        },
+        "InvitationAcceptanceResponse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workspaceId",
+            "membershipId",
+            "acceptedAt"
+          ],
+          "properties": {
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "membershipId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "acceptedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            }
+          }
+        },
+        "InviteWorkspaceMemberRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "displayName",
+            "email",
+            "roleIds",
+            "teamIds"
+          ],
+          "properties": {
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 320
+            },
+            "roleIds": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            "teamIds": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            }
+          }
+        },
+        "PasswordResetCompletedResponse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "completedAt"
+          ],
+          "properties": {
+            "completedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            }
+          }
+        },
+        "PasswordResetRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "email"
+          ],
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 254
+            }
+          }
+        },
+        "PasswordResetRequestAcceptedResponse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requestId",
+            "acceptedAt"
+          ],
+          "properties": {
+            "requestId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "acceptedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            }
+          }
+        },
+        "ProblemDetails": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "retryable",
+            "correlationId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "format": "uri-reference"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "status": {
+              "type": "integer",
+              "minimum": 400,
+              "maximum": 599
+            },
+            "code": {
+              "$ref": "#/components/schemas/ErrorCode"
+            },
+            "detail": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "instance": {
+              "type": "string",
+              "format": "uri-reference"
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "correlationId": {
+              "$ref": "#/components/schemas/CorrelationId"
+            },
+            "fieldErrors": {
+              "$ref": "#/components/schemas/ProblemFieldErrors"
+            },
+            "businessBlockers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "aggregateId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "expectedVersion": {
+              "$ref": "#/components/schemas/ResourceVersion"
+            },
+            "currentVersion": {
+              "$ref": "#/components/schemas/ResourceVersion"
+            },
+            "idempotencyKey": {
+              "$ref": "#/components/schemas/IdempotencyKey"
+            },
+            "retryAfterSeconds": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "ProblemFieldErrors": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        },
+        "RequestId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "ResetPasswordRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "token",
+            "nextPassword"
+          ],
+          "properties": {
+            "token": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 4096
+            },
+            "nextPassword": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 1024
+            }
+          }
+        },
+        "ResourceVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Monotonic optimistic-concurrency version serialized through ETag/If-Match."
+        },
+        "RoleAssignmentDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "assignmentId",
+            "workspaceId",
+            "membershipId",
+            "roleId"
+          ],
+          "properties": {
+            "assignmentId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "membershipId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "roleId": {
+              "$ref": "#/components/schemas/EntityId"
+            }
+          }
+        },
+        "UtcDateTime": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "WorkspaceAccessDirectoryDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workspaceId",
+            "revision",
+            "generatedAt",
+            "members",
+            "memberProfiles",
+            "invitations",
+            "roles",
+            "assignments",
+            "dataScopes",
+            "fieldSecurity"
+          ],
+          "properties": {
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "revision": {
+              "$ref": "#/components/schemas/ResourceVersion"
+            },
+            "generatedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "members": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "$ref": "#/components/schemas/WorkspaceAccessMemberDocument"
+              }
+            },
+            "memberProfiles": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "$ref": "#/components/schemas/WorkspaceMemberProfileDocument"
+              }
+            },
+            "invitations": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "$ref": "#/components/schemas/WorkspaceInvitationDocument"
+              }
+            },
+            "roles": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/components/schemas/AccessRoleDocument"
+              }
+            },
+            "assignments": {
+              "type": "array",
+              "maxItems": 5000,
+              "items": {
+                "$ref": "#/components/schemas/RoleAssignmentDocument"
+              }
+            },
+            "dataScopes": {
+              "type": "array",
+              "maxItems": 5000,
+              "items": {
+                "$ref": "#/components/schemas/AccessDataScopePolicyDocument"
+              }
+            },
+            "fieldSecurity": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "$ref": "#/components/schemas/AccessFieldSecurityPolicyDocument"
+              }
+            }
+          }
+        },
+        "WorkspaceAccessMemberDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "membershipId",
+            "memberId",
+            "workspaceId",
+            "workspaceKey",
+            "name",
+            "status",
+            "logoText",
+            "teamIds",
+            "roleIds",
+            "source",
+            "version"
+          ],
+          "properties": {
+            "membershipId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "accountId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "memberId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "workspaceKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "status": {
+              "$ref": "#/components/schemas/WorkspaceMembershipStatus"
+            },
+            "logoText": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20
+            },
+            "teamIds": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            "roleIds": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "seed",
+                "invitation",
+                "direct_provisioning",
+                "external_identity"
+              ]
+            },
+            "createdAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "version": {
+              "$ref": "#/components/schemas/ResourceVersion"
+            }
+          }
+        },
+        "WorkspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "WorkspaceInvitationActionRequest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        },
+        "WorkspaceInvitationDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "invitationId",
+            "membershipId",
+            "workspaceId",
+            "email",
+            "displayName",
+            "roleIds",
+            "teamIds",
+            "status",
+            "createdAt",
+            "lastSentAt",
+            "expiresAt",
+            "version"
+          ],
+          "properties": {
+            "invitationId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "membershipId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "workspaceId": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 320
+            },
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "roleIds": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            "teamIds": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            "status": {
+              "$ref": "#/components/schemas/WorkspaceInvitationStatus"
+            },
+            "createdAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "lastSentAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "expiresAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "acceptedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "revokedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            },
+            "version": {
+              "$ref": "#/components/schemas/ResourceVersion"
+            }
+          }
+        },
+        "WorkspaceInvitationStatus": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "ACCEPTED",
+            "EXPIRED",
+            "REVOKED"
+          ]
+        },
+        "WorkspaceMemberProfileDocument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "memberId",
+            "membershipId",
+            "displayName",
+            "accountSource"
+          ],
+          "properties": {
+            "memberId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "membershipId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "accountId": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 320
+            },
+            "accountSource": {
+              "type": "string",
+              "enum": [
+                "seed",
+                "direct",
+                "invitation",
+                "external",
+                "unknown"
+              ]
+            },
+            "accountStatus": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "SUSPENDED"
+              ]
+            },
+            "roleLabel": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "provisionedAt": {
+              "$ref": "#/components/schemas/UtcDateTime"
+            }
+          }
+        },
+        "WorkspaceMembershipStatus": {
+          "type": "string",
+          "enum": [
+            "active",
+            "suspended",
+            "invited"
+          ]
+        }
+      },
+      "securitySchemes": {
+        "bearerAuth": {
+          "type": "http",
+          "scheme": "bearer",
+          "bearerFormat": "JWT",
+          "description": "OIDC/OAuth access token. Identity is resolved server-side."
+        }
+      }
+    }
+  },
+  "existingWireUnchanged": [
+    "resetPassword",
+    "inviteWorkspaceMember",
+    "acceptWorkspaceInvitation",
+    "resendWorkspaceInvitation",
+    "revokeWorkspaceInvitation"
+  ],
+  "explicitWireAmendments": [
+    {
+      "operationId": "requestPasswordReset",
+      "change": "Add declared 409 ProblemDetails response for existing IDEMPOTENCY_KEY_REUSED; no request, success, metadata, auth or schema changes.",
+      "reason": "Canonical operation advertises idempotency mismatch but omits 409. Explicitly reviewed additive amendment avoids silently returning an undeclared status or changing established conflict semantics."
+    }
+  ],
+  "proposedErrorMappings": {
+    "changePassword": {
+      "missingOrInvalidSession": [
+        "AUTHENTICATION_REQUIRED",
+        401
+      ],
+      "expiredSession": [
+        "SESSION_EXPIRED",
+        401
+      ],
+      "revokedSession": [
+        "SESSION_REVOKED",
+        401
+      ],
+      "wrongCurrentPassword": [
+        "INVALID_CREDENTIALS",
+        401
+      ],
+      "suspendedAccount": [
+        "ACCOUNT_SUSPENDED",
+        403
+      ],
+      "passwordPolicy": [
+        "VALIDATION_FAILED",
+        422
+      ],
+      "idempotencyPayloadMismatch": [
+        "IDEMPOTENCY_KEY_REUSED",
+        409
+      ]
+    },
+    "requestPasswordReset": {
+      "unknownOrIneligibleEmail": [
+        "ACCEPTED_WITHOUT_ACCOUNT_DISCLOSURE",
+        202
+      ],
+      "invalidEmail": [
+        "VALIDATION_FAILED",
+        422
+      ],
+      "idempotencyPayloadMismatch": [
+        "IDEMPOTENCY_KEY_REUSED",
+        409
+      ]
+    },
+    "resetPassword": {
+      "invalidUsedRevokedOrIneligible": [
+        "TOKEN_INVALID",
+        401
+      ],
+      "expired": [
+        "TOKEN_EXPIRED",
+        401
+      ],
+      "passwordPolicy": [
+        "VALIDATION_FAILED",
+        422
+      ],
+      "idempotencyPayloadMismatch": [
+        "IDEMPOTENCY_KEY_REUSED",
+        409
+      ]
+    },
+    "acceptWorkspaceInvitation": {
+      "missingOrInvalidSession": [
+        "AUTHENTICATION_REQUIRED",
+        401
+      ],
+      "emailMismatchOrUnverified": [
+        "ACCESS_DENIED",
+        403
+      ],
+      "invalidRevokedConsumedAlreadyMemberOrInvalidWorkspaceOrRole": [
+        "INVITATION_INVALID",
+        401
+      ],
+      "expired": [
+        "TOKEN_EXPIRED",
+        401
+      ],
+      "conflictingAcceptanceClaim": [
+        "INVITATION_INVALID",
+        409
+      ],
+      "idempotencyPayloadMismatch": [
+        "IDEMPOTENCY_KEY_REUSED",
+        409
+      ]
+    },
+    "invitationAdministration": {
+      "missingSession": [
+        "AUTHENTICATION_REQUIRED",
+        401
+      ],
+      "capabilityOrGrantCeilingDenied": [
+        "ACCESS_DENIED",
+        403
+      ],
+      "wrongWorkspace": [
+        "WORKSPACE_MISMATCH",
+        403
+      ],
+      "unknownInvitationOrRole": [
+        "RESOURCE_NOT_FOUND",
+        404
+      ],
+      "inactiveRole": [
+        "ROLE_INACTIVE",
+        409
+      ],
+      "alreadyMember": [
+        "MEMBER_ALREADY_EXISTS",
+        409
+      ],
+      "duplicatePending": [
+        "INVITATION_ALREADY_PENDING",
+        409
+      ],
+      "expiredAcceptedRevoked": [
+        "INVITATION_NOT_PENDING",
+        409
+      ],
+      "acceptanceClaimInProgress": [
+        "LIFECYCLE_CONFLICT",
+        409
+      ],
+      "emptyRolesOrNonEmptyTeams": [
+        "VALIDATION_FAILED",
+        422
+      ],
+      "idempotencyPayloadMismatch": [
+        "IDEMPOTENCY_KEY_REUSED",
+        409
+      ]
+    },
+    "common": {
+      "rateLimit": [
+        "RATE_LIMITED",
+        429
+      ],
+      "unavailableInfrastructureOrUnfinishedRecovery": [
+        "INTEGRATION_UNAVAILABLE",
+        503
+      ],
+      "unexpectedFailure": [
+        "INTERNAL_ERROR",
+        500
+      ],
+      "invalidBodyOrMetadata": [
+        "VALIDATION_FAILED",
+        400
+      ]
+    },
+    "note": "Success marker for request eligibility is explanatory, not a JSON error code. Expired/revoked sessions on existing accept wire map to AUTHENTICATION_REQUIRED; undeclared EMAIL_NOT_VERIFIED, MEMBER_ALREADY_EXISTS or LIFECYCLE_CONFLICT are never added to accept wire."
+  },
+  "proposedIdentityCapability": {
+    "name": "identity.account.change-password",
+    "authorization": "Authenticated active self account/session only; no Workspace capability or caller-provided account ID; not a role-assignable capability."
+  },
+  "proposedGrantComparator": {
+    "status": "PROPOSED_DELEGATION_RULES_NOT_CURRENT_ROLE_REINTERPRETATION",
+    "capabilities": "Every granted role capability must be in the inviter current effective capability set; require access.configure separately. No display-name Owner/admin inference.",
+    "dataScopes": {
+      "WORKSPACE": [
+        "WORKSPACE",
+        "OWN"
+      ],
+      "OWN": [
+        "OWN"
+      ],
+      "TEAM": [],
+      "CUSTOM": []
+    },
+    "fieldRights": {
+      "READ_WRITE": [
+        "READ_WRITE",
+        "READ_ONLY",
+        "HIDDEN"
+      ],
+      "READ_ONLY": [
+        "READ_ONLY",
+        "HIDDEN"
+      ],
+      "HIDDEN": [
+        "HIDDEN"
+      ]
+    },
+    "masked": "Use the existing evaluator normalization MASKED -> HIDDEN; never invent rendering or stronger delegation.",
+    "comparisonBasis": "Resolve candidate and inviter rights through current AccessControl effective projections, for every relevant entity/field. Missing or unknown policy/projection denies delegation; do not infer defaults from absent raw rows.",
+    "teams": "Require teamIds == []; non-empty teams rejected with VALIDATION_FAILED.",
+    "roles": "Require at least one distinct active role from the trusted Workspace; no default role or implicit role creation.",
+    "revalidation": "At issuance and acceptance assignment, under AccessControl owner serialization; stale grant receipt never skips current inviter/role validation."
+  },
+  "participantContracts": [
+    {
+      "name": "IInvitationIdentityParticipant",
+      "owner": "IdentityAuth",
+      "consumer": "Workflows/Durable",
+      "methods": [
+        {
+          "name": "ReadVerifiedRecipient",
+          "input": [
+            "trustedAccountId",
+            "trustedSessionId"
+          ],
+          "output": [
+            "accountId",
+            "memberId",
+            "normalizedVerifiedEmail",
+            "activeSession"
+          ],
+          "failure": "No account/session/verified-email match returns no eligible recipient."
+        }
+      ],
+      "restriction": "Read-only; no credentials, tokens or foreign table access."
+    },
+    {
+      "name": "IWorkspaceInvitationParticipant",
+      "owner": "Workspace",
+      "consumer": "Workflows/Durable",
+      "methods": [
+        {
+          "name": "Issue",
+          "input": [
+            "workflowId",
+            "workspaceId",
+            "inviterAccountId",
+            "inviterMembershipId",
+            "email",
+            "displayName",
+            "roleIds",
+            "teamIds",
+            "grantReceipt",
+            "tokenHash",
+            "protectedDeliveryEnvelope"
+          ],
+          "output": [
+            "invitationId",
+            "reservedMembershipId",
+            "version",
+            "expiresAt",
+            "deliveryIntentId"
+          ],
+          "atomicity": "One owner-local commit: PENDING invitation, unique pending recipient, reserved identity, encrypted delivery intent, audit/outbox. No active membership."
+        },
+        {
+          "name": "ClaimAcceptance",
+          "input": [
+            "workflowId",
+            "tokenHash",
+            "verifiedRecipient"
+          ],
+          "output": [
+            "invitationId",
+            "workspaceId",
+            "reservedMembershipId",
+            "roleIds",
+            "inviterMembershipId",
+            "claimVersion",
+            "claimReceipt"
+          ],
+          "atomicity": "Serialize token lifecycle; claim binds one workflow and verified recipient. Resend/revoke cannot pass an active acceptance claim."
+        },
+        {
+          "name": "FinalizeAcceptance",
+          "input": [
+            "workflowId",
+            "claimReceipt",
+            "accessAssignmentReceipt"
+          ],
+          "output": [
+            "workspaceId",
+            "membershipId",
+            "acceptedAt"
+          ],
+          "atomicity": "After matching AccessControl assignment proof, insert active membership and mark ACCEPTED in one Workspace transaction. Existing membership unique constraint retained."
+        },
+        {
+          "name": "ResendOrRevoke",
+          "input": [
+            "workflowId",
+            "trustedActor",
+            "invitationId",
+            "action",
+            "newTokenHashAndEnvelopeForResend"
+          ],
+          "output": [
+            "invitationId",
+            "version",
+            "status",
+            "deliveryIntentId"
+          ],
+          "atomicity": "Owner serializes claim/version, validates PENDING, rotates or revokes token and corresponding delivery intent atomically."
+        },
+        {
+          "name": "ReadRecoveryAndDeliveryState",
+          "input": [
+            "invitationId",
+            "workflowId"
+          ],
+          "output": [
+            "status",
+            "version",
+            "claimReceipt",
+            "assignmentReceipt",
+            "encryptedDeliveryIntent",
+            "membershipId"
+          ],
+          "restriction": "Only recovery/delivery participants receive encrypted envelope; public directory never exposes it."
+        },
+        {
+          "name": "ReleaseFailedClaim",
+          "input": [
+            "workflowId",
+            "claimReceipt",
+            "noAssignmentOrCompensationReceipt"
+          ],
+          "output": [
+            "claimReleasedReceipt"
+          ],
+          "atomicity": "Release only with owner-verified proof that no staged assignment remains and no active membership exists. Preserve PENDING invitation for an eligible later retry until its normal expiry; record failure evidence. Never release an outcome-unknown claim."
+        }
+      ],
+      "restriction": "Reservation is an invitation-owned row/ID, not an active or suspended membership. No new public membership state or lifecycle endpoint."
+    },
+    {
+      "name": "IInvitationAccessParticipant",
+      "owner": "AccessControl",
+      "consumer": "Workflows/Durable",
+      "methods": [
+        {
+          "name": "ValidateGrant",
+          "input": [
+            "workspaceId",
+            "inviterMembershipId",
+            "roleIds",
+            "teamIds"
+          ],
+          "output": [
+            "grantReceipt",
+            "validatedRoleVersions",
+            "directoryRevision"
+          ],
+          "invariant": "Current active inviter has access.configure; active workspace-local role capabilities/scopes/field rights cannot exceed inviter effective authority. Empty teamIds only."
+        },
+        {
+          "name": "AssignApprovedAccess",
+          "input": [
+            "workflowId",
+            "workspaceClaimReceipt",
+            "verifiedRecipient",
+            "grantReceipt"
+          ],
+          "output": [
+            "assignmentReceipt",
+            "membershipId",
+            "assignedRoleIds",
+            "accessVersion"
+          ],
+          "atomicity": "Revalidate grant/role/inviter state; assign once under owner transaction, append audit/outbox and increment directory revision. Assign only to the owner-reserved membership reference."
+        },
+        {
+          "name": "ReadAssignmentReceipt",
+          "input": [
+            "workflowId",
+            "membershipId"
+          ],
+          "output": [
+            "assignmentReceipt",
+            "assignedRoleIds"
+          ]
+        },
+        {
+          "name": "CompensateReservedAccess",
+          "input": [
+            "workflowId",
+            "assignmentReceipt",
+            "workspaceNonActiveReservationProof"
+          ],
+          "output": [
+            "compensationReceipt"
+          ],
+          "atomicity": "Remove only assignments created by this workflow on this still-reserved membership, under owner serialization; never remove pre-existing access or touch an active membership. Append audit/outbox and directory revision once. Exact replay returns original receipt."
+        },
+        {
+          "name": "RecordInvitationGovernanceCommit",
+          "input": [
+            "workflowId",
+            "workspaceInvitationCommitReceipt",
+            "trustedInviterMembershipId",
+            "action"
+          ],
+          "output": [
+            "governanceReceipt",
+            "directoryRevision",
+            "auditEvidenceIds",
+            "eventIds"
+          ],
+          "atomicity": "After verifying a Workspace issue/resend/revoke receipt bound to the same workflow, record one operation-specific governance audit/outbox and directory revision increment in an AccessControl transaction. Idempotent under workflow/action; required before AccessMutationResponse."
+        }
+      ],
+      "restriction": "No implicit Owner grant, no role creation, no team writes, no call to initial-workspace fixed Owner participant."
+    },
+    {
+      "name": "IInvitationNotificationParticipant",
+      "owner": "IdentityAuth",
+      "consumer": "Workflows/Durable",
+      "methods": [
+        {
+          "name": "ProtectInvitationPayload",
+          "input": [
+            "invitationOrDeliveryId",
+            "version",
+            "recipient",
+            "expiresAt",
+            "rawSecretInMemory"
+          ],
+          "output": [
+            "authenticatedEncryptedEnvelope"
+          ],
+          "restriction": "Purpose-bound envelope and associated-data binding; never log or persist raw input."
+        },
+        {
+          "name": "StageInvitationEmail",
+          "input": [
+            "workflowId",
+            "deliveryIntentId",
+            "authenticatedEncryptedEnvelope"
+          ],
+          "output": [
+            "durableEmailMessageId",
+            "stagedAt"
+          ],
+          "atomicity": "Idempotent IdentityAuth mail-outbox transaction; SMTP after commit; recheck Workspace delivery eligibility through approved participant before send."
+        }
+      ],
+      "restriction": "Existing SMTP sender/dispatcher and bounded failures reused. Token purposes cannot be interchanged."
+    },
+    {
+      "name": "IWorkspaceInvitationDeliveryEligibility",
+      "owner": "Workspace",
+      "consumer": "IdentityAuth email dispatcher",
+      "methods": [
+        {
+          "name": "ReadEligibility",
+          "input": [
+            "invitationId",
+            "deliveryIntentId",
+            "version",
+            "protectedEnvelopeDigest"
+          ],
+          "output": [
+            "eligible",
+            "expiresAt",
+            "currentVersion",
+            "reasonCode"
+          ],
+          "invariant": "Eligible only for current pending unexpired invitation with matching durable delivery intent/version/envelope digest and live Workspace. Fail closed on revoked, consumed, superseded, unknown or unavailable state."
+        }
+      ],
+      "restriction": "Read-only approved cross-owner edge; no foreign DbContext, raw secret or token hash exposed to public callers."
+    }
+  ],
+  "retainedReadModel": {
+    "existingOperation": "getWorkspaceAccessDirectory",
+    "existingPort": "IWorkspaceAccessDirectorySource",
+    "change": "Workspace source projects SQL invitations into existing typed Invitations list; AccessControl composes roles and increments directory revision for invitation governance commits via its participant.",
+    "publicShapeUnchanged": true,
+    "noSecrets": true,
+    "pendingMembershipId": "Invitation reserved membership identity; not evidence that an active Membership row exists."
+  },
+  "workflowRecovery": {
+    "owner": "Workflows/Durable",
+    "publicRoutesAdded": [],
+    "issue": [
+      "persist workflow anchor before owner mutations",
+      "validate grant",
+      "Workspace issue + encrypted delivery intent",
+      "IdentityAuth outbox stage",
+      "AccessControl RecordInvitationGovernanceCommit",
+      "record staged receipt",
+      "return committed existing AccessMutationResponse directory"
+    ],
+    "resendOrRevoke": [
+      "persist workflow anchor",
+      "revalidate trusted actor access.configure",
+      "Workspace serialized ResendOrRevoke",
+      "IdentityAuth stage new protected email on resend only",
+      "AccessControl RecordInvitationGovernanceCommit",
+      "return committed existing AccessMutationResponse directory"
+    ],
+    "accept": [
+      "reverify principal/session/email",
+      "Workspace token claim",
+      "revalidate grant and assign AccessControl roles",
+      "Workspace activate membership and consume invitation",
+      "persist final receipt",
+      "return existing acceptance response"
+    ],
+    "recovery": "Each participant idempotent under workflowId and operation step. Recovery resumes committed receipts after process restart, never replays raw tokens from persistence. No active membership before assignment. Workspace claims are not auto-released by elapsed time while assignment outcome is unknown.",
+    "failure": "Permanent grant/workspace/recipient denial terminates without activation. If access assignment already committed but activation cannot complete, hold non-active reservation and resume or compensate through explicit AccessControl participant; never activate from unverified receipt. Public API returns no success before final receipt."
+  },
+  "slices": [
+    {
+      "id": "CHANGE_PASSWORD",
+      "operations": [
+        "changePassword"
+      ],
+      "owners": [
+        "IdentityAuth"
+      ],
+      "dependsOnInvitation": false,
+      "requiredParticipants": [],
+      "newPublicRoutes": [
+        "/auth/password-changes"
+      ],
+      "persistence": "Existing iam credential/session/audit/security/idempotency owner transaction; credential concurrency serialization."
+    },
+    {
+      "id": "PASSWORD_RESET",
+      "operations": [
+        "requestPasswordReset",
+        "resetPassword"
+      ],
+      "owners": [
+        "IdentityAuth"
+      ],
+      "dependsOnInvitation": false,
+      "requiredParticipants": [],
+      "newPublicRoutes": [],
+      "persistence": "New IdentityAuth reset challenge; purpose-separated existing encrypted email outbox; owner-local atomic consumption/credential/session/audit."
+    },
+    {
+      "id": "WORKSPACE_INVITATION",
+      "operations": [
+        "inviteWorkspaceMember",
+        "acceptWorkspaceInvitation",
+        "resendWorkspaceInvitation",
+        "revokeWorkspaceInvitation"
+      ],
+      "owners": [
+        "IdentityAuth",
+        "Workspace",
+        "AccessControl",
+        "Workflows/Durable"
+      ],
+      "dependsOnInvitation": true,
+      "requiredParticipants": [
+        "IInvitationIdentityParticipant",
+        "IWorkspaceInvitationParticipant",
+        "IInvitationAccessParticipant",
+        "IInvitationNotificationParticipant",
+        "IWorkspaceInvitationDeliveryEligibility"
+      ],
+      "newPublicRoutes": [],
+      "persistence": "Workspace invitations/reservations/delivery intents; AccessControl assignments/governance evidence; Workflows durable anchors; IdentityAuth protected email outbox."
+    }
+  ],
+  "reviewPoints": [
+    "request/response/error wire",
+    "all-session revocation and exact replay",
+    "reset eligibility/privacy/30-minute lifecycle",
+    "256-bit secrets and hash/envelope purpose separation",
+    "separate OTP/reset/invitation templates and outbox eligibility",
+    "7-day invitation lifecycle and concurrent claims",
+    "Workspace membership authority and reservation",
+    "capability/data-scope/field grant ceiling and empty teams",
+    "cross-owner workflow restart/partial-failure recovery",
+    "existing pending invitation directory projection",
+    "normal vs invited signup provisioning",
+    "existing data and operation preservation"
+  ],
+  "forbiddenScope": [
+    "Google/OAuth",
+    "Quote",
+    "Deal WON",
+    "CRM business modules",
+    "whole frontend OpenAPI adoption",
+    "SQL reset/reseed",
+    "direct SQL privilege or password mutation",
+    "self-signed owner/reviewer approval",
+    "authority/integrity/allowlist edits before recognized adoption"
+  ],
+  "adoptionRequirements": {
+    "ordinaryDevelopmentAuthorizationSufficient": false,
+    "recognizedRoute": "governance-change-control-v1 proposal -> Architect -> Governor ratification/scope lock -> one writer -> immutable control-plane subject -> separated reviews/trusted verification -> Gatekeeper; distinct Project Owner canonical adoption act",
+    "ownerActionMissing": "Exact hash-bound ratification/adoption, accountable scoped role assignments, and separate permission for the limited canonical adoption commit. No such record exists for this subject.",
+    "requiredScopedRoleAssignments": [
+      "Architect",
+      "Governor",
+      "one Governance Primary Writer",
+      "Code Quality Reviewer",
+      "Independent Reviewer distinct from primary writer",
+      "Verifier",
+      "Gatekeeper distinct from primary writer"
+    ],
+    "reviewAssurance": "AI advisory review is not the required isolated-principal signed formal review. Existing reviewer HMAC does not authenticate the owner.",
+    "localImplementationBoundary": "Change Password and Reset may each proceed independently only when their specific operation/policy admission and task prerequisites are valid. Never claim acceptance/release until required assurance passes."
+  },
+  "requestedCanonicalScope": {
+    "operationRegistry": "Only seven named rows, with real adopted decision provenance; never copy frontend readiness into backend admission.",
+    "gapRegistry": [
+      "AG-IDENTITY-PASSWORD-RESET",
+      "AG-WORKSPACE-INVITATION",
+      "new self-service changePassword decision"
+    ],
+    "contractsAndOwners": "Only the five named participant boundaries, existing invitation-directory projection, IdentityAuth password/reset persistence and invitation orchestration ownership.",
+    "wireAdoption": "Retain canonical 0.23.21 base hash. Adopt this bounded seven-operation fragment as a scoped extension; five existing operations unchanged, one explicit 409 declaration amendment, one new operation/two new DTOs. No full frontend import.",
+    "controlIntegrationPrerequisite": "Current new-operation lookup has no changePassword shard and bounded verifier handles outbound webhooks only. Governor must admit a scoped extension-reader/index integration for these seven under v1 before runtime mapping; do not call the outbound helper or hand-edit integrity pins to fake provenance.",
+    "controlIntegrationLimit": "Any necessary adapter/registry implementation is a subsequent scoped governance change bound to this adopted subject and actual owner mandate, reviewed under v1. Unrelated operation semantics, admission and pins remain unchanged. If tooling cannot enforce that bound, stop and report rather than widen it.",
+    "commitAuthorizationRequested": "Only necessary canonical/control-plane adoption subject and records in an isolated checkout after actual role assignment; no product/backend/frontend commit, push, merge, dirty-worktree reset or unrelated authority adoption.",
+    "releaseAuthorizationRequested": false
+  },
+  "functionalAcceptanceRequired": {
+    "CHANGE_PASSWORD_FUNCTIONAL_PASS": [
+      "real HTTP positive/negative",
+      "SQL owner readback and preservation",
+      "connected Chromium journey"
+    ],
+    "PASSWORD_RESET_FUNCTIONAL_PASS": [
+      "real HTTP positive/negative",
+      "SQL owner readback and preservation",
+      "connected Chromium journey"
+    ],
+    "WORKSPACE_INVITATION_FUNCTIONAL_PASS": [
+      "real HTTP positive/negative",
+      "SQL owner readback and preservation",
+      "connected Chromium journey"
+    ]
+  }
+}

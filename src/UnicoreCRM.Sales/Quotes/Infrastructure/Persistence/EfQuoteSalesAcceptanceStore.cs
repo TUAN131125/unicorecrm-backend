@@ -20,6 +20,17 @@ internal sealed class EfQuoteSalesAcceptanceStore(QuotesDbContext db,TimeProvide
     public void Add(QuoteSalesAcceptance acceptance)=>db.Add(acceptance);
     public void Add(QuoteAcceptanceInvitation invitation)=>db.Add(invitation);
     public Task ReloadAsync(QuoteAcceptanceInvitation invitation,CancellationToken ct)=>db.Entry(invitation).ReloadAsync(ct);
+    public async Task ReloadQuoteAsync(Quote quote,CancellationToken ct)
+    {
+        await db.Entry(quote).ReloadAsync(ct);
+        db.Entry(quote).Reference(x=>x.SalesAcceptance).IsLoaded=false;
+        await db.Entry(quote).Reference(x=>x.SalesAcceptance).LoadAsync(ct);
+    }
+    public Task<bool> HasUnresolvedDeliveryAsync(string ws,string quote,CancellationToken ct)=>
+        db.Set<QuoteAcceptanceInvitation>().AnyAsync(x=>x.WorkspaceId==ws && x.QuoteId==quote
+            && (x.DeliveryStatus=="SENDING" || x.DeliveryStatus=="UNKNOWN"
+                // Older sends did not distinguish pre-send failure from a lost SMTP acknowledgment.
+                || x.DeliveryStatus=="FAILED" && (x.DeliveryErrorCode=="GMAIL_DELIVERY_TIMEOUT" || x.DeliveryErrorCode=="GMAIL_DELIVERY_FAILED")),ct);
     public async Task<IReadOnlyList<AcceptedQuoteOrderSource>> PendingAsync(int limit,CancellationToken ct)
     {
         var now=clock.GetUtcNow();

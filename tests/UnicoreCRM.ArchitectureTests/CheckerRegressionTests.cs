@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Mono.Cecil;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -9,6 +10,76 @@ namespace UnicoreCRM.ArchitectureTests;
 
 public sealed class CheckerRegressionTests
 {
+    [Theory]
+    [InlineData("byref")]
+    [InlineData("array")]
+    [InlineData("pointer")]
+    public void Reference_wrappers_preserve_exact_approved_or_unapproved_contract_identity(string kind)
+    {
+        using var module = ModuleDefinition.CreateModule("ContractReferenceFixture", ModuleKind.Dll);
+        TypeReference Wrapped(string name)
+        {
+            var element = new TypeReference("UnicoreCRM.Crm.Contacts.Contracts", name, module, module.TypeSystem.CoreLibrary);
+            return kind switch
+            {
+                "byref" => new ByReferenceType(element),
+                "array" => new ArrayType(element),
+                _ => new PointerType(element)
+            };
+        }
+        const string source = "UnicoreCRM.Crm.Deals.Application.CreateDeal";
+        var approved = Assert.Single(Expand(Wrapped("IContactSummaryReader")));
+        Assert.IsNotAssignableFrom<TypeSpecification>(approved);
+        Assert.True(ContractAllowed(ContractEdge(source, Namespace(approved), approved.Name)));
+        var unapproved = Assert.Single(Expand(Wrapped("IUnapprovedContract")));
+        Assert.Equal("IUnapprovedContract", unapproved.Name);
+        Assert.False(ContractAllowed(ContractEdge(source, Namespace(unapproved), unapproved.Name)));
+    }
+
+    [Fact]
+    public void Generic_container_and_each_underlying_argument_remain_inspected()
+    {
+        using var module = ModuleDefinition.CreateModule("GenericContractFixture", ModuleKind.Dll);
+        var generic = new GenericInstanceType(new TypeReference("UnicoreCRM.Unapproved.Contracts", "Container`1", module, module.TypeSystem.CoreLibrary));
+        var argument = new TypeReference("UnicoreCRM.Crm.Contacts.Contracts", "IUnapprovedContract", module, module.TypeSystem.CoreLibrary);
+        generic.GenericArguments.Add(new ArrayType(argument));
+        var expanded = Expand(new ByReferenceType(generic)).ToArray();
+        Assert.Equal(2, expanded.Length);
+        Assert.Same(generic, expanded[0]);
+        Assert.Same(argument, expanded[1]);
+        Assert.False(ContractAllowed(ContractEdge("UnicoreCRM.Crm.Deals.Application", Namespace(expanded[0]), expanded[0].Name)));
+        Assert.False(ContractAllowed(ContractEdge("UnicoreCRM.Crm.Deals.Application", Namespace(expanded[1]), expanded[1].Name)));
+    }
+
+    [Theory]
+    [InlineData("UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity", "Workflows.Atomic.Application -> Leads.Contracts.ILeadOpportunityQualificationParticipant")]
+    [InlineData("UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace", "Workflows.Durable.Application -> Leads.Contracts.ILeadOpportunityQualificationParticipant")]
+    [InlineData("UnicoreCRM.Crm.Deals.Application.CreateDeal", "Deals.Application -> Leads.Contracts.ILeadOpportunityQualificationParticipant")]
+    public void Contract_edge_preserves_exact_owner_and_workflow_scope(string source, string expected) =>
+        Assert.Equal(expected, ContractEdge(source, "UnicoreCRM.Crm.Leads.Contracts", "ILeadOpportunityQualificationParticipant"));
+
+    [Fact]
+    public void Approved_atomic_participant_edge_does_not_admit_durable_or_another_contract()
+    {
+        const string target = "UnicoreCRM.Crm.Leads.Contracts";
+        const string participant = "ILeadOpportunityQualificationParticipant";
+        Assert.True(ContractAllowed(ContractEdge("UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity", target, participant)));
+        Assert.False(ContractAllowed(ContractEdge("UnicoreCRM.Workflows.Durable.Application.ProvisionInitialWorkspace", target, participant)));
+        Assert.False(ContractAllowed(ContractEdge("UnicoreCRM.Workflows.Atomic.Application.QualifyLeadForOpportunity", target, "IUnapprovedParticipant")));
+        Assert.False(ContractAllowed(ContractEdge("UnicoreCRM.Other.Atomic.Application", target, participant)));
+    }
+
+    [Fact]
+    public void Workflow_contract_target_scope_is_not_collapsed_to_atomic_or_durable()
+    {
+        Assert.Equal("Deals.Application -> Workflows.Atomic.Contracts.IUnapprovedWorkflow",
+            ContractEdge("UnicoreCRM.Crm.Deals.Application", "UnicoreCRM.Workflows.Atomic.Contracts", "IUnapprovedWorkflow"));
+        Assert.Equal("Deals.Application -> Workflows.Durable.Contracts.IUnapprovedWorkflow",
+            ContractEdge("UnicoreCRM.Crm.Deals.Application", "UnicoreCRM.Workflows.Durable.Contracts", "IUnapprovedWorkflow"));
+        Assert.False(ContractAllowed(ContractEdge("UnicoreCRM.Crm.Deals.Application", "UnicoreCRM.Workflows.Atomic.Contracts", "IUnapprovedWorkflow")));
+        Assert.Equal("UNCLASSIFIED", ContractEdge("UnicoreCRM.Unknown", "UnicoreCRM.Crm.Leads.Contracts", "IUnapprovedParticipant"));
+    }
+
     private static JsonElement Json(object value) => JsonSerializer.SerializeToElement(value);
     private static JsonElement Operation(string status = "ADMITTED_IMPLEMENTED", string supersession = "ACTIVE_EXTENSION",
         string owner = "Owner", string id = "extensionOperation", string path = "/fixture") => Json(new

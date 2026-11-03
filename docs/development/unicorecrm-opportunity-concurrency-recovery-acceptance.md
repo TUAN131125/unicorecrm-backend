@@ -1,0 +1,11 @@
+Kết quả: NEEDS_FIX. Tôi đã sửa failure window gây 500 trong các lần thử same-key khi request thắng đã hoàn tất receipt. Tuy nhiên, UI vẫn khóa sau 422 và anchor của intent khác key bị từ chối vẫn ở trạng thái Started, nên chưa thể nghiệm thu toàn bộ recovery.
+
+Trace cho thấy request thua gặp ba xung đột rowversion liên tiếp khi request thắng ghi tiến trình Contact, Deal và completion. Sau xung đột cuối, handler trả 500 mà không đọc lại receipt. Handler hiện xác thực lại quyền và Workspace, rồi chỉ trả REPLAYED nếu đọc được receipt Completed có fingerprint khớp.
+- Concurrency: 10 vòng với hai request và 5 vòng với bốn request cùng khóa đều trả 200; mỗi vòng có một COMMITTED, các response còn lại là REPLAYED. SQL xác nhận một Contact, một Deal và receipt/outbox tương ứng mỗi vòng. Nếu winner chưa hoàn tất tại lần đọc cuối, nhánh hiện tại vẫn có thể trả 500.
+- Different-key: thử nghiệm mới trả 200 và 422; không tạo trùng Contact/Deal. Anchor thua vẫn Started; retry sau khi Lead đóng trả 412. Cần quyết định contract cho terminal/recovery của intent này.
+- UI: Chromium thật nhận 422 và hiển thị lỗi trường, nhưng form vẫn disabled. Response hiện chưa phân biệt có thẩm quyền giữa no effects và lỗi có thể xảy ra sau partial commit; không an toàn để tự bỏ frozen intent.
+- Regression: backend 474 PASS / 4 FAIL, không tăng finding kiến trúc; tám gate frontend tập trung và production build đạt. npm run verify dừng tại gate 49, với 48 PASS và 279 NOT_RUN.
+- Bảo toàn: 108.090 dòng SQL gốc không đổi, migration không đổi. Snapshot source mới đã hash cả năm tên screenshot Unicode.
+[Báo cáo acceptance](D:/Project_All/UnicoreCRM/backend/docs/development/unicorecrm-opportunity-concurrency-recovery-acceptance.md) ghi đầy đủ bằng chứng và giới hạn. Không commit, push, merge hoặc reset.
+
+Phép thử fault injection sau SQL flush vẫn NOT_RUN_POLICY_BLOCKED. Automatic approval review trước đó đã từ chối hành động với lý do blocked by policy; tôi không thử vượt qua chặn đó và không tuyên bố rollback sau flush PASS.

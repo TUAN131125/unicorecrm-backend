@@ -50,8 +50,41 @@ internal sealed partial class Handler(CustomerAuthorization authorization, ICust
         if (scope is not (RecordAccessScopeFilter.Workspace or RecordAccessScopeFilter.OwnedByMember))
             return CustomerOperationResult<CustomerListResponse>.Success(new([], new(null, false)));
 
-        var candidates = await persistence.ListCustomersAsync(access.Value.Trusted.WorkspaceId, scopeOwner, ownerId,
-            type, status, segment, tier, search, cursorCreatedAt, cursorCustomerId, query.Limit + 1, cancellationToken);
+        IReadOnlyList<Customer> candidates;
+        if(search is null) candidates=await persistence.ListCustomersAsync(access.Value.Trusted.WorkspaceId,scopeOwner,ownerId,
+            type,status,segment,tier,null,cursorCreatedAt,cursorCustomerId,query.Limit+1,cancellationToken);
+        else
+        {
+            // Search authorized owner facts before forming the response page. Each source read is batched.
+            var matched=new List<Customer>();var scanAt=cursorCreatedAt;var scanId=cursorCustomerId;var scanned=0;
+            while(matched.Count<=query.Limit)
+            {
+                var batch=await persistence.ListCustomersAsync(access.Value.Trusted.WorkspaceId,scopeOwner,ownerId,
+                    type,status,segment,tier,null,scanAt,scanId,Math.Min(250,1001-scanned),cancellationToken);
+                if(batch.Count==0)break;
+                scanned+=batch.Count;
+                if(scanned>1000)return CustomerOperationResult<CustomerListResponse>.Failure(CustomerErrors.Validation(
+                    new Dictionary<string,string[]>{{"q",["Search exceeded the candidate budget. Narrow the Customer type, owner, status or segment filters."]}}));
+                var contactMatches=await contacts.MatchVisibleAsync(access.Value.Trusted,
+                    batch.Where(x=>x.RelationshipType=="CONTACT").Select(x=>x.RelationshipId).Distinct().ToArray(),search,
+                    query.Metadata.RequestId,query.Metadata.CorrelationId,cancellationToken);
+                var organizationMatches=await organizations.MatchVisibleAsync(access.Value.Trusted,
+                    batch.Where(x=>x.RelationshipType=="ORGANIZATION_ACCOUNT").Select(x=>x.RelationshipId).Distinct().ToArray(),search,
+                    query.Metadata.RequestId,query.Metadata.CorrelationId,cancellationToken);
+                foreach(var customer in batch)
+                {
+                    var policy=access.Value.Authorization;
+                    var own=(policy.CanRead("customerCode")&&customer.CustomerCode.Contains(search,StringComparison.OrdinalIgnoreCase))
+                        ||(policy.CanRead("segment")&&customer.Segment?.Contains(search,StringComparison.OrdinalIgnoreCase)==true)
+                        ||(policy.CanRead("tier")&&customer.Tier?.Contains(search,StringComparison.OrdinalIgnoreCase)==true);
+                    if(own || (customer.RelationshipType=="CONTACT"?contactMatches:organizationMatches).Contains(customer.RelationshipId))matched.Add(customer);
+                    if(matched.Count>query.Limit)break;
+                }
+                if(batch.Count<250)break;
+                scanAt=batch[^1].CreatedAt;scanId=batch[^1].CustomerId;
+            }
+            candidates=matched;
+        }
         persistence.AddReadAudit(new CustomerReadAuditRecord("listCustomers", access.Value.Trusted.WorkspaceId,
             access.Value.Trusted.MemberId, null, query.Metadata.RequestId, query.Metadata.CorrelationId, null, timeProvider.GetUtcNow()));
         await persistence.SaveChangesAsync(cancellationToken);

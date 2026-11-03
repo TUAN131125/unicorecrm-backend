@@ -52,9 +52,7 @@ public sealed class ArchitectureTests
                 if (Layer(to) is "Domain" or "Infrastructure") errors.Add($"Foreign internal reference: {type.FullName} -> {reference.FullName}");
                 else
                 {
-                    var sourceName = from.Split('.'); var layer = Array.IndexOf(sourceName, Layer(from));
-                    var targetName = to.Split('.'); var targetLayer = Array.IndexOf(targetName, "Contracts");
-                    var edge = layer > 0 && targetLayer > 0 ? $"{sourceName[layer - 1]}.{sourceName[layer]} -> {targetName[targetLayer - 1]}.Contracts.{reference.Name}" : "UNCLASSIFIED";
+                    var edge = ContractEdge(from, to, reference.Name);
                     if (!ContractAllowed(edge)) errors.Add($"Unapproved contract: {edge}");
                 }
             }

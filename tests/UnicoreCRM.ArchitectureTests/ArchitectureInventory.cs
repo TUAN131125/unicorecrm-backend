@@ -43,20 +43,30 @@ internal static class ArchitectureInventory
     }
     internal static IEnumerable<TypeReference> Expand(TypeReference type)
     {
-        yield return type;
         if (type is GenericInstanceType generic)
+        {
+            yield return type;
             foreach (var argument in generic.GenericArguments)
                 foreach (var nested in Expand(argument)) yield return nested;
+        }
         else if (type is TypeSpecification specification)
             foreach (var nested in Expand(specification.ElementType)) yield return nested;
+        else yield return type;
     }
     internal static string Namespace(TypeReference type) => type.DeclaringType is { } outer ? Namespace(outer) : type.Namespace;
     internal static bool Under(string value, string prefix) => value == prefix || value.StartsWith(prefix + ".", StringComparison.Ordinal);
     internal static string? Owner(string ns)
     {
         foreach (var module in Manifest("module-map.json").GetProperty("modules").EnumerateArray())
+        {
             foreach (var key in new[] { "domainNamespace", "applicationNamespace", "infrastructureNamespace", "apiNamespace" })
                 if (module.GetProperty(key).ValueKind == JsonValueKind.String && Under(ns, module.GetProperty(key).GetString()!)) return module.GetProperty("owner").GetString();
+            // Explicit owner bindings supplement legacy layer-first namespaces. They identify
+            // ownership only; cross-owner references still require the unchanged allowlist.
+            if (module.TryGetProperty("additionalNamespacePrefixes", out var prefixes))
+                foreach (var prefix in prefixes.EnumerateArray())
+                    if (Under(ns, prefix.GetString()!)) return module.GetProperty("owner").GetString();
+        }
         return null;
     }
     internal static string? Layer(string ns) => new[] { "Domain", "Application", "Infrastructure", "Contracts" }.FirstOrDefault(l => ns.Split('.').Contains(l, StringComparer.Ordinal));
@@ -65,6 +75,23 @@ internal static class ArchitectureInventory
         || (source == "Application" && target.Contains(".Infrastructure", StringComparison.Ordinal));
     internal static bool ContractAllowed(string edge) => Manifest("dependency-allowlist.json").GetProperty("approvedCrossOwnerEdges")
         .EnumerateArray().Any(item => item.GetString() == edge);
+    internal static string ContractEdge(string sourceNamespace, string targetNamespace, string contractName)
+    {
+        var source = OwnerLayerKey(sourceNamespace, Layer(sourceNamespace));
+        var target = OwnerLayerKey(targetNamespace, "Contracts");
+        return source is null || target is null ? "UNCLASSIFIED" : $"{source} -> {target}.{contractName}";
+    }
+    private static string? OwnerLayerKey(string ns, string? layer)
+    {
+        var parts = ns.Split('.');
+        var index = Array.IndexOf(parts, layer);
+        if (index < 1) return null;
+        // The approved workflow edges distinguish Workflows.Atomic and Workflows.Durable.
+        // Retain that full scope rather than collapsing either to Atomic/Durable alone.
+        return Under(ns, "UnicoreCRM.Workflows")
+            ? string.Join(".", parts.Skip(1).Take(index))
+            : $"{parts[index - 1]}.{parts[index]}";
+    }
     internal static bool HasCycle(IReadOnlyDictionary<string, string[]> graph)
     {
         var active = new HashSet<string>(); var visited = new HashSet<string>();

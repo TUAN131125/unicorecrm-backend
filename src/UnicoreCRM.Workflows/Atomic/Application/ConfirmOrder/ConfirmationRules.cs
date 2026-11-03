@@ -18,7 +18,9 @@ internal static class ConfirmationRules
             || string.IsNullOrWhiteSpace(fulfillment.RecipientPhone) || fulfillment.RecipientPhone.Length>80
             || fulfillment.ShippingAddress is not {Line1.Length:>0 and <=300,City.Length:>0 and <=120}
             || string.IsNullOrWhiteSpace(fulfillment.ShippingAddress.Line1) || string.IsNullOrWhiteSpace(fulfillment.ShippingAddress.City)))throw new BusinessCommandException("FULFILLMENT_INFORMATION_REQUIRED");
-        if(o.LineItems.Any(x=>x.ProductTypeSnapshot is not ("SERVICE" or "DIGITAL")) && fulfillment is null
+        // Products' canonical service code is lowercase. Keep legacy snapshots intact and do
+        // not broaden this classification to arbitrary case variants or other product types.
+        if(o.LineItems.Any(x=>x.ProductTypeSnapshot is not ("service" or "SERVICE" or "DIGITAL")) && fulfillment is null
             && (string.IsNullOrWhiteSpace(o.RecipientName) || string.IsNullOrWhiteSpace(o.RecipientPhone) || o.ShippingAddress is not {Line1.Length:>0,City.Length:>0}))
             throw new BusinessCommandException("FULFILLMENT_INFORMATION_REQUIRED");
         // A read summary is never approval authority. Until the credit owner admits a

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup>
+<Compile Include="../../src/UnicoreCRM.Sales/Quotes/Application/Common/QuoteProofPdfInspector.cs" Link="QuoteProofPdfInspector.cs"/>
+<Compile Include="../../src/UnicoreCRM.Sales/Quotes/Infrastructure/Documents/ProofToolProcess.cs" Link="ProofToolProcess.cs"/>
+<Compile Include="../../src/UnicoreCRM.Sales/Quotes/Infrastructure/Documents/QpdfProofValidatorCore.cs" Link="QpdfProofValidatorCore.cs"/>
+</ItemGroup></Project>

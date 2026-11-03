@@ -16,7 +16,7 @@ public sealed record QuoteSalesAcceptanceView(string AcceptanceId, string QuoteI
     string AcceptedAt, string RecordedBy, string Channel, string Evidence, string DocumentId, string CommercialFingerprint,
     string ConversionStatus, string? OrderId, string? LastErrorCode, bool OperationalApprovalRequired, bool AutoConfirmRequested=false);
 public sealed record QuoteInvitationView(string InvitationId, string QuoteId, string DeliveryStatus, string? DeliveryErrorCode,
-    string ExpiresAt, string? AcceptanceUrl);
+    string ExpiresAt, string? AcceptanceUrl, string? CreatedAt=null, string? CreatedBy=null, string? DeliveredAt=null, bool? HasAcceptanceLink=null);
 public sealed record CustomerQuotePreview(string QuoteNumber, string BuyerName, int QuoteRevision, int DocumentVersion,
     QuoteMoney GrandTotal, IReadOnlyList<QuoteLineReadModel> LineItems, PaymentAgreementSnapshotDocument? PaymentAgreement,
     string? ValidUntil, string TermsVersion, string Terms, string DeliveryStatus);

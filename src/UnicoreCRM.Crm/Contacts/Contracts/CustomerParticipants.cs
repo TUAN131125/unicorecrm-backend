@@ -11,6 +11,11 @@ public interface IContactCustomerSubjectParticipant
 
 internal interface IContactCustomerListIdentityParticipant
 {
+    async Task<IReadOnlySet<string>> MatchVisibleAsync(TrustedWorkspaceContext trusted, IReadOnlyCollection<string> ids,
+        string search, string requestId, string correlationId, CancellationToken ct)
+        => (await ResolveVisibleAsync(trusted, ids, requestId, correlationId, ct))
+            .Where(x=>x.Value.Contains(search,StringComparison.OrdinalIgnoreCase)).Select(x=>x.Key).ToHashSet(StringComparer.Ordinal);
+
     Task<IReadOnlyDictionary<string, string>> ResolveVisibleAsync(TrustedWorkspaceContext trusted,
         IReadOnlyCollection<string> contactIds, string requestId, string correlationId, CancellationToken cancellationToken);
 }

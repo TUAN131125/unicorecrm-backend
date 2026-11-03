@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><RootNamespace>UnicoreCRM.Sales.Quotes.Infrastructure.PdfWorker</RootNamespace></PropertyGroup>
+  <ItemGroup><PackageReference Include="PDFsharp-MigraDoc" /><PackageReference Include="PDFsharp" /><PackageReference Include="System.Security.Cryptography.Pkcs" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Fonts/*.ttf" /></ItemGroup>
+  <ItemGroup><None Update="THIRD_PARTY_NOTICES.txt" CopyToOutputDirectory="PreserveNewest" /><None Update="Fonts/LICENSE" CopyToOutputDirectory="PreserveNewest" TargetPath="NotoSans-OFL.txt" /></ItemGroup>
+</Project>

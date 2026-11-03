@@ -1,0 +1,17 @@
+import {createRequire} from "node:module";
+import {writeFile,mkdir} from "node:fs/promises";
+import path from "node:path";
+import {fileURLToPath,pathToFileURL} from "node:url";
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
+const frontend=path.join(root,"frontend/unicorecrm-web");
+const evidence=path.join(root,"task-runtime/shared-smtp-quote/anhduong");
+const require=createRequire(path.join(frontend,"package.json"));
+const {createServer}=await import(pathToFileURL(require.resolve("vite")).href);
+await mkdir(evidence,{recursive:true});
+const server=await createServer({root:frontend,configFile:path.join(frontend,"vite.config.ts"),cacheDir:path.join(evidence,"vite-cache"),server:{host:"127.0.0.1",port:0,strictPort:true,hmr:false,watch:null}});
+await server.listen();
+const url=server.resolvedUrls?.local[0];
+if(!url||new URL(url).hostname!=="127.0.0.1")throw new Error("Expected loopback frontend.");
+await writeFile(path.join(evidence,"frontend.json"),JSON.stringify({url,pid:process.pid},null,2));
+console.log("ISOLATED_FRONTEND_READY");
+process.on("SIGTERM",()=>void server.close().then(()=>process.exit(0)));

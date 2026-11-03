@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "4.2.1",
+  "kind": "UnicoreCRMBackendTaskPacket",
+  "identity": {
+    "taskId": "PRIMARY-SOURCE-INTEGRATION-20261015-BE",
+    "operationId": "createTask",
+    "canonicalOwner": "tasks",
+    "area": "Operations",
+    "status": "PRODUCTION_CONTRACT_READY",
+    "primaryWriter": "gov-primary-writer-root",
+    "reviewer": "PENDING_ASSIGNMENT",
+    "baseCommit": "264a3746143a17f63d8819e970cdf1c7aa897401",
+    "baseline": {
+      "canonicalDesignVersion": "2.0-reconciled",
+      "openApiVersion": "0.23.21-contract.0",
+      "openApiSha256": "4bcde6f6c52bf96545106cff5273aff1681b66c8ee239c91cbef921edfd70880"
+    }
+  },
+  "risk": {
+    "tier": "HIGH",
+    "score": 6,
+    "reasons": [
+      "mutation",
+      "idempotency",
+      "security/tenancy",
+      "event/outbox"
+    ],
+    "specialists": [
+      "CONTRACT_API",
+      "PERSISTENCE_RELIABILITY",
+      "SECURITY_TENANCY"
+    ]
+  },
+  "scope": {
+    "inScope": [
+      "Exact-byte consolidation of six completed deliveries into primary; existing createTask operation is a control anchor, not a new business mutation or admission of new semantics. All adopted bytes fixed by integration scope 68ba73745cedab58c057ae7717b893213426984e7db3ce9c150c5aa43ffb4139"
+    ],
+    "outOfScope": [
+      "All other source paths",
+      "User staged/unstaged/untracked/ignored files",
+      "Lead cursor",
+      "Dependency version changes",
+      "Root authority/contract writes",
+      "Commit/push/merge/rebase/cherry-pick/freeze/release",
+      "Review worktree mutations"
+    ],
+    "allowedWritePaths": [
+      "scripts/verify-deal-follow-up.ps1",
+      "scripts/verify-lead-opportunity-core.ps1",
+      "scripts/verify-product-catalog-search.ps1",
+      "src/UnicoreCRM.Crm/Contacts/Application/GetRelationshipSummary/Handler.cs",
+      "src/UnicoreCRM.Crm/Contacts/Application/Relationships/Handler.cs",
+      "src/UnicoreCRM.Crm/Deals/Application/Common/DealReferenceValidation.cs",
+      "src/UnicoreCRM.Crm/Deals/Application/CreateDeal/Handler.cs",
+      "src/UnicoreCRM.Crm/Deals/Application/ReplaceDealProfile/Handler.cs",
+      "src/UnicoreCRM.Crm/Deals/Application/ValidateTaskReference/DealTaskReferenceAuthority.cs",
+      "src/UnicoreCRM.Crm/Deals/DealsModule.cs",
+      "src/UnicoreCRM.Operations/Tasks/Application/CreateTask/Handler.cs",
+      "src/UnicoreCRM.Operations/Tasks/Application/ListTasks/Handler.cs",
+      "src/UnicoreCRM.Operations/Tasks/Contracts/DealTaskReferenceAuthority.cs",
+      "src/UnicoreCRM.Sales/Products/Application/Common/ProductsApplication.cs",
+      "src/UnicoreCRM.Sales/Products/Application/SearchProductSelections/Handler.cs",
+      "src/UnicoreCRM.Sales/Products/Application/SearchProductSelections/ProductSelectionCursor.cs",
+      "src/UnicoreCRM.Sales/Products/Contracts/ProductSelectionContracts.cs",
+      "src/UnicoreCRM.Sales/Products/Contracts/ProductsEndpoints.cs",
+      "src/UnicoreCRM.Sales/Products/Infrastructure/Persistence/EfProductsPersistence.cs",
+      "src/UnicoreCRM.Sales/Products/ProductsModule.cs"
+    ],
+    "forbiddenWritePaths": [
+      "design-authority/**",
+      "roles/backend-execution/**",
+      "backend-design/frozen/**",
+      "architecture/**"
+    ]
+  },
+  "authorityEvidence": [
+    {
+      "claimId": "AUTH-OPERATION",
+      "classification": "CANONICAL_FACT",
+      "claim": "operation admission/wire metadata",
+      "sourceFile": "design-authority/contracts/openapi.json",
+      "locator": "#/paths/~1tasks/post",
+      "sourceSha256": "4bcde6f6c52bf96545106cff5273aff1681b66c8ee239c91cbef921edfd70880",
+      "derivedFrom": [],
+      "value": "PRODUCTION_CONTRACT_READY"
+    }
+  ],
+  "architecture": {
+    "domainFiles": [],
+    "applicationSlice": "Exact-path source consolidation, preserving all existing ownership, persistence, contracts and dependencies",
+    "infrastructureFiles": [],
+    "apiFiles": [],
+    "crossOwnerEdges": [
+      "Deals.Application -> Tasks.Contracts.IDealTaskReferenceAuthority"
+    ],
+    "persistence": {
+      "owner": "tasks",
+      "dbContext": "UnicoreCRM.Operations.Tasks.Infrastructure.Persistence.TasksDbContext",
+      "schema": "tasks",
+      "migrationRoot": "src/UnicoreCRM.Operations/Tasks/Infrastructure/Persistence/Migrations"
+    }
+  },
+  "policies": {
+    "authorization": "tasks.create",
+    "additionalCapabilities": [],
+    "workspaceRequired": true,
+    "actorRequired": true,
+    "credentialsPolicy": null,
+    "resourceScope": "WORKSPACE",
+    "dataScope": "WORKSPACE",
+    "workspaceDataScope": "WORKSPACE",
+    "idempotency": "REQUIRED",
+    "concurrency": "NOT_APPLICABLE",
+    "transactionBoundary": "SINGLE_TASK_TRANSACTION",
+    "audit": "IMMUTABLE_COMMAND_AUDIT",
+    "eventOutbox": "TASK_CREATED",
+    "workflow": null,
+    "provider": null,
+    "retentionPrivacy": null
+  },
+  "implementationFreedom": {
+    "allowedChoices": [],
+    "approvalRequired": []
+  },
+  "verification": {
+    "unit": [],
+    "integration": [
+      "TEST-IDEM-SAME",
+      "TEST-IDEM-INPROGRESS",
+      "TEST-TX-ROLLBACK",
+      "TEST-AUDIT",
+      "TEST-OUTBOX-ATOMIC"
+    ],
+    "contract": [
+      "TEST-CONTRACT-EXACT"
+    ],
+    "architecture": [],
+    "negative": [
+      "TEST-AUTH-DENY",
+      "TEST-IDEM-REUSE"
+    ],
+    "twoWorkspaceIsolation": [
+      "TEST-TENANT-CROSS"
+    ],
+    "providerConformance": [],
+    "externalConformance": {
+      "required": false
+    }
+  },
+  "stopConditions": [
+    "AUTHORITY_GAP",
+    "BLOCKED_OPERATION",
+    "UNAPPROVED_CROSS_OWNER_DEPENDENCY",
+    "FOREIGN_PERSISTENCE_REQUIRED",
+    "PERSISTENCE_OWNER_UNASSIGNED",
+    "CANONICAL_CONFLICT",
+    "BASELINE_DRIFT",
+    "WRITE_SCOPE_VIOLATION",
+    "AUTHORITY_UNVERIFIED"
+  ],
+  "completion": {
+    "changedFiles": [],
+    "migrations": [],
+    "testsExecuted": [],
+    "deviations": [],
+    "remainingRisks": []
+  }
+}

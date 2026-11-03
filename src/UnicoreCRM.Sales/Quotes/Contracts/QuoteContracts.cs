@@ -57,6 +57,9 @@ public sealed record CommercialAdjustmentReadModel(
 public sealed record QuoteActionAvailabilityReadModel(bool Allowed, IReadOnlyList<string> BlockerCodes);
 public sealed record QuoteReadActions(QuoteActionAvailabilityReadModel Accept)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? SendGmail { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? RecordSalesAcceptance { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? CreateAcceptanceLink { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? IssueDocument { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? Revise { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public QuoteActionAvailabilityReadModel? Expire { get; init; }

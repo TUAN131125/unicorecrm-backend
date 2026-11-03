@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>UnicoreCRM.QuoteLocalTestHost</AssemblyName></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <ProjectReference Include="../../src/UnicoreCRM.ApiHost/UnicoreCRM.ApiHost.csproj" />
+  </ItemGroup>
+</Project>

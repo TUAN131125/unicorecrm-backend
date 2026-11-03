@@ -1,11 +1,12 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Configuration;
 using UnicoreCRM.BuildingBlocks;
 using UnicoreCRM.Workflows.Atomic.Application.Persistence;
 using UnicoreCRM.Workflows.Atomic.Domain;
 namespace UnicoreCRM.Workflows.Atomic.Infrastructure.Persistence;
-internal sealed class OrderConfirmationTransaction(WorkflowsDbContext db):IOrderConfirmationTransaction
+internal sealed class OrderConfirmationTransaction(WorkflowsDbContext db,IConfiguration configuration):IOrderConfirmationTransaction
 {
     public async Task<IOrderConfirmationSession> BeginAsync(string scope,string ws,string order,CancellationToken ct)
     {
@@ -14,13 +15,18 @@ internal sealed class OrderConfirmationTransaction(WorkflowsDbContext db):IOrder
         {
             foreach(var key in new[]{"order-confirm-intent:"+scope,"order-confirm:"+ws.ToLowerInvariant()+":"+order.ToLowerInvariant()})
                 await db.Database.ExecuteSqlInterpolatedAsync($"DECLARE @r int;EXEC @r=sys.sp_getapplock @Resource={key},@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=15000;IF @r<0 THROW 51001,'Confirmation lock unavailable',1;",ct);
-            return new Session(db,tx);
+            return new Session(db,tx,configuration.GetValue<bool>("AcceptedQuoteCustomer:Enabled"));
         }catch{await tx.DisposeAsync();throw;}
     }
-    private sealed class Session(WorkflowsDbContext db,IDbContextTransaction tx):IOrderConfirmationSession
+    private sealed class Session(WorkflowsDbContext db,IDbContextTransaction tx,bool customerEnabled):IOrderConfirmationSession
     {
         public OwnerTransaction OwnerTransaction {get;}=new(db.Database.GetDbConnection(),tx.GetDbTransaction());
         public Task<OrderConfirmationReceipt?> FindAsync(string scope,CancellationToken ct)=>db.Set<OrderConfirmationReceipt>().SingleOrDefaultAsync(x=>x.ScopeKey==scope,ct);
+        public Task EnqueueCustomerAsync(string ws,string order,string quote,string acceptance,DateTimeOffset now,CancellationToken ct)
+        {
+            if(customerEnabled)db.Add(new AcceptedQuoteCustomerTask(ws,order,quote,acceptance,now));
+            return Task.CompletedTask;
+        }
         public async Task CommitAsync(OrderConfirmationReceipt receipt,CancellationToken ct){db.Add(receipt);await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);}
         public ValueTask DisposeAsync()=>tx.DisposeAsync();
     }

@@ -41,6 +41,7 @@ internal sealed class AutomaticConfirmation(IOrderConfirmationTransaction transa
             order.Order.BuyerRef.Type,order.Order.BuyerRef.Id,order.Order.PaymentAgreementSnapshot!.Value.GetRawText(),now,command,order.MemberId,ct);
         var response=new ConfirmOrderWithPaymentPlanResponse(command,scope,order.Order.Id,"order",version,now.UtcDateTime.ToString("O"),"COMMITTED",
             new(order.Order.Id,"CONFIRMED",now.UtcDateTime.ToString("O"),plan.Id,"ACTIVE",plan.ResourceVersion,false),[],[command+"-order",command+"-plan"],[scope]);
+        await tx.EnqueueCustomerAsync(source.WorkspaceId,order.Order.Id,source.QuoteId,source.AcceptanceId,now,ct);
         await tx.CommitAsync(new(scope,source.WorkspaceId,order.Order.Id,order.MemberId,fingerprint,JsonSerializer.Serialize(response,Json),now),ct);
         return order.Order.Id;
     }

@@ -1,0 +1,16 @@
+{
+  "responseId": "contract-fixture",
+  "candidates": [{
+    "finishReason": "STOP",
+    "content": {
+      "role": "model",
+      "parts": [
+        { "thought": true, "text": "Synthetic thought summary must not enter the output contract." },
+        { "text": "{\"summary\":\"o" },
+        { "text": "k\",\"suggestedNextAction\":null," },
+        { "text": "\"attentionPoints\":[]}", "thoughtSignature": "fixture-opaque-signature" }
+      ]
+    }
+  }],
+  "usageMetadata": { "promptTokenCount": 12, "candidatesTokenCount": 8, "thoughtsTokenCount": 4 }
+}

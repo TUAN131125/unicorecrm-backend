@@ -8,6 +8,8 @@
   <ItemGroup>
     <ProjectReference Include="../../scripts/QuotePdfWorker/UnicoreCRM.QuotePdfWorker.csproj" ReferenceOutputAssembly="false" />
     <InternalsVisibleTo Include="UnicoreCRM.Communications.Verifier" />
+    <InternalsVisibleTo Include="UnicoreCRM.ArchitectureTests" />
+    <InternalsVisibleTo Include="UnicoreCRM.QuoteLocalTestHost" />
     <ProjectReference Include="../UnicoreCRM.Communications/UnicoreCRM.Communications.csproj" />
     <ProjectReference Include="../UnicoreCRM.Platform/UnicoreCRM.Platform.csproj" />
     <ProjectReference Include="../UnicoreCRM.Crm/UnicoreCRM.Crm.csproj" />

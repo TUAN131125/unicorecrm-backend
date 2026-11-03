@@ -51,6 +51,7 @@ internal sealed class Handler(IOrderConfirmationTransaction transactions,IOrderC
             o.BuyerRef.Type,o.BuyerRef.Id,o.PaymentAgreementSnapshot.Value.GetRawText(),now,command,source.MemberId,ct);
         var response=new ConfirmOrderWithPaymentPlanResponse(command,correlation,id,"order",version,now.UtcDateTime.ToString("O"),"COMMITTED",
             new(id,"CONFIRMED",now.UtcDateTime.ToString("O"),plan.Id,"ACTIVE",plan.ResourceVersion,false),[],[command+"-order",command+"-plan"],[scope]);
+        await tx.EnqueueCustomerAsync(source.WorkspaceId,id,o.SourceQuoteId,source.AcceptanceId,now,ct);
         await tx.CommitAsync(new(scope,source.WorkspaceId,id,source.MemberId,fingerprint,JsonSerializer.Serialize(response,Json),now),ct);
         return response;
     }

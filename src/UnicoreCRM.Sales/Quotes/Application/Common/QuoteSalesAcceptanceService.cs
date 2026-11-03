@@ -17,6 +17,33 @@ internal sealed class QuoteSalesAcceptanceService(QuoteAuthorization authorizati
 {
     internal const string TermsVersion="ordinary-sales-consent-v1";
     private readonly IDataProtector protector=protection.CreateProtector("QuoteSalesAcceptance.Delivery.v1");
+    internal async Task<(QuoteActionAvailabilityReadModel Gmail,QuoteActionAvailabilityReadModel Staff,QuoteActionAvailabilityReadModel Link)> AvailabilityAsync(
+        Quote q,QuoteRequestMetadata metadata,CancellationToken ct)
+    {
+        static QuoteActionAvailabilityReadModel Hint(string? code)=>new(code is null,code is null?[]:[code]);
+        var command=new QuoteCommandMetadata(metadata.RequestId,metadata.CorrelationId,"availability",q.ResourceVersion);
+        var sending=await StaffAccessAsync(q.QuoteId,command,ct,deliveryOnly:true);
+        var accepting=await StaffAccessAsync(q.QuoteId,command,ct);
+        var issued=(await documents.ListAsync(q.WorkspaceId,q.QuoteId,0,100,ct))
+            .FirstOrDefault(d=>d.QuoteRevision==q.QuoteRevision && d.CommercialFingerprint==QuoteApprovalAssessment.ContentFingerprint(q));
+        async Task<string?> Check(QuoteOperationResult<QuoteAccess> access,string source,bool deliveryOnly=false)
+        {
+            if(!access.IsSuccess)return "ACCESS_DENIED";
+            if(issued is null)return "ACCEPTANCE_DOCUMENT_BINDING_INVALID";
+            if(!await documentAccess.CanReadStoredAsync(issued,[access.Value!],metadata,ct))return "ACCESS_DENIED";
+            return (await EligibleAsync(q,issued.DocumentId,source,ct,deliveryOnly,deliveryOnly))?.Code;
+        }
+        var staff=await Check(accepting,"STAFF_RECORDED");
+        var link=await Check(accepting,"CUSTOMER_LINK");
+        var send=await Check(sending,"CUSTOMER_LINK",true);
+        var recipient=string.IsNullOrWhiteSpace(q.RecipientEmail) || !System.Net.Mail.MailAddress.TryCreate(q.RecipientEmail,out _)?"QUOTE_RECIPIENT_REQUIRED":null;
+        var includesLink=issued is not null && await EligibleAsync(q,issued.DocumentId,"CUSTOMER_LINK",ct,true) is null;
+        var linkConfiguration=policies.PublicBaseUrl is null?"ACCEPTANCE_PUBLIC_ORIGIN_UNAVAILABLE":null;
+        send??=recipient??gmail.ConfigurationError(q.WorkspaceId)??(includesLink?linkConfiguration:null);
+        if(send is null && await store.HasUnresolvedDeliveryAsync(q.WorkspaceId,q.QuoteId,ct))send="GMAIL_DELIVERY_UNRESOLVED";
+        return(Hint(send),Hint(staff),Hint(link??linkConfiguration??recipient));
+    }
+
     internal static QuoteSalesAcceptanceView View(QuoteSalesAcceptance a)=>new(a.AcceptanceId,a.QuoteId,a.Source,a.AssuranceLevel,
         a.AcceptedAt.UtcDateTime.ToString("O"),a.RecordedBy,a.Channel,a.Evidence,a.DocumentId,a.CommercialFingerprint,
         a.ConversionStatus,a.OrderId,a.LastErrorCode,a.OperationalApprovalRequired,a.AutoConfirmRequested);
@@ -73,7 +100,7 @@ internal sealed class QuoteSalesAcceptanceService(QuoteAuthorization authorizati
 
     internal async Task<QuoteOperationResult<QuoteInvitationView>> InviteAsync(string id,QuoteInvitationRequest request,QuoteCommandMetadata command,CancellationToken ct)
     {
-        var grant=await StaffAccessAsync(id,command,ct);if(!grant.IsSuccess)return Fail<QuoteInvitationView>(grant.Error!);
+        var grant=await StaffAccessAsync(id,command,ct,deliveryOnly:request.SendGmail);if(!grant.IsSuccess)return Fail<QuoteInvitationView>(grant.Error!);
         var access=grant.Value!; var ws=access.Trusted.WorkspaceId;
         if(request.SendGmail && (!access.Authorization.CanWrite("sentAt") || !access.Authorization.CanWrite("deliveryHistory")))return Fail<QuoteInvitationView>(QuoteErrors.AccessDenied());
         await using var tx=await quotes.BeginAsync(ct);
@@ -96,58 +123,77 @@ internal sealed class QuoteSalesAcceptanceService(QuoteAuthorization authorizati
         else
         {
             if(q.ResourceVersion!=command.ExpectedVersion)return Error<QuoteInvitationView>("VERSION_CONFLICT",412);
-            var error=await EligibleAsync(q,request.DocumentId,"CUSTOMER_LINK",ct,request.SendGmail);if(error is not null)return Fail<QuoteInvitationView>(error);
+            if(request.SendGmail && await store.HasUnresolvedDeliveryAsync(ws,id,ct))return Error<QuoteInvitationView>("GMAIL_DELIVERY_UNRESOLVED",409);
+            var error=await EligibleAsync(q,request.DocumentId,"CUSTOMER_LINK",ct,request.SendGmail,request.SendGmail);if(error is not null)return Fail<QuoteInvitationView>(error);
             document=(await documents.FindAsync(ws,id,request.DocumentId,ct))!;
             if(!await documentAccess.CanReadStoredAsync(document,[access],new(command.RequestId,command.CorrelationId),ct))return Fail<QuoteInvitationView>(QuoteErrors.AccessDenied());
-            if(policies.PublicBaseUrl is not {} root)return Error<QuoteInvitationView>("ACCEPTANCE_PUBLIC_ORIGIN_UNAVAILABLE",503);
+            var includesLink=!request.SendGmail || await EligibleAsync(q,request.DocumentId,"CUSTOMER_LINK",ct,true) is null;
+            var root=policies.PublicBaseUrl;
+            if(includesLink && root is null)return Error<QuoteInvitationView>("ACCEPTANCE_PUBLIC_ORIGIN_UNAVAILABLE",503);
             if(string.IsNullOrWhiteSpace(q.RecipientEmail) || !System.Net.Mail.MailAddress.TryCreate(q.RecipientEmail,out _))return Error<QuoteInvitationView>("QUOTE_RECIPIENT_REQUIRED",422);
             var token=Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-            var url=root+"/#/quote-acceptance/"+token;
-            var now=clock.GetUtcNow();var p=policies.Read(ws)!;
+            var url=includesLink?root+"/#/quote-acceptance/"+token:"";
+            var now=clock.GetUtcNow();var p=policies.Read(ws);
             invitation=new("quote_inv_"+Guid.NewGuid().ToString("N"),ws,id,document.DocumentId,q.ResourceVersion,
-                QuoteApprovalAssessment.ContentFingerprint(q),QuoteApprovalAssessment.Hash(token),protector.Protect(url),access.Trusted.MemberId,q.RecipientEmail,now.AddHours(p.InvitationHours),now);
+                QuoteApprovalAssessment.ContentFingerprint(q),QuoteApprovalAssessment.Hash(token),includesLink?protector.Protect(url):"",access.Trusted.MemberId,q.RecipientEmail,includesLink?now.AddHours(p!.InvitationHours):now,now);
             store.Add(invitation);
             quotes.AddCommand(new(scope,ws,access.Trusted.MemberId,"createQuoteAcceptanceInvitation",id,fingerprint,
                 JsonSerializer.Serialize(InvitationView(invitation,false),QuotePricing.Json),"quote_audit_"+Guid.NewGuid().ToString("N"),command.RequestId,command.CorrelationId,q.ResourceVersion,q.ResourceVersion,now));
             await quotes.SaveChangesAsync(ct);
         }
-        // SMTP is outside the acceptance transaction. A committed invitation never claims that mail was sent.
+        // A replay reads the durable outcome. It never sends again, including after a failure.
+        // New keys cannot bypass an unresolved earlier attempt on this Quote.
+        if(!request.SendGmail || invitation.DeliveryStatus!="NOT_SENT")
+        {
+            await tx.CommitAsync(ct);
+            return Ok(InvitationView(invitation,!request.SendGmail));
+        }
+        if(await store.HasUnresolvedDeliveryAsync(ws,id,ct))return Error<QuoteInvitationView>("GMAIL_DELIVERY_UNRESOLVED",409);
+        var pdf=await documents.ReadBytesAsync(ws,document.DocumentId,ct);
+        if(pdf is null || Convert.ToHexString(SHA256.HashData(pdf))!=document.PdfSha256)return Error<QuoteInvitationView>("DOCUMENT_INTEGRITY_FAILED",503);
+        var snapshot=JsonSerializer.Deserialize<QuoteDocumentSnapshot>(document.SnapshotJson,QuotePricing.Json)!;
+        var body=$"Kính gửi {snapshot.Buyer.DisplayName},\nBáo giá {q.QuoteNumber}: {q.GrandTotalAmount.ToString(CultureInfo.InvariantCulture)} {q.Currency}.\nHiệu lực: {q.ValidUntil:yyyy-MM-dd}.";
+        if(invitation.ProtectedDeliveryPayload.Length>0)
+            body+=$"\nChấp nhận báo giá: {protector.Unprotect(invitation.ProtectedDeliveryPayload)}\nChỉ ghi nhận đồng ý khi bạn chủ động xác nhận trên trang. Liên kết không xác minh thẩm quyền đại diện pháp lý.";
+
+        invitation.Delivery("SENDING",null,clock.GetUtcNow());
+        await quotes.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         await tx.DisposeAsync();
-        if(request.SendGmail && invitation.DeliveryStatus!="SENT")
+        // No SQL transaction or aggregate lock spans SMTP. A crash leaves SENDING durable and
+        // blocks resending; provider Message-ID alone cannot provide exactly-once delivery.
+        QuoteGmailResult outcome;
+        try { outcome=await gmail.SendAsync(ws,invitation.RecipientEmail,"Báo giá "+q.QuoteNumber,body,pdf,q.QuoteNumber+".pdf",invitation.InvitationId,ct); }
+        catch(Exception) { outcome=new("UNKNOWN","GMAIL_DELIVERY_OUTCOME_UNKNOWN"); }
+        // Persist a known outcome even if the HTTP client disconnected while SMTP was in flight.
+        using var completion=new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var finish=completion.Token;
+        await using var delivery=await quotes.BeginAsync(finish);
+        await quotes.LockAsync($"aggregate:{ws}:{id}",finish);
+        await store.ReloadAsync(invitation,finish);
+        await store.ReloadQuoteAsync(q,finish);
+        invitation.Delivery(outcome.Status,outcome.ErrorCode,clock.GetUtcNow());
+        if(outcome.Status=="SENT")
         {
-            await using var delivery=await quotes.BeginAsync(ct);
-            await quotes.LockAsync("gmail-delivery:"+invitation.InvitationId,ct);
-            await quotes.LockAsync($"aggregate:{ws}:{id}",ct);
-            await store.ReloadAsync(invitation,ct);
-            // Another sender may have completed while this attempt waited for the delivery lock.
-            if(invitation.DeliveryStatus=="SENT")return Ok(InvitationView(invitation,false));
-            var current=await quotes.ReadQuoteAsync(ws,id,ct);
-            if(current is null || current.ResourceVersion!=invitation.QuoteVersion || current.Status is not ("DRAFT" or "REVIEW" or "SENT"))return Error<QuoteInvitationView>("ACCEPTANCE_BINDING_STALE",409);
-            if(invitation.ExpiresAt<=clock.GetUtcNow())return Error<QuoteInvitationView>("ACCEPTANCE_LINK_INVALID_OR_EXPIRED",410);
-            var eligible=await EligibleAsync(current,invitation.DocumentId,"CUSTOMER_LINK",ct,true);
-            if(eligible is not null)return Fail<QuoteInvitationView>(eligible);
-            var pdf=await documents.ReadBytesAsync(ws,document.DocumentId,ct);
-            if(pdf is null || Convert.ToHexString(SHA256.HashData(pdf))!=document.PdfSha256)return Error<QuoteInvitationView>("DOCUMENT_INTEGRITY_FAILED",503);
-            var snapshot=JsonSerializer.Deserialize<QuoteDocumentSnapshot>(document.SnapshotJson,QuotePricing.Json)!;
-            var body=$"Kính gửi {snapshot.Buyer.DisplayName},\nBáo giá {q.QuoteNumber}: {q.GrandTotalAmount.ToString(CultureInfo.InvariantCulture)} {q.Currency}.\nHiệu lực: {q.ValidUntil:yyyy-MM-dd}.\nChấp nhận báo giá: {protector.Unprotect(invitation.ProtectedDeliveryPayload)}\nChỉ ghi nhận đồng ý khi bạn chủ động xác nhận trên trang. Liên kết không xác minh thẩm quyền đại diện pháp lý.";
-            var failure=await gmail.SendAsync(ws,invitation.RecipientEmail,"Báo giá "+q.QuoteNumber,body,pdf,q.QuoteNumber+".pdf",invitation.InvitationId,ct);
-            invitation.Delivery(failure is null?"SENT":"FAILED",failure,clock.GetUtcNow());
-            if(failure is null)
+            // The provider fact remains authoritative even if a concurrent command changed the Quote.
+            // Never overwrite a newer commercial binding or force a terminal Quote back to SENT.
+            if(q.ResourceVersion==invitation.QuoteVersion && QuoteApprovalAssessment.ContentFingerprint(q)==invitation.CommercialFingerprint
+                && q.Status is ("DRAFT" or "REVIEW" or "SENT") && q.ArchivedAt is null)
             {
                 var history=JsonSerializer.Deserialize<List<JsonElement>>(q.DeliveryHistoryJson??"[]",QuotePricing.Json)??[];
                 history.Add(JsonSerializer.SerializeToElement(new QuoteDeliveryRecordReadModel(invitation.InvitationId,"GMAIL",clock.GetUtcNow().UtcDateTime.ToString("O"),invitation.CommercialFingerprint)
                 {EvidenceType="PROVIDER_CONFIRMED_SENT",RecipientEmail=invitation.RecipientEmail,SentBy=access.Trusted.MemberId,
-                    QuoteRevision=q.QuoteRevision,ResourceVersion=q.ResourceVersion+1,DocumentAuthority=document.DocumentId,
-                    ApprovalContentFingerprint=q.ApprovalContentFingerprint,ApprovalPolicyVersion=q.ApprovalPolicyVersion},QuotePricing.Json));
-                if(!q.RecordDelivery(JsonSerializer.Serialize(history,QuotePricing.Json),clock.GetUtcNow()))return Error<QuoteInvitationView>("QUOTE_DELIVERY_STATE_INVALID",409);
+                    QuoteRevision=document.QuoteRevision,ResourceVersion=q.ResourceVersion+1,DocumentAuthority=document.DocumentId,
+                    RecordedAt=clock.GetUtcNow().UtcDateTime.ToString("O")},QuotePricing.Json));
+                if(!q.RecordDelivery(JsonSerializer.Serialize(history,QuotePricing.Json),clock.GetUtcNow()))throw new InvalidOperationException("Validated Quote refused delivery.");
                 invitation.BindSentVersion(q.ResourceVersion);
             }
-            quotes.AddOutbox(new("quote_event_"+Guid.NewGuid().ToString("N"),ws,id,"QUOTE_GMAIL_DELIVERY_RESULT",command.CorrelationId,
-                JsonSerializer.Serialize(new{invitation.InvitationId,invitation.DeliveryStatus,invitation.DeliveryErrorCode},QuotePricing.Json),clock.GetUtcNow()));
-            await quotes.SaveChangesAsync(ct);
-            await delivery.CommitAsync(ct);
+            else invitation.Delivery("SENT","GMAIL_ACCEPTED_BINDING_CHANGED",clock.GetUtcNow());
         }
+        quotes.AddOutbox(new("quote_event_"+Guid.NewGuid().ToString("N"),ws,id,"QUOTE_GMAIL_DELIVERY_RESULT",command.CorrelationId,
+            JsonSerializer.Serialize(new{invitation.InvitationId,invitation.DeliveryStatus,invitation.DeliveryErrorCode},QuotePricing.Json),clock.GetUtcNow()));
+        await quotes.SaveChangesAsync(finish);
+        await delivery.CommitAsync(finish);
         return Ok(InvitationView(invitation,!request.SendGmail));
     }
 
@@ -155,7 +201,7 @@ internal sealed class QuoteSalesAcceptanceService(QuoteAuthorization authorizati
     {
         if(!ValidToken(token))return Error<CustomerQuotePreview>("ACCEPTANCE_LINK_INVALID",404);
         var i=await store.InvitationAsync(QuoteApprovalAssessment.Hash(token),ct);
-        if(i is null || i.ExpiresAt<=clock.GetUtcNow())return Error<CustomerQuotePreview>("ACCEPTANCE_LINK_INVALID_OR_EXPIRED",410);
+        if(i is null || i.ProtectedDeliveryPayload.Length==0 || i.ExpiresAt<=clock.GetUtcNow())return Error<CustomerQuotePreview>("ACCEPTANCE_LINK_INVALID_OR_EXPIRED",410);
         var q=await quotes.ReadQuoteAsync(i.WorkspaceId,i.QuoteId,ct);
         if(q is null || q.ArchivedAt is not null)return Error<CustomerQuotePreview>("ACCEPTANCE_LINK_UNAVAILABLE",410);
         var check=await EligibleAsync(q,i.DocumentId,"CUSTOMER_LINK",ct);if(check is not null)return Fail<CustomerQuotePreview>(check);
@@ -173,7 +219,7 @@ internal sealed class QuoteSalesAcceptanceService(QuoteAuthorization authorizati
         var hash=QuoteApprovalAssessment.Hash(request.Token);
         await using var tx=await quotes.BeginAsync(ct);await quotes.LockAsync("invitation:"+hash,ct);
         var i=await store.InvitationAsync(hash,ct);
-        if(i is null || i.ExpiresAt<=clock.GetUtcNow())return Error<QuoteSalesAcceptanceView>("ACCEPTANCE_LINK_INVALID_OR_EXPIRED",410);
+        if(i is null || i.ProtectedDeliveryPayload.Length==0 || i.ExpiresAt<=clock.GetUtcNow())return Error<QuoteSalesAcceptanceView>("ACCEPTANCE_LINK_INVALID_OR_EXPIRED",410);
         await quotes.LockAsync($"aggregate:{i.WorkspaceId}:{i.QuoteId}",ct);
         var q=await quotes.LoadQuoteAsync(i.WorkspaceId,i.QuoteId,ct);if(q is null)return Error<QuoteSalesAcceptanceView>("ACCEPTANCE_LINK_UNAVAILABLE",410);
         var scope=Scope(i.WorkspaceId,i.InvitationId,"consent",command.IdempotencyKey);
@@ -207,46 +253,53 @@ internal sealed class QuoteSalesAcceptanceService(QuoteAuthorization authorizati
             JsonSerializer.Serialize(new{a.AcceptanceId,a.Source,a.AssuranceLevel,a.CommercialFingerprint,actor,a.PolicyVersion,a.DocumentId,agreedAt=agreed},QuotePricing.Json),now));
         return a;
     }
-    private async Task<QuoteOperationError?> EligibleAsync(Quote q,string document,string source,CancellationToken ct,bool allowUnsent=false)
+    private async Task<QuoteOperationError?> EligibleAsync(Quote q,string document,string source,CancellationToken ct,bool allowUnsent=false,bool deliveryOnly=false)
     {
         // Retained constructor compatibility for historical consumers; B1 is not an issuance prerequisite.
         _ = approvalPolicies;
         var p=policies.Read(q.WorkspaceId);
+        if(!deliveryOnly)
+        {
         if(p is null || source=="STAFF_RECORDED" && !p.AllowStaffRecorded || source=="CUSTOMER_LINK" && !p.AllowCustomerLink)
             return new("ACCEPTANCE_POLICY_DISABLED",409,"Workspace acceptance policy does not allow this source");
         if(p.RequireVerifiedSignerAuthority)return new("VERIFIED_SIGNER_AUTHORITY_REQUIRED",409,"Verified signer authority is required");
         if(!p.OrderDraftLimits.TryGetValue(q.Currency,out var max) || max<=0 || q.GrandTotalAmount<=0 || q.GrandTotalAmount>max)
             return new("ACCEPTANCE_RISK_LIMIT_EXCEEDED",409,"Quote exceeds the ordinary-sales policy");
+        }
         if((allowUnsent?q.Status is not ("DRAFT" or "REVIEW" or "SENT"):q.Status!="SENT") || q.ArchivedAt is not null || q.SalesAcceptance is not null)return new("QUOTE_ACCEPTANCE_STATE_INVALID",409,"Quote cannot be accepted");
         if((await workspaces.ReadAsync(q.WorkspaceId,ct)) is not {Enabled:true})return QuoteErrors.AccessDenied();
         var validity=QuoteValidity.Evaluate(q.ValidUntil,await zones.ReadTimeZoneAsync(q.WorkspaceId,ct),clock.GetUtcNow());
         if(validity.State is "OVERDUE" or "TIMEZONE_UNAVAILABLE")return new("QUOTE_EXPIRED_OR_TIMEZONE_UNAVAILABLE",409,"Quote validity cannot be established");
         var commercialFingerprint=QuoteApprovalAssessment.ContentFingerprint(q);
-        if(!QuoteRevisionContent.Build(q,q.QuoteId).IsSuccess || q.PaymentAgreementJson is null)return new("QUOTE_COMMERCIAL_SNAPSHOT_INVALID",409,"Commercial snapshot invalid");
+        if(!QuoteRevisionContent.Build(q,q.QuoteId).IsSuccess || !deliveryOnly && q.PaymentAgreementJson is null)return new("QUOTE_COMMERCIAL_SNAPSHOT_INVALID",409,"Commercial snapshot invalid");
         var d=await documents.FindAsync(q.WorkspaceId,q.QuoteId,document,ct);
         if(d is null || d.QuoteRevision!=q.QuoteRevision || d.CommercialFingerprint!=commercialFingerprint)return new("ACCEPTANCE_DOCUMENT_BINDING_INVALID",409,"Issued document binding invalid");
         var bytes=await documents.ReadBytesAsync(q.WorkspaceId,document,ct);
         return bytes is null || bytes.Length!=d.FileSize || Convert.ToHexString(SHA256.HashData(bytes))!=d.PdfSha256
             ? new("DOCUMENT_INTEGRITY_FAILED",409,"Issued document integrity invalid"):null;
     }
-    private async Task<QuoteOperationResult<QuoteAccess>> StaffAccessAsync(string id,QuoteCommandMetadata command,CancellationToken ct)
+    private async Task<QuoteOperationResult<QuoteAccess>> StaffAccessAsync(string id,QuoteCommandMetadata command,CancellationToken ct,bool deliveryOnly=false)
     {
         var metadata=new QuoteRequestMetadata(command.RequestId,command.CorrelationId);
         if(!QuotePricing.EntityId(id) || command.ExpectedVersion is null)return Fail<QuoteAccess>(QuoteErrors.Validation(new Dictionary<string,string[]>{{"If-Match",["A resource version is required."]}}));
         QuoteAccess? result=null;
-        foreach(var capability in new[]{QuoteCapabilities.Read,QuoteCapabilities.Update,AccessRequirement.ForCanonicalCapability("orders.create")})
+        foreach(var capability in deliveryOnly?new[]{QuoteCapabilities.Read,QuoteCapabilities.Update}:new[]{QuoteCapabilities.Read,QuoteCapabilities.Update,AccessRequirement.ForCanonicalCapability("orders.create")})
         {
             var grant=await authorization.AuthorizeAsync(metadata,ct,capability);if(!grant.IsSuccess)return grant;
             var q=await quotes.ReadQuoteAsync(grant.Value!.Trusted.WorkspaceId,id,ct);if(q is null)return Fail<QuoteAccess>(QuoteErrors.NotFound());
             var denied=await authorization.EnforceRecordAsync(grant.Value,q,"quoteSalesAcceptance",metadata,ct);if(denied is not null)return Fail<QuoteAccess>(denied);
-            if(QuoteDeliveryCommands.ReadFields.Concat(["customerDecisionHistory","salesAcceptance","status","acceptedAt"]).Any(f=>!grant.Value.Authorization.CanRead(f))
-                || !grant.Value.Authorization.CanWrite("status") || !grant.Value.Authorization.CanWrite("acceptedAt") || !grant.Value.Authorization.CanWrite("customerDecisionHistory") || !grant.Value.Authorization.CanWrite("salesAcceptance"))return Fail<QuoteAccess>(QuoteErrors.AccessDenied());
+            var readFields=deliveryOnly?QuoteDeliveryCommands.ReadFields.Concat(["status"]):QuoteDeliveryCommands.ReadFields.Concat(["customerDecisionHistory","salesAcceptance","status","acceptedAt"]);
+            var writeFields=deliveryOnly?new[]{"status","sentAt","deliveryHistory"}:new[]{"status","acceptedAt","customerDecisionHistory","salesAcceptance"};
+            if(readFields.Any(f=>!grant.Value.Authorization.CanRead(f)) || writeFields.Any(f=>!grant.Value.Authorization.CanWrite(f)))
+                return Fail<QuoteAccess>(QuoteErrors.AccessDenied());
             result=grant.Value;
         }
         return Ok(result!);
     }
-    private QuoteInvitationView InvitationView(QuoteAcceptanceInvitation i,bool disclose)=>new(i.InvitationId,i.QuoteId,i.DeliveryStatus,i.DeliveryErrorCode,
-        i.ExpiresAt.UtcDateTime.ToString("O"),disclose?protector.Unprotect(i.ProtectedDeliveryPayload):null);
+    private QuoteInvitationView InvitationView(QuoteAcceptanceInvitation i,bool disclose)=>new(i.InvitationId,i.QuoteId,
+        i.DeliveryStatus=="FAILED" && i.DeliveryErrorCode is ("GMAIL_DELIVERY_TIMEOUT" or "GMAIL_DELIVERY_FAILED")?"UNKNOWN":i.DeliveryStatus,i.DeliveryErrorCode,
+        i.ExpiresAt.UtcDateTime.ToString("O"),disclose && i.ProtectedDeliveryPayload.Length>0?protector.Unprotect(i.ProtectedDeliveryPayload):null,
+        i.CreatedAt.UtcDateTime.ToString("O"),i.CreatedBy,i.DeliveredAt?.UtcDateTime.ToString("O"),i.ProtectedDeliveryPayload.Length>0);
     private static bool ValidToken(string token)=>token is {Length:64} && token.All(Uri.IsHexDigit);
     private static string Scope(string ws,string actor,string op,string key)=>QuoteApprovalAssessment.Hash($"sales-acceptance|{ws}|{actor}|{op}|{key}");
     private static string Hash<T>(T value)=>QuoteApprovalAssessment.Hash(JsonSerializer.Serialize(value,QuotePricing.Json));

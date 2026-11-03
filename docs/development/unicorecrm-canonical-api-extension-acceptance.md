@@ -1,0 +1,11 @@
+Kết quả: CONTROL_SYSTEM_EXTENSION_GAP_CONFIRMED. confirmManualQuoteAcceptance chưa được admit. Quyết định sản phẩm D1–D6 vẫn đã được phê duyệt và không cần phê duyệt lại.
+
+Điểm nghẽn cụ thể đã được xác định:
+- Canonical OpenAPI đang pin 281 operation; index hiện có 312 operation. Chạy generator trong thư mục thử nghiệm chỉ tạo lại 281 operation, bỏ sót 31 operation hiện có trong index. Không thể chạy generator đó trực tiếp lên manifest hiện tại mà không reconciliation.
+- Bounded verifier là bộ kiểm tra đọc và fail-closed cho một tập webhook cố định; từ chối operation mới là hành vi được thiết kế. Hiện chưa tìm thấy quy trình tổng quát vừa xác thực owner, vừa adopt contract mới và đồng bộ toàn bộ baseline, extension và integrity pins.
+- Bản OpenAPI đề xuất đã qua kiểm tra cấu trúc và các kiểm tra schema âm tính, nhưng chưa được adopt. Kiểm tra generator frontend trên source hiện tại vẫn lỗi ở breaking baseline.
+Tôi đã chuẩn bị [yêu cầu thay đổi control plane](D:/Project_All/UnicoreCRM/task-runtime/canonical-api-extension-20261029/control-change-request.md), [contract đề xuất](D:/Project_All/UnicoreCRM/task-runtime/canonical-api-extension-20261029/proposed-operation.json) và [báo cáo đầy đủ](D:/Project_All/UnicoreCRM/backend/docs/development/unicorecrm-canonical-api-extension-acceptance.md). Không thay đổi canonical contract, allowlist, quyền hay SQL.
+
+Bạn có phê duyệt phạm vi thay đổi control plane trong yêu cầu trên để xây dựng quy trình proposal → review → adoption có kiểm chứng không? Đây là phê duyệt cho cơ chế governance, tách biệt với D1–D6; bản thân phê duyệt này chưa làm operation được admit.
+
+Yêu cầu phê duyệt xuất phát từ [chính sách solo development](D:/Project_All/UnicoreCRM/.unicore-ai/governance/policies/solo-development-v2.json), quy định thay đổi authority “Not authorized by ordinary development scope”, cùng [unicore-backend/SKILL.md](D:/Project_All/UnicoreCRM/.agents/skills/unicore-backend/SKILL.md), yêu cầu tuân theo authority và gates của control system.
