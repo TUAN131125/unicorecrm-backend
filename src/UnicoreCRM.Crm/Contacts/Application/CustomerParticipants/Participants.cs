@@ -8,6 +8,17 @@ namespace UnicoreCRM.Crm.Contacts.Application.CustomerParticipants;
 internal sealed class SubjectParticipant(ContactAuthorization authorization, IContactsPersistence persistence, TimeProvider timeProvider)
     : IContactCustomerSubjectParticipant, IContactCustomerListIdentityParticipant
 {
+    public async Task<UnicoreCRM.Crm.Customers.Contracts.CustomerSourceSearchPlan?> SearchPlanAsync(TrustedWorkspaceContext trusted,
+        string requestId, string correlationId, CancellationToken ct)
+    {
+        var grant = await authorization.AuthorizeAsync(new(requestId, correlationId), ContactCapabilities.Read, ct);
+        if (!grant.IsSuccess || grant.Value!.Trusted.WorkspaceId != trusted.WorkspaceId) return null;
+        var policy = grant.Value.Authorization;
+        if (policy.ScopeFilter is not (UnicoreCRM.Platform.AccessControl.Contracts.RecordAccessScopeFilter.Workspace or UnicoreCRM.Platform.AccessControl.Contracts.RecordAccessScopeFilter.OwnedByMember)) return null;
+        var owner = policy.ScopeFilter == UnicoreCRM.Platform.AccessControl.Contracts.RecordAccessScopeFilter.OwnedByMember ? policy.ScopeOwnerMemberId : null;
+        if (policy.ScopeFilter == UnicoreCRM.Platform.AccessControl.Contracts.RecordAccessScopeFilter.OwnedByMember && owner is null) return null;
+        return persistence.CustomerSearchPlan(trusted.WorkspaceId, owner, new[] { "fullName", "displayName", "personalEmail", "workEmail", "mobilePhone", "workPhone", "otherPhone" }.Where(policy.CanRead).ToHashSet(StringComparer.Ordinal));
+    }
     public async Task<IReadOnlySet<string>> MatchVisibleAsync(TrustedWorkspaceContext trusted, IReadOnlyCollection<string> ids,
         string search, string requestId, string correlationId, CancellationToken ct)
     {

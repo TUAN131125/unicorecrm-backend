@@ -7,6 +7,7 @@ public static class CustomerCapabilities
 {
     public static AccessRequirement View { get; } = AccessRequirement.ForCanonicalCapability("customers.view");
     public static AccessRequirement Create { get; } = AccessRequirement.ForCanonicalCapability("customers.onboard_existing");
+    public static AccessRequirement CreateDirect { get; } = AccessRequirement.ForCanonicalCapability("customers.create_direct");
     public static AccessRequirement Edit { get; } = AccessRequirement.ForCanonicalCapability("customers.edit");
     public static AccessRequirement Archive { get; } = AccessRequirement.ForCanonicalCapability("customers.archive");
 }

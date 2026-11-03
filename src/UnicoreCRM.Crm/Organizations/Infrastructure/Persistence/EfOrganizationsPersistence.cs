@@ -6,8 +6,19 @@ using UnicoreCRM.Crm.Organizations.Domain;
 
 namespace UnicoreCRM.Crm.Organizations.Infrastructure.Persistence;
 
-internal sealed class EfOrganizationsPersistence(OrganizationsDbContext dbContext) : IOrganizationsPersistence
+internal sealed partial class EfOrganizationsPersistence(OrganizationsDbContext dbContext) : IOrganizationsPersistence
 {
+    public async Task<IOrganizationsTransaction> EnlistAsync(UnicoreCRM.BuildingBlocks.OwnerTransaction transaction, CancellationToken ct)
+    {
+        dbContext.Database.SetDbConnection(transaction.Connection, false);
+        await dbContext.Database.UseTransactionAsync(transaction.Transaction, ct);
+        return new EnlistedTransaction();
+    }
+    private sealed class EnlistedTransaction : IOrganizationsTransaction
+    {
+        public Task CommitAsync(CancellationToken ct) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
     // Module-owned read-side reference projection, containing no Activity content.
     public string ActivityReadFactsSql => """
 SELECT WorkspaceId, OrganizationId AS RecordId, OwnerId, CASE WHEN Status<>N'archived' THEN 1 ELSE 0 END AS CanLog, N'ORGANIZATION_ACCOUNT' AS RelationshipType, OrganizationId AS RelationshipId FROM organizations.Organizations

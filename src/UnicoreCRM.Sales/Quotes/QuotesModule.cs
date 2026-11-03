@@ -23,6 +23,7 @@ internal static class QuotesModule
         services.AddScoped<QuoteSalesAcceptanceService>();
         services.AddScoped<EfQuoteSalesAcceptanceStore>();
         services.AddScoped<Contracts.IQuoteOrderConfirmationBinding,Infrastructure.Persistence.QuoteOrderConfirmationBindingReader>();
+        services.AddScoped<Contracts.IDealQuoteCommitmentBinding, Infrastructure.Persistence.DealQuoteCommitmentBinding>();
         services.AddScoped<IQuoteSalesAcceptanceStore>(p=>p.GetRequiredService<EfQuoteSalesAcceptanceStore>());
         services.AddScoped<Contracts.IAcceptedQuoteOrderQueue>(p=>p.GetRequiredService<EfQuoteSalesAcceptanceStore>());
         services.AddScoped<IQuoteGmailSender,Infrastructure.Documents.QuoteGmailSender>();

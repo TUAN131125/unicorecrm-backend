@@ -35,6 +35,10 @@ internal static class CustomersModule
         services.AddScoped<ICustomerSummaryReader, Application.ReadCustomerSummary.CustomerSummaryReader>();
         services.AddScoped<Application.GetCustomer360.Handler>();
         services.AddScoped<Application.CreateCustomer.Handler>();
+        services.AddScoped<Application.CreateDirectCustomer.Handler>();
+        services.AddScoped<Application.CreateDirectCustomer.DirectCustomerPhoneCheck>();
+        services.AddScoped<IDirectCustomerSourceParticipant, Contacts.Infrastructure.Persistence.DirectCustomerSourceParticipant>();
+        services.AddScoped<IDirectCustomerSourceParticipant, Organizations.Infrastructure.Persistence.DirectCustomerSourceParticipant>();
         services.AddScoped<Application.UpdateCustomer.Handler>();
         services.AddScoped<Application.ArchiveCustomer.Handler>();
         services.AddScoped<ILeadCustomerConversionParticipant, Application.ResolveForLeadConversion.Participant>();

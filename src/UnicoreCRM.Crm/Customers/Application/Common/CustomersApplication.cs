@@ -21,6 +21,11 @@ internal sealed record CustomerOperationResult<T>(T? Value, CustomerOperationErr
 
 internal interface ICustomersPersistence
 {
+    Task<IReadOnlyList<Customer>> SearchCustomersAsync(CustomerSearchPage query, CancellationToken ct)
+        => throw new NotSupportedException("Owner-scoped search query required.");
+    Task<IReadOnlyList<Customer>> ReadBySubjectsAsync(string workspaceId, string? scopeOwnerMemberId,
+        IReadOnlyList<UnicoreCRM.Crm.Customers.Contracts.RelationshipRefDocument> subjects, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Subject batch read required.");
     string ActivityReadFactsSql { get; }
     Task<Customer?> ReadCustomerAsync(string workspaceId, string customerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Customer>> ReadCustomersAsync(string workspaceId, CancellationToken cancellationToken);
@@ -43,7 +48,17 @@ internal interface ICustomersPersistence
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
-internal interface ICustomersTransaction : IAsyncDisposable { Task CommitAsync(CancellationToken cancellationToken); }
+internal sealed record CustomerSearchPage(string WorkspaceId, string? ScopeOwnerId, string? OwnerId, string? Type,
+    string? Status, string? Segment, string? Tier, string Search, DateTimeOffset? CursorAt, string? CursorId,
+    int Take, IReadOnlySet<string> ReadableFields, Contracts.CustomerSourceSearchPlan? Contacts,
+    Contracts.CustomerSourceSearchPlan? Organizations);
+
+internal interface ICustomersTransaction : IAsyncDisposable
+{
+    Task CommitAsync(CancellationToken cancellationToken);
+    UnicoreCRM.BuildingBlocks.OwnerTransaction OwnerTransaction => throw new NotSupportedException("Caller-owned SQL transaction required.");
+    Task LockDirectCreationAsync(string workspaceId, CancellationToken cancellationToken) => throw new NotSupportedException("Direct creation lock required.");
+}
 internal sealed class CustomersPersistenceConcurrencyException : Exception { }
 internal sealed class CustomerBusinessKeyConflictException : Exception { }
 

@@ -21,6 +21,10 @@ internal sealed record OrganizationOperationResult<T>(T? Value, OrganizationOper
 
 internal interface IOrganizationsPersistence
 {
+    UnicoreCRM.Crm.Customers.Contracts.CustomerSourceSearchPlan CustomerSearchPlan(string workspaceId, string? ownerId, IReadOnlySet<string> readableFields)
+        => throw new NotSupportedException("Source-owner search projection required.");
+    Task<IOrganizationsTransaction> EnlistAsync(UnicoreCRM.BuildingBlocks.OwnerTransaction transaction, CancellationToken cancellationToken)
+        => throw new NotSupportedException("The persistence must support caller-owned transactions.");
     string ActivityReadFactsSql { get; }
     Task<Organization?> ReadOrganizationAsync(string workspaceId, string organizationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Organization>> ReadOrganizationsAsync(string workspaceId, CancellationToken cancellationToken);

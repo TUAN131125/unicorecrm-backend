@@ -5,6 +5,7 @@ using UnicoreCRM.Crm.Deals.Contracts;
 using UnicoreCRM.Crm.Deals.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Platform.Workspace.Contracts;
+using UnicoreCRM.Sales.Orders.Contracts;
 using Xunit;
 
 namespace UnicoreCRM.ArchitectureTests;
@@ -32,9 +33,9 @@ public sealed class MarkDealWonSecurityTests
         Assert.Equal("DEAL_WIN_EVIDENCE_INVALID", retry.Error?.Code);
         Assert.Null(first.Value);
         Assert.Equal(before, DealProjection.Document(fixture.Deal));
-        Assert.Equal(2, fixture.Persistence.Reads);
-        // The spy throws on every call except an owner-local, no-tracking record read. In
-        // particular no transaction, idempotency replay, tracked load, audit/outbox or save occurs.
+        Assert.True(fixture.Persistence.Reads >= 2);
+        // Source verification may acquire transaction/command locks. The spy still refuses
+        // every tracked load, mutation, audit/outbox, save or committed replay without proof.
     }
 
     [Theory]
@@ -117,7 +118,31 @@ public sealed class MarkDealWonSecurityTests
         var spy = (PersistenceSpy)(object)persistence;
         spy.Deal = deal;
         var access = new AccessEvaluator();
-        return new(new(new(access), persistence), deal, spy, access);
+        var pipelines = DispatchProxy.Create<IDealPipelinePersistence, PipelineSpy>();
+        return new(new(new(access), persistence, new(persistence, pipelines, TimeProvider.System), pipelines, new UnavailableSource()), deal, spy, access);
+    }
+
+    private sealed class UnavailableSource : IDealOrderCommitmentVerifier
+    {
+        public Task<IDealOrderCommitmentLease> AcquireAsync(string workspace, string order, string deal, string buyerType, string buyerId, CancellationToken ct)
+            => Task.FromResult<IDealOrderCommitmentLease>(new NoProof());
+        private sealed class NoProof : IDealOrderCommitmentLease
+        {
+            public ConfirmedDealCommitment? Commitment => null;
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    public class PipelineSpy : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) => method?.Name is "LockCommandAsync" or "LockRegistryAsync"
+            ? Task.CompletedTask : throw new InvalidOperationException("Invalid evidence must not mutate a pipeline.");
+    }
+
+    private sealed class ReadOnlyTransaction : IDealsTransaction
+    {
+        public Task CommitAsync(CancellationToken ct) => throw new InvalidOperationException("Invalid proof must not commit.");
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     public class PersistenceSpy : DispatchProxy
@@ -127,6 +152,8 @@ public sealed class MarkDealWonSecurityTests
         internal int Reads;
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
+            if (method?.Name == "BeginSerializableAsync") return Task.FromResult<IDealsTransaction>(new ReadOnlyTransaction());
+            if (method?.Name == "FindIdempotencyAsync") return Task.FromResult<DealIdempotencyRecord?>(null);
             if (method?.Name != "ReadDealAsync")
                 throw new InvalidOperationException($"Blocked MarkWon must not call {method?.Name}.");
             var args = arguments ?? [];

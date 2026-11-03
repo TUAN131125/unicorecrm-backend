@@ -94,7 +94,7 @@ internal static class CustomerMutationSupport
         if (request.Status is not null && request.Status is not ("ACTIVE" or "INACTIVE")) fields["status"] = ["status is not an admitted lifecycle target."];
         return fields.Count == 0 ? null : CustomerErrors.Validation(fields);
     }
-    private static Dictionary<string, string[]> ValidateProfile(string? segment, IReadOnlyList<string>? tags, string? tier, string? serviceLevel)
+    internal static Dictionary<string, string[]> ValidateProfile(string? segment, IReadOnlyList<string>? tags, string? tier, string? serviceLevel)
     {
         var fields = new Dictionary<string, string[]>();
         if (segment?.Trim().Length > 160) fields["segment"] = ["segment must not exceed 160 characters."];

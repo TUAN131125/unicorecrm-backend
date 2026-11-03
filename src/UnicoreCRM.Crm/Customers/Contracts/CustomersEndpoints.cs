@@ -20,6 +20,10 @@ public static class CustomersEndpoints
             .RequireAuthorization().RequireTrustedWorkspace().WithName("getCustomer360");
         endpoints.MapPost("/customers", CreateCustomerAsync)
             .RequireAuthorization().RequireTrustedWorkspace().WithName("createCustomer");
+        endpoints.MapPost("/customers/direct", CreateDirectCustomerAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("createDirectCustomer");
+        endpoints.MapPost("/customers/phone-check", CheckCustomerPhoneAsync)
+            .RequireAuthorization().RequireTrustedWorkspace().WithName("checkCustomerPhone");
         endpoints.MapPatch("/customers/{customerId}", UpdateCustomerAsync)
             .RequireAuthorization().RequireTrustedWorkspace().WithName("updateCustomer");
         endpoints.MapPost("/customers/{customerId}/archive", ArchiveCustomerAsync)
@@ -70,6 +74,24 @@ public static class CustomersEndpoints
         var result = await handler.HandleAsync(new(body.Value!, metadata), cancellationToken);
         if (result.IsSuccess) context.Response.Headers.ETag = $"\"{result.Value!.Version}\"";
         return CustomersHttp.Result(result, metadata.CorrelationId, StatusCodes.Status201Created);
+    }
+
+    private static async Task<IResult> CreateDirectCustomerAsync(HttpContext context, Application.CreateDirectCustomer.Handler handler, CancellationToken ct)
+    {
+        if (!CustomersHttp.TryCommandMetadata(context, false, out var metadata, out var error)) return error!;
+        var body = await CustomersHttp.ReadBodyAsync<CreateDirectCustomerRequest>(context, metadata!.CorrelationId, ct);
+        if (body.Error is not null) return body.Error;
+        var result = await handler.HandleAsync(new(body.Value!, metadata), ct);
+        if (result.IsSuccess) context.Response.Headers.ETag = $"\"{result.Value!.Version}\"";
+        return CustomersHttp.Result(result, metadata.CorrelationId, StatusCodes.Status201Created);
+    }
+
+    private static async Task<IResult> CheckCustomerPhoneAsync(HttpContext context, Application.CreateDirectCustomer.DirectCustomerPhoneCheck handler, CancellationToken ct)
+    {
+        if (!CustomersHttp.TryMetadata(context, out var metadata, out var error)) return error!;
+        var body = await CustomersHttp.ReadBodyAsync<CheckCustomerPhoneRequest>(context, metadata!.CorrelationId, ct);
+        if (body.Error is not null) return body.Error;
+        return CustomersHttp.Result(await handler.HandleAsync(body.Value!, metadata, ct), metadata.CorrelationId);
     }
 
     private static async Task<IResult> UpdateCustomerAsync(string customerId, HttpContext context, Application.UpdateCustomer.Handler handler, CancellationToken cancellationToken)

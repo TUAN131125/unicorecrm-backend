@@ -21,6 +21,7 @@ internal static class OrdersModule
         services.AddScoped<Contracts.IOrderConfirmationParticipant,OrderConfirmationParticipant>();
         services.AddScoped<Contracts.IOrderPaymentPlanSourceReader,OrderPaymentPlanSourceReader>();
         services.AddScoped<Contracts.IConfirmedQuoteCustomerSourceReader,ConfirmedQuoteCustomerSourceReader>();
+        services.AddScoped<Contracts.IDealOrderCommitmentVerifier, DealOrderCommitmentVerifier>();
         services.AddDevelopmentSchemaMigration(
             "orders",
             (provider, cancellationToken) => provider.GetRequiredService<OrdersDbContext>().Database.MigrateAsync(cancellationToken));

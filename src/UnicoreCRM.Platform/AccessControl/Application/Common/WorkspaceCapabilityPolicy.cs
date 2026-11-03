@@ -20,6 +20,8 @@ internal static class WorkspaceCapabilityPolicy
         "contacts.update",
         "contacts.delete",
         "customers.view",
+        "customers.create_direct",
+        "customers.onboard_existing",
         "deals.assign",
         "deals.bulk",
         "deals.close",

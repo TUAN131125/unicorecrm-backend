@@ -6,7 +6,8 @@ namespace UnicoreCRM.Crm.Organizations.Application.CreateOrganization;
 internal sealed record Command(CreateOrganizationRequest Request, OrganizationCommandMetadata Metadata);
 internal sealed class Handler(OrganizationAuthorization authorization, IOrganizationsPersistence persistence, TimeProvider timeProvider)
 {
-    internal async Task<OrganizationOperationResult<OrganizationMutationResponse>> HandleAsync(Command command, CancellationToken ct)
+    internal async Task<OrganizationOperationResult<OrganizationMutationResponse>> HandleAsync(Command command, CancellationToken ct,
+        UnicoreCRM.BuildingBlocks.OwnerTransaction? ownerTransaction = null)
     {
         var meta = new OrganizationRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
         var access = await authorization.AuthorizeAsync(meta, OrganizationCapabilities.Create, ct);
@@ -16,7 +17,7 @@ internal sealed class Handler(OrganizationAuthorization authorization, IOrganiza
         var forbidden = OrganizationFieldSecurity.GuardCreateWrite(access.Value!.Authorization, command.Request);
         if (forbidden is not null) return OrganizationOperationResult<OrganizationMutationResponse>.Failure(forbidden);
         var trusted = access.Value!.Trusted; var fingerprint = OrganizationMutationSupport.Fingerprint(command.Request);
-        await using var tx = await persistence.BeginSerializableAsync(ct);
+        await using var tx = ownerTransaction is null ? await persistence.BeginSerializableAsync(ct) : await persistence.EnlistAsync(ownerTransaction, ct);
         var scope = OrganizationMutationSupport.ScopeKey(trusted, "createOrganization", "WORKSPACE", command.Metadata.IdempotencyKey);
         var prior = await persistence.FindIdempotencyAsync(scope, ct);
         if (prior is not null)

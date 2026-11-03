@@ -109,10 +109,10 @@ public sealed class CustomerListIdentityTests
     }
 
     [Theory]
-    [InlineData(100, 1, true)]
-    [InlineData(1000, 4, true)]
-    [InlineData(1001, 4, false)]
-    public async Task Search_bounds_owner_batches_and_never_returns_partial_success(int count, int searchBatches, bool success)
+    [InlineData(100)]
+    [InlineData(1000)]
+    [InlineData(1001)]
+    public async Task Search_delegates_one_bounded_filtered_query_without_scanning_unrelated_customers(int count)
     {
         var persistence = DispatchProxy.Create<ICustomersPersistence, PagePersistenceSpy>();
         var spy = (PagePersistenceSpy)(object)persistence;
@@ -126,12 +126,12 @@ public sealed class CustomerListIdentityTests
         var query = new UnicoreCRM.Crm.Customers.Application.ListCustomers.Query(new("request-bounds", "correlation-bounds"),
             "never-match-probe", null, null, null, null, null, null, 25);
         var result = await handler.HandleAsync(query, CancellationToken.None);
-        Assert.Equal(success, result.IsSuccess);
-        if (success) Assert.Empty(result.Value!.Items);
-        // Successful empty pages also make one final identity-projection call to each owner.
-        Assert.Equal(searchBatches + (success ? 1 : 0), subjects.ContactCalls);
-        Assert.Equal(searchBatches + (success ? 1 : 0), subjects.OrganizationCalls);
-        Assert.Equal(count == 100 ? 250 : 1, spy.Take);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value!.Items);
+        Assert.Equal(1, spy.SearchCalls);
+        Assert.Equal(1, subjects.ContactCalls);
+        Assert.Equal(1, subjects.OrganizationCalls);
+        Assert.Equal(26, spy.Take);
     }
 
     public class PagePersistenceSpy : DispatchProxy
@@ -139,9 +139,16 @@ public sealed class CustomerListIdentityTests
         internal IReadOnlyList<Customer> Candidates = [];
         internal int Take;
         internal bool Consume;
+        internal int SearchCalls;
         private int offset;
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
+            if (method?.Name == "SearchCustomersAsync")
+            {
+                SearchCalls++;
+                Take = ((CustomerSearchPage)arguments![0]!).Take;
+                return Task.FromResult<IReadOnlyList<Customer>>([]);
+            }
             if (method?.Name == "ListCustomersAsync")
             {
                 Take = (int)arguments![10]!;

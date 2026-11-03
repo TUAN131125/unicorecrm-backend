@@ -7,8 +7,19 @@ using UnicoreCRM.Crm.Contacts.Domain;
 
 namespace UnicoreCRM.Crm.Contacts.Infrastructure.Persistence;
 
-internal sealed class EfContactsPersistence(ContactsDbContext dbContext) : IContactsPersistence
+internal sealed partial class EfContactsPersistence(ContactsDbContext dbContext) : IContactsPersistence
 {
+    public async Task<IContactsTransaction> EnlistAsync(UnicoreCRM.BuildingBlocks.OwnerTransaction transaction, CancellationToken ct)
+    {
+        dbContext.Database.SetDbConnection(transaction.Connection, false);
+        await dbContext.Database.UseTransactionAsync(transaction.Transaction, ct);
+        return new EnlistedTransaction();
+    }
+    private sealed class EnlistedTransaction : IContactsTransaction
+    {
+        public Task CommitAsync(CancellationToken ct) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
     public async Task<IReadOnlyList<Contact>> ReadContactsByIdsAsync(string workspaceId,
         IReadOnlyCollection<string> contactIds, CancellationToken cancellationToken) =>
         await dbContext.Contacts.AsNoTracking()

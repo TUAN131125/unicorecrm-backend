@@ -8,6 +8,7 @@ using UnicoreCRM.Crm.Customers.Domain;
 using UnicoreCRM.Platform.AccessControl.Contracts;
 using UnicoreCRM.Crm.Contacts.Contracts;
 using UnicoreCRM.Crm.Organizations.Contracts;
+using Microsoft.Extensions.Logging;
 
 namespace UnicoreCRM.Crm.Customers.Application.ListCustomers;
 
@@ -16,7 +17,7 @@ internal sealed record Query(CustomerRequestMetadata Metadata, string? Q, string
 
 internal sealed partial class Handler(CustomerAuthorization authorization, ICustomersPersistence persistence,
     CustomerHealthAssessmentService health, TimeProvider timeProvider,
-    IContactCustomerListIdentityParticipant contacts, IOrganizationCustomerListIdentityParticipant organizations)
+    IContactCustomerListIdentityParticipant contacts, IOrganizationCustomerListIdentityParticipant organizations, ILogger<Handler>? logger = null)
 {
     private static readonly HashSet<string> Types = ["B2C", "B2B"];
     private static readonly HashSet<string> Statuses = ["NEW", "ACTIVE", "AT_RISK", "INACTIVE", "CHURNED", "DO_NOT_CONTACT", "ARCHIVED"];
@@ -51,39 +52,24 @@ internal sealed partial class Handler(CustomerAuthorization authorization, ICust
             return CustomerOperationResult<CustomerListResponse>.Success(new([], new(null, false)));
 
         IReadOnlyList<Customer> candidates;
+        var sourcePlanCalls = 0;
         if(search is null) candidates=await persistence.ListCustomersAsync(access.Value.Trusted.WorkspaceId,scopeOwner,ownerId,
             type,status,segment,tier,null,cursorCreatedAt,cursorCustomerId,query.Limit+1,cancellationToken);
         else
         {
-            // Search authorized owner facts before forming the response page. Each source read is batched.
-            var matched=new List<Customer>();var scanAt=cursorCreatedAt;var scanId=cursorCustomerId;var scanned=0;
-            while(matched.Count<=query.Limit)
-            {
-                var batch=await persistence.ListCustomersAsync(access.Value.Trusted.WorkspaceId,scopeOwner,ownerId,
-                    type,status,segment,tier,null,scanAt,scanId,Math.Min(250,1001-scanned),cancellationToken);
-                if(batch.Count==0)break;
-                scanned+=batch.Count;
-                if(scanned>1000)return CustomerOperationResult<CustomerListResponse>.Failure(CustomerErrors.Validation(
-                    new Dictionary<string,string[]>{{"q",["Search exceeded the candidate budget. Narrow the Customer type, owner, status or segment filters."]}}));
-                var contactMatches=await contacts.MatchVisibleAsync(access.Value.Trusted,
-                    batch.Where(x=>x.RelationshipType=="CONTACT").Select(x=>x.RelationshipId).Distinct().ToArray(),search,
-                    query.Metadata.RequestId,query.Metadata.CorrelationId,cancellationToken);
-                var organizationMatches=await organizations.MatchVisibleAsync(access.Value.Trusted,
-                    batch.Where(x=>x.RelationshipType=="ORGANIZATION_ACCOUNT").Select(x=>x.RelationshipId).Distinct().ToArray(),search,
-                    query.Metadata.RequestId,query.Metadata.CorrelationId,cancellationToken);
-                foreach(var customer in batch)
-                {
-                    var policy=access.Value.Authorization;
-                    var own=(policy.CanRead("customerCode")&&customer.CustomerCode.Contains(search,StringComparison.OrdinalIgnoreCase))
-                        ||(policy.CanRead("segment")&&customer.Segment?.Contains(search,StringComparison.OrdinalIgnoreCase)==true)
-                        ||(policy.CanRead("tier")&&customer.Tier?.Contains(search,StringComparison.OrdinalIgnoreCase)==true);
-                    if(own || (customer.RelationshipType=="CONTACT"?contactMatches:organizationMatches).Contains(customer.RelationshipId))matched.Add(customer);
-                    if(matched.Count>query.Limit)break;
-                }
-                if(batch.Count<250)break;
-                scanAt=batch[^1].CreatedAt;scanId=batch[^1].CustomerId;
-            }
-            candidates=matched;
+            // Source owners export authorized ID-only query plans. SQL filters those source
+            // IDs before applying the Customer owner's scope, cursor and bounded page size.
+            var policy = access.Value.Authorization;
+            sourcePlanCalls = (policy.CanRead("relationshipRef") && type != "B2B" ? 1 : 0)
+                + (policy.CanRead("relationshipRef") && type != "B2C" ? 1 : 0);
+            var contactPlan = policy.CanRead("relationshipRef") && type != "B2B"
+                ? await contacts.SearchPlanAsync(access.Value.Trusted, query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken) : null;
+            var organizationPlan = policy.CanRead("relationshipRef") && type != "B2C"
+                ? await organizations.SearchPlanAsync(access.Value.Trusted, query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken) : null;
+            candidates = await persistence.SearchCustomersAsync(new(access.Value.Trusted.WorkspaceId, scopeOwner, ownerId,
+                type, status, segment, tier, search, cursorCreatedAt, cursorCustomerId, query.Limit + 1,
+                new[] { "customerCode", "segment", "tier", "tags" }.Where(policy.CanRead).ToHashSet(StringComparer.Ordinal),
+                contactPlan, organizationPlan), cancellationToken);
         }
         persistence.AddReadAudit(new CustomerReadAuditRecord("listCustomers", access.Value.Trusted.WorkspaceId,
             access.Value.Trusted.MemberId, null, query.Metadata.RequestId, query.Metadata.CorrelationId, null, timeProvider.GetUtcNow()));
@@ -101,6 +87,7 @@ internal sealed partial class Handler(CustomerAuthorization authorization, ICust
         var organizationNames = await organizations.ResolveVisibleAsync(access.Value.Trusted,
             page.Where(x => x.RelationshipType == "ORGANIZATION_ACCOUNT").Select(x => x.RelationshipId).Distinct(StringComparer.Ordinal).ToArray(),
             query.Metadata.RequestId, query.Metadata.CorrelationId, cancellationToken);
+        if (search is not null) logger?.LogInformation("Customer search: SourcePlanCalls={SourcePlanCalls}, IdentityBatchCalls={IdentityBatchCalls}, MaterializedRows={MaterializedRows}", sourcePlanCalls, 2, candidates.Count);
         var identities = new Dictionary<string, Customer360Identity>(StringComparer.Ordinal);
         foreach (var customer in page)
         {

@@ -2,13 +2,24 @@ using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using UnicoreCRM.Crm.Customers.Application.Common;
 using UnicoreCRM.Crm.Customers.Domain;
 
 namespace UnicoreCRM.Crm.Customers.Infrastructure.Persistence;
 
-internal sealed class EfCustomersPersistence(CustomersDbContext dbContext) : ICustomersPersistence
+internal sealed partial class EfCustomersPersistence(CustomersDbContext dbContext, ILogger<EfCustomersPersistence>? logger = null) : ICustomersPersistence
 {
+    public async Task<IReadOnlyList<Customer>> ReadBySubjectsAsync(string workspaceId, string? scopeOwnerMemberId,
+        IReadOnlyList<Contracts.RelationshipRefDocument> subjects, CancellationToken ct)
+    {
+        var contacts = subjects.Where(s => s.Type == "CONTACT").Select(s => s.Id).ToArray();
+        var organizations = subjects.Where(s => s.Type == "ORGANIZATION_ACCOUNT").Select(s => s.Id).ToArray();
+        var query = dbContext.Customers.AsNoTracking().Where(c => c.WorkspaceId == workspaceId &&
+            (c.RelationshipType == "CONTACT" && contacts.Contains(c.RelationshipId) || c.RelationshipType == "ORGANIZATION_ACCOUNT" && organizations.Contains(c.RelationshipId)));
+        if (scopeOwnerMemberId is not null) query = query.Where(c => c.OwnerId == scopeOwnerMemberId);
+        return await query.ToArrayAsync(ct);
+    }
     // Module-owned read-side reference projection, containing no Activity content.
     public string ActivityReadFactsSql => """
 SELECT WorkspaceId, CustomerId AS RecordId, OwnerId, CASE WHEN Status IN (N'NEW',N'ACTIVE',N'INACTIVE') THEN 1 ELSE 0 END AS CanLog, RelationshipType, RelationshipId FROM customers.Customers
@@ -80,6 +91,14 @@ SELECT WorkspaceId, CustomerId AS RecordId, OwnerId, CASE WHEN Status IN (N'NEW'
 
     private sealed class Transaction(IDbContextTransaction transaction, CustomersDbContext context) : ICustomersTransaction
     {
+        public UnicoreCRM.BuildingBlocks.OwnerTransaction OwnerTransaction { get; } = new(context.Database.GetDbConnection(), transaction.GetDbTransaction());
+        public async Task LockDirectCreationAsync(string workspaceId, CancellationToken ct)
+        {
+            var key = "direct-customer:" + workspaceId.ToLowerInvariant();
+            try { await context.Database.ExecuteSqlInterpolatedAsync($"DECLARE @result int; EXEC @result=sys.sp_getapplock @Resource={key},@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=15000; IF @result<0 THROW 51001,'Direct customer creation lock unavailable',1;", ct); }
+            catch (Exception error) when (ContainsSqlError(error, 51001) || ContainsSqlError(error, 1205) || ContainsSqlError(error, 1222))
+            { throw new CustomersPersistenceConcurrencyException(); }
+        }
         private bool committed;
         public async Task CommitAsync(CancellationToken cancellationToken) { await transaction.CommitAsync(cancellationToken); committed = true; }
         public async ValueTask DisposeAsync() { await transaction.DisposeAsync(); if (!committed) context.ChangeTracker.Clear(); }

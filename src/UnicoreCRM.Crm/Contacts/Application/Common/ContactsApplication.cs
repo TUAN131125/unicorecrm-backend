@@ -38,6 +38,10 @@ internal sealed class ContactsRelationshipConflictException : Exception { }
 
 internal interface IContactsPersistence
 {
+    UnicoreCRM.Crm.Customers.Contracts.CustomerSourceSearchPlan CustomerSearchPlan(string workspaceId, string? ownerId, IReadOnlySet<string> readableFields)
+        => throw new NotSupportedException("Source-owner search projection required.");
+    Task<IContactsTransaction> EnlistAsync(UnicoreCRM.BuildingBlocks.OwnerTransaction transaction, CancellationToken cancellationToken)
+        => throw new NotSupportedException("The persistence must support caller-owned transactions.");
     string ActivityReadFactsSql { get; }
     Task<ListContacts.ContactListSlice> ReadContactPageAsync(ListContacts.ContactListSpecification specification, int limit, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, long>> ReadContactStatusCountsAsync(ListContacts.ContactListSpecification specification, CancellationToken cancellationToken);

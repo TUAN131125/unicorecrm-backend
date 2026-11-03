@@ -13,7 +13,8 @@ internal sealed class Handler(
     IWorkspaceMemberReferenceValidator memberValidator,
     TimeProvider timeProvider)
 {
-    internal async Task<ContactOperationResult<ContactMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken)
+    internal async Task<ContactOperationResult<ContactMutationResponse>> HandleAsync(Command command, CancellationToken cancellationToken,
+        UnicoreCRM.BuildingBlocks.OwnerTransaction? ownerTransaction = null)
     {
         var requestMetadata = new ContactRequestMetadata(command.Metadata.RequestId, command.Metadata.CorrelationId);
         var access = await authorization.AuthorizeAsync(requestMetadata, ContactCapabilities.Create, cancellationToken);
@@ -23,7 +24,8 @@ internal sealed class Handler(
 
         var trusted = access.Value!.Trusted;
         var fingerprint = ContactMutationSupport.Fingerprint(new { fullName, ownerId, profile });
-        await using var transaction = await persistence.BeginSerializableAsync(cancellationToken);
+        await using var transaction = ownerTransaction is null ? await persistence.BeginSerializableAsync(cancellationToken)
+            : await persistence.EnlistAsync(ownerTransaction, cancellationToken);
         var scopeKey = ContactMutationSupport.ScopeKey(trusted, "createContact", "WORKSPACE", command.Metadata.IdempotencyKey);
         var existing = await persistence.FindIdempotencyAsync(scopeKey, cancellationToken);
         if (existing is not null)

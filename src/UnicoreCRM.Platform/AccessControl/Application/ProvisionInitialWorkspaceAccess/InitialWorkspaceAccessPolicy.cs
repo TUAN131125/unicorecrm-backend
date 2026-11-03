@@ -58,8 +58,11 @@ internal static class InitialWorkspaceAccessPolicy
     // Exact owner projection immediately preceding Lead Claim. Deriving it from
     // the current server-owned set keeps unrelated admitted module capabilities intact while still
     // refusing arbitrary subsets or caller-invented capabilities.
+    private static IReadOnlyList<string> PreDirectCustomerCapabilities { get; } =
+        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities.Where(capability => capability is not "customers.create_direct" and not "customers.onboard_existing").ToArray();
+
     private static IReadOnlyList<string> PreClaimOwnerCapabilities { get; } =
-        WorkspaceCapabilityPolicy.WorkspaceOwnerCapabilities.Where(capability => capability is not "leads.claim").ToArray();
+        PreDirectCustomerCapabilities.Where(capability => capability is not "leads.claim").ToArray();
 
     private static IReadOnlyList<string> PreQueueOwnerCapabilities { get; } =
         PreClaimOwnerCapabilities
@@ -98,6 +101,7 @@ internal static class InitialWorkspaceAccessPolicy
     internal static bool IsKnownPreviousCapabilitySet(IReadOnlyList<string> storedCapabilities)
     {
         var preClaim = Validate(PreClaimOwnerCapabilities, "The pre-Claim Workspace Owner capability set is not canonical.");
+        var preDirectCustomer = Validate(PreDirectCustomerCapabilities, "The pre-direct-Customer owner capability set is not canonical.");
         var preQueue = Validate(PreQueueOwnerCapabilities, "The pre-Queue Workspace Owner capability set is not canonical.");
         var v1 = Validate(PreContactsCapabilities, "The V1 initial Workspace access capability set is not canonical.");
         var v2 = Validate(RestrictedOwnerCapabilitiesV2, "The V2 initial Workspace access capability set is not canonical.");
@@ -107,6 +111,7 @@ internal static class InitialWorkspaceAccessPolicy
         var preAiConfiguration = Validate(PreAiConfigurationOwnerCapabilities, "The pre-AI-configuration Workspace Owner capability set is not canonical.");
         var preProactive = Validate(PreProactiveOwnerCapabilities, "The pre-Proactive Workspace Owner capability set is not canonical.");
         return storedCapabilities.SequenceEqual(preClaim, StringComparer.Ordinal)
+            || storedCapabilities.SequenceEqual(preDirectCustomer, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(preQueue, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v1, StringComparer.Ordinal)
             || storedCapabilities.SequenceEqual(v2, StringComparer.Ordinal)

@@ -11,6 +11,8 @@ public interface IOrganizationCustomerSubjectParticipant
 
 internal interface IOrganizationCustomerListIdentityParticipant
 {
+    Task<UnicoreCRM.Crm.Customers.Contracts.CustomerSourceSearchPlan?> SearchPlanAsync(TrustedWorkspaceContext trusted,
+        string requestId, string correlationId, CancellationToken ct) => Task.FromResult<UnicoreCRM.Crm.Customers.Contracts.CustomerSourceSearchPlan?>(null);
     async Task<IReadOnlySet<string>> MatchVisibleAsync(TrustedWorkspaceContext trusted, IReadOnlyCollection<string> ids,
         string search, string requestId, string correlationId, CancellationToken ct)
         => (await ResolveVisibleAsync(trusted, ids, requestId, correlationId, ct))
